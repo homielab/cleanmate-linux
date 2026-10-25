@@ -388,6 +388,37 @@ test_install_replaces_clean_my_ubuntu() {
   assert_missing "$bin/clean-my-ubuntu"; assert_missing "$bin/cmu"
 }
 
+# Clean My Ubuntu 1.x updates itself from clean-my-ubuntu.sh, which hands over to CleanMate.
+test_clean_my_ubuntu_hands_over() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  command -v curl >/dev/null || command -v wget >/dev/null || { SKIPPED="neither curl nor wget installed"; return; }
+  local shim=$ROOT/clean-my-ubuntu.sh www=$WORK/handover port srv out bin
+  assert_eq "$(in_app "script_version '$shim'")" "$(cm --version | awk '{print $2}')" "shim VERSION = script VERSION"
+  grep -q 'clean-my-ubuntu' "$shim" && bash -n "$shim" && ok_ "1.x accepts it as an update" || fail "1.x would reject the shim"
+  fresh_home
+  bin=$HOME_DIR/.local/bin
+  mkdir -p "$www" "$bin"
+  cp "$SCRIPT" "$www/cleanmate.sh"
+  install -m 755 "$shim" "$bin/clean-my-ubuntu" # what a 1.x --update leaves behind
+  port=$((20000 + RANDOM % 20000))
+  (cd "$www" && exec python3 -m http.server "$port" --bind 127.0.0.1) >/dev/null 2>&1 &
+  srv=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10; do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.3; done
+  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_NO_UPDATE_CHECK=1 \
+    CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/cleanmate.sh" CLEANMATE_BUNDLE_URL="http://127.0.0.1:9/x.tar.gz" \
+    bash "$bin/clean-my-ubuntu" --version 2>&1)
+  kill "$srv" 2>/dev/null
+  assert_eq "$out" "$(cm --version)" "runs CleanMate"
+  assert_exists "$bin/cleanmate"
+  assert_eq "$(readlink "$bin/clean-my-ubuntu")" "cleanmate" "clean-my-ubuntu points to cleanmate"
+  # offline and not installed yet: says where to get it
+  fresh_home
+  install -m 755 -D "$shim" "$HOME_DIR/.local/bin/clean-my-ubuntu"
+  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" CLEANMATE_UPDATE_URL="http://127.0.0.1:9/x.sh" \
+    bash "$HOME_DIR/.local/bin/clean-my-ubuntu" 2>&1)
+  assert_contains "$out" "github.com/homielab/cleanmate-linux"
+}
+
 test_trash_and_undo() {
   fresh_home
   local f="$HOME_DIR/Docs/sub dir/Tài liệu 50%.pdf" out info expected
