@@ -1,4 +1,4 @@
-"""Talk to the cleaning engine: `clean-my-ubuntu.sh --json …`.
+"""Talk to the cleaning engine: `cleanmate.sh --json …`.
 
 The GUI never decides what to delete itself. It runs the same tested engine as
 the terminal app and reads one JSON event per line from it, asynchronously, so
@@ -41,7 +41,7 @@ def human(n):
 
 
 class Engine:
-    """Runs `clean-my-ubuntu.sh --json …` and streams its events."""
+    """Runs `cleanmate.sh --json …` and streams its events."""
 
     def __init__(self, path, dry_run=False):
         self.path = os.path.abspath(path)
@@ -119,11 +119,11 @@ class Engine:
 
 class Selection:
     """Remembered choices, shared with the terminal app
-    (~/.config/clean-my-ubuntu/selection, lines of `id=0|1`)."""
+    (~/.config/cleanmate/selection, lines of `id=0|1`)."""
 
     def __init__(self):
         base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-        self.path = os.path.join(base, "clean-my-ubuntu", "selection")
+        self.path = os.path.join(base, "cleanmate", "selection")
 
     def _read(self):
         prefs = {}

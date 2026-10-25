@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Test suite for clean-my-ubuntu.sh.
+# Test suite for cleanmate.sh.
 #
 # Safe to run anywhere: every test uses a throwaway HOME, `sudo` and `pgrep`
 # are replaced by stubs (so system items can never run and results don't depend
@@ -12,8 +12,8 @@
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-SCRIPT=${CMU_SCRIPT:-$ROOT/clean-my-ubuntu.sh} # CMU_SCRIPT: test another copy
-WORK=$(mktemp -d -t cmu-tests.XXXXXX)
+SCRIPT=${CLEANMATE_SCRIPT:-$ROOT/cleanmate.sh} # CLEANMATE_SCRIPT: test another copy
+WORK=$(mktemp -d -t cleanmate-tests.XXXXXX)
 trap 'rm -rf "$WORK"' EXIT
 VERBOSE=0
 [[ ${1:-} == -v ]] && { VERBOSE=1; shift; }
@@ -28,18 +28,18 @@ printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/docker"
 printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/podman" # CI machines ship podman and conda: keep them out too
 printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/conda"
 chmod +x "$WORK/stubs/"*
-# your own ~/… commands (e.g. an installed cmu) must not leak into the tests
+# your own ~/… commands (e.g. an installed cm) must not leak into the tests
 BASE_PATH="$WORK/stubs:$(tr ':' '\n' <<<"$PATH" | grep -v "^$HOME/" | grep -vx "$HOME" | paste -sd: -)"
 
 if [[ -t 1 ]]; then G=$'\e[32m' R=$'\e[31m' Y=$'\e[33m' D=$'\e[2m' N=$'\e[0m'; else G="" R="" Y="" D="" N=""; fi
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-fresh_home() { HOME_DIR=$(mktemp -d -p "$WORK" home.XXXX); mkdir -p "$HOME_DIR/.config/clean-my-ubuntu"; }
+fresh_home() { HOME_DIR=$(mktemp -d -p "$WORK" home.XXXX); mkdir -p "$HOME_DIR/.config/cleanmate"; }
 
-cmu() { # run the app non-interactively inside the fake home
+cm() { # run the app non-interactively inside the fake home
   env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb \
-    CMU_NO_UPDATE_CHECK=1 ${CMU_UPDATE_URL:+CMU_UPDATE_URL=$CMU_UPDATE_URL} bash "$SCRIPT" "$@"
+    CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} bash "$SCRIPT" "$@"
 }
 
 in_app() { # run bash code with the script's functions loaded (sourced, nothing starts)
@@ -53,7 +53,7 @@ select_only() { # ID... — selection file with exactly these items switched on
     on=0
     for w in "$@"; do [[ $id == "$w" ]] && on=1; done
     echo "$id=$on"
-  done >"$HOME_DIR/.config/clean-my-ubuntu/selection"
+  done >"$HOME_DIR/.config/cleanmate/selection"
 }
 
 old() { # FILE [DAYS] — create FILE, last modified and read DAYS (default 200) days ago
@@ -80,11 +80,11 @@ test_syntax() {
 test_help_and_version() {
   fresh_home
   local v h
-  v=$(cmu --version)
-  [[ $v =~ ^clean-my-ubuntu\ [0-9]+\.[0-9]+\.[0-9]+$ ]] && ok_ "$v" || fail "bad --version: $v"
-  h=$(cmu --help)
+  v=$(cm --version)
+  [[ $v =~ ^cleanmate\ [0-9]+\.[0-9]+\.[0-9]+$ ]] && ok_ "$v" || fail "bad --version: $v"
+  h=$(cm --help)
   assert_contains "$h" "--install"
-  assert_contains "$h" "github.com/homielab/clean-my-ubuntu"
+  assert_contains "$h" "github.com/homielab/cleanmate-linux"
 }
 
 test_human_sizes_match_numfmt() {
@@ -119,7 +119,7 @@ test_protected_paths() {
 test_scan_report() {
   fresh_home
   local out
-  out=$(cmu --scan 2>&1) || fail "--scan exited with an error"
+  out=$(cm --scan 2>&1) || fail "--scan exited with an error"
   assert_contains "$out" "scan report"
   assert_contains "$out" "Found"
 }
@@ -131,7 +131,7 @@ test_stale_app_cache_keeps_excluded_caches() {
   old "$c/pip/http/old.whl"; old "$c/google-chrome/Default/Cache/old"
   old "$c/someapp/old.bin"; new "$c/someapp/fresh.bin"
   select_only app_cache
-  cmu --clean --yes --only user >/dev/null 2>&1 </dev/null
+  cm --clean --yes --only user >/dev/null 2>&1 </dev/null
   assert_missing "$c/someapp/old.bin"
   assert_exists "$c/someapp/fresh.bin"
   assert_exists "$c/pip/http/old.whl"
@@ -145,7 +145,7 @@ test_trash_is_emptied_in_place() {
   echo x >"$t/files/a.txt"; echo y >"$t/files/folder/b"
   printf '[Trash Info]\nPath=/x/a.txt\nDeletionDate=2026-01-01T00:00:00\n' >"$t/info/a.txt.trashinfo"
   select_only trash
-  cmu --clean --yes --only user >/dev/null 2>&1 </dev/null
+  cm --clean --yes --only user >/dev/null 2>&1 </dev/null
   assert_eq "$(find "$t/files" "$t/info" -mindepth 1 | wc -l)" 0 "this Trash is empty"
   assert_exists "$t/files"; assert_exists "$t/info"
 }
@@ -155,7 +155,7 @@ test_browser_items_are_separate() {
   new "$HOME_DIR/.cache/google-chrome/Default/Cache/a"
   new "$HOME_DIR/.cache/mozilla/firefox/x/cache2/b"
   select_only browser_firefox
-  cmu --clean --yes --only browser >/dev/null 2>&1 </dev/null
+  cm --clean --yes --only browser >/dev/null 2>&1 </dev/null
   assert_missing "$HOME_DIR/.cache/mozilla/firefox/x/cache2/b"
   assert_exists "$HOME_DIR/.cache/google-chrome/Default/Cache/a"
 }
@@ -165,7 +165,7 @@ test_app_cache_keeps_app_data() {
   new "$HOME_DIR/.config/Slack/Cache/c"
   new "$HOME_DIR/.config/Slack/Local Storage/login"
   select_only app_slack
-  cmu --clean --yes --only apps >/dev/null 2>&1 </dev/null
+  cm --clean --yes --only apps >/dev/null 2>&1 </dev/null
   assert_missing "$HOME_DIR/.config/Slack/Cache/c"
   assert_exists "$HOME_DIR/.config/Slack/Local Storage/login"
 }
@@ -185,7 +185,7 @@ test_stale_node_modules_rules() {
   done
   mkdir -p "$WORK/nodebin" && printf '#!/bin/sh\n' >"$WORK/nodebin/node" && chmod +x "$WORK/nodebin/node"
   select_only node_modules
-  BASE_PATH="$WORK/nodebin:$BASE_PATH" cmu --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  BASE_PATH="$WORK/nodebin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
   assert_missing "$d/idle-with-lock/node_modules"
   assert_exists "$d/idle-no-lock/node_modules"
   assert_exists "$d/active/node_modules"
@@ -204,7 +204,7 @@ test_ai_tools_keep_memory_and_logins() {
   old "$HOME_DIR/.codex/sessions/2026/01/01/old.jsonl"; new "$HOME_DIR/.codex/sessions/2026/10/01/new.jsonl"
   old "$HOME_DIR/.gemini/oauth_creds.json"
   select_only ai_claude_cache ai_claude_history ai_codex_cache ai_codex_history
-  cmu --clean --yes --only ai >/dev/null 2>&1 </dev/null
+  cm --clean --yes --only ai >/dev/null 2>&1 </dev/null
   assert_missing "$P/aaaa-old.jsonl"; assert_missing "$P/aaaa-old"
   assert_missing "$HOME_DIR/.claude/cache/c.bin"; assert_missing "$HOME_DIR/.codex/.tmp/plugins"
   assert_missing "$HOME_DIR/.codex/sessions/2026/01/01/old.jsonl"
@@ -224,7 +224,7 @@ test_privacy_clears_in_place() {
   printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<xbel version="1.0">' \
     '<bookmark href="file:///secret.pdf"/>' '</xbel>' >"$HOME_DIR/.local/share/recently-used.xbel"
   select_only priv_bash priv_zsh priv_editor priv_recent
-  cmu --clean --yes --only privacy >/dev/null 2>&1 </dev/null
+  cm --clean --yes --only privacy >/dev/null 2>&1 </dev/null
   assert_eq "$(stat -c %s "$HOME_DIR/.bash_history")" 0 "bash history emptied"
   assert_eq "$(stat -c %a "$HOME_DIR/.bash_history")" 600 "bash history keeps mode 600"
   assert_eq "$(stat -c %s "$HOME_DIR/.zsh_history")" 0 "zsh history emptied"
@@ -241,7 +241,7 @@ test_old_app_logs() {
   new "$HOME_DIR/.config/Code/logs/20261012T150000/main.log"
   old "$HOME_DIR/.config/Code/User/settings.json"
   select_only app_logs
-  cmu --clean --yes --only logs >/dev/null 2>&1 </dev/null
+  cm --clean --yes --only logs >/dev/null 2>&1 </dev/null
   assert_missing "$HOME_DIR/.config/Code/logs/20260101T100000"
   assert_exists "$HOME_DIR/.config/Code/logs/20261012T150000/main.log"
   assert_exists "$HOME_DIR/.config/Code/User/settings.json"
@@ -254,32 +254,32 @@ test_dry_run_changes_nothing() {
   new "$HOME_DIR/.cache/pip/x"; new "$HOME_DIR/.cache/google-chrome/c"; new "$HOME_DIR/.config/Slack/Cache/c"
   printf 'secret\n' >"$HOME_DIR/.bash_history"
   old "$HOME_DIR/.claude/cache/c.bin"
-  in_app 'printf "%s=1\n" "${ITEM_IDS[@]}"' >"$HOME_DIR/.config/clean-my-ubuntu/selection" # everything on
+  in_app 'printf "%s=1\n" "${ITEM_IDS[@]}"' >"$HOME_DIR/.config/cleanmate/selection" # everything on
   # compare every file (size + mtime); the app's own state and GLib's dconf cache don't count
   before=$(cd "$HOME_DIR" && find . \( -path ./.local/state -o -path ./.cache/dconf \) -prune -o -type f -printf '%p %s %T@\n' | sort)
-  cmu --clean --yes --dry-run --only user,browser,apps,ai,dev,privacy >/dev/null 2>&1 </dev/null
+  cm --clean --yes --dry-run --only user,browser,apps,ai,dev,privacy >/dev/null 2>&1 </dev/null
   after=$(cd "$HOME_DIR" && find . \( -path ./.local/state -o -path ./.cache/dconf \) -prune -o -type f -printf '%p %s %T@\n' | sort)
   assert_eq "$after" "$before" "file tree unchanged by --dry-run"
 }
 
-test_install_cmu_and_uninstall() {
+test_install_cm_and_uninstall() {
   fresh_home
   local out bin=$HOME_DIR/.local/bin
-  out=$(cmu --install 2>&1)
+  out=$(cm --install 2>&1)
   assert_contains "$out" "Shorthand: "
-  assert_exists "$bin/clean-my-ubuntu"
-  assert_eq "$(readlink "$bin/cmu")" "clean-my-ubuntu" "cmu points to clean-my-ubuntu"
-  local desktop=$HOME_DIR/.local/share/applications/com.homielab.CleanMyUbuntu.desktop
-  local icon=$HOME_DIR/.local/share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg
+  assert_exists "$bin/cleanmate"
+  assert_eq "$(readlink "$bin/cm")" "cleanmate" "cm points to cleanmate"
+  local desktop=$HOME_DIR/.local/share/applications/com.homielab.CleanMate.desktop
+  local icon=$HOME_DIR/.local/share/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg
   assert_exists "$desktop"
   assert_exists "$icon"
-  assert_contains "$(<"$desktop")" "Icon=com.homielab.CleanMyUbuntu"
+  assert_contains "$(<"$desktop")" "Icon=com.homielab.CleanMate"
   if command -v desktop-file-validate >/dev/null; then
     desktop-file-validate "$desktop" >/dev/null && ok_ "launcher is valid" || fail "invalid launcher: $(desktop-file-validate "$desktop")"
   fi
-  assert_eq "$(env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" cmu --version)" "$(cmu --version)" "cmu runs"
-  printf 'y\ny\n' | cmu --uninstall >/dev/null 2>&1
-  assert_missing "$bin/clean-my-ubuntu"; assert_missing "$bin/cmu"
+  assert_eq "$(env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" cm --version)" "$(cm --version)" "cm runs"
+  printf 'y\ny\n' | cm --uninstall >/dev/null 2>&1
+  assert_missing "$bin/cleanmate"; assert_missing "$bin/cm"
   assert_missing "$desktop"; assert_missing "$icon"
 }
 
@@ -290,35 +290,35 @@ test_install_downloads_app_files() {
   fresh_home
   local www=$WORK/bundle lone=$WORK/lone port srv out
   mkdir -p "$www" "$lone"
-  tar -czf "$www/main.tar.gz" -C "$ROOT/.." --transform "s,^$(basename "$ROOT"),clean-my-ubuntu-main," \
+  tar -czf "$www/main.tar.gz" -C "$ROOT/.." --transform "s,^$(basename "$ROOT"),cleanmate-main," \
     "$(basename "$ROOT")/gui" "$(basename "$ROOT")/data"
-  cp "$SCRIPT" "$lone/clean-my-ubuntu.sh"
+  cp "$SCRIPT" "$lone/cleanmate.sh"
   port=$((20000 + RANDOM % 20000))
   (cd "$www" && exec python3 -m http.server "$port" --bind 127.0.0.1) >/dev/null 2>&1 &
   srv=$!
   for _ in 1 2 3 4 5 6 7 8 9 10; do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.3; done
-  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CMU_BUNDLE_URL="http://127.0.0.1:$port/main.tar.gz" \
-    bash "$lone/clean-my-ubuntu.sh" --install 2>&1)
+  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_BUNDLE_URL="http://127.0.0.1:$port/main.tar.gz" \
+    bash "$lone/cleanmate.sh" --install 2>&1)
   kill "$srv" 2>/dev/null
   assert_contains "$out" "Downloaded the desktop app and icon"
-  assert_exists "$HOME_DIR/.local/share/clean-my-ubuntu/gui/cmu-gui"
-  assert_exists "$HOME_DIR/.local/share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg"
+  assert_exists "$HOME_DIR/.local/share/cleanmate/gui/cleanmate-gui"
+  assert_exists "$HOME_DIR/.local/share/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg"
   # offline: still installs the terminal app
   fresh_home
-  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CMU_BUNDLE_URL="http://127.0.0.1:9/x.tar.gz" \
-    bash "$lone/clean-my-ubuntu.sh" --install 2>&1)
+  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_BUNDLE_URL="http://127.0.0.1:9/x.tar.gz" \
+    bash "$lone/cleanmate.sh" --install 2>&1)
   assert_contains "$out" "Couldn't get the desktop app"
-  assert_exists "$HOME_DIR/.local/bin/clean-my-ubuntu"
+  assert_exists "$HOME_DIR/.local/bin/cleanmate"
 }
 
-test_install_never_shadows_another_cmu() {
+test_install_never_shadows_another_cm() {
   fresh_home
   local out
-  mkdir -p "$WORK/othercmu" && printf '#!/bin/sh\necho other\n' >"$WORK/othercmu/cmu" && chmod +x "$WORK/othercmu/cmu"
-  out=$(BASE_PATH="$WORK/othercmu:$BASE_PATH" cmu --install 2>&1)
+  mkdir -p "$WORK/othercm" && printf '#!/bin/sh\necho other\n' >"$WORK/othercm/cm" && chmod +x "$WORK/othercm/cm"
+  out=$(BASE_PATH="$WORK/othercm:$BASE_PATH" cm --install 2>&1)
   assert_contains "$out" "Skipped the"
-  assert_missing "$HOME_DIR/.local/bin/cmu"
-  assert_contains "$out" "Start it any time with: clean-my-ubuntu"
+  assert_missing "$HOME_DIR/.local/bin/cm"
+  assert_contains "$out" "Start it any time with: cleanmate"
 }
 
 test_update_flow() {
@@ -333,23 +333,59 @@ test_update_flow() {
   (cd "$www" && exec python3 -m http.server "$port" --bind 127.0.0.1) >/dev/null 2>&1 &
   srv=$!
   for _ in 1 2 3 4 5 6 7 8 9 10; do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.3; done
-  cmu --install >/dev/null 2>&1
+  cm --install >/dev/null 2>&1
 
-  out=$(CMU_UPDATE_URL="http://127.0.0.1:$port/bad.sh" cmu --update 2>&1 </dev/null)
-  assert_contains "$out" "doesn't look like Clean My Ubuntu"
-  out=$(CMU_UPDATE_URL="http://127.0.0.1:$port/missing.sh" cmu --update 2>&1 </dev/null)
+  out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/bad.sh" cm --update 2>&1 </dev/null)
+  assert_contains "$out" "doesn't look like CleanMate"
+  out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/missing.sh" cm --update 2>&1 </dev/null)
   assert_contains "$out" "No published version"
-  out=$(CMU_UPDATE_URL="http://127.0.0.1:9/x.sh" cmu --update 2>&1 </dev/null)
+  out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:9/x.sh" cm --update 2>&1 </dev/null)
   assert_contains "$out" "Could not reach"
-  out=$(printf 'y\n' | CMU_UPDATE_URL="http://127.0.0.1:$port/new.sh" cmu --update 2>&1)
+  out=$(printf 'y\n' | CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/new.sh" cm --update 2>&1)
   assert_contains "$out" "Updated to 99.0.0"
-  assert_eq "$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" bash "$HOME_DIR/.local/bin/clean-my-ubuntu" --version)" \
-    "clean-my-ubuntu 99.0.0" "installed copy updated"
-  assert_eq "$(readlink "$HOME_DIR/.local/bin/cmu")" "clean-my-ubuntu" "cmu link survives the update"
-  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CMU_UPDATE_URL="http://127.0.0.1:$port/new.sh" \
-    bash "$HOME_DIR/.local/bin/clean-my-ubuntu" --update 2>&1 </dev/null)
+  assert_eq "$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" bash "$HOME_DIR/.local/bin/cleanmate" --version)" \
+    "cleanmate 99.0.0" "installed copy updated"
+  assert_eq "$(readlink "$HOME_DIR/.local/bin/cm")" "cleanmate" "cm link survives the update"
+  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/new.sh" \
+    bash "$HOME_DIR/.local/bin/cleanmate" --update 2>&1 </dev/null)
   assert_contains "$out" "up to date"
   kill "$srv" 2>/dev/null
+}
+
+# Clean My Ubuntu 1.x installed with --install: everything moves over to CleanMate.
+test_install_replaces_clean_my_ubuntu() {
+  fresh_home
+  rmdir "$HOME_DIR/.config/cleanmate"
+  local out bin=$HOME_DIR/.local/bin cfg=$HOME_DIR/.config share=$HOME_DIR/.local/share
+  local units=$cfg/systemd/user stubs=$WORK/systemctlbin
+  mkdir -p "$bin" "$cfg/clean-my-ubuntu" "$HOME_DIR/.local/state/clean-my-ubuntu" "$units" \
+    "$share/applications" "$share/icons/hicolor/scalable/apps" "$share/clean-my-ubuntu/gui/cmu_gui" "$stubs"
+  printf '#!/usr/bin/env bash\n# clean-my-ubuntu.sh 1.1.1\n' >"$bin/clean-my-ubuntu"
+  chmod +x "$bin/clean-my-ubuntu"
+  ln -s clean-my-ubuntu "$bin/cmu"
+  echo "thumbs=0" >"$cfg/clean-my-ubuntu/selection"
+  echo "old run" >"$HOME_DIR/.local/state/clean-my-ubuntu/clean.log"
+  : >"$share/applications/com.homielab.CleanMyUbuntu.desktop"
+  : >"$share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg"
+  : >"$share/clean-my-ubuntu/gui/cmu-gui"
+  printf '[Timer]\nOnCalendar=weekly\n' >"$units/clean-my-ubuntu.timer"
+  : >"$units/clean-my-ubuntu.service"
+  printf '#!/bin/sh\nexit 0\n' >"$stubs/systemctl"; chmod +x "$stubs/systemctl"
+  out=$(BASE_PATH="$stubs:$BASE_PATH" cm --install 2>&1)
+  assert_contains "$out" "Replaced Clean My Ubuntu"
+  assert_eq "$(<"$cfg/cleanmate/selection")" "thumbs=0" "selection moved"
+  assert_eq "$(<"$HOME_DIR/.local/state/cleanmate/clean.log")" "old run" "log moved"
+  assert_missing "$cfg/clean-my-ubuntu"; assert_missing "$HOME_DIR/.local/state/clean-my-ubuntu"
+  assert_eq "$(readlink "$bin/clean-my-ubuntu")" "cleanmate" "clean-my-ubuntu points to cleanmate"
+  assert_eq "$(readlink "$bin/cmu")" "cleanmate" "cmu points to cleanmate"
+  assert_missing "$share/applications/com.homielab.CleanMyUbuntu.desktop"
+  assert_missing "$share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg"
+  assert_missing "$share/clean-my-ubuntu"
+  assert_missing "$units/clean-my-ubuntu.timer"; assert_missing "$units/clean-my-ubuntu.service"
+  assert_contains "$(cat "$units/cleanmate.timer" 2>/dev/null)" "OnCalendar=weekly"
+  assert_contains "$(cat "$units/cleanmate.service" 2>/dev/null)" "ExecStart=\"$bin/cleanmate\" --auto"
+  printf 'y\nn\n' | BASE_PATH="$stubs:$BASE_PATH" cm --uninstall >/dev/null 2>&1
+  assert_missing "$bin/clean-my-ubuntu"; assert_missing "$bin/cmu"
 }
 
 test_trash_and_undo() {
@@ -403,13 +439,13 @@ case "\$*" in
 esac
 EOF
   chmod +x "$WORK/dockerbin/docker"
-  out=$(BASE_PATH="$WORK/dockerbin:$BASE_PATH" cmu --scan --only dev 2>&1)
+  out=$(BASE_PATH="$WORK/dockerbin:$BASE_PATH" cm --scan --only dev 2>&1)
   assert_contains "$out" "Docker: dangling images"
   assert_contains "$out" "2 images"
   assert_contains "$out" "2 containers"
   assert_contains "$out" "1 volume — may contain data"
   select_only docker_dangling docker_build
-  BASE_PATH="$WORK/dockerbin:$BASE_PATH" cmu --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  BASE_PATH="$WORK/dockerbin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
   out=$(<"$log")
   assert_contains "$out" "image prune -f"
   assert_contains "$out" "builder prune -f"
@@ -423,10 +459,10 @@ test_free_space_history() {
   local out today
   printf -v today '%(%Y-%m-%d)T' -1
   in_app 'record_disk_usage; record_disk_usage' >/dev/null
-  assert_eq "$(grep -c "^$today" "$HOME_DIR/.local/state/clean-my-ubuntu/disk-history.tsv")" 1 "one row per day"
+  assert_eq "$(grep -c "^$today" "$HOME_DIR/.local/state/cleanmate/disk-history.tsv")" 1 "one row per day"
   assert_eq "$(in_app 'sparkline s 50 40 45 30 20 25 10; echo "$s"')" "█▆▇▄▂▃▁" "sparkline"
   printf '%s\t%s\t%s\n' 2026-01-01 50000000000 100000000000 2026-01-15 40000000000 100000000000 \
-    >"$HOME_DIR/.local/state/clean-my-ubuntu/disk-history.tsv"
+    >"$HOME_DIR/.local/state/cleanmate/disk-history.tsv"
   out=$(in_app 'disk_history_lines')
   assert_contains "$out" "Losing about"
   assert_contains "$out" "is full in ~"
@@ -441,7 +477,7 @@ test_auto_clean_reports_what_is_left() {
   chmod +x "$WORK/notifybin/notify-send"
   head -c 120000000 /dev/zero >"$HOME_DIR/.cache/google-chrome/Default/Cache/big" # 120 MB, never auto-cleaned
   new "$HOME_DIR/.cache/thumbnails/large/a.png"
-  out=$(BASE_PATH="$WORK/notifybin:$BASE_PATH" cmu --auto 2>&1 </dev/null)
+  out=$(BASE_PATH="$WORK/notifybin:$BASE_PATH" cm --auto 2>&1 </dev/null)
   assert_missing "$HOME_DIR/.cache/thumbnails/large/a.png" # user junk is cleaned
   assert_exists "$HOME_DIR/.cache/google-chrome/Default/Cache/big" # browsers are only reported
   out=$(<"$log")
@@ -459,20 +495,20 @@ ev = [json.loads(l) for l in sys.stdin if l.strip()]   # every line must be JSON
 kinds = {}
 for e in ev: kinds[e["event"]] = kinds.get(e["event"], 0) + 1
 print(" ".join(f"{k}={v}" for k, v in sorted(kinds.items())), "last=" + ev[-1]["event"])'
-  out=$(cmu --json items | python3 -c "$check" 2>&1); assert_contains "$out" "last=done"
-  out=$(cmu --json scan | python3 -c "$check" 2>&1)
+  out=$(cm --json items | python3 -c "$check" 2>&1); assert_contains "$out" "last=done"
+  out=$(cm --json scan | python3 -c "$check" 2>&1)
   assert_contains "$out" "progress="; assert_contains "$out" "item="; assert_contains "$out" "last=done"
-  out=$(cmu --json scan | python3 -c 'import sys, json
+  out=$(cm --json scan | python3 -c 'import sys, json
 for l in sys.stdin:
     e = json.loads(l)
     if e.get("id") == "thumbs": print(e["status"], e["bytes"] > 0, e["selected"], e["root"])')
   assert_eq "$out" "found True True False" "thumbs item in scan"
-  out=$(cmu --json details thumbs | python3 -c "$check" 2>&1); assert_contains "$out" "details=1"
-  out=$(cmu --json --dry-run clean thumbs 2>&1); assert_contains "$out" '"state":"ok"'
+  out=$(cm --json details thumbs | python3 -c "$check" 2>&1); assert_contains "$out" "details=1"
+  out=$(cm --json --dry-run clean thumbs 2>&1); assert_contains "$out" '"state":"ok"'
   assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png"
-  out=$(cmu --json clean thumbs 2>&1); assert_contains "$out" '"event":"done"'
+  out=$(cm --json clean thumbs 2>&1); assert_contains "$out" '"event":"done"'
   assert_missing "$HOME_DIR/.cache/thumbnails/large/a.png"
-  out=$(cmu --json clean thumbs nope 2>&1); assert_contains "$out" "Unknown item: nope"
+  out=$(cm --json clean thumbs nope 2>&1); assert_contains "$out" "Unknown item: nope"
   in_app 'json_allowed journal 0' && ok_ "root may clean system items" || fail "root should clean journal"
   in_app 'json_allowed thumbs 0' && fail "root must not clean home items" || ok_ "root refused for home items"
   in_app 'json_allowed thumbs 1000' && ok_ "user may clean home items" || fail "user should clean thumbs"
@@ -498,7 +534,7 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   # a private, invisible display; dry run; the self-test never touches system items
   out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" \
     GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
-    timeout 120 "$py" "$ROOT/gui/cmu-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
+    timeout 120 "$py" "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
   kill "$srv" 2>/dev/null
   ((VERBOSE)) && grep SELFTEST <<<"$out" | sed 's/^/      | /'
   assert_contains "$out" "SELFTEST done"
@@ -512,25 +548,26 @@ test_deb_package() {
   fresh_home
   local out=$WORK/dist x=$WORK/debroot deb contents msg
   OUT=$out bash "$ROOT/packaging/build-deb.sh" >/dev/null 2>&1 || { fail "build-deb.sh failed"; return; }
-  deb=$(ls "$out"/clean-my-ubuntu_*_all.deb 2>/dev/null)
+  deb=$(ls "$out"/cleanmate_*_all.deb 2>/dev/null)
   [[ -f $deb ]] && ok_ "built $(basename "$deb")" || { fail "no .deb produced"; return; }
   contents=$(dpkg-deb --contents "$deb")
-  for f in ./usr/bin/clean-my-ubuntu ./usr/bin/cmu ./usr/share/clean-my-ubuntu/gui/cmu-gui \
-    ./usr/share/applications/com.homielab.CleanMyUbuntu.desktop \
-    ./usr/share/metainfo/com.homielab.CleanMyUbuntu.metainfo.xml \
-    ./usr/share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg \
-    ./usr/share/polkit-1/actions/com.homielab.CleanMyUbuntu.policy ./usr/share/doc/clean-my-ubuntu/copyright; do
+  for f in ./usr/bin/cleanmate ./usr/bin/cm ./usr/share/cleanmate/gui/cleanmate-gui \
+    ./usr/share/applications/com.homielab.CleanMate.desktop \
+    ./usr/share/metainfo/com.homielab.CleanMate.metainfo.xml \
+    ./usr/share/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg \
+    ./usr/share/polkit-1/actions/com.homielab.CleanMate.policy ./usr/share/doc/cleanmate/copyright; do
     assert_contains "$contents" "$f"
   done
   assert_eq "$(head -n 1 <<<"$contents" | cut -c1-10)" "drwxr-xr-x" "package root is 755"
-  assert_eq "$(dpkg-deb --field "$deb" Version)" "$(cmu --version | awk '{print $2}')" "package version = script VERSION"
+  assert_eq "$(dpkg-deb --field "$deb" Breaks)" "clean-my-ubuntu (<< 2.0.0~)" "replaces the Clean My Ubuntu package"
+  assert_eq "$(dpkg-deb --field "$deb" Version)" "$(cm --version | awk '{print $2}')" "package version = script VERSION"
   dpkg-deb -x "$deb" "$x"
-  msg=$(env -i HOME="$HOME_DIR" PATH="$x/usr/bin:$BASE_PATH" LANG=C.UTF-8 cmu --install 2>&1)
+  msg=$(env -i HOME="$HOME_DIR" PATH="$x/usr/bin:$BASE_PATH" LANG=C.UTF-8 cm --install 2>&1)
   assert_contains "$msg" "already installed as a package"
-  msg=$(env -i HOME="$HOME_DIR" PATH="$x/usr/bin:$BASE_PATH" LANG=C.UTF-8 cmu --update 2>&1)
+  msg=$(env -i HOME="$HOME_DIR" PATH="$x/usr/bin:$BASE_PATH" LANG=C.UTF-8 cm --update 2>&1)
   assert_contains "$msg" "sudo apt update"
   if command -v appstreamcli >/dev/null; then
-    appstreamcli validate --no-net "$x/usr/share/metainfo/com.homielab.CleanMyUbuntu.metainfo.xml" >/dev/null &&
+    appstreamcli validate --no-net "$x/usr/share/metainfo/com.homielab.CleanMate.metainfo.xml" >/dev/null &&
       ok_ "metainfo valid" || fail "metainfo does not validate"
   fi
 }
@@ -556,7 +593,7 @@ test_ai_models_are_separate_and_never_remembered() {
   local hub=$HOME_DIR/.cache/huggingface/hub lms=$HOME_DIR/.lmstudio/models out
   old "$hub/models--org--small/blobs/a"; old "$hub/models--org--big/blobs/b"
   old "$hub/datasets--org--data/blobs/c"; old "$lms/pub/llm-7b/model.gguf"
-  out=$(cmu --scan --only models 2>&1)
+  out=$(cm --scan --only models 2>&1)
   assert_contains "$out" "Hugging Face — org/small"
   assert_contains "$out" "Hugging Face — org/big"
   assert_contains "$out" "LM Studio — pub/llm-7b"
@@ -566,19 +603,19 @@ test_ai_models_are_separate_and_never_remembered() {
   lms7=$(in_app 'for i in "${ITEM_IDS[@]}"; do [[ ${ITEM_LABEL[$i]} == "LM Studio — pub/llm-7b" ]] && echo "$i"; done')
   [[ $small == model_hf_org_small_[0-9]* ]] && ok_ "stable id $small" || fail "unexpected id: $small"
   # a remembered tick must not make an unattended clean delete a model
-  echo "$small=1" >"$HOME_DIR/.config/clean-my-ubuntu/selection"
-  cmu --clean --yes --only models >/dev/null 2>&1 </dev/null
+  echo "$small=1" >"$HOME_DIR/.config/cleanmate/selection"
+  cm --clean --yes --only models >/dev/null 2>&1 </dev/null
   assert_exists "$hub/models--org--small"
   # the stale-cache cleaner leaves model caches alone too
   select_only app_cache
-  cmu --clean --yes --only user >/dev/null 2>&1 </dev/null
+  cm --clean --yes --only user >/dev/null 2>&1 </dev/null
   assert_exists "$hub/models--org--small/blobs/a"
   # cleaning exactly that model (what the review screen and the desktop app do)
-  out=$(cmu --json clean "$small" 2>&1); assert_contains "$out" '"state":"ok"'
+  out=$(cm --json clean "$small" 2>&1); assert_contains "$out" '"state":"ok"'
   assert_missing "$hub/models--org--small"
   assert_exists "$hub/models--org--big"
   assert_exists "$hub/datasets--org--data"
-  out=$(cmu --json clean "$lms7" 2>&1); assert_contains "$out" '"state":"ok"'
+  out=$(cm --json clean "$lms7" 2>&1); assert_contains "$out" '"state":"ok"'
   assert_missing "$lms/pub/llm-7b"
   assert_exists "$lms/pub"
   in_app 'model_safe_path "$HOME/.cache/huggingface/hub"' && fail "the hub itself is not a model" || ok_ "hub refused"
@@ -586,7 +623,7 @@ test_ai_models_are_separate_and_never_remembered() {
   # regression: a symlinked "publisher" (models/mine → ~) must never turn home folders into models
   new "$HOME_DIR/Documents/thesis.odt"
   ln -s "$HOME_DIR" "$lms/mine"
-  out=$(cmu --scan --only models 2>&1)
+  out=$(cm --scan --only models 2>&1)
   [[ $out == *"mine/"* ]] && fail "home folders listed as models through a symlink" || ok_ "symlinked store ignored"
   in_app 'model_safe_path "$HOME/.lmstudio/models/mine/Documents"' && fail "symlinked path accepted" || ok_ "symlinked path refused"
   assert_exists "$HOME_DIR/Documents/thesis.odt"
@@ -605,12 +642,12 @@ case "\$1" in
 esac
 EOF
   chmod +x "$WORK/ollamabin/ollama"
-  out=$(BASE_PATH="$WORK/ollamabin:$BASE_PATH" cmu --scan --only models 2>&1)
+  out=$(BASE_PATH="$WORK/ollamabin:$BASE_PATH" cm --scan --only models 2>&1)
   assert_contains "$out" "Ollama — llama3.2:latest"
   assert_contains "$out" "1.9 GB" # ollama says 2.0 GB in SI units; the app shows binary units
   local id
   id=$(BASE_PATH="$WORK/ollamabin:$BASE_PATH" in_app 'for i in "${ITEM_IDS[@]}"; do [[ ${ITEM_LABEL[$i]} == "Ollama — llama3.2:latest" ]] && echo "$i"; done')
-  out=$(BASE_PATH="$WORK/ollamabin:$BASE_PATH" cmu --json clean "$id" 2>&1)
+  out=$(BASE_PATH="$WORK/ollamabin:$BASE_PATH" cm --json clean "$id" 2>&1)
   assert_contains "$out" '"state":"ok"'
   assert_contains "$(<"$log")" "rm llama3.2:latest"
   [[ $(<"$log") == *"rm qwen3"* ]] && fail "only the chosen model is removed" || ok_ "other model kept"
@@ -634,24 +671,24 @@ esac
 EOF
   chmod +x "$HOME_DIR/miniconda3/bin/conda" "$WORK/podmanbin/podman"
   # regression: a scan must not run podman for someone who never used it (it would create its folders)
-  BASE_PATH="$WORK/podmanbin:$BASE_PATH" cmu --scan --only dev >/dev/null 2>&1
+  BASE_PATH="$WORK/podmanbin:$BASE_PATH" cm --scan --only dev >/dev/null 2>&1
   [[ $(<"$log") == *"podman info"* ]] && fail "podman asked although never used" || ok_ "unused podman left alone"
   assert_missing "$HOME_DIR/.local/share/containers"
   mkdir -p "$HOME_DIR/.local/share/containers" # podman is only asked once you've used it
   old "$sc/730/fozpipelinesv6/steamapprun_pipeline_cache"
-  out=$(BASE_PATH="$WORK/podmanbin:$BASE_PATH" cmu --scan --only dev,apps 2>&1)
+  out=$(BASE_PATH="$WORK/podmanbin:$BASE_PATH" cm --scan --only dev,apps 2>&1)
   assert_contains "$out" "Conda package cache"
   assert_contains "$out" "1 package archive"
   assert_contains "$out" "1 dangling image, 2 stopped containers"
   assert_contains "$out" "Steam — shader cache"
   select_only conda app_steam_shaders
-  BASE_PATH="$WORK/podmanbin:$BASE_PATH" cmu --clean --yes --only dev,apps >/dev/null 2>&1 </dev/null
+  BASE_PATH="$WORK/podmanbin:$BASE_PATH" cm --clean --yes --only dev,apps >/dev/null 2>&1 </dev/null
   assert_contains "$(<"$log")" "conda clean --tarballs --index-cache --logfiles -y"
   [[ $(<"$log") == *"system prune"* ]] && fail "podman must not be pruned unless selected" || ok_ "podman untouched"
   assert_missing "$sc/730"
   assert_exists "$sc"
   select_only podman
-  BASE_PATH="$WORK/podmanbin:$BASE_PATH" cmu --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  BASE_PATH="$WORK/podmanbin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
   assert_contains "$(<"$log")" "podman system prune -f"
 }
 
@@ -781,14 +818,15 @@ test_update_preview_lists_pending_updates() {
 # ── runner ───────────────────────────────────────────────────────────────────
 
 real_dirs() { # the real user's app folders and Trash — tests must never touch them
-  find "$HOME/.config/clean-my-ubuntu" "${XDG_STATE_HOME:-$HOME/.local/state}/clean-my-ubuntu" \
+  find "$HOME/.config/cleanmate" "${XDG_STATE_HOME:-$HOME/.local/state}/cleanmate" \
+    "$HOME/.config/clean-my-ubuntu" "${XDG_STATE_HOME:-$HOME/.local/state}/clean-my-ubuntu" \
     "${XDG_DATA_HOME:-$HOME/.local/share}/Trash" \
     -printf '%p %s %T@\n' 2>/dev/null | sort
 }
 REAL_BEFORE=$(real_dirs)
 
 pass=0 failed=0 skipped=0
-printf 'Clean My Ubuntu tests — %s\n\n' "$(bash "$SCRIPT" --version)"
+printf 'CleanMate tests — %s\n\n' "$(bash "$SCRIPT" --version)"
 for t in $(declare -F | awk '{print $3}' | grep '^test_'); do
   [[ -n $FILTER && $t != *"$FILTER"* ]] && continue
   result=$(
@@ -808,7 +846,7 @@ for t in $(declare -F | awk '{print $3}' | grep '^test_'); do
   sed '$d' <<<"$result" | grep -v '^$'
 done
 if [[ $(real_dirs) != "$REAL_BEFORE" ]]; then
-  printf '  %s✘ the tests changed your real ~/.config or ~/.local/state clean-my-ubuntu folder%s\n' "$R" "$N"
+  printf '  %s✘ the tests changed your real ~/.config or ~/.local/state cleanmate folder%s\n' "$R" "$N"
   diff <(printf '%s\n' "$REAL_BEFORE") <(real_dirs) | sed 's/^/      | /'
   ((++failed))
 fi

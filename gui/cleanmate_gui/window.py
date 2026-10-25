@@ -27,12 +27,12 @@ PAGES = [
     ("privacy", "Privacy", "security-high-symbolic", ["privacy"],
      "Terminal history, recent files, run dialog and emoji history."),
 ]
-REPO_URL = "https://github.com/homielab/clean-my-ubuntu"
+REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
 
 class Window(Adw.ApplicationWindow):
     def __init__(self, app, engine):
-        super().__init__(application=app, title="Clean My Ubuntu", default_width=1060, default_height=720,
+        super().__init__(application=app, title="CleanMate", default_width=1060, default_height=720,
                          width_request=360, height_request=320)
         self.engine = engine
         self.selection = Selection()
@@ -73,14 +73,14 @@ class Window(Adw.ApplicationWindow):
         menu.append("Source code", "win.source")
         menu.append("Report a problem", "win.issues")
         menu.append("HomieLab", "win.homepage")
-        menu.append("About Clean My Ubuntu", "win.about")
+        menu.append("About CleanMate", "win.about")
         side_header = Adw.HeaderBar()
         side_header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
                                             tooltip_text="Main menu"))
         side = Adw.ToolbarView(content=Gtk.ScrolledWindow(child=self.sidebar_list, vexpand=True))
         side.add_top_bar(side_header)
         side.add_bottom_bar(disk)
-        sidebar_page = Adw.NavigationPage(title="Clean My Ubuntu", child=side)
+        sidebar_page = Adw.NavigationPage(title="CleanMate", child=side)
 
         # ── content ──
         self.content_stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
@@ -166,14 +166,14 @@ class Window(Adw.ApplicationWindow):
                     argv[-1:] = [argv[-1] + " --dry-run"] if term == "x-terminal-emulator" else [argv[-1], "--dry-run"]
                 subprocess.Popen(argv, start_new_session=True)
                 return
-        self.toast("No terminal app found — run cmu in a terminal.")
+        self.toast("No terminal app found — run cm in a terminal.")
 
     def _open_url(self, url):
         Gtk.UriLauncher.new(url).launch(self, None, None)
 
     def show_about(self, *_):
         about = Adw.AboutDialog(
-            application_name="Clean My Ubuntu", application_icon="com.homielab.CleanMyUbuntu",
+            application_name="CleanMate", application_icon="com.homielab.CleanMate",
             version=self.engine.version(), developer_name="HomieLab", developers=["HomieLab https://homielab.com"],
             copyright="© 2026 HomieLab", license_type=Gtk.License.MIT_X11, website=REPO_URL,
             issue_url=REPO_URL + "/issues",

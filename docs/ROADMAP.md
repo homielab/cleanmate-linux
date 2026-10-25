@@ -1,14 +1,14 @@
 # Roadmap
 
-Where Clean My Ubuntu is going, and the decisions behind it. Ideas and votes are welcome in
-[issues](https://github.com/homielab/clean-my-ubuntu/issues).
+Where CleanMate is going, and the decisions behind it. Ideas and votes are welcome in
+[issues](https://github.com/homielab/cleanmate-linux/issues).
 
 ## Done in 1.0
 
 - [x] **Engine + terminal app** — Smart Scan over 50+ locations, cleanup sections, Space Lens,
       Large & Old Files, Duplicates, Uninstaller, Startup Items, Maintenance, System Overview,
       Settings, undo, automatic cleaning, updates.
-- [x] **Engine protocol** — `clean-my-ubuntu.sh --json items|scan|details|clean`, one JSON event per line.
+- [x] **Engine protocol** — `cleanmate.sh --json items|scan|details|clean`, one JSON event per line.
 - [x] **Desktop app core** — Smart Scan and the six cleanup sections, details, confirm dialog,
       live progress; system items through the standard password dialog (pkexec + polkit policy).
 - [x] **Distribution** — app icon, *Show Apps* launcher, one-line install, `.deb` built by CI on
@@ -25,13 +25,13 @@ Where Clean My Ubuntu is going, and the decisions behind it. Ideas and votes are
       the project has a track record.
 - [ ] **Translations** — the UI is English-only today.
 
-Until the desktop app has every tool, its *All tools (terminal)* entry opens `cmu`.
+Until the desktop app has every tool, its *All tools (terminal)* entry opens `cm`.
 
 ## Design decisions
 
 | Topic | Decision | Why |
 |---|---|---|
-| Engine | One Bash script (`clean-my-ubuntu.sh`) | Runs everywhere with nothing to install; the terminal app, the desktop app and the timer share every rule and test |
+| Engine | One Bash script (`cleanmate.sh`) | Runs everywhere with nothing to install; the terminal app, the desktop app and the timer share every rule and test |
 | Desktop app | Python 3 + PyGObject, GTK 4 + libadwaita 1.5 | Preinstalled on Ubuntu 24.04; native GNOME look, dark mode and accent colours for free |
 | GUI ↔ engine | JSON lines over a pipe | The GUI never decides what to delete; the engine can be rewritten later without touching the GUI |
 | Privileges | GUI runs as you; system items via `pkexec` | Standard password dialog; as root the engine refuses anything in a home folder |

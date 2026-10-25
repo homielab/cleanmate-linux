@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TUI smoke test: drive clean-my-ubuntu.sh in a virtual terminal (dry-run).
+"""TUI smoke test: drive cleanmate.sh in a virtual terminal (dry-run).
 
 Walks through the main screens and checks that each one renders and that bash
 never prints an error. Run by tests/run.sh with HOME pointing to a throwaway
@@ -19,7 +19,7 @@ raw = bytearray()
 
 pid, fd = pty.fork()
 if pid == 0:
-    os.environ.update(TERM="xterm-256color", CMU_NO_UPDATE_CHECK="1")
+    os.environ.update(TERM="xterm-256color", CLEANMATE_NO_UPDATE_CHECK="1")
     os.execvp("bash", ["bash", SCRIPT, "--dry-run"])
 fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
 

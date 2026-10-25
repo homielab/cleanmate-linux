@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=CleanMate
+Comment=Free up disk space and keep Ubuntu tidy
+Exec=cleanmate --gui
+Icon=com.homielab.CleanMate
+Terminal=false
+Categories=GTK;System;
+Keywords=clean;disk;space;junk;cache;duplicates;cm;
+StartupNotify=true
+StartupWMClass=com.homielab.CleanMate
+Actions=terminal;
+
+[Desktop Action terminal]
+Name=Open in Terminal
+Exec=x-terminal-emulator -e cleanmate

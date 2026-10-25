@@ -6,26 +6,26 @@
 # The first request (Oct 2026) was declined as too early (new project, small
 # community, no user base yet), so the snap is built in CI but not published;
 # the PPA (debian/) is the apt route meanwhile. See docs/PUBLISHING.md.
-name: clean-my-ubuntu
-title: Clean My Ubuntu
+name: cleanmate
+title: CleanMate
 base: core24
-version: "1.1.1"
+version: "2.0.0"
 summary: Free up space and keep Ubuntu tidy
 description: |
-  Clean My Ubuntu finds what is taking up space on your computer and lets you
+  CleanMate finds what is taking up space on your computer and lets you
   remove it safely — caches, old logs, leftovers from removed packages,
   developer and AI tool caches, and more. Nothing is deleted until you have
   seen the list and confirmed.
 
-  It comes as a desktop app and a terminal app (cmu) that share one engine.
+  It comes as a desktop app and a terminal app (cm) that share one engine.
   System items use the standard password dialog; everything else runs as you.
 license: MIT
 contact: contact@homielab.com
-issues: https://github.com/homielab/clean-my-ubuntu/issues
-source-code: https://github.com/homielab/clean-my-ubuntu
-website: https://github.com/homielab/clean-my-ubuntu
+issues: https://github.com/homielab/cleanmate-linux/issues
+source-code: https://github.com/homielab/cleanmate-linux
+website: https://github.com/homielab/cleanmate-linux
 donation: https://ko-fi.com/homielab
-icon: data/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg
+icon: data/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg
 grade: stable
 confinement: classic
 
@@ -38,28 +38,28 @@ platforms:
     build-for: [all]
 
 parts:
-  clean-my-ubuntu:
+  cleanmate:
     plugin: nil
     source: .
     override-build: |
       d=$CRAFT_PART_INSTALL
-      install -D -m 755 clean-my-ubuntu.sh "$d/usr/bin/clean-my-ubuntu"
-      install -d "$d/usr/share/clean-my-ubuntu/gui/cmu_gui"
-      install -m 755 gui/cmu-gui "$d/usr/share/clean-my-ubuntu/gui/"
-      install -m 644 gui/cmu_gui/*.py "$d/usr/share/clean-my-ubuntu/gui/cmu_gui/"
-      install -D -m 644 data/com.homielab.CleanMyUbuntu.metainfo.xml \
-        "$d/usr/share/metainfo/com.homielab.CleanMyUbuntu.metainfo.xml"
-      install -D -m 644 data/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg \
-        "$d/usr/share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg"
+      install -D -m 755 cleanmate.sh "$d/usr/bin/cleanmate"
+      install -d "$d/usr/share/cleanmate/gui/cleanmate_gui"
+      install -m 755 gui/cleanmate-gui "$d/usr/share/cleanmate/gui/"
+      install -m 644 gui/cleanmate_gui/*.py "$d/usr/share/cleanmate/gui/cleanmate_gui/"
+      install -D -m 644 data/com.homielab.CleanMate.metainfo.xml \
+        "$d/usr/share/metainfo/com.homielab.CleanMate.metainfo.xml"
+      install -D -m 644 data/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg \
+        "$d/usr/share/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg"
       # snapd only accepts Exec lines that run this snap, so drop the
       # "Open in Terminal" action (it runs x-terminal-emulator).
-      sed -e 's|^Icon=.*|Icon=${SNAP}/usr/share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg|' \
+      sed -e 's|^Icon=.*|Icon=${SNAP}/usr/share/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg|' \
         -e '/^Actions=/d' -e '/^\[Desktop Action/,$d' \
-        data/com.homielab.CleanMyUbuntu.desktop |
-        install -D -m 644 /dev/stdin "$d/usr/share/applications/com.homielab.CleanMyUbuntu.desktop"
+        data/com.homielab.CleanMate.desktop |
+        install -D -m 644 /dev/stdin "$d/usr/share/applications/com.homielab.CleanMate.desktop"
 
 apps:
-  clean-my-ubuntu:
-    command: usr/bin/clean-my-ubuntu
-    desktop: usr/share/applications/com.homielab.CleanMyUbuntu.desktop
-    common-id: com.homielab.CleanMyUbuntu
+  cleanmate:
+    command: usr/bin/cleanmate
+    desktop: usr/share/applications/com.homielab.CleanMate.desktop
+    common-id: com.homielab.CleanMate

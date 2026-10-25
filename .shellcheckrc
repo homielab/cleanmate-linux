@@ -1,4 +1,4 @@
-# ShellCheck settings for clean-my-ubuntu.sh
+# ShellCheck settings for cleanmate.sh
 #
 # SC1111: “curly quotes” appear on purpose in text shown to the user.
 # SC2088: "~/..." is shown to the user as a label, it is never used as a path.

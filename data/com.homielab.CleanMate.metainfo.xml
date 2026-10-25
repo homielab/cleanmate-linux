@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Copyright 2026 HomieLab -->
 <component type="desktop-application">
-  <id>com.homielab.CleanMyUbuntu</id>
+  <id>com.homielab.CleanMate</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
 
-  <name>Clean My Ubuntu</name>
+  <name>CleanMate</name>
   <summary>Free up space and keep Ubuntu tidy</summary>
   <developer id="com.homielab">
     <name>HomieLab</name>
@@ -13,7 +13,7 @@
 
   <description>
     <p>
-      Clean My Ubuntu finds what is taking up space on your computer and lets you remove it
+      CleanMate finds what is taking up space on your computer and lets you remove it
       safely — caches, old logs, leftovers from removed packages, developer and AI tool caches,
       and more. Nothing is deleted until you have seen the list and confirmed.
     </p>
@@ -30,19 +30,22 @@
     <p>
       It uses the system's own tools wherever possible (apt, journalctl, snap, docker), keeps a
       fallback kernel, never touches logins, keys or settings, and asks for your password only
-      for system items. A terminal version with even more tools is included: run cmu.
+      for system items. A terminal version with even more tools is included: run cm.
     </p>
   </description>
 
-  <launchable type="desktop-id">com.homielab.CleanMyUbuntu.desktop</launchable>
+  <launchable type="desktop-id">com.homielab.CleanMate.desktop</launchable>
   <provides>
-    <binary>clean-my-ubuntu</binary>
-    <binary>cmu</binary>
+    <binary>cleanmate</binary>
+    <binary>cm</binary>
   </provides>
+  <replaces>
+    <id>com.homielab.CleanMyUbuntu</id>
+  </replaces>
 
-  <url type="homepage">https://github.com/homielab/clean-my-ubuntu</url>
-  <url type="bugtracker">https://github.com/homielab/clean-my-ubuntu/issues</url>
-  <url type="vcs-browser">https://github.com/homielab/clean-my-ubuntu</url>
+  <url type="homepage">https://github.com/homielab/cleanmate-linux</url>
+  <url type="bugtracker">https://github.com/homielab/cleanmate-linux/issues</url>
+  <url type="vcs-browser">https://github.com/homielab/cleanmate-linux</url>
   <url type="contact">https://homielab.com</url>
   <url type="donation">https://ko-fi.com/homielab</url>
   <update_contact>contact@homielab.com</update_contact>
@@ -63,27 +66,27 @@
   <screenshots>
     <screenshot type="default">
       <caption>Smart Scan finds junk everywhere and shows one checklist with sizes</caption>
-      <image>https://raw.githubusercontent.com/homielab/clean-my-ubuntu/main/docs/screenshots/desktop-1-results.png</image>
+      <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-1-results.png</image>
     </screenshot>
     <screenshot>
       <caption>See exactly what will be removed before anything is deleted</caption>
-      <image>https://raw.githubusercontent.com/homielab/clean-my-ubuntu/main/docs/screenshots/desktop-3-confirm.png</image>
+      <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-3-confirm.png</image>
     </screenshot>
     <screenshot>
       <caption>Gigabytes freed in seconds</caption>
-      <image>https://raw.githubusercontent.com/homielab/clean-my-ubuntu/main/docs/screenshots/desktop-4-done.png</image>
+      <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-4-done.png</image>
     </screenshot>
     <screenshot>
       <caption>Check what is inside every item</caption>
-      <image>https://raw.githubusercontent.com/homielab/clean-my-ubuntu/main/docs/screenshots/desktop-2-details.png</image>
+      <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-2-details.png</image>
     </screenshot>
     <screenshot>
       <caption>Clean caches and old sessions of AI coding tools</caption>
-      <image>https://raw.githubusercontent.com/homielab/clean-my-ubuntu/main/docs/screenshots/desktop-5-ai.png</image>
+      <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-5-ai.png</image>
     </screenshot>
     <screenshot>
-      <caption>The same engine in the terminal: run cmu</caption>
-      <image>https://raw.githubusercontent.com/homielab/clean-my-ubuntu/main/docs/screenshots/terminal-2-smart-scan.png</image>
+      <caption>The same engine in the terminal: run cm</caption>
+      <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/terminal-2-smart-scan.png</image>
     </screenshot>
   </screenshots>
 
@@ -103,6 +106,11 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="2.0.0" date="2026-10-25">
+      <description>
+        <p>Clean My Ubuntu is now CleanMate. Your settings, logs and automatic cleaning move over by themselves, and the old clean-my-ubuntu command keeps working. The short command is now cm.</p>
+      </description>
+    </release>
     <release version="1.1.1" date="2026-10-17">
       <description>
         <p>Scanning no longer creates Podman's folders for people who never used Podman.</p>

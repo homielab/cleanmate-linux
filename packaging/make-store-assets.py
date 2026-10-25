@@ -15,7 +15,7 @@ from gi.repository import GdkPixbuf  # noqa: E402
 from PIL import Image, ImageDraw, ImageFilter, ImageFont  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP_ID = "com.homielab.CleanMyUbuntu"
+APP_ID = "com.homielab.CleanMate"
 SVG = f"{ROOT}/data/icons/hicolor/scalable/apps/{APP_ID}.svg"
 OUT = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/dist/store"
 SHOT = f"{ROOT}/docs/screenshots/desktop-1-results.png"
@@ -57,10 +57,10 @@ def banner(w, h, path):
     x = int(h * .16)
     img.alpha_composite(ic, (x, (h - ic.height) // 2))
     tx = x + ic.width + int(h * .09)
-    d.text((tx, h * .28), "Clean My Ubuntu", font=font("Ubuntu:bold", int(h * .14)), fill="white")
+    d.text((tx, h * .28), "CleanMate", font=font("Ubuntu:bold", int(h * .14)), fill="white")
     sub = font("Ubuntu", int(h * .065))
     d.text((tx, h * .50), "Free up disk space and keep Ubuntu tidy — safely.", font=sub, fill=(235, 235, 235))
-    d.text((tx, h * .62), "Desktop app + terminal app (cmu) · free & open source", font=sub, fill=(190, 190, 190))
+    d.text((tx, h * .62), "Desktop app + terminal app (cm) · free & open source", font=sub, fill=(190, 190, 190))
     img.convert("RGB").save(path)
     print("wrote", os.path.relpath(path, ROOT))
 
@@ -72,12 +72,12 @@ def social(w, h, path):
     sparkles(d, [(w * .47, h * .14, 22), (w * .05, h * .9, 14)])
     ic = icon(150)
     img.alpha_composite(ic, (64, 70))
-    d.text((64, 250), "Clean My Ubuntu", font=font("Ubuntu:bold", 60), fill="white")
+    d.text((64, 250), "CleanMate", font=font("Ubuntu:bold", 60), fill="white")
     tag = font("Ubuntu", 30)
     d.text((64, 340), "Free up disk space and", font=tag, fill=(235, 235, 235))
     d.text((64, 380), "keep Ubuntu tidy — safely.", font=tag, fill=(235, 235, 235))
     d.text((64, 470), "Desktop app + terminal app · open source", font=font("Ubuntu", 22), fill=(190, 190, 190))
-    d.text((64, 505), "github.com/homielab/clean-my-ubuntu", font=font("Ubuntu:bold", 22), fill="white")
+    d.text((64, 505), "github.com/homielab/cleanmate-linux", font=font("Ubuntu:bold", 22), fill="white")
     if os.path.exists(SHOT):
         shot = Image.open(SHOT).convert("RGBA")
         sw = int(w * .44)

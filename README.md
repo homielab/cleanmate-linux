@@ -1,24 +1,24 @@
 <p align="center">
-  <img src="data/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg" width="128" height="128" alt="Clean My Ubuntu icon">
+  <img src="data/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg" width="128" height="128" alt="CleanMate icon">
 </p>
 
-<h1 align="center">Clean My Ubuntu</h1>
+<h1 align="center">CleanMate</h1>
 
 <p align="center">
-  <a href="https://github.com/homielab/clean-my-ubuntu/actions/workflows/ci.yml"><img src="https://github.com/homielab/clean-my-ubuntu/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-1.1.1-blue" alt="Version 1.1.1">
+  <a href="https://github.com/homielab/cleanmate-linux/actions/workflows/ci.yml"><img src="https://github.com/homielab/cleanmate-linux/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version 2.0.0">
   <a href="https://launchpad.net/~homielab/+archive/ubuntu/clean-my-ubuntu"><img src="https://img.shields.io/badge/PPA-homielab%2Fclean--my--ubuntu-E95420?logo=ubuntu&logoColor=white" alt="PPA"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white" alt="Ubuntu 22.04 | 24.04">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT">
   <a href="https://ko-fi.com/homielab"><img src="https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
-**Free up disk space and keep Ubuntu tidy — safely.** Clean My Ubuntu finds caches, old logs,
+**Free up disk space and keep Ubuntu tidy — safely.** CleanMate finds caches, old logs,
 leftovers of removed apps, developer and AI-tool clutter, and shows you exactly what it would
-remove. Nothing is deleted until you confirm. It's a desktop app *and* a terminal app (`cmu`)
-that share one engine.
+remove. Nothing is deleted until you confirm. It's a desktop app *and* a terminal app (`cm`)
+that share one engine. Formerly **Clean My Ubuntu**.
 
-[Install](#install) · [What it cleans](#what-it-cleans) · [Safety](#safe-by-design) · [FAQ](#faq) · [Report a bug](https://github.com/homielab/clean-my-ubuntu/issues)
+[Install](#install) · [What it cleans](#what-it-cleans) · [Safety](#safe-by-design) · [FAQ](#faq) · [Report a bug](https://github.com/homielab/cleanmate-linux/issues)
 
 ![The desktop app](docs/screenshots/desktop-1-results.png)
 
@@ -27,7 +27,7 @@ that share one engine.
 I moved from macOS to Ubuntu and missed [CleanMyMac](https://macpaw.com/cleanmymac): one place
 that tells you what's eating your disk and lets you clean it safely. Ubuntu has all the pieces —
 `apt-get clean`, `journalctl --vacuum`, `snap remove --revision`, `docker image prune` — but you
-have to know they exist and remember the flags. Clean My Ubuntu puts them behind one Scan button,
+have to know they exist and remember the flags. CleanMate puts them behind one Scan button,
 with a terminal version first, because that's where most Linux users live.
 
 ## Install
@@ -37,35 +37,35 @@ with updates through Software Updater:
 
 ```bash
 sudo add-apt-repository ppa:homielab/clean-my-ubuntu
-sudo apt install clean-my-ubuntu
+sudo apt install cleanmate
 ```
 
-Then open **Clean My Ubuntu** from *Show Apps*, or run `cmu` in a terminal.
+Then open **CleanMate** from *Show Apps*, or run `cm` in a terminal.
 
 **Any Ubuntu, without `sudo`** (including 22.04):
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/homielab/clean-my-ubuntu/main/clean-my-ubuntu.sh
-bash clean-my-ubuntu.sh --install
+curl -fsSLO https://raw.githubusercontent.com/homielab/cleanmate-linux/main/cleanmate.sh
+bash cleanmate.sh --install
 ```
 
-That adds the app to *Show Apps* and the `cmu` command to your terminal, all inside your home
+That adds the app to *Show Apps* and the `cm` command to your terminal, all inside your home
 folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app needs 24.04+).
 
 **Other ways**
 
-- **Package:** download `clean-my-ubuntu_<version>_all.deb` from
-  [Releases](https://github.com/homielab/clean-my-ubuntu/releases), double-click it (App Center)
-  or `sudo apt install ./clean-my-ubuntu_*_all.deb`.
-- **Just try it:** `bash clean-my-ubuntu.sh --dry-run` — everything works, nothing is deleted.
+- **Package:** download `cleanmate_<version>_all.deb` from
+  [Releases](https://github.com/homielab/cleanmate-linux/releases), double-click it (App Center)
+  or `sudo apt install ./cleanmate_*_all.deb`.
+- **Just try it:** `bash cleanmate.sh --dry-run` — everything works, nothing is deleted.
 
 ## Use it
 
-**Desktop app** — open *Clean My Ubuntu*, press **Scan**, untick anything you want to keep, press
+**Desktop app** — open *CleanMate*, press **Scan**, untick anything you want to keep, press
 **Clean**. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
 as you.
 
-**Terminal app** — run `cmu`. Press `1` for a Smart Scan, `c` to clean.
+**Terminal app** — run `cm`. Press `1` for a Smart Scan, `c` to clean.
 
 ![The terminal app](docs/screenshots/terminal-2-smart-scan.png)
 
@@ -127,7 +127,7 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
   removed; apps that are running are asked about (and skipped when unattended).
 - **System paths are hard-blocked** (`/`, `/usr`, `/etc`, your home folder itself, …), and when it
   runs as root it refuses anything inside a home folder.
-- **Everything is logged** to `~/.local/state/clean-my-ubuntu/clean.log` (*Settings → Activity log*).
+- **Everything is logged** to `~/.local/state/cleanmate/clean.log` (*Settings → Activity log*).
 
 ## Automatic cleaning
 
@@ -139,29 +139,34 @@ and can warn you when the disk is almost full.
 ## Command line
 
 ```bash
-cmu --scan                        # what would Smart Scan find? (changes nothing)
-cmu --clean                       # Smart Scan, confirm once, clean
-cmu --clean --yes --only logs     # clean logs without asking
-cmu --scan --only privacy         # what history is stored?
-cmu --help                        # all options
+cm --scan                        # what would Smart Scan find? (changes nothing)
+cm --clean                       # Smart Scan, confirm once, clean
+cm --clean --yes --only logs     # clean logs without asking
+cm --scan --only privacy         # what history is stored?
+cm --help                        # all options
 ```
 
 ## Update & uninstall
 
 **Installed from the PPA or the `.deb`:** Software Updater (or `sudo apt upgrade`) keeps it up to
-date; remove it with `sudo apt remove clean-my-ubuntu`.
+date; remove it with `sudo apt remove cleanmate`.
 
 **Installed with the script:**
 
 ```bash
-cmu --update       # shows your version and the latest, asks, updates the app and icon
-cmu --uninstall    # removes cmu, the desktop app and the Show Apps entry; asks about settings
+cm --update       # shows your version and the latest, asks, updates the app and icon
+cm --uninstall    # removes cm, the desktop app and the Show Apps entry; asks about settings
 ```
 
 The app also checks for a new version once a day (one request to GitHub; nothing about you is
 sent) and shows **⬆ Update** in the menu — turn it off in *Settings → Daily update check*.
 
 ## FAQ
+
+**I had Clean My Ubuntu. What changes?**
+Only the name. Updates move you over by themselves — from the PPA (the same one), the `.deb` or
+`--update` — and bring your settings, logs and automatic cleaning along. The old
+`clean-my-ubuntu` command keeps working; the short command is now `cm`.
 
 **Is it safe to clean the APT cache, journal and old snaps?**
 Yes — that's what `apt-get clean`, `journalctl --vacuum-time` and `snap remove --revision` are for.
@@ -177,8 +182,8 @@ Usually one service logs far too much. *Logs → Oversized active logs* empties 
 
 **Does it work over SSH?** Yes — use the terminal app; colours and the mouse work in any modern terminal.
 
-**Where does it keep its data?** `~/.config/clean-my-ubuntu` (choices, settings) and
-`~/.local/state/clean-my-ubuntu` (activity log, last scan, stats). Nothing is sent anywhere —
+**Where does it keep its data?** `~/.config/cleanmate` (choices, settings) and
+`~/.local/state/cleanmate` (activity log, last scan, stats). Nothing is sent anywhere —
 see the [privacy policy](docs/PRIVACY.md).
 
 ## Contributing
@@ -189,11 +194,11 @@ works, how to add a cleaner and how to run the tests. Plans are in
 
 ## Support
 
-Clean My Ubuntu is free and always will be. If it saved you some space (or some time), you can
+CleanMate is free and always will be. If it saved you some space (or some time), you can
 [buy me a coffee on Ko-fi](https://ko-fi.com/homielab) ☕ — it keeps the project going.
 
 ## License
 
 [MIT](LICENSE) © 2026 [HomieLab](https://homielab.com) · contact@homielab.com
 
-*Clean My Ubuntu is an independent open-source project, not affiliated with MacPaw or CleanMyMac.*
+*CleanMate is an independent open-source project, not affiliated with MacPaw or CleanMyMac.*

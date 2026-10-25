@@ -1,13 +1,13 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: clean-my-ubuntu
+Upstream-Name: cleanmate
 Upstream-Contact: HomieLab <contact@homielab.com>
-Source: https://github.com/homielab/clean-my-ubuntu
+Source: https://github.com/homielab/cleanmate-linux
 
 Files: *
 Copyright: 2026 HomieLab
 License: MIT
 
-Files: data/com.homielab.CleanMyUbuntu.metainfo.xml
+Files: data/com.homielab.CleanMate.metainfo.xml
 Copyright: 2026 HomieLab
 License: CC0-1.0
  To the extent possible under law, the author has waived all copyright and

@@ -12,7 +12,7 @@ override_dh_auto_test:
 	# tests/run.sh needs pyte, which isn't packaged on every series; CI runs it
 
 override_dh_auto_install:
-	bash packaging/build-deb.sh --stage debian/clean-my-ubuntu
+	bash packaging/build-deb.sh --stage debian/cleanmate
 
 override_dh_installchangelogs:
 	dh_installchangelogs CHANGELOG.md

@@ -4,6 +4,28 @@ All notable changes are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] — 2026-10-25
+
+**Clean My Ubuntu is now CleanMate**, the name of HomieLab's cleaner on every platform.
+
+### Changed
+
+- The app, the command (`cleanmate`), the package and the app ID (`com.homielab.CleanMate`) are
+  renamed. The short command is now `cm`.
+- The repository moved to [homielab/cleanmate-linux](https://github.com/homielab/cleanmate-linux)
+  (the old address redirects).
+
+### Moving over
+
+- Settings, remembered selections, logs and automatic cleaning move to their new place the first
+  time CleanMate starts; the journal limit (*Maintenance*) is still honoured.
+- **PPA:** a normal upgrade installs `cleanmate`; `clean-my-ubuntu` stays as a small transitional
+  package that keeps the `clean-my-ubuntu` and `cmu` commands working (safe to remove).
+- **Installed with the script:** `--update` (or the daily check) installs CleanMate and replaces
+  the old launcher; `clean-my-ubuntu` and `cmu` keep working as links to `cleanmate`.
+- **`.deb` from Releases:** installing `cleanmate_2.0.0_all.deb` removes `clean-my-ubuntu`.
+- A pinned launcher in the dock needs pinning again (the app ID changed).
+
 ## [1.1.1] — 2026-10-17
 
 ### Fixed
@@ -98,6 +120,7 @@ First public release.
 - 27 tests (`tests/run.sh`) in a throwaway home folder, including the terminal UI and a headless
   desktop-app self-test; CI with ShellCheck on Ubuntu 22.04 and 24.04.
 
+[2.0.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.0.0
 [1.1.1]: https://github.com/homielab/clean-my-ubuntu/releases/tag/v1.1.1
 [1.1.0]: https://github.com/homielab/clean-my-ubuntu/releases/tag/v1.1.0
 [1.0.1]: https://github.com/homielab/clean-my-ubuntu/releases/tag/v1.0.1

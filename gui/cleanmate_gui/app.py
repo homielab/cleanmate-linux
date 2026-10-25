@@ -11,7 +11,7 @@ from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
 from .engine import Engine  # noqa: E402
 
-APP_ID = "com.homielab.CleanMyUbuntu"
+APP_ID = "com.homielab.CleanMate"
 
 CSS = """
 .size-large  { color: @error_color; }
@@ -29,7 +29,7 @@ class App(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
-        Gtk.Window.set_default_icon_name(APP_ID)  # installed by `cmu --install`
+        Gtk.Window.set_default_icon_name(APP_ID)  # installed by `cm --install`
         settings = Gtk.Settings.get_default()
         if settings.get_property("gtk-xft-dpi") <= 0:  # headless displays report no DPI
             settings.set_property("gtk-xft-dpi", 96 * 1024)
@@ -54,16 +54,16 @@ class App(Adw.Application):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="clean-my-ubuntu --gui")
-    parser.add_argument("--engine", default=os.environ.get("CMU_ENGINE"),
-                        help="path to clean-my-ubuntu.sh")
+    parser = argparse.ArgumentParser(prog="cleanmate --gui")
+    parser.add_argument("--engine", default=os.environ.get("CLEANMATE_ENGINE"),
+                        help="path to cleanmate.sh")
     parser.add_argument("--dry-run", action="store_true", help="show what would happen, delete nothing")
     parser.add_argument("--selftest", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--screenshot", metavar="PNG", help=argparse.SUPPRESS)
     parser.add_argument("--scene", default="results", help=argparse.SUPPRESS)  # results details confirm done privacy ai
     parser.add_argument("--window-size", default="", help=argparse.SUPPRESS)  # e.g. 1280x800
     args = parser.parse_args(argv)
-    engine_path = args.engine or os.path.join(os.path.dirname(__file__), "..", "..", "clean-my-ubuntu.sh")
+    engine_path = args.engine or os.path.join(os.path.dirname(__file__), "..", "..", "cleanmate.sh")
     if not os.path.isfile(engine_path):
         print(f"Engine not found: {engine_path}", file=sys.stderr)
         return 2

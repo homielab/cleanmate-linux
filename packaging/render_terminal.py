@@ -3,7 +3,7 @@
 
     render_terminal.py ENGINE OUT.png [--keys "1|n"] [--cols 110 --rows 34] [--wait 6]
 
-Runs ENGINE (clean-my-ubuntu.sh --dry-run) in a virtual terminal (pyte), sends the
+Runs ENGINE (cleanmate.sh --dry-run) in a virtual terminal (pyte), sends the
 keys (separated by |, with a pause after each), and draws the final screen with
 Pillow inside a dark window frame. HOME etc. come from the environment.
 Needs: pyte, Pillow, the Ubuntu Mono font (fonts-ubuntu).
@@ -47,7 +47,7 @@ def drive(engine, keys, cols, rows, wait, live=False):
     stream = pyte.ByteStream(screen)
     pid, fd = pty.fork()
     if pid == 0:
-        os.environ.update(TERM="xterm-256color", CMU_NO_UPDATE_CHECK="1")
+        os.environ.update(TERM="xterm-256color", CLEANMATE_NO_UPDATE_CHECK="1")
         # scan-only key sequences are read-only; --live just hides the DRY-RUN badge
         os.execvp("bash", ["bash", engine, "--no-mouse"] + ([] if live else ["--dry-run"]))
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
@@ -139,7 +139,7 @@ def main():
     ap.add_argument("--cols", type=int, default=110)
     ap.add_argument("--rows", type=int, default=34)
     ap.add_argument("--wait", type=float, default=6)
-    ap.add_argument("--title", default="cmu")
+    ap.add_argument("--title", default="cm")
     ap.add_argument("--live", action="store_true", help="no --dry-run (only for keys that never clean)")
     a = ap.parse_args()
     if a.live and "c" in a.keys.replace("\\", "").split("|"):

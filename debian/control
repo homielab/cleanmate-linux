@@ -1,4 +1,4 @@
-Source: clean-my-ubuntu
+Source: cleanmate
 Section: admin
 Priority: optional
 Maintainer: HomieLab <contact@homielab.com>
@@ -8,12 +8,12 @@ Build-Depends: debhelper-compat (= 13),
                gir1.2-gdkpixbuf-2.0,
                librsvg2-common
 Standards-Version: 4.6.2
-Homepage: https://github.com/homielab/clean-my-ubuntu
-Vcs-Browser: https://github.com/homielab/clean-my-ubuntu
-Vcs-Git: https://github.com/homielab/clean-my-ubuntu.git
+Homepage: https://github.com/homielab/cleanmate-linux
+Vcs-Browser: https://github.com/homielab/cleanmate-linux
+Vcs-Git: https://github.com/homielab/cleanmate-linux.git
 Rules-Requires-Root: no
 
-Package: clean-my-ubuntu
+Package: cleanmate
 Architecture: all
 Depends: ${misc:Depends},
          bash (>= 5),
@@ -24,11 +24,22 @@ Depends: ${misc:Depends},
          gir1.2-adw-1 (>= 1.5),
          pkexec | policykit-1
 Recommends: curl | wget, libglib2.0-bin, libnotify-bin, desktop-file-utils
+Breaks: clean-my-ubuntu (<< 2.0.0~)
+Replaces: clean-my-ubuntu (<< 2.0.0~)
 Description: free up disk space and keep Ubuntu tidy
- Clean My Ubuntu finds caches, old logs, leftovers from removed packages,
+ CleanMate finds caches, old logs, leftovers from removed packages,
  developer and AI tool caches, and more, and removes them safely after you
  have reviewed the list.
  .
- It comes as a desktop app (GTK 4) and a terminal app (cmu) that share one
+ It comes as a desktop app (GTK 4) and a terminal app (cm) that share one
  engine. System items use the standard password dialog; everything else runs
  as you.
+
+Package: clean-my-ubuntu
+Architecture: all
+Section: oldlibs
+Depends: ${misc:Depends}, cleanmate (= ${binary:Version})
+Description: transitional package for CleanMate
+ Clean My Ubuntu is now called CleanMate. This package moves existing
+ installs over and keeps the old clean-my-ubuntu and cmu commands working;
+ it can be removed safely.

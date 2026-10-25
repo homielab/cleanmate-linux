@@ -75,7 +75,7 @@ jobs:
         id: new
         if: steps.gate.outputs.on == 'true'
         run: |
-          n=$(curl -fsS "https://api.launchpad.net/devel/~homielab/+archive/ubuntu/clean-my-ubuntu?ws.op=getPublishedSources&source_name=clean-my-ubuntu&version=$DEB_VERSION&exact_match=true" |
+          n=$(curl -fsS "https://api.launchpad.net/devel/~homielab/+archive/ubuntu/clean-my-ubuntu?ws.op=getPublishedSources&source_name=cleanmate&version=$DEB_VERSION&exact_match=true" |
             python3 -c 'import json,sys; print(json.load(sys.stdin)["total_size"])')
           if [ "$n" = 0 ]; then echo "yes=true" >> "$GITHUB_OUTPUT"
           else echo "::notice::$DEB_VERSION is already in the PPA; nothing to upload. For a packaging-only fix, bump the suffix in debian/changelog (e.g. -0ppa2)."; fi

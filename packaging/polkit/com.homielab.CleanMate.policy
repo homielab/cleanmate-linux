@@ -9,9 +9,9 @@
 <policyconfig>
   <vendor>HomieLab</vendor>
   <vendor_url>https://homielab.com</vendor_url>
-  <icon_name>com.homielab.CleanMyUbuntu</icon_name>
+  <icon_name>com.homielab.CleanMate</icon_name>
 
-  <action id="com.homielab.CleanMyUbuntu.clean-system">
+  <action id="com.homielab.CleanMate.clean-system">
     <description>Clean system files</description>
     <message>Authentication is required to clean system files such as the package cache and logs</message>
     <defaults>
@@ -19,6 +19,6 @@
       <allow_inactive>auth_admin</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/clean-my-ubuntu</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/cleanmate</annotate>
   </action>
 </policyconfig>

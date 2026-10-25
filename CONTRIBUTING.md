@@ -1,13 +1,13 @@
-# Contributing to Clean My Ubuntu
+# Contributing to CleanMate
 
 Thanks for helping! This page explains how the project fits together, how to add something new
 to clean, and how to check your change. Questions: open an
-[issue](https://github.com/homielab/clean-my-ubuntu/issues) or write to contact@homielab.com.
+[issue](https://github.com/homielab/cleanmate-linux/issues) or write to contact@homielab.com.
 
 ## How it fits together
 
 ```
-clean-my-ubuntu.sh          the engine + terminal app (one Bash script, the source of truth)
+cleanmate.sh                the engine + terminal app (one Bash script, the source of truth)
 gui/                        the desktop app (Python, GTK 4 + libadwaita) — talks to the engine
 data/                       launcher, AppStream metainfo, icon
 packaging/                  .deb build script, polkit policy
@@ -16,8 +16,8 @@ tests/                      test suite (run.sh) and the terminal-UI smoke test
 docs/                       screenshots, roadmap, publishing guide
 ```
 
-- **One engine.** Everything that scans or deletes lives in `clean-my-ubuntu.sh`. The desktop app
-  never decides what to delete: it runs `clean-my-ubuntu.sh --json …` and reads one JSON event per
+- **One engine.** Everything that scans or deletes lives in `cleanmate.sh`. The desktop app
+  never decides what to delete: it runs `cleanmate.sh --json …` and reads one JSON event per
   line (`items`, `scan`, `details ID`, `clean ID…`). Both apps share the same rules, tests and
   remembered selections.
 - **The registry.** Every cleanable thing is an *item*: `reg ID CATEGORY "Label" DEFAULT "Description"`
@@ -55,8 +55,8 @@ Rules of thumb:
 ```bash
 tests/run.sh               # all tests, ~45 s — safe on your own machine
 tests/run.sh -v docker     # only tests with "docker" in the name, with details
-shellcheck -S warning clean-my-ubuntu.sh tests/run.sh packaging/build-deb.sh
-bash clean-my-ubuntu.sh --dry-run   # try it for real without deleting anything
+shellcheck -S warning cleanmate.sh tests/run.sh packaging/build-deb.sh
+bash cleanmate.sh --dry-run   # try it for real without deleting anything
 ```
 
 The tests use a throwaway home folder, stub out `sudo`, `pgrep` and `docker`, and fail if your real
@@ -67,14 +67,14 @@ CI runs everything on Ubuntu 22.04 and 24.04 for every pull request.
 ## Desktop app
 
 ```bash
-bash clean-my-ubuntu.sh --gui --dry-run     # run it from your clone
+bash cleanmate.sh --gui --dry-run     # run it from your clone
 ```
 
-Pages live in `gui/cmu_gui/scanpage.py`, the window and sidebar in `window.py`, the engine
+Pages live in `gui/cleanmate_gui/scanpage.py`, the window and sidebar in `window.py`, the engine
 wrapper in `engine.py`. Keep all deletion logic in the engine.
 
 ## Releasing
 
-Bump `VERSION` in `clean-my-ubuntu.sh` and `snap/snapcraft.yaml`, update `CHANGELOG.md` and the
+Bump `VERSION` in `cleanmate.sh` and `snap/snapcraft.yaml`, update `CHANGELOG.md` and the
 metainfo release notes, merge to `main`, push a `vX.Y.Z` tag — CI tests, builds the `.deb` and
 creates the GitHub release with the `.deb` and the snap.

@@ -92,8 +92,8 @@ if command -v gtk4-broadwayd >/dev/null; then
   n=1
   for scene in results details confirm "done" ai privacy; do
     env -i HOME="$DEMO" PATH="$DEMO_PATH" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" GDK_BACKEND=broadway \
-      BROADWAY_DISPLAY=:77 CMU_NO_UPDATE_CHECK=1 timeout 180 /usr/bin/python3 "$ROOT/gui/cmu-gui" \
-      --engine "$ROOT/clean-my-ubuntu.sh" --screenshot "$OUT/desktop-$n-$scene.png" --scene "$scene" \
+      BROADWAY_DISPLAY=:77 CLEANMATE_NO_UPDATE_CHECK=1 timeout 180 /usr/bin/python3 "$ROOT/gui/cleanmate-gui" \
+      --engine "$ROOT/cleanmate.sh" --screenshot "$OUT/desktop-$n-$scene.png" --scene "$scene" \
       --window-size 1280x800 2>/dev/null | grep -q "screenshot saved" &&
       echo "  desktop-$n-$scene.png" || echo "  ✘ desktop scene '$scene' failed"
     n=$((n + 1))
@@ -106,7 +106,7 @@ fi
 # ── terminal app scenes (scan only — nothing is cleaned) ──
 term() { # NAME KEYS ROWS
   env -i HOME="$DEMO" PATH="$DEMO_PATH" LANG=C.UTF-8 PYTHONPATH="${PYTHONPATH:-}" \
-    /usr/bin/python3 "$ROOT/packaging/render_terminal.py" "$ROOT/clean-my-ubuntu.sh" "$OUT/$1" \
+    /usr/bin/python3 "$ROOT/packaging/render_terminal.py" "$ROOT/cleanmate.sh" "$OUT/$1" \
     --keys "$2" --rows "$3" --live --wait 4 >/dev/null && echo "  $1" || echo "  ✘ $1 failed"
 }
 if /usr/bin/python3 -c 'import pyte, PIL' 2>/dev/null || PYTHONPATH=${PYTHONPATH:-} /usr/bin/python3 -c 'import pyte, PIL' 2>/dev/null; then

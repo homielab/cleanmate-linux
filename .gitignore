@@ -24,6 +24,7 @@ docs/STORE-LISTING.md
 
 # Debian/PPA build leftovers (debian/rules, packaging/build-source.sh)
 debian/.debhelper/
+debian/cleanmate/
 debian/clean-my-ubuntu/
 debian/debhelper-build-stamp
 debian/files

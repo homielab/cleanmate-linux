@@ -104,7 +104,7 @@ class ScanPage(Gtk.Box):
             self.running = None
             self.window.set_busy(False)
             if not ok and not self.items:
-                self.window.toast("The scan failed — try the terminal app (cmu) for details.")
+                self.window.toast("The scan failed — try the terminal app (cm) for details.")
                 self.stack.set_visible_child_name("start")
                 return
             self.show_results()

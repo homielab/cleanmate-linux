@@ -18,7 +18,7 @@ jobs:
 
       - name: Check the tag matches VERSION in the script
         run: |
-          v=$(sed -n 's/^VERSION="\([0-9.]*\)"$/\1/p' clean-my-ubuntu.sh)
+          v=$(sed -n 's/^VERSION="\([0-9.]*\)"$/\1/p' cleanmate.sh)
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME but VERSION=$v"; exit 1; }
           s=$(sed -n 's/^version: "\(.*\)"$/\1/p' snap/snapcraft.yaml)
           [ "v$s" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME but snap version=$s"; exit 1; }
@@ -34,8 +34,8 @@ jobs:
 
       - name: Validate store metadata
         run: |
-          appstreamcli validate --no-net data/com.homielab.CleanMyUbuntu.metainfo.xml
-          desktop-file-validate data/com.homielab.CleanMyUbuntu.desktop
+          appstreamcli validate --no-net data/com.homielab.CleanMate.metainfo.xml
+          desktop-file-validate data/com.homielab.CleanMate.desktop
 
       - name: Build the .deb
         run: packaging/build-deb.sh
@@ -48,7 +48,7 @@ jobs:
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.deb --title "Clean My Ubuntu ${GITHUB_REF_NAME#v}" --notes-file notes.md
+        run: gh release create "$GITHUB_REF_NAME" dist/*.deb --title "CleanMate ${GITHUB_REF_NAME#v}" --notes-file notes.md
 
   # Publishes to the Snap Store (= Ubuntu App Center). Skipped until the
   # SNAPCRAFT_STORE_CREDENTIALS secret is set (snapcraft export-login).

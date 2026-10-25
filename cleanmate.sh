@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# clean-my-ubuntu.sh — an interactive system cleaner for Ubuntu,
+# cleanmate.sh — an interactive system cleaner for Ubuntu,
 # inspired by CleanMyMac.
 #
-# Source, issues and updates: https://github.com/homielab/clean-my-ubuntu
+# Source, issues and updates: https://github.com/homielab/cleanmate-linux
 # Copyright (c) 2026 HomieLab (https://homielab.com) — License: MIT
 #
 #   Smart Scan · System Junk · User & App Junk · Developer Junk · Space Lens
 #   Large & Old Files · Duplicates · Uninstaller · Startup Items · Maintenance
 #   System Overview · Settings (automatic cleaning via a systemd user timer)
 #
-# Usage:  ./clean-my-ubuntu.sh [--dry-run] [--scan|--clean [--yes]] [--only LIST] [--auto] [--help]
-#         ./clean-my-ubuntu.sh --install      # then just type: cmu
+# Usage:  ./cleanmate.sh [--dry-run] [--scan|--clean [--yes]] [--only LIST] [--auto] [--help]
+#         ./cleanmate.sh --install      # then just type: cm
 #
 # Run it as your normal user; sudo is requested only for system-level tasks.
 # Keys: ↑↓/jk move · space select · enter/→ open · q/esc/← back
@@ -19,17 +19,17 @@
 set -o pipefail
 shopt -s extglob
 
-VERSION="1.1.1"
+VERSION="2.0.0"
 MOUSE=1
 DRY_RUN=0
 MODE=menu
 ASSUME_YES=0
 INTERACTIVE=1
 SUDO_ASKED=0
-LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/clean-my-ubuntu"
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/cleanmate"
 LOG_FILE="$LOG_DIR/clean.log"
 
-UPDATE_REPO=${CMU_REPO:-homielab/clean-my-ubuntu}
+UPDATE_REPO=${CLEANMATE_REPO:-homielab/cleanmate-linux}
 REPO_URL="https://github.com/$UPDATE_REPO"
 UPDATE_BRANCH=main
 RUN_LOG="$LOG_DIR/last-run.log"
@@ -186,7 +186,7 @@ draw_header() { # TITLE
   if [[ -n $1 ]]; then where="${DIM} › ${NC}${BOLD}$1${NC}" # version and source link on Home only
   elif ((TERM_COLS >= 70)); then where=" ${DIM}v$VERSION · ${REPO_URL#https://}${NC}"
   else where=" ${DIM}v$VERSION${NC}"; fi
-  fl " ${ACCENT}${BOLD}🧹 Clean My Ubuntu${NC}$where$badge"
+  fl " ${ACCENT}${BOLD}🧹 CleanMate${NC}$where$badge"
   mini_bar db "$SYS_DISK_PCT" 14; mini_bar mb "$SYS_MEM_PCT" 14
   if ((TERM_COLS >= 78)); then
     fl " ${DIM}Disk${NC} $db ${SYS_DISK_PCT}%${DIM} · $SYS_DISK_FREE free${NC}     ${DIM}RAM${NC} $mb ${SYS_MEM_PCT}%${DIM} · $SYS_MEM_FREE free${NC}"
@@ -433,7 +433,7 @@ show_help() { # key reference over the current screen; restores the screen's sta
     "    ${DIM}The mouse is captured while the app runs — hold Shift to select text.${NC}"
     "    ${DIM}Activity log: ${LOG_FILE/#$HOME/\~}${NC}"
     "" "  ${BOLD}About${NC}"
-    "    Clean My Ubuntu $VERSION · MIT license"
+    "    CleanMate $VERSION · MIT license"
     "    Source code:  ${ACCENT}$REPO_URL${NC}"
     "    Report a bug: ${ACCENT}$REPO_URL/issues${NC}")
   ui_view "Help"
@@ -1969,7 +1969,7 @@ discover_models
 
 # ───────────────────────────── preferences & stats ──────────────────────────
 
-PREF_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/clean-my-ubuntu/selection"
+PREF_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/cleanmate/selection"
 STATS_FILE="$LOG_DIR/stats"
 declare -A PREF=() STATS=()
 
@@ -2810,7 +2810,7 @@ start_cleanup() { # cleans the selected SCANNED items; returns 1 if nothing ran
 }
 
 scan_report() { # --scan
-  printf '%sClean My Ubuntu — scan report%s\n\n' "$BOLD" "$NC"
+  printf '%sCleanMate — scan report%s\n\n' "$BOLD" "$NC"
   scan_items "${CATEGORIES[@]}"
   plain_results
   found_total
@@ -2818,7 +2818,7 @@ scan_report() { # --scan
 }
 
 smart_clean() { # --clean
-  printf '%sClean My Ubuntu — smart clean%s\n\n' "$BOLD" "$NC"
+  printf '%sCleanMate — smart clean%s\n\n' "$BOLD" "$NC"
   scan_items "${CATEGORIES[@]}"
   plain_results
   printf '\n'
@@ -3630,13 +3630,16 @@ m_snap_retain()   { run_root snap set system refresh.retain=2; }
 m_snap_unretain() { run_root snap unset system refresh.retain; }
 m_snap_retain_post() { (($2 == 0)) && T_INFO[$3]="older versions go at the next snap refresh — or clean them now in System Junk"; return 0; }
 
-JOURNALD_DROPIN=/etc/systemd/journald.conf.d/60-clean-my-ubuntu.conf
-journal_cap() { sed -n 's/^SystemMaxUse=\([0-9]*\)M$/\1/p' "$JOURNALD_DROPIN" 2>/dev/null; } # MB, empty = no limit of ours
-m_journal_cap() { # writes a journald drop-in; journald applies it on restart
-  run_root sh -c 'mkdir -p "${1%/*}" && printf "# Written by Clean My Ubuntu (Maintenance)\n[Journal]\nSystemMaxUse=%sM\n" "$2" >"$1" && systemctl restart systemd-journald' \
-    sh "$JOURNALD_DROPIN" "$JOURNAL_KEEP_MB"
+JOURNALD_DROPIN=/etc/systemd/journald.conf.d/60-cleanmate.conf
+LEGACY_JOURNALD_DROPIN=/etc/systemd/journald.conf.d/60-clean-my-ubuntu.conf # Clean My Ubuntu's
+journal_cap() { # MB, empty = no limit of ours
+  sed -n 's/^SystemMaxUse=\([0-9]*\)M$/\1/p' "$JOURNALD_DROPIN" "$LEGACY_JOURNALD_DROPIN" 2>/dev/null | head -n 1
 }
-m_journal_uncap() { run_root sh -c 'rm -f -- "$1" && systemctl restart systemd-journald' sh "$JOURNALD_DROPIN"; }
+m_journal_cap() { # writes a journald drop-in; journald applies it on restart
+  run_root sh -c 'mkdir -p "${1%/*}" && printf "# Written by CleanMate (Maintenance)\n[Journal]\nSystemMaxUse=%sM\n" "$2" >"$1" && rm -f -- "$3" && systemctl restart systemd-journald' \
+    sh "$JOURNALD_DROPIN" "$JOURNAL_KEEP_MB" "$LEGACY_JOURNALD_DROPIN"
+}
+m_journal_uncap() { run_root sh -c 'rm -f -- "$1" "$2" && systemctl restart systemd-journald' sh "$JOURNALD_DROPIN" "$LEGACY_JOURNALD_DROPIN"; }
 
 maintenance_menu() {
   local root=1
@@ -4178,14 +4181,20 @@ duplicates_menu() {
 
 # ───────────────────────────── settings & automation ────────────────────────
 
-SETTINGS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/clean-my-ubuntu/settings"
+SETTINGS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/cleanmate/settings"
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-BIN_PATH="$HOME/.local/bin/clean-my-ubuntu"
-ALIAS_PATH="$HOME/.local/bin/cmu" # shorthand
-APP_ID="com.homielab.CleanMyUbuntu" # also the desktop app's GApplication id — GNOME matches them
+BIN_PATH="$HOME/.local/bin/cleanmate"
+ALIAS_PATH="$HOME/.local/bin/cm" # shorthand
+APP_ID="com.homielab.CleanMate" # also the desktop app's GApplication id — GNOME matches them
 APP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/applications/$APP_ID.desktop"
-LEGACY_APP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/applications/clean-my-ubuntu.desktop" # before 1.0
 ICON_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/$APP_ID.svg"
+# Before 2.0 the app was Clean My Ubuntu: its commands stay as links to cleanmate, its settings,
+# logs and timer move over (migrate_legacy) and its launcher, icon and desktop app go (do_install)
+LEGACY_NAME=clean-my-ubuntu
+LEGACY_APP_ID=com.homielab.CleanMyUbuntu
+LEGACY_CMDS=("${BIN_PATH%/*}/$LEGACY_NAME" "${BIN_PATH%/*}/cmu")
+LEGACY_FILES=("${APP_FILE%/*}/$LEGACY_APP_ID.desktop" "${APP_FILE%/*}/$LEGACY_NAME.desktop" "${ICON_FILE%/*}/$LEGACY_APP_ID.svg")
+LEGACY_GUI_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/$LEGACY_NAME/gui"
 SELF=$(realpath -- "${BASH_SOURCE[0]}" 2>/dev/null || echo "$0")
 declare -A CFG=()
 
@@ -4222,13 +4231,13 @@ save_settings() {
 
 notify() { # TITLE BODY [ICON] [URGENCY]
   have notify-send || return 0
-  notify-send -a "Clean My Ubuntu" -i "${3:-user-trash-full}" -u "${4:-normal}" "$1" "$2" 2>/dev/null
+  notify-send -a "CleanMate" -i "${3:-user-trash-full}" -u "${4:-normal}" "$1" "$2" 2>/dev/null
   return 0
 }
 
 schedule_get() { # → off | daily | weekly | monthly
-  local t=$SYSTEMD_USER_DIR/clean-my-ubuntu.timer
-  if [[ -f $t ]] && systemctl --user is-enabled -q clean-my-ubuntu.timer 2>/dev/null; then
+  local t=$SYSTEMD_USER_DIR/cleanmate.timer
+  if [[ -f $t ]] && systemctl --user is-enabled -q cleanmate.timer 2>/dev/null; then
     sed -n 's/^OnCalendar=//p' "$t"
   else echo off; fi
 }
@@ -4238,17 +4247,17 @@ schedule_set() { # off | daily | weekly | monthly
   have systemctl || { toast "${RED}✘${NC} systemd is not available."; return 1; }
   if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would set automatic cleaning to: $1"; return 0; fi
   if [[ $1 == off ]]; then
-    systemctl --user disable --now clean-my-ubuntu.timer >/dev/null 2>&1
-    rm -f "$SYSTEMD_USER_DIR/clean-my-ubuntu.timer" "$SYSTEMD_USER_DIR/clean-my-ubuntu.service"
+    systemctl --user disable --now cleanmate.timer >/dev/null 2>&1
+    rm -f "$SYSTEMD_USER_DIR/cleanmate.timer" "$SYSTEMD_USER_DIR/cleanmate.service"
     systemctl --user daemon-reload 2>/dev/null
     toast "${GREEN}✔${NC} Automatic cleaning turned off."
     return 0
   fi
   [[ -x $BIN_PATH ]] && exe=$BIN_PATH
   mkdir -p "$SYSTEMD_USER_DIR" || return 1
-  cat >"$SYSTEMD_USER_DIR/clean-my-ubuntu.service" <<EOF
+  cat >"$SYSTEMD_USER_DIR/cleanmate.service" <<EOF
 [Unit]
-Description=Clean My Ubuntu — automatic Smart Clean
+Description=CleanMate — automatic Smart Clean
 
 [Service]
 Type=oneshot
@@ -4256,9 +4265,9 @@ ExecStart="$exe" --auto
 Nice=19
 IOSchedulingClass=idle
 EOF
-  cat >"$SYSTEMD_USER_DIR/clean-my-ubuntu.timer" <<EOF
+  cat >"$SYSTEMD_USER_DIR/cleanmate.timer" <<EOF
 [Unit]
-Description=Run Clean My Ubuntu automatically
+Description=Run CleanMate automatically
 
 [Timer]
 OnCalendar=$1
@@ -4269,15 +4278,36 @@ RandomizedDelaySec=1h
 WantedBy=timers.target
 EOF
   systemctl --user daemon-reload &&
-    systemctl --user enable --now clean-my-ubuntu.timer >/dev/null 2>&1 ||
+    systemctl --user enable --now cleanmate.timer >/dev/null 2>&1 ||
     { toast "${RED}✘${NC} Could not enable the systemd timer."; return 1; }
   if [[ $exe == "$BIN_PATH" ]]; then toast "${GREEN}✔${NC} Automatic cleaning: $1."
   else toast "${GREEN}✔${NC} Automatic cleaning: $1 — runs ${exe/#$HOME/\~}; install the launcher so moving it won't break this."; fi
 }
 
+legacy_cmd_ours() { # FILE → a Clean My Ubuntu command: its script, or a link to it or to us
+  if [[ -L $1 ]]; then [[ $(readlink "$1") == @("$LEGACY_NAME"|cleanmate) ]]
+  else [[ -f $1 ]] && grep -q "$LEGACY_NAME" "$1" 2>/dev/null; fi
+}
+
+migrate_legacy() { # Clean My Ubuntu → CleanMate: settings, logs and the timer, once
+  local base cal unit=$SYSTEMD_USER_DIR/$LEGACY_NAME
+  ((DRY_RUN)) && return 0
+  for base in "${XDG_CONFIG_HOME:-$HOME/.config}" "${XDG_STATE_HOME:-$HOME/.local/state}"; do
+    [[ -d $base/$LEGACY_NAME && ! -e $base/cleanmate ]] && mv -- "$base/$LEGACY_NAME" "$base/cleanmate"
+  done
+  if [[ -f $unit.timer ]] && have systemctl; then
+    cal=$(sed -n 's/^OnCalendar=//p' "$unit.timer")
+    systemctl --user disable --now "$LEGACY_NAME.timer" >/dev/null 2>&1
+    rm -f -- "$unit.timer" "$unit.service"
+    if [[ $cal == @(daily|weekly|monthly) && ! -f $SYSTEMD_USER_DIR/cleanmate.timer ]]; then schedule_set "$cal"
+    else systemctl --user daemon-reload 2>/dev/null; fi
+  fi
+  return 0
+}
+
 # The desktop app (gui/) and the icon (data/) ship in the repository. A clone has
 # them next to the script; a script downloaded on its own fetches them from GitHub.
-BUNDLE_URL=${CMU_BUNDLE_URL:-https://github.com/$UPDATE_REPO/archive/refs/heads/$UPDATE_BRANCH.tar.gz}
+BUNDLE_URL=${CLEANMATE_BUNDLE_URL:-https://github.com/$UPDATE_REPO/archive/refs/heads/$UPDATE_BRANCH.tar.gz}
 
 bundle_fetch() { # → BUNDLE_ROOT: the app files from GitHub (fails quietly when offline)
   local dir top
@@ -4286,7 +4316,7 @@ bundle_fetch() { # → BUNDLE_ROOT: the app files from GitHub (fails quietly whe
   fetch "$BUNDLE_URL" "$dir/app.tar.gz" || return 1
   tar -xzf "$dir/app.tar.gz" -C "$dir" --wildcards '*/gui/*' '*/data/*' 2>/dev/null || return 1
   for top in "$dir"/*/; do
-    [[ -f $top/gui/cmu-gui && -d $top/gui/cmu_gui ]] && { BUNDLE_ROOT=${top%/}; return 0; }
+    [[ -f $top/gui/cleanmate-gui && -d $top/gui/cleanmate_gui ]] && { BUNDLE_ROOT=${top%/}; return 0; }
   done
   return 1
 }
@@ -4294,14 +4324,14 @@ bundle_fetch() { # → BUNDLE_ROOT: the app files from GitHub (fails quietly whe
 app_files_root() { # → a folder with gui/ and data/: next to this script, or freshly downloaded
   local here
   here=$(dirname "$SELF")
-  if [[ -f $here/gui/cmu-gui || -d $here/data/icons ]]; then printf '%s\n' "$here"; return 0; fi
+  if [[ -f $here/gui/cleanmate-gui || -d $here/data/icons ]]; then printf '%s\n' "$here"; return 0; fi
   bundle_fetch && printf '%s\n' "$BUNDLE_ROOT"
 }
 
 install_app_files() { # ROOT — copy the desktop app and the icon into place
   local root=$1 svg="$1/data/icons/hicolor/scalable/apps/$APP_ID.svg"
-  if [[ -f $root/gui/cmu-gui && $root/gui != "$GUI_HOME" ]]; then
-    mkdir -p "$GUI_HOME" && cp -r -- "$root/gui/cmu-gui" "$root/gui/cmu_gui" "$GUI_HOME/" &&
+  if [[ -f $root/gui/cleanmate-gui && $root/gui != "$GUI_HOME" ]]; then
+    mkdir -p "$GUI_HOME" && cp -r -- "$root/gui/cleanmate-gui" "$root/gui/cleanmate_gui" "$GUI_HOME/" &&
       find "$GUI_HOME" -name __pycache__ -prune -exec rm -rf {} +
   fi
   if [[ -f $svg ]]; then
@@ -4311,8 +4341,8 @@ install_app_files() { # ROOT — copy the desktop app and the icon into place
   return 0
 }
 
-do_install() { # copy to ~/.local/bin, add the `cmu` shorthand and an app-grid entry → INSTALL_LOG
-  INSTALL_LOG=() INSTALL_CMD=clean-my-ubuntu
+do_install() { # copy to ~/.local/bin, add the `cm` shorthand and an app-grid entry → INSTALL_LOG
+  INSTALL_LOG=() INSTALL_CMD=cleanmate
   local bindir=${BIN_PATH%/*}
   bindir=${bindir/#$HOME/\~}
   if [[ ! -f $SELF || $SELF == /dev/* || $SELF == /proc/* ]]; then
@@ -4327,40 +4357,46 @@ do_install() { # copy to ~/.local/bin, add the `cmu` shorthand and an app-grid e
   if [[ $SELF != "$BIN_PATH" ]]; then
     install -m 755 -- "$SELF" "$BIN_PATH" || { INSTALL_LOG+=("${RED}✘${NC} Could not copy to ${BIN_PATH/#$HOME/\~}"); return 1; }
   fi
-  INSTALL_LOG+=("${GREEN}✔${NC} Installed ${BOLD}clean-my-ubuntu${NC} $VERSION to $bindir")
-  # `cmu` — but never shadow a different program or replace a real file
+  INSTALL_LOG+=("${GREEN}✔${NC} Installed ${BOLD}cleanmate${NC} $VERSION to $bindir")
+  # `cm` — but never shadow a different program or replace a real file
   local other
-  other=$(command -v cmu 2>/dev/null)
+  other=$(command -v cm 2>/dev/null)
   if [[ -L $ALIAS_PATH || ! -e $ALIAS_PATH ]] && [[ -z $other || $other == "$ALIAS_PATH" ]]; then
-    ln -sfn clean-my-ubuntu "$ALIAS_PATH" && INSTALL_LOG+=("${GREEN}✔${NC} Shorthand: ${BOLD}cmu${NC}") INSTALL_CMD=cmu
+    ln -sfn cleanmate "$ALIAS_PATH" && INSTALL_LOG+=("${GREEN}✔${NC} Shorthand: ${BOLD}cm${NC}") INSTALL_CMD=cm
   else
-    INSTALL_LOG+=("${YELLOW}!${NC} Skipped the ${BOLD}cmu${NC} shorthand: ${other:-$ALIAS_PATH} already exists")
+    INSTALL_LOG+=("${YELLOW}!${NC} Skipped the ${BOLD}cm${NC} shorthand: ${other:-$ALIAS_PATH} already exists")
   fi
   # the desktop app and the icon: from this copy's folder (a clone), or downloaded from GitHub
   local root gui=0 icon=user-trash-full
   if root=$(app_files_root); then
     install_app_files "$root"
     [[ $root == "$SESSION_TMP"/* ]] && INSTALL_LOG+=("${GREEN}✔${NC} Downloaded the desktop app and icon from GitHub")
-    [[ -f $GUI_HOME/cmu-gui ]] && INSTALL_LOG+=("${GREEN}✔${NC} Installed the desktop app (${BOLD}cmu --gui${NC})")
+    [[ -f $GUI_HOME/cleanmate-gui ]] && INSTALL_LOG+=("${GREEN}✔${NC} Installed the desktop app (${BOLD}cm --gui${NC})")
   else
     INSTALL_LOG+=("${YELLOW}!${NC} Couldn't get the desktop app (offline?) — the terminal app is installed.")
   fi
   [[ -f $ICON_FILE ]] && icon=$APP_ID
-  [[ -f $GUI_HOME/cmu-gui ]] && gui_supported && gui=1
-  rm -f -- "$LEGACY_APP_FILE"
+  [[ -f $GUI_HOME/cleanmate-gui ]] && gui_supported && gui=1
+  local f moved=0
+  for f in "${LEGACY_CMDS[@]}"; do
+    legacy_cmd_ours "$f" && [[ $(readlink "$f") != cleanmate ]] && ln -sfn cleanmate "$f" && moved=1
+  done
+  for f in "${LEGACY_FILES[@]}" "$LEGACY_GUI_HOME"; do [[ -e $f ]] && rm -rf -- "$f" && moved=1; done
+  rmdir -- "${LEGACY_GUI_HOME%/gui}" 2>/dev/null
+  ((moved)) && INSTALL_LOG+=("${GREEN}✔${NC} Replaced Clean My Ubuntu — ${BOLD}$LEGACY_NAME${NC} still works")
   if ((gui)); then # app grid opens the desktop app; right-click offers the terminal app
-    printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Clean My Ubuntu" \
+    printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=CleanMate" \
       "Comment=Free up disk space and keep Ubuntu tidy" "Exec=$BIN_PATH --gui" "Icon=$icon" \
-      "Terminal=false" "Categories=GTK;System;" "Keywords=clean;disk;space;junk;cache;duplicates;cmu;" \
+      "Terminal=false" "Categories=GTK;System;" "Keywords=clean;disk;space;junk;cache;duplicates;cm;" \
       "StartupNotify=true" "StartupWMClass=$APP_ID" "Actions=terminal;" "" \
       "[Desktop Action terminal]" "Name=Open in Terminal" "Exec=x-terminal-emulator -e $BIN_PATH" >"$APP_FILE"
   else
-    printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Clean My Ubuntu" \
+    printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=CleanMate" \
       "Comment=Free up disk space and keep Ubuntu tidy" "Exec=$BIN_PATH" "Icon=$icon" \
-      "Terminal=true" "Categories=System;" "Keywords=clean;disk;space;junk;cache;duplicates;cmu;" >"$APP_FILE"
+      "Terminal=true" "Categories=System;" "Keywords=clean;disk;space;junk;cache;duplicates;cm;" >"$APP_FILE"
   fi
   have update-desktop-database && update-desktop-database "${APP_FILE%/*}" >/dev/null 2>&1
-  INSTALL_LOG+=("${GREEN}✔${NC} Added “Clean My Ubuntu” to your app grid$( ((gui)) && echo " (desktop app)")")
+  INSTALL_LOG+=("${GREEN}✔${NC} Added “CleanMate” to your app grid$( ((gui)) && echo " (desktop app)")")
   local sched; sched=$(schedule_get)
   [[ $sched != off ]] && schedule_set "$sched" # point the timer at the installed copy
   case ":$PATH:" in
@@ -4373,7 +4409,7 @@ do_install() { # copy to ~/.local/bin, add the `cmu` shorthand and an app-grid e
 
 install_launcher() { # Settings → Install app launcher
   if packaged; then toast "${GREEN}✔${NC} Already installed by your package manager."; return; fi
-  ui_confirm "Install Clean My Ubuntu?" "Adds the clean-my-ubuntu and cmu commands and an app-grid entry." y || return
+  ui_confirm "Install CleanMate?" "Adds the cleanmate and cm commands and an app-grid entry." y || return
   if do_install; then toast "${GREEN}✔${NC} Installed — type ${BOLD}$INSTALL_CMD${NC} in any terminal, or find it in your apps"
   else toast "${INSTALL_LOG[-1]}"; fi
 }
@@ -4381,7 +4417,7 @@ install_launcher() { # Settings → Install app launcher
 cli_install() { # --install
   local l rc
   if packaged; then
-    ok "Clean My Ubuntu is already installed as a package — find it in Show Apps, or run: cmu"
+    ok "CleanMate is already installed as a package — find it in Show Apps, or run: cm"
     return 0
   fi
   do_install; rc=$?
@@ -4393,22 +4429,23 @@ cli_install() { # --install
 cli_uninstall() { # --uninstall: remove commands, launcher, timer; optionally settings and logs
   local f
   if packaged; then
-    info "Clean My Ubuntu was installed as a package — remove it with:"
-    if [[ -n ${SNAP:-} ]]; then printf '    sudo snap remove clean-my-ubuntu\n'; else printf '    sudo apt remove clean-my-ubuntu\n'; fi
+    info "CleanMate was installed as a package — remove it with:"
+    if [[ -n ${SNAP:-} ]]; then printf '    sudo snap remove cleanmate\n'; else printf '    sudo apt remove cleanmate\n'; fi
     return 0
   fi
-  printf '  This removes clean-my-ubuntu, cmu, the app-grid entry and automatic cleaning.\n'
-  confirm "Uninstall Clean My Ubuntu?" || return 1
+  printf '  This removes cleanmate, cm, the app-grid entry and automatic cleaning.\n'
+  confirm "Uninstall CleanMate?" || return 1
   if have systemctl && ((!DRY_RUN)); then
-    systemctl --user disable --now clean-my-ubuntu.timer >/dev/null 2>&1
+    systemctl --user disable --now cleanmate.timer >/dev/null 2>&1
   fi
-  for f in "$BIN_PATH" "$ALIAS_PATH" "$APP_FILE" "$LEGACY_APP_FILE" "$ICON_FILE" \
-    "$SYSTEMD_USER_DIR/clean-my-ubuntu.timer" "$SYSTEMD_USER_DIR/clean-my-ubuntu.service"; do
+  for f in "$BIN_PATH" "$ALIAS_PATH" "$APP_FILE" "$ICON_FILE" "${LEGACY_FILES[@]}" \
+    "$SYSTEMD_USER_DIR/cleanmate.timer" "$SYSTEMD_USER_DIR/cleanmate.service"; do
     [[ -e $f || -L $f ]] || continue
-    [[ $f == "$ALIAS_PATH" && $(readlink "$f") != clean-my-ubuntu ]] && continue # not ours
+    [[ $f == "$ALIAS_PATH" && $(readlink "$f") != cleanmate ]] && continue # not ours
     run rm -f -- "$f" && ok "Removed ${f/#$HOME/\~}"
   done
-  if [[ -d $GUI_HOME && $GUI_HOME == */clean-my-ubuntu/gui ]]; then
+  for f in "${LEGACY_CMDS[@]}"; do legacy_cmd_ours "$f" && run rm -f -- "$f" && ok "Removed ${f/#$HOME/\~}"; done
+  if [[ -d $GUI_HOME && $GUI_HOME == */cleanmate/gui ]]; then
     run rm -rf -- "$GUI_HOME" && ok "Removed the desktop app"
   fi
   ((DRY_RUN)) || { have systemctl && systemctl --user daemon-reload 2>/dev/null; }
@@ -4440,8 +4477,8 @@ settings_menu() {
     mi 2 "Low disk alert" "$( ((LOW_DISK_PCT)) && echo "Notify below ${LOW_DISK_PCT}% free (checked with automatic cleaning)" || echo "Off")"
     mi 3 "Recent files history" "$(recent_policy)"
     mi 4 "Install app launcher" "$(if packaged; then echo "Installed by your package manager"
-      elif [[ -x $BIN_PATH && -f $APP_FILE ]]; then echo "Installed — run clean-my-ubuntu or cmu"
-      else echo "Add clean-my-ubuntu and cmu commands and an app-grid entry"; fi)"
+      elif [[ -x $BIN_PATH && -f $APP_FILE ]]; then echo "Installed — run cleanmate or cm"
+      else echo "Add cleanmate and cm commands and an app-grid entry"; fi)"
     mh "Updates"
     mi 5 "Check for updates now" "You have version $VERSION${UPDATE_LATEST:+ — $UPDATE_LATEST is available}"
     mi 6 "Daily update check" "$( ((${CFG[update_check]:-1})) && echo "On — a quiet check once a day" || echo "Off")"
@@ -4538,11 +4575,11 @@ recent_menu() {
 # it replaces the installed copy atomically (write next to it, then rename),
 # so a copy that is currently running is never corrupted.
 
-UPDATE_URL=${CMU_UPDATE_URL:-https://raw.githubusercontent.com/$UPDATE_REPO/$UPDATE_BRANCH/clean-my-ubuntu.sh}
+UPDATE_URL=${CLEANMATE_UPDATE_URL:-https://raw.githubusercontent.com/$UPDATE_REPO/$UPDATE_BRANCH/cleanmate.sh}
 UPDATE_STATE="$LOG_DIR/update-check" # "<epoch>\t<latest version>"
 UPDATE_LATEST=""
 
-update_configured() { [[ -n ${CMU_UPDATE_URL:-} || $UPDATE_REPO == */* ]]; } # CMU_UPDATE_URL: mirrors, forks, tests
+update_configured() { [[ -n ${CLEANMATE_UPDATE_URL:-} || $UPDATE_REPO == */* ]]; } # CLEANMATE_UPDATE_URL: mirrors, forks, tests
 
 fetch() { # URL OUT → 0 ok, 22 not found / server error, 127 no downloader, other = network
   local rc
@@ -4570,7 +4607,7 @@ load_update_state() { # → UPDATE_LATEST (from the last check)
 update_check_bg() { # at most once a day, in the background — never delays the app
   local t=0 v
   packaged && return 0 # apt / Software Updater handle updates
-  ((${CFG[update_check]:-1})) && [[ -z ${CMU_NO_UPDATE_CHECK:-} ]] && update_configured || return 0
+  ((${CFG[update_check]:-1})) && [[ -z ${CLEANMATE_NO_UPDATE_CHECK:-${CMU_NO_UPDATE_CHECK:-}} ]] && update_configured || return 0
   [[ -f $UPDATE_STATE ]] && IFS=$'\t' read -r t v <"$UPDATE_STATE"
   ((EPOCHSECONDS - ${t:-0} < 86400)) && return 0
   (
@@ -4602,8 +4639,8 @@ update_download() { # → UPDATE_FILE, UPDATE_NEW; 0 newer available, 1 error (U
   if ((rc == 22)); then UPDATE_MSG="No published version found at github.com/$UPDATE_REPO yet."; return 1; fi
   if ((rc != 0)) || [[ ! -s $UPDATE_FILE ]]; then UPDATE_MSG="Could not reach GitHub — are you online?"; return 1; fi
   UPDATE_NEW=$(script_version "$UPDATE_FILE")
-  if [[ -z $UPDATE_NEW ]] || ! grep -q 'clean-my-ubuntu' "$UPDATE_FILE" || ! bash -n "$UPDATE_FILE" 2>/dev/null; then
-    UPDATE_MSG="The download doesn't look like Clean My Ubuntu — not installing it."
+  if [[ -z $UPDATE_NEW ]] || ! grep -q 'cleanmate' "$UPDATE_FILE" || ! bash -n "$UPDATE_FILE" 2>/dev/null; then
+    UPDATE_MSG="The download doesn't look like CleanMate — not installing it."
     return 1
   fi
   mkdir -p "$LOG_DIR" && printf '%s\t%s\n' "$EPOCHSECONDS" "$UPDATE_NEW" >"$UPDATE_STATE"
@@ -4626,7 +4663,7 @@ update_apply() { # install UPDATE_FILE over the installed copy (or this file) �
   if [[ -d $GUI_HOME || -f $ICON_FILE ]] && bundle_fetch; then # keep the desktop app in step
     install_app_files "$BUNDLE_ROOT"
   fi
-  UPDATE_MSG="Updated to $UPDATE_NEW — restart cmu to use it."
+  UPDATE_MSG="Updated to $UPDATE_NEW — restart cm to use it."
 }
 
 ui_update() { # check, confirm, install — from the menu or Settings
@@ -4641,11 +4678,11 @@ ui_update() { # check, confirm, install — from the menu or Settings
 
 cli_update() { # --update
   if packaged; then
-    info "Clean My Ubuntu was installed as a package — update it with Software Updater or:"
+    info "CleanMate was installed as a package — update it with Software Updater or:"
     pkg_update_hint
     return 0
   fi
-  printf '  Clean My Ubuntu %s — checking for updates…\n' "$VERSION"
+  printf '  CleanMate %s — checking for updates…\n' "$VERSION"
   update_download
   case $? in
     1) err "$UPDATE_MSG"; return 1 ;;
@@ -4661,7 +4698,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
   local avail size pct
   INTERACTIVE=0 ASSUME_YES=1
   local id b left=() body title
-  printf 'Clean My Ubuntu — automatic Smart Clean (%s)\n\n' "$(date '+%F %T')"
+  printf 'CleanMate — automatic Smart Clean (%s)\n\n' "$(date '+%F %T')"
   scan_items "${CATEGORIES[@]}" # everything is scanned (read-only) …
   for id in "${SCANNED[@]}"; do # … but only user & developer junk is cleaned
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
@@ -4678,10 +4715,10 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
   done | sort -rn | head -n 3)
   if ((RUN_FREED > 0 || ${#left[@]})); then
     if ((RUN_FREED > 0)); then title="Freed $(human "$RUN_FREED")"; body="Caches and junk were cleaned automatically."
-    else title="Clean My Ubuntu"; body=""; fi
+    else title="CleanMate"; body=""; fi
     if ((${#left[@]})); then
       body+="${body:+ }Worth a look: $(printf '%s, ' "${left[@]}")"
-      body="${body%, } — run cmu to review."
+      body="${body%, } — run cm to review."
     fi
     printf '\n  %s: %s\n' "$title" "$body"
     notify "$title" "$body"
@@ -4689,13 +4726,13 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
   read -r size avail < <(df -B1 --output=size,avail / | tail -n1)
   pct=$((avail * 100 / size))
   if ((LOW_DISK_PCT > 0 && pct < LOW_DISK_PCT)); then
-    notify "Disk almost full" "Only $(human "$avail") ($pct%) free on /. Open Clean My Ubuntu to free up space." drive-harddisk critical
+    notify "Disk almost full" "Only $(human "$avail") ($pct%) free on /. Open CleanMate to free up space." drive-harddisk critical
   fi
 }
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cmu --json items|scan|details|clean …` prints one JSON object per line on
+# `cm --json items|scan|details|clean …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -4817,21 +4854,21 @@ json_clean() { # ID… — clean exactly these items, streaming "task" events
 
 # ───────────────────────────── desktop app ──────────────────────────────────
 
-GUI_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/clean-my-ubuntu/gui"
+GUI_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cleanmate/gui"
 
-# Installed by a package (.deb): files live in ../share/clean-my-ubuntu next to the
+# Installed by a package (.deb): files live in ../share/cleanmate next to the
 # command, and apt — not this script — handles updates and removal.
-PKG_SHARE="$(dirname "$SELF")/../share/clean-my-ubuntu"
+PKG_SHARE="$(dirname "$SELF")/../share/cleanmate"
 packaged() { [[ -f $PKG_SHARE/packaged || -n ${SNAP:-} ]]; }
 pkg_update_hint() { # how this copy gets updates
-  if [[ -n ${SNAP:-} ]]; then printf '    Snaps update automatically (or: sudo snap refresh clean-my-ubuntu)\n'
+  if [[ -n ${SNAP:-} ]]; then printf '    Snaps update automatically (or: sudo snap refresh cleanmate)\n'
   else printf '    sudo apt update && sudo apt upgrade\n'; fi
 }
 
 gui_dir() { # where the desktop app lives: next to this script (a clone), installed, or packaged
   local d
   for d in "$(dirname "$SELF")/gui" "$GUI_HOME" "$PKG_SHARE/gui"; do
-    [[ -f $d/cmu-gui && -d $d/cmu_gui ]] && { printf '%s\n' "$d"; return 0; }
+    [[ -f $d/cleanmate-gui && -d $d/cleanmate_gui ]] && { printf '%s\n' "$d"; return 0; }
   done
   return 1
 }
@@ -4853,21 +4890,21 @@ launch_gui() {
   fi
   if ! gui_supported; then
     err "The desktop app needs GTK 4 + libadwaita 1.5 (Ubuntu 24.04 or newer)."
-    err "On older systems use the terminal app: cmu"
+    err "On older systems use the terminal app: cm"
     return 1
   fi
   local extra=()
   ((DRY_RUN)) && extra=(--dry-run)
-  exec python3 "$dir/cmu-gui" --engine "$SELF" "${extra[@]}"
+  exec python3 "$dir/cleanmate-gui" --engine "$SELF" "${extra[@]}"
 }
 
 # ───────────────────────────── main ─────────────────────────────────────────
 
 usage() {
   cat <<EOF
-Clean My Ubuntu $VERSION — free up disk space and keep Ubuntu tidy. Inspired by CleanMyMac.
+CleanMate $VERSION — free up disk space and keep Ubuntu tidy. Inspired by CleanMyMac.
 
-Usage: $(basename "$0") [options]        (installed as: cmu)
+Usage: $(basename "$0") [options]        (installed as: cm)
 
 Run
   (no option)       Open the terminal app
@@ -4885,7 +4922,7 @@ Scan & clean without the app
                     desktop notification
 
 Install & update
-      --install     Install the cmu command, the desktop app and the app-grid entry
+      --install     Install the cm command, the desktop app and the app-grid entry
       --update      Check for a new version and install it (asks first)
       --uninstall   Remove everything --install added
   -v, --version     Print the version
@@ -4905,7 +4942,7 @@ home_top() {
   local msg
   fl ""
   if [[ -n ${UPDATE_DONE:-} ]]; then
-    fl "  ${GREEN}✔${NC} ${BOLD}Updated to $UPDATE_DONE.${NC} ${DIM}Quit and start cmu again to use the new version.${NC}"
+    fl "  ${GREEN}✔${NC} ${BOLD}Updated to $UPDATE_DONE.${NC} ${DIM}Quit and start cm again to use the new version.${NC}"
   elif [[ -n ${STATS[last_time]} ]]; then
     local when last total runs
     agov when "${STATS[last_time]}"; humanv last "${STATS[last_freed]}"; humanv total "${STATS[lifetime]}"
@@ -4997,7 +5034,7 @@ while (($#)); do
         [[ -n ${CAT_TITLE[$_c]:-} ]] || { err "Unknown category: $_c (use system, logs, user, browser, apps, ai, models, dev, privacy)"; exit 2; }
       done ;;
     -h | --help) usage; exit 0 ;;
-    -v | --version) echo "clean-my-ubuntu $VERSION"; exit 0 ;;
+    -v | --version) echo "cleanmate $VERSION"; exit 0 ;;
     --install) MODE=install ;;
     --uninstall) MODE=uninstall ;;
     --update) MODE=update ;;
@@ -5019,10 +5056,11 @@ on_interrupt() { # stop every background job and its children (they ignore SIGIN
   exit 130
 }
 
-SESSION_TMP=$(mktemp -d -t clean-my-ubuntu.XXXXXX) || exit 1
+SESSION_TMP=$(mktemp -d -t cleanmate.XXXXXX) || exit 1
 trap 'rm -rf "$SESSION_TMP"' EXIT
 trap 'on_interrupt' INT TERM
 
+migrate_legacy
 load_kv "$PREF_FILE" PREF '^[01]$'
 load_kv "$STATS_FILE" STATS '^[0-9]+$'
 load_kv "$SETTINGS_FILE" CFG '^[0-9]+$'
