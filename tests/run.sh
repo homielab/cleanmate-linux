@@ -38,8 +38,23 @@ if [[ -t 1 ]]; then G=$'\e[32m' R=$'\e[31m' Y=$'\e[33m' D=$'\e[2m' N=$'\e[0m'; e
 fresh_home() { HOME_DIR=$(mktemp -d -p "$WORK" home.XXXX); mkdir -p "$HOME_DIR/.config/cleanmate"; }
 
 cm() { # run the app non-interactively inside the fake home
-  env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb \
+  "${AS_USER[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb \
     CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} bash "$SCRIPT" "$@"
+}
+
+# As root, `--json clean` refuses home items (the desktop app elevates only for
+# system items), so tests of cleaning home items run as an ordinary user.
+AS_USER=()
+if ((EUID == 0)); then
+  chmod 711 "$WORK" # the user needs to reach the stubs and the fake homes
+  cp "$SCRIPT" "$WORK/cleanmate-as-user.sh" && chmod 644 "$WORK/cleanmate-as-user.sh" # the checkout may be root-only
+fi
+user_cm() { # like cm; as root it runs as nobody, who owns the fake home for the time being
+  ((EUID == 0)) || { cm "$@"; return; }
+  command -v setpriv >/dev/null || { fail "running as root needs setpriv (util-linux)"; return 1; }
+  chown -R 65534:65534 "$HOME_DIR"
+  local AS_USER=(setpriv --reuid=65534 --regid=65534 --clear-groups) SCRIPT=$WORK/cleanmate-as-user.sh
+  cm "$@"
 }
 
 in_app() { # run bash code with the script's functions loaded (sourced, nothing starts)
@@ -393,6 +408,7 @@ test_clean_my_ubuntu_hands_over() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   command -v curl >/dev/null || command -v wget >/dev/null || { SKIPPED="neither curl nor wget installed"; return; }
   local shim=$ROOT/clean-my-ubuntu.sh www=$WORK/handover port srv out bin
+  fresh_home
   assert_eq "$(in_app "script_version '$shim'")" "$(cm --version | awk '{print $2}')" "shim VERSION = script VERSION"
   grep -q 'clean-my-ubuntu' "$shim" && bash -n "$shim" && ok_ "1.x accepts it as an update" || fail "1.x would reject the shim"
   fresh_home
@@ -535,11 +551,15 @@ for l in sys.stdin:
     if e.get("id") == "thumbs": print(e["status"], e["bytes"] > 0, e["selected"], e["root"])')
   assert_eq "$out" "found True True False" "thumbs item in scan"
   out=$(cm --json details thumbs | python3 -c "$check" 2>&1); assert_contains "$out" "details=1"
-  out=$(cm --json --dry-run clean thumbs 2>&1); assert_contains "$out" '"state":"ok"'
+  if ((EUID == 0)); then
+    out=$(cm --json clean thumbs 2>&1); assert_contains "$out" "Refusing to clean thumbs as root"
+    assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png"
+  fi
+  out=$(user_cm --json --dry-run clean thumbs 2>&1); assert_contains "$out" '"state":"ok"'
   assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png"
-  out=$(cm --json clean thumbs 2>&1); assert_contains "$out" '"event":"done"'
+  out=$(user_cm --json clean thumbs 2>&1); assert_contains "$out" '"event":"done"'
   assert_missing "$HOME_DIR/.cache/thumbnails/large/a.png"
-  out=$(cm --json clean thumbs nope 2>&1); assert_contains "$out" "Unknown item: nope"
+  out=$(user_cm --json clean thumbs nope 2>&1); assert_contains "$out" "Unknown item: nope"
   in_app 'json_allowed journal 0' && ok_ "root may clean system items" || fail "root should clean journal"
   in_app 'json_allowed thumbs 0' && fail "root must not clean home items" || ok_ "root refused for home items"
   in_app 'json_allowed thumbs 1000' && ok_ "user may clean home items" || fail "user should clean thumbs"
@@ -644,11 +664,11 @@ test_ai_models_are_separate_and_never_remembered() {
   cm --clean --yes --only user >/dev/null 2>&1 </dev/null
   assert_exists "$hub/models--org--small/blobs/a"
   # cleaning exactly that model (what the review screen and the desktop app do)
-  out=$(cm --json clean "$small" 2>&1); assert_contains "$out" '"state":"ok"'
+  out=$(user_cm --json clean "$small" 2>&1); assert_contains "$out" '"state":"ok"'
   assert_missing "$hub/models--org--small"
   assert_exists "$hub/models--org--big"
   assert_exists "$hub/datasets--org--data"
-  out=$(cm --json clean "$lms7" 2>&1); assert_contains "$out" '"state":"ok"'
+  out=$(user_cm --json clean "$lms7" 2>&1); assert_contains "$out" '"state":"ok"'
   assert_missing "$lms/pub/llm-7b"
   assert_exists "$lms/pub"
   in_app 'model_safe_path "$HOME/.cache/huggingface/hub"' && fail "the hub itself is not a model" || ok_ "hub refused"
@@ -665,7 +685,7 @@ test_ai_models_are_separate_and_never_remembered() {
 test_ollama_models_use_ollama_rm() {
   fresh_home
   local log=$WORK/ollama.log out
-  : >"$log"
+  : >"$log"; chmod 666 "$log" # written by the clean, which runs as nobody under root
   mkdir -p "$WORK/ollamabin"
   cat >"$WORK/ollamabin/ollama" <<EOF
 #!/bin/sh
@@ -680,7 +700,7 @@ EOF
   assert_contains "$out" "1.9 GB" # ollama says 2.0 GB in SI units; the app shows binary units
   local id
   id=$(BASE_PATH="$WORK/ollamabin:$BASE_PATH" in_app 'for i in "${ITEM_IDS[@]}"; do [[ ${ITEM_LABEL[$i]} == "Ollama — llama3.2:latest" ]] && echo "$i"; done')
-  out=$(BASE_PATH="$WORK/ollamabin:$BASE_PATH" cm --json clean "$id" 2>&1)
+  out=$(BASE_PATH="$WORK/ollamabin:$BASE_PATH" user_cm --json clean "$id" 2>&1)
   assert_contains "$out" '"state":"ok"'
   assert_contains "$(<"$log")" "rm llama3.2:latest"
   [[ $(<"$log") == *"rm qwen3"* ]] && fail "only the chosen model is removed" || ok_ "other model kept"

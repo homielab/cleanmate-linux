@@ -119,6 +119,9 @@ term_size() {
 ui_start() {
   ((INTERACTIVE)) && [[ -t 0 && -t 1 ]] || return 0
   UI_ACTIVE=1
+  UI_STTY=$(stty -g 2>/dev/null)
+  key_mode_on
+  { exec {UI_SLEEP_FD}<> <(:); } 2>/dev/null || UI_SLEEP_FD="" # an empty pipe: `read -t` on it sleeps without a fork
   printf '\e[?1049h\e[?25l\e[?7l\e[H\e[2J'
   mouse_on
   trap 'UI_RESIZED=1' WINCH # read_key notices this and triggers a redraw
@@ -132,12 +135,20 @@ mouse_off() { ((UI_ACTIVE)) && printf '\e[?1000l\e[?1006l'; return 0; }
 ui_stop() {
   ((UI_ACTIVE)) || return 0
   printf '\e[?1000l\e[?1006l\e[?7h\e[?25h\e[?1049l'
-  UI_ACTIVE=0
+  key_mode_off
+  [[ -n $UI_SLEEP_FD ]] && exec {UI_SLEEP_FD}<&-
+  UI_SLEEP_FD="" UI_ACTIVE=0
 }
 
+# While the UI runs, keys reach the app one at a time and are not echoed (also
+# keys typed while it is busy), so read_key can see a waiting key without reading it.
+UI_STTY="" UI_SLEEP_FD=""
+key_mode_on()  { stty -icanon -echo min 1 time 0 2>/dev/null; return 0; }
+key_mode_off() { [[ -n $UI_STTY ]] && stty "$UI_STTY" 2>/dev/null; return 0; }
+
 # Temporarily hand the terminal back for prompts (sudo, text input).
-term_raw_on()  { ((UI_ACTIVE)) && { mouse_off; printf '\e[?25h\e[?7h'; }; return 0; }
-term_raw_off() { ((UI_ACTIVE)) && { printf '\e[?25l\e[?7l'; mouse_on; }; return 0; }
+term_raw_on()  { ((UI_ACTIVE)) && { mouse_off; key_mode_off; printf '\e[?25h\e[?7h'; }; return 0; }
+term_raw_off() { ((UI_ACTIVE)) && { key_mode_on; printf '\e[?25l\e[?7l'; mouse_on; }; return 0; }
 
 fl() { FRAME+="$1"$'\e[K\n'; ((++FRAME_N)); }
 frame_begin() { ((TERM_DIRTY)) && { term_size; TERM_DIRTY=0; }; FRAME="" FRAME_N=0; }
@@ -219,19 +230,28 @@ draw_footer() { # HINTS — pads the frame so the footer sits at the bottom
 
 toast() { UI_TOAST=$1; }
 
+ui_sleep() { # SECONDS
+  if [[ -n $UI_SLEEP_FD ]]; then read -rt "$1" -u "$UI_SLEEP_FD"; else sleep "$1"; fi
+  return 0
+}
+
 # read_key [TIMEOUT] → KEY: up down left right pgup pgdn home end enter space tab
 # esc backspace resize wheelup wheeldown click (MOUSE_X/MOUSE_Y) <char>.
 # With TIMEOUT it returns 1 when no key arrived (used by busy screens, so that
 # keys and mouse sequences are consumed whole and never leak into later screens).
+# It waits for a key without reading, then reads it without a timeout: bash
+# before 5.3 can lose a key that arrives while `read -t` times out on a terminal.
 read_key() {
   local k rest c seq
   if [[ -n ${1:-} ]]; then
-    IFS= read -rsn1 -t "$1" k || return 1
+    input_pending || { ui_sleep "$1"; input_pending; } || return 1
+    IFS= read -rsn1 k || return 1
   else
-    until IFS= read -rsn1 -t 0.25 k; do
-      (($? > 128)) || { KEY=q; sleep 0.1; return 0; } # EOF: back out instead of spinning
+    until input_pending; do
       if ((UI_RESIZED)); then UI_RESIZED=0 TERM_DIRTY=1; KEY=resize; return 0; fi
+      ui_sleep 0.03
     done
+    IFS= read -rsn1 k || { KEY=q; sleep 0.1; return 0; } # EOF: back out instead of spinning
   fi
   case $k in
     $'\e')

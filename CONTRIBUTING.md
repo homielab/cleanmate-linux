@@ -63,6 +63,8 @@ bash cleanmate.sh --dry-run   # try it for real without deleting anything
 The tests use a throwaway home folder, stub out `sudo`, `pgrep` and `docker`, and fail if your real
 `~/.config` or `~/.local/state` folders change. The terminal-UI test needs `pip install pyte`; the
 desktop-app test needs `gtk4-broadwayd` (package `libgtk-4-bin`) and runs on an invisible display.
+They also pass as root (for example in a container): the engine refuses home items as root, so those
+cleanups run as `nobody` through `setpriv`.
 CI runs everything on Ubuntu 22.04 and 24.04 for every pull request.
 
 ## Desktop app

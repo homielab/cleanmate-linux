@@ -12,6 +12,10 @@ All notable changes are listed here. The format follows
 - AI Tools: caches and logs of Cursor, Windsurf (code index, browser cache), Cline and Kilo Code, and opencode logs. Chats, sessions, settings and logins are kept.
 - Desktop app: larger checkboxes, rows at least 48 px tall, a three-state checkbox on each group header, and the reason shown on items that need your password.
 
+### Fixed
+
+- Terminal app: key presses were sometimes ignored with bash older than 5.3 (Ubuntu 22.04 and 24.04), and keys typed while a screen was busy were printed over it.
+
 ## [2.0.0] — 2026-10-25
 
 **Clean My Ubuntu is now CleanMate**, the name of HomieLab's cleaner on every platform.
