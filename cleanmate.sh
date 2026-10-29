@@ -1530,9 +1530,9 @@ list_precheck() { # the tool is running: skip when unattended, otherwise ask
 }
 
 reg_list_item() { # ID LABEL DEFAULT NOUN DESCRIPTION LIST_FN ROOTS [PROCESS_REGEX] [RUNNING_DEFAULT]
-  local id=$1
+  local id=$1 # category: ai, or LIST_CAT=… in front of the call
   [[ $id =~ ^[a-z0-9_]+$ ]] || return 1
-  reg "$id" ai "$2" "$3" "$5"
+  reg "$id" "${LIST_CAT:-ai}" "$2" "$3" "$5"
   LIST_NOUN[$id]=$4 LIST_FN[$id]=$6 LIST_ROOTS[$id]=$7 ITEM_PROCS[$id]=${8:-} LIST_RUN_DEFAULT[$id]=${9:-y}
   eval "scan_$id() { list_scan $id; }
         clean_$id() { list_clean $id; }
@@ -1621,6 +1621,15 @@ ai_windsurf_cache() {
 # Cline and Kilo Code: logs/caches only (Cline's db/ and data/cache hold sessions and input history)
 ai_cline_cache() { contents "$HOME/.cline/data/logs"; }
 ai_kilo_cache() { contents "$HOME/.cache/kilo"; contents "${XDG_DATA_HOME:-$HOME/.local/share}/kilo/log"; }
+# MiMoCode (an opencode fork): cache and logs; never its databases (*.db*) or auth.json
+ai_mimocode_cache() {
+  { contents "$HOME/.cache/mimocode"; contents "${XDG_DATA_HOME:-$HOME/.local/share}/mimocode/log"; } |
+    grep -v '/[^/]*\.db[^/]*$'
+  return 0
+}
+# ZCode: dated log files of the app and the CLI; never cli/rollout (the sessions' model traffic),
+# credentials or databases
+ai_zcode_cache() { contents "$HOME/.zcode/v2/logs"; contents "$HOME/.zcode/cli/log"; }
 # Zed
 ai_zed_cache() {
   local a
@@ -1680,6 +1689,13 @@ reg_list_item ai_kilo_cache "Kilo Code — cache & logs" 1 item \
   "Kilo Code's model list, downloaded helpers and logs. Sessions and logins are kept." \
   ai_kilo_cache "$HOME/.cache/kilo
 $_d/kilo" 'kilo|kilocode'
+reg_list_item ai_mimocode_cache "MiMoCode — cache & logs" 1 item \
+  "MiMoCode's download cache and logs. Sessions (its databases) and logins are kept." \
+  ai_mimocode_cache "$HOME/.cache/mimocode
+$_d/mimocode" mimo
+reg_list_item ai_zcode_cache "ZCode — logs" 1 item \
+  "Daily logs of the ZCode app and CLI. Sessions, credentials and settings are kept." \
+  ai_zcode_cache "$HOME/.zcode" 'zcode|zcode-cli|ZCode'
 reg_list_item ai_zed_cache "Zed — hang traces & old agents" 1 item \
   "Older versions of AI agents Zed downloaded (the newest is kept), and hang traces." \
   ai_zed_cache "$_d/zed" 'zed|zed-editor'
@@ -1699,7 +1715,7 @@ unset _c _d
 app_cache_find() {
   # Exclude with -path tests, not -prune: -delete implies -depth, which disables -prune.
   local ex=(thumbnails pip go-build yarn pnpm mozilla google-chrome chromium BraveSoftware
-    microsoft-edge vivaldi opera huggingface lm-studio) skip=() e # AI models are items of their own
+    microsoft-edge vivaldi opera huggingface lm-studio firebase) skip=() e # AI models are items of their own
   for e in "${ex[@]}"; do skip+=(-path "$HOME/.cache/$e/*" -o); done
   unset 'skip[-1]'
   find "$HOME/.cache" -type f -not \( "${skip[@]}" \) -mtime +"$CACHE_DAYS" -atime +"$CACHE_DAYS" "$@" 2>/dev/null
@@ -1860,6 +1876,30 @@ reg_cache_item browser_test_cache dev "Playwright, Puppeteer & Cypress browsers"
   "$HOME/.cache/ms-playwright
 $HOME/.cache/puppeteer
 $HOME/.cache/Cypress" "node|playwright"
+
+# Firebase CLI: its debug logs (`firebase mcp` writes them without limit, rotating to .1–.9) and the
+# emulators it downloaded. The CLI runs as `node`, so a log a process still has open is skipped
+# instead of looking for the CLI by name. Never configstore/firebase-tools.json (login),
+# crashlytics/, extensions/ or logs inside projects.
+open_files() { # every file a process of yours (all of them as root) has open
+  find /proc/[0-9]*/fd -type l -printf '%l\n' 2>/dev/null
+}
+firebase_logs() {
+  local d=$HOME/.cache/firebase f open
+  [[ -d $d && ! -L $d ]] || return 0
+  open=$(open_files)
+  for f in "$d"/firebase-debug.log "$d"/firebase-debug.*.log; do
+    [[ -f $f && ! -L $f ]] || continue
+    grep -qxF -- "$f" <<<"$open" || printf '%s\n' "$f"
+  done
+}
+firebase_emulators() { contents "$HOME/.cache/firebase/emulators"; }
+LIST_CAT=dev reg_list_item firebase_logs "Firebase CLI logs" 1 file \
+  "Debug logs of the Firebase CLI (firebase mcp can grow them to gigabytes). A log still being written is skipped. Your login is kept." \
+  firebase_logs "$HOME/.cache/firebase"
+LIST_CAT=dev reg_list_item firebase_emulators "Firebase emulators" 0 item \
+  "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). Downloaded again when you start them." \
+  firebase_emulators "$HOME/.cache/firebase"
 
 si_to_bytes() { local v=${1%B}; v=${v/k/K}; numfmt --from=si "$v" 2>/dev/null || echo 0; }
 # Docker: one item per kind of leftover, sized from `docker system df`.

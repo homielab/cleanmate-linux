@@ -1039,6 +1039,46 @@ test_ai_coding_tool_caches_keep_sessions_and_logins() {
   done
 }
 
+test_firebase_zcode_mimocode_keep_logins_and_sessions() {
+  fresh_home
+  local h=$HOME_DIR fb=$HOME_DIR/.cache/firebase out holder
+  new "$fb/firebase-debug.log"; new "$fb/firebase-debug.1.log"; new "$fb/firebase-debug.2.log"
+  new "$fb/emulators/cloud-firestore-emulator-v1.19.jar"; new "$fb/crashlytics/c"; new "$fb/extensions/e"
+  new "$h/.config/configstore/firebase-tools.json"; new "$h/app/firebase-debug.log"
+  new "$h/.zcode/v2/logs/2026-10-01.log"; new "$h/.zcode/cli/log/zcode-2026-10-01.jsonl"
+  new "$h/.zcode/cli/rollout/r.jsonl"; new "$h/.zcode/credentials.json"; new "$h/.zcode/cli/zcode.db"
+  new "$h/.cache/mimocode/models.json"; new "$h/.cache/mimocode/index.db"; new "$h/.local/share/mimocode/log/l"
+  new "$h/.local/share/mimocode/mimocode.db"; new "$h/.local/share/mimocode/mimocode.db-wal"; new "$h/.local/share/mimocode/auth.json"
+  sleep 60 3>>"$fb/firebase-debug.2.log" & # firebase mcp still writing this one
+  holder=$!
+  out=$(cm --scan --only dev,ai 2>&1)
+  assert_contains "$out" "Firebase CLI logs"; assert_contains "$out" "Firebase emulators"
+  assert_contains "$out" "ZCode — logs"; assert_contains "$out" "MiMoCode — cache & logs"
+  select_only firebase_logs firebase_emulators ai_zcode_cache ai_mimocode_cache
+  cm --clean --yes --dry-run --only dev,ai >/dev/null 2>&1 </dev/null
+  assert_exists "$fb/firebase-debug.log"; assert_exists "$h/.zcode/v2/logs/2026-10-01.log"; assert_exists "$h/.cache/mimocode/models.json"
+  cm --clean --yes --only dev,ai >/dev/null 2>&1 </dev/null
+  kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+  for f in "$fb/firebase-debug.log" "$fb/firebase-debug.1.log" "$fb/emulators/cloud-firestore-emulator-v1.19.jar" \
+    "$h/.zcode/v2/logs/2026-10-01.log" "$h/.zcode/cli/log/zcode-2026-10-01.jsonl" \
+    "$h/.cache/mimocode/models.json" "$h/.local/share/mimocode/log/l"; do
+    assert_missing "$f"
+  done
+  for f in "$fb/firebase-debug.2.log" "$fb/crashlytics/c" "$fb/extensions/e" "$h/.config/configstore/firebase-tools.json" \
+    "$h/app/firebase-debug.log" "$h/.zcode/cli/rollout/r.jsonl" "$h/.zcode/credentials.json" "$h/.zcode/cli/zcode.db" \
+    "$h/.cache/mimocode/index.db" "$h/.local/share/mimocode/mimocode.db" "$h/.local/share/mimocode/mimocode.db-wal" \
+    "$h/.local/share/mimocode/auth.json"; do
+    assert_exists "$f"
+  done
+  # a running ZCode or MiMoCode is skipped when unattended
+  new "$h/.zcode/v2/logs/l2"; new "$h/.local/share/mimocode/log/l2"
+  printf '#!/bin/sh\ncase "$*" in *zcode*|*mimo*) exit 0;; esac\nexit 1\n' >"$WORK/stubs/pgrep"
+  out=$(cm --clean --yes --only ai 2>&1 </dev/null)
+  printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/pgrep"
+  assert_contains "$out" "Skipping ZCode"; assert_contains "$out" "Skipping MiMoCode"
+  assert_exists "$h/.zcode/v2/logs/l2"; assert_exists "$h/.local/share/mimocode/log/l2"
+}
+
 test_lasting_limits_and_space_reports() {
   fresh_home
   local out

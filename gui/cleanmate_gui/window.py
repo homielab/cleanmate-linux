@@ -24,10 +24,10 @@ PAGES = [
     ("user", "User & App Junk", "user-home-symbolic", ["user", "browser", "apps"],
      "Trash, thumbnails, stale caches — and every browser and app cache on its own."),
     ("ai", "AI Tools", "applications-science-symbolic", ["ai", "models"],
-     "Caches, logs and old chat sessions of Claude, Codex, Gemini/Antigravity, opencode, Zed and more — "
+     "Caches, logs and old chat sessions of Claude, Codex, Gemini/Antigravity, opencode, ZCode, Zed and more — "
      "and downloaded Ollama, Hugging Face and LM Studio models, each on its own."),
     ("dev", "Developer Junk", "applications-engineering-symbolic", ["dev"],
-     "Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers."),
+     "Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, Firebase CLI logs."),
     ("privacy", "Privacy", "security-high-symbolic", ["privacy"],
      "Terminal history, recent files, run dialog and emoji history."),
     None,  # section: Tools

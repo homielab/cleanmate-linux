@@ -38,7 +38,7 @@ details_my_cache() { detail_paths "$HOME/.cache/my-app"; }                 # opt
 
 `scan_*` returns 0 when there's something to clean, 2 when it's clean, 1 when it doesn't apply
 (the app isn't installed). For a whole family of folders, look at `reg_cache_item` (browsers,
-apps), `reg_list_item` (AI tools), `reg_model_item` (one item per downloaded AI model) and
+apps), `reg_list_item` (AI tools; `LIST_CAT=dev reg_list_item …` for another group), `reg_model_item` (one item per downloaded AI model) and
 `reg_privacy_item` (histories) — they generate the three
 functions for you.
 

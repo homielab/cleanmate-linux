@@ -9,6 +9,8 @@ All notable changes are listed here. The format follows
 ### Added
 
 - Developer Junk: uv cache, rustup downloads (installed toolchains are kept) and the Playwright, Puppeteer and Cypress browser downloads (not pre-selected).
+- Developer Junk: Firebase CLI debug logs (`firebase mcp` can grow them to gigabytes; a log still being written is skipped) and downloaded Firebase emulators (not pre-selected). Your Firebase login, Crashlytics and extensions are kept.
+- AI Tools: ZCode logs (sessions and credentials are kept) and MiMoCode cache and logs (its databases and login are kept); both are skipped while the tool runs.
 - AI Tools: caches and logs of Cursor, Windsurf (code index, browser cache), Cline and Kilo Code, and opencode logs. Chats, sessions, settings and logins are kept.
 - Desktop app: larger checkboxes, rows at least 48 px tall, a three-state checkbox on each group header, and the reason shown on items that need your password.
 - Desktop app: **Large & Old Files** page — list your biggest files by minimum size, how long they've been unused and folder (or drive), tick them and move them to the Trash; **Undo** in the notification puts them back where they were.
