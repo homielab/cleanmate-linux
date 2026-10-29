@@ -95,7 +95,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 | **User & App Junk** | Your caches | Trash, thumbnails, stale caches, and **each browser** and **each app** (VS Code, Slack, Discord, Steam's shader cache, Snap and Flatpak apps) as its own choice |
 | **AI Tools** | AI assistant clutter | caches, logs and *old* sessions of Claude Code, Claude Desktop, Codex, Gemini/Antigravity, opencode, Zed, Copilot CLI, Continue |
 | **AI Models** | Downloaded models | **each** Ollama, Hugging Face and LM Studio model on its own — never pre-selected, never cleaned automatically |
-| **Developer Junk** | Build and package caches | npm, Yarn, pnpm, Bun, pip, Go, Cargo, Gradle, Maven, Conda; Docker images, build cache, containers and volumes (each separately); Podman; `node_modules` of projects idle for 90 days |
+| **Developer Junk** | Build and package caches | npm, Yarn, pnpm, Bun, pip, uv, Go, Cargo, rustup downloads, Gradle, Maven, Conda; Docker images, build cache, containers and volumes (each separately); Podman; Playwright, Puppeteer and Cypress browsers (never pre-selected); `node_modules` of projects idle for 90 days |
 
 **Privacy** (never part of Smart Scan) clears shell history (bash, zsh, fish), *Recent files*,
 Python/Node/database shell history, Vim history, and the Alt+F2 and emoji history.

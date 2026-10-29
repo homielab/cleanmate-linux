@@ -1747,6 +1747,46 @@ scan_maven() { dev_scan "~/.m2/repository" "${MAVEN_PATHS[@]}"; }
 clean_maven() { empty_dir "${MAVEN_PATHS[0]}"; }
 details_maven() { detail_paths "${MAVEN_PATHS[@]}"; }
 
+# A folder a tool is pointed to by an environment variable: the live environment first, then
+# the last `export NAME=value` in the shell startup files (read as text, never run). Only a
+# plain path inside HOME ($HOME, ${HOME} or ~ allowed) counts; anything else is ignored.
+env_home_dir() { # NAME → path, or nothing
+  local name=$1 v="" f line
+  v=${!name:-}
+  if [[ -z $v ]]; then
+    for f in .profile .bash_profile .bashrc .zshenv .zprofile .zshrc; do
+      [[ -f $HOME/$f && ! -L $HOME/$f ]] || continue
+      line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$name=" "$HOME/$f" 2>/dev/null | tail -n 1)
+      [[ -n $line ]] || continue
+      v=${line#*"$name"=}
+      v=${v%%[[:space:]]#*}
+      v=${v#\"}; v=${v%\"}; v=${v#\'}; v=${v%\'}
+    done
+  fi
+  v=${v/#\~/$HOME}; v=${v/#\$\{HOME\}/$HOME}; v=${v/#\$HOME/$HOME}
+  [[ $v == "$HOME"/* && $v != *[\$\`\;\&\|\<\>\(\)\\]* && $v != *..* && ! -L $v ]] && printf '%s\n' "${v%/}"
+  return 0
+}
+env_home_paths() { # NAME SUBFOLDER|"" DEFAULT... → the default folders plus NAME's (+ /SUBFOLDER), one per line
+  local e
+  e=$(env_home_dir "$1")
+  [[ -n $e && -n $2 ]] && e+=/$2
+  { printf '%s\n' "${@:3}"; [[ -n $e ]] && printf '%s\n' "$e"; } | awk '!seen[$0]++'
+}
+
+reg_cache_item uv_cache dev "uv cache" 1 \
+  "uv's package and wheel cache (~/.cache/uv). Re-downloaded on next use; your environments are kept." \
+  "$(env_home_paths UV_CACHE_DIR "" "$HOME/.cache/uv")" "uv|uvx"
+reg_cache_item rustup_downloads dev "rustup downloads" 1 \
+  "Leftover rustup downloads and temp files. Your installed toolchains are kept." \
+  "$(env_home_paths RUSTUP_HOME downloads "$HOME/.rustup/downloads")
+$(env_home_paths RUSTUP_HOME tmp "$HOME/.rustup/tmp")" "rustup"
+reg_cache_item browser_test_cache dev "Playwright, Puppeteer & Cypress browsers" 0 \
+  "Browsers downloaded for test tools (~/.cache/ms-playwright, puppeteer, Cypress). Re-downloaded on next install or test run." \
+  "$HOME/.cache/ms-playwright
+$HOME/.cache/puppeteer
+$HOME/.cache/Cypress" "node|playwright"
+
 si_to_bytes() { local v=${1%B}; v=${v/k/K}; numfmt --from=si "$v" 2>/dev/null || echo 0; }
 # Docker: one item per kind of leftover, sized from `docker system df`.
 docker_ok() { have docker && timeout 5 docker info >/dev/null 2>&1; }

@@ -723,6 +723,45 @@ EOF
   assert_contains "$(<"$log")" "podman system prune -f"
 }
 
+test_uv_rustup_and_browser_test_caches() {
+  fresh_home
+  local out
+  new "$HOME_DIR/.cache/uv/wheels/a.whl"
+  new "$HOME_DIR/.rustup/downloads/x.partial"; new "$HOME_DIR/.rustup/tmp/t"
+  new "$HOME_DIR/.rustup/toolchains/stable/bin/rustc"; new "$HOME_DIR/.rustup/settings.toml"
+  new "$HOME_DIR/.cache/ms-playwright/chromium-1/chrome"; new "$HOME_DIR/.cache/puppeteer/p"; new "$HOME_DIR/.cache/Cypress/c"
+  new "$HOME_DIR/uvcustom/u"; new "$WORK/outside/u"
+  printf 'export UV_CACHE_DIR="$HOME/uvcustom"\n' >"$HOME_DIR/.bashrc"
+  out=$(cm --scan --only dev 2>&1)
+  assert_contains "$out" "uv cache"
+  assert_contains "$out" "rustup downloads"
+  assert_contains "$out" "Playwright, Puppeteer"
+  select_only uv_cache rustup_downloads
+  cm --clean --yes --dry-run --only dev >/dev/null 2>&1 </dev/null
+  assert_exists "$HOME_DIR/.cache/uv/wheels/a.whl"
+  assert_exists "$HOME_DIR/.rustup/downloads/x.partial"
+  cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  assert_missing "$HOME_DIR/.cache/uv/wheels/a.whl"
+  assert_missing "$HOME_DIR/uvcustom/u"
+  assert_missing "$HOME_DIR/.rustup/downloads/x.partial"
+  assert_missing "$HOME_DIR/.rustup/tmp/t"
+  assert_exists "$HOME_DIR/.rustup/toolchains/stable/bin/rustc"
+  assert_exists "$HOME_DIR/.rustup/settings.toml"
+  assert_exists "$HOME_DIR/.cache/ms-playwright/chromium-1/chrome" # not selected by default
+  assert_exists "$HOME_DIR/.cache/puppeteer/p"
+  # a path outside HOME in a startup file is ignored
+  printf 'export UV_CACHE_DIR=%s/outside\nexport RUSTUP_HOME=/etc\n' "$WORK" >"$HOME_DIR/.bashrc"
+  new "$HOME_DIR/.cache/uv/wheels/b.whl"
+  select_only uv_cache rustup_downloads
+  cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  assert_missing "$HOME_DIR/.cache/uv/wheels/b.whl"
+  assert_exists "$WORK/outside/u"
+  select_only browser_test_cache
+  cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  assert_missing "$HOME_DIR/.cache/ms-playwright/chromium-1/chrome"
+  assert_missing "$HOME_DIR/.cache/Cypress/c"
+}
+
 test_lasting_limits_and_space_reports() {
   fresh_home
   local out
