@@ -1234,7 +1234,7 @@ discover_app_caches() {
   local app name sub dirs
   for app in "${XDG_CONFIG_HOME:-$HOME/.config}"/*/; do # Electron apps
     name=${app%/}; name=${name##*/}
-    [[ $name =~ $BROWSER_DIRS ]] && continue
+    [[ $name =~ $BROWSER_DIRS || $name == Cursor ]] && continue # Cursor has its own item in AI Tools
     dirs=""
     for sub in "${ELECTRON_SUBDIRS[@]}"; do [[ -d $app$sub && ! -L $app$sub ]] && dirs+="$app$sub"$'\n'; done
     # process name guess: first word of the folder name (Code → code, "Antigravity IDE" → antigravity)
@@ -1558,8 +1558,28 @@ ai_gemini_history() {
   aged "$HOME/.gemini/tmp" "$AI_HISTORY_DAYS"
 }
 # opencode
-ai_opencode_cache() { contents "$HOME/.cache/opencode"; }
+ai_opencode_cache() { contents "$HOME/.cache/opencode"; contents "${XDG_DATA_HOME:-$HOME/.local/share}/opencode/log"; }
 ai_opencode_history() { aged "${XDG_DATA_HOME:-$HOME/.local/share}/opencode/snapshot" "$AI_HISTORY_DAYS"; }
+# Cursor (Electron caches and logs only; User/, workspaceStorage and globalStorage hold chats and settings)
+ai_cursor_cache() {
+  local d=${XDG_CONFIG_HOME:-$HOME/.config}/Cursor s
+  for s in "${ELECTRON_SUBDIRS[@]}" logs; do [[ -d $d/$s && ! -L $d/$s ]] && printf '%s\n' "$d/$s"; done
+  return 0
+}
+# Windsurf: embedding index and the Chromium cache of its built-in browser (no auth or settings)
+ai_windsurf_cache() {
+  local b s
+  contents "$HOME/.codeium/windsurf/database"
+  contents "$HOME/.codeium/database"
+  for b in "$HOME/.codeium/windsurf/ws-browser-profile" "$HOME/.codeium/ws-browser-profile"; do
+    for s in Cache "Code Cache" GPUCache DawnCache; do [[ -d $b/$s && ! -L $b/$s ]] && printf '%s\n' "$b/$s"; done
+    for s in "$b"/*/Cache "$b"/*/"Code Cache" "$b"/*/GPUCache; do [[ -d $s && ! -L $s ]] && printf '%s\n' "$s"; done
+  done
+  return 0
+}
+# Cline and Kilo Code: logs/caches only (Cline's db/ and data/cache hold sessions and input history)
+ai_cline_cache() { contents "$HOME/.cline/data/logs"; }
+ai_kilo_cache() { contents "$HOME/.cache/kilo"; contents "${XDG_DATA_HOME:-$HOME/.local/share}/kilo/log"; }
 # Zed
 ai_zed_cache() {
   local a
@@ -1600,12 +1620,25 @@ reg_list_item ai_gemini_cache "Gemini/Antigravity — logs" 1 item \
 reg_list_item ai_gemini_history "Gemini/Antigravity — old chats" 0 item \
   "Antigravity conversations and agent workspaces (brain), and Gemini CLI checkpoints, older than 30 days." \
   ai_gemini_history "$HOME/.gemini" 'antigravity|gemini'
-reg_list_item ai_opencode_cache "opencode — cache" 1 item "opencode's download cache." \
+reg_list_item ai_opencode_cache "opencode — cache & logs" 1 item "opencode's download cache and logs. Sessions (opencode.db) and logins are kept." \
   ai_opencode_cache "$_d/opencode
 $HOME/.cache/opencode" opencode
 reg_list_item ai_opencode_history "opencode — old undo snapshots" 0 snapshot \
   "Undo snapshots of opencode sessions older than 30 days. Sessions in opencode.db are kept." \
   ai_opencode_history "$_d/opencode" opencode
+reg_list_item ai_cursor_cache "Cursor — cache & logs" 1 item \
+  "Cursor's web caches and logs. Chats, settings, extensions and logins are kept." \
+  ai_cursor_cache "$_c/Cursor" cursor
+reg_list_item ai_windsurf_cache "Windsurf — index & browser cache" 1 item \
+  "Windsurf's code index (rebuilt on next launch) and the cache of its built-in browser. Logins and settings are kept." \
+  ai_windsurf_cache "$HOME/.codeium" 'windsurf|language_server'
+reg_list_item ai_cline_cache "Cline — logs" 1 item \
+  "Cline's log files. Sessions and settings are kept." \
+  ai_cline_cache "$HOME/.cline" cline
+reg_list_item ai_kilo_cache "Kilo Code — cache & logs" 1 item \
+  "Kilo Code's model list, downloaded helpers and logs. Sessions and logins are kept." \
+  ai_kilo_cache "$HOME/.cache/kilo
+$_d/kilo" 'kilo|kilocode'
 reg_list_item ai_zed_cache "Zed — hang traces & old agents" 1 item \
   "Older versions of AI agents Zed downloaded (the newest is kept), and hang traces." \
   ai_zed_cache "$_d/zed" 'zed|zed-editor'

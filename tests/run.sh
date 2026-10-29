@@ -762,6 +762,48 @@ test_uv_rustup_and_browser_test_caches() {
   assert_missing "$HOME_DIR/.cache/Cypress/c"
 }
 
+test_ai_coding_tool_caches_keep_sessions_and_logins() {
+  fresh_home
+  local h=$HOME_DIR out
+  new "$h/.config/Cursor/Cache/c"; new "$h/.config/Cursor/CachedData/c"; new "$h/.config/Cursor/Code Cache/c"
+  new "$h/.config/Cursor/GPUCache/c"; new "$h/.config/Cursor/DawnCache/c"; new "$h/.config/Cursor/Service Worker/CacheStorage/c"; new "$h/.config/Cursor/logs/l"
+  new "$h/.config/Cursor/User/globalStorage/state.vscdb"; new "$h/.config/Cursor/User/workspaceStorage/w/s"
+  new "$h/.codeium/windsurf/database/idx"; new "$h/.codeium/windsurf/ws-browser-profile/Default/Cache/c"
+  new "$h/.codeium/windsurf/ws-browser-profile/Default/Cookies"; new "$h/.codeium/windsurf/mcp_config.json"
+  new "$h/.cache/opencode/models.json"; new "$h/.local/share/opencode/log/l"
+  new "$h/.local/share/opencode/opencode.db"; new "$h/.local/share/opencode/auth.json"
+  new "$h/.cline/data/logs/l"; new "$h/.cline/data/db/sessions.db"; new "$h/.cline/data/cache/user_input_history.jsonl"
+  new "$h/.cache/kilo/models.json"; new "$h/.local/share/kilo/log/l"; new "$h/.local/share/kilo/auth.json"
+  out=$(cm --scan --only ai 2>&1)
+  assert_contains "$out" "Cursor — cache"
+  assert_contains "$out" "Windsurf"
+  assert_contains "$out" "Cline — logs"
+  assert_contains "$out" "Kilo Code"
+  cm --clean --yes --dry-run --only ai >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.config/Cursor/Cache/c"; assert_exists "$h/.cline/data/logs/l"
+  cm --clean --yes --only ai >/dev/null 2>&1 </dev/null
+  for f in .config/Cursor/Cache .config/Cursor/CachedData "'.config/Cursor/Code Cache'" .config/Cursor/GPUCache .config/Cursor/DawnCache "'.config/Cursor/Service Worker/CacheStorage'" .config/Cursor/logs \
+    .codeium/windsurf/database/idx .codeium/windsurf/ws-browser-profile/Default/Cache .cache/opencode/models.json \
+    .local/share/opencode/log/l .cline/data/logs/l .cache/kilo/models.json .local/share/kilo/log/l; do
+    assert_missing "$h/$(eval echo "$f")"
+  done
+  assert_exists "$h/.config/Cursor/User/globalStorage/state.vscdb"; assert_exists "$h/.config/Cursor/User/workspaceStorage/w/s"
+  assert_exists "$h/.codeium/windsurf/ws-browser-profile/Default/Cookies"; assert_exists "$h/.codeium/windsurf/mcp_config.json"
+  assert_exists "$h/.local/share/opencode/opencode.db"; assert_exists "$h/.local/share/opencode/auth.json"
+  assert_exists "$h/.cline/data/db/sessions.db"; assert_exists "$h/.cline/data/cache/user_input_history.jsonl"
+  assert_exists "$h/.local/share/kilo/auth.json"
+  # a running tool is skipped when unattended
+  new "$h/.cline/data/logs/l2"; new "$h/.config/Cursor/logs/l2"; new "$h/.codeium/windsurf/database/l2"
+  new "$h/.local/share/opencode/log/l2"; new "$h/.local/share/kilo/log/l2"
+  printf '#!/bin/sh\ncase "$*" in *cline*|*cursor*|*windsurf*|*opencode*|*kilo*) exit 0;; esac\nexit 1\n' >"$WORK/stubs/pgrep"
+  out=$(cm --clean --yes --only ai 2>&1 </dev/null)
+  printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/pgrep"
+  for t in Cline Cursor Windsurf opencode Kilo; do assert_contains "$out" "Skipping $t"; done
+  for f in .cline/data/logs/l2 .config/Cursor/logs/l2 .codeium/windsurf/database/l2 .local/share/opencode/log/l2 .local/share/kilo/log/l2; do
+    assert_exists "$h/$f"
+  done
+}
+
 test_lasting_limits_and_space_reports() {
   fresh_home
   local out

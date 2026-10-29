@@ -9,6 +9,7 @@ All notable changes are listed here. The format follows
 ### Added
 
 - Developer Junk: uv cache, rustup downloads (installed toolchains are kept) and the Playwright, Puppeteer and Cypress browser downloads (not pre-selected).
+- AI Tools: caches and logs of Cursor, Windsurf (code index, browser cache), Cline and Kilo Code, and opencode logs. Chats, sessions, settings and logins are kept.
 
 ## [2.0.0] — 2026-10-25
 
