@@ -603,6 +603,76 @@ for l in sys.stdin:
   in_app 'json_allowed thumbs 1000' && ok_ "user may clean home items" || fail "user should clean thumbs"
 }
 
+large_names() { # reads `--json large` → "kind bytes name" lines, then "done COUNT"
+  python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "file": print(e["kind"], e["bytes"], e["path"].rsplit("/", 1)[1])
+    elif e["event"] == "done": print("done", e["count"])
+    else: print(e["event"], e.get("message", ""))'
+}
+
+test_json_large_files() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out v=$HOME_DIR/Videos
+  mkdir -p "$v" "$HOME_DIR/Old stuff" "$HOME_DIR/.cache/app" "$HOME_DIR/code/.git" "$HOME_DIR/.local/share/Trash/files"
+  truncate -s 3M "$v/film one.mkv"
+  truncate -s 2M "$HOME_DIR/Old stuff/backup.iso"; truncate -s 1536K "$v/watched.mp4"
+  touch -d '200 days ago' "$HOME_DIR/Old stuff/backup.iso"
+  touch -m -d '200 days ago' "$v/watched.mp4" # old, but opened recently
+  truncate -s 10K "$v/small.txt"
+  truncate -s 5M "$HOME_DIR/.cache/app/blob" "$HOME_DIR/code/.git/pack" "$HOME_DIR/.local/share/Trash/files/gone.bin"
+  out=$(cm --json large --min 1048576 | large_names)
+  assert_eq "$out" $'video 3145728 film one.mkv\ndisk 2097152 backup.iso\nvideo 1572864 watched.mp4\ndone 3' \
+    "big files listed biggest first; caches, .git and the Trash skipped"
+  out=$(cm --json large --min 1048576 --days 90 | large_names)
+  assert_eq "$out" $'disk 2097152 backup.iso\ndone 1' "old = not changed and not opened for 90 days"
+  out=$(cm --json large --min 0 --path "$v" | large_names)
+  assert_eq "$out" $'video 3145728 film one.mkv\nvideo 1572864 watched.mp4\ndocument 10240 small.txt\ndone 3' "--path"
+  out=$(cm --json large --min 5M 2>&1); assert_contains "$out" "Invalid size: 5M"
+  out=$(cm --json large --path "$HOME_DIR/nope" 2>&1); assert_contains "$out" "Not a folder"
+  out=$(cm --json large --days 2>&1); assert_contains "$out" "--days needs a value"
+}
+
+test_json_trash_and_restore() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out f1="$HOME_DIR/Videos/film one.mkv" f2="$HOME_DIR/Docs/ünï %20.pdf" keep=$HOME_DIR/Videos/keep.mkv
+  local trash=$HOME_DIR/.local/share/Trash
+  new "$f1"; new "$f2"; new "$keep"
+  local tasks='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task": print(e["state"], e["trash"] or "-", e["info"])
+    elif e["event"] == "done": print("done", e.get("moved", e.get("restored")), e["failed"])'
+  if ((EUID == 0)); then
+    out=$(cm --json trash "$keep" 2>&1); assert_contains "$out" "Refusing to move files to the Trash as root"
+    assert_exists "$keep"
+  fi
+  out=$(user_cm --json --dry-run trash "$f1" | python3 -c "$tasks")
+  assert_eq "$out" $'ok - would be moved to the Trash\ndone 1 0' "dry run"
+  assert_exists "$f1"
+  out=$(user_cm --json trash "$f1" "$f2" "$HOME_DIR/missing" "$HOME_DIR" | python3 -c "$tasks")
+  assert_eq "$out" $'ok film one.mkv moved to the Trash\nok ünï %20.pdf moved to the Trash\nfail - Not found\nfail - Refusing to touch protected path: '"$HOME_DIR"$'\ndone 2 2' "trash"
+  assert_missing "$f1"; assert_missing "$f2"; assert_exists "$keep"; assert_exists "$HOME_DIR"
+  assert_exists "$trash/files/film one.mkv"; assert_exists "$trash/info/ünï %20.pdf.trashinfo"
+  out=$(user_cm --json --dry-run restore "film one.mkv" | python3 -c "$tasks")
+  assert_eq "$out" $'ok film one.mkv would be put back\ndone 1 0' "dry-run restore"
+  assert_missing "$f1"
+  new "$HOME_DIR/Docs/ünï %20.pdf" # something new took its place: never overwritten
+  out=$(user_cm --json restore "film one.mkv" "ünï %20.pdf" "../x" | python3 -c "$tasks")
+  assert_eq "$out" $'ok film one.mkv put back\nfail ünï %20.pdf A file with this name is already there\nfail ../x Not in the Trash any more\ndone 1 2' "restore"
+  assert_exists "$f1"; assert_missing "$trash/files/film one.mkv"; assert_missing "$trash/info/film one.mkv.trashinfo"
+  assert_exists "$trash/files/ünï %20.pdf"
+  rm -f "$f2"
+  out=$(user_cm --json restore "ünï %20.pdf" | python3 -c "$tasks")
+  assert_eq "$out" $'ok ünï %20.pdf put back\ndone 1 0' "restore an encoded name"
+  assert_exists "$f2"
+  out=$(user_cm --json restore "film one.mkv" | python3 -c "$tasks")
+  assert_eq "$out" $'fail film one.mkv Not in the Trash any more\ndone 0 1' "restore twice"
+}
+
 test_gui_selftest() {
   command -v gtk4-broadwayd >/dev/null || { SKIPPED="gtk4-broadwayd not installed (package libgtk-4-bin)"; return; }
   local py="" c
@@ -636,6 +706,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   assert_contains "$out" "group box selects the whole group"
   assert_contains "$out" "locked row “Claude Code — cache & logs” can't be ticked (claude running)"
   assert_contains "$out" "group boxes leave locked rows unticked"
+  assert_contains "$out" "age filter keeps only the old file"
+  assert_contains "$out" "dry run: the file stays"
+  ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the file back where it was" # root: refused
   assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
 }
 

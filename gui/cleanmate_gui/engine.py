@@ -43,9 +43,10 @@ def human(n):
 class Engine:
     """Runs `cleanmate.sh --json …` and streams its events."""
 
-    def __init__(self, path, dry_run=False):
+    def __init__(self, path, dry_run=False, env=None):
         self.path = os.path.abspath(path)
         self.dry_run = dry_run
+        self.env = env or {}  # extra environment variables for the engine (the self-test's own HOME)
 
     def run(self, args, on_event, on_done, as_root=False):
         """Start the engine. on_event(dict) per event, on_done(ok, exit_status) at the end.
@@ -61,9 +62,12 @@ class Engine:
         argv += list(args)
         cancellable = Gio.Cancellable()
         try:
-            proc = Gio.Subprocess.new(
-                argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
+            launcher = Gio.SubprocessLauncher.new(
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
             )
+            for key, value in self.env.items():
+                launcher.setenv(key, value, True)
+            proc = launcher.spawnv(argv)
         except GLib.Error as e:
             GLib.idle_add(on_event, {"event": "error", "message": e.message})
             GLib.idle_add(on_done, False, -1)
@@ -107,6 +111,16 @@ class Engine:
 
     def clean(self, ids, on_event, on_done, as_root=False):
         return self.run(["clean", *ids], on_event, on_done, as_root=as_root)
+
+    def large(self, min_bytes, days, folder, on_event, on_done):
+        return self.run(["large", "--min", str(min_bytes), "--days", str(days), "--path", folder],
+                        on_event, on_done)
+
+    def trash(self, paths, on_event, on_done):
+        return self.run(["trash", *paths], on_event, on_done)
+
+    def restore(self, names, on_event, on_done):
+        return self.run(["restore", *names], on_event, on_done)
 
     def version(self):
         try:

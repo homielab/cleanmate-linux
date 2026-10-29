@@ -6,6 +6,7 @@ import subprocess
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from .engine import SMART_SCAN, Selection, human
+from .largefiles import LargeFilesPage
 from .scanpage import ScanPage
 
 # (id, title, icon, categories, description) — same order as the terminal app's menu
@@ -26,6 +27,10 @@ PAGES = [
      "Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers."),
     ("privacy", "Privacy", "security-high-symbolic", ["privacy"],
      "Terminal history, recent files, run dialog and emoji history."),
+    None,  # section: Files
+    ("large", "Large & Old Files", "drive-harddisk-symbolic", None,
+     "Find the biggest files, or the ones you haven't opened in months, and move what you don't need "
+     "to the Trash. You can undo it."),
 ]
 REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
@@ -117,7 +122,7 @@ class Window(Adw.ApplicationWindow):
 
     # ── navigation ──
     def _section_header(self, row, before):
-        titles = {"system": "Cleanup", "terminal": "More"}
+        titles = {"system": "Cleanup", "large": "Files", "terminal": "More"}
         title = titles.get(getattr(row, "page_id", ""))
         if title:
             label = Gtk.Label(label=title, xalign=0, margin_start=12, margin_top=12, margin_bottom=6,
@@ -136,15 +141,24 @@ class Window(Adw.ApplicationWindow):
     def show_page(self, pid):
         spec = next(s for s in PAGES if s and s[0] == pid)
         if pid not in self.pages:
-            page = ScanPage(self, spec[1], spec[3], spec[2], spec[4])
+            if spec[3] is None:
+                page = LargeFilesPage(self, spec[1], spec[2], spec[4])
+            else:
+                page = ScanPage(self, spec[1], spec[3], spec[2], spec[4])
             self.pages[pid] = page
             self.content_stack.add_named(page, pid)
         self.content_stack.set_visible_child_name(pid)
         self.content_page.set_title(spec[1])
 
     # ── helpers used by pages ──
-    def toast(self, text):
-        self.toasts.add_toast(Adw.Toast(title=GLib.markup_escape_text(text), timeout=4))
+    def toast(self, text, button=None, on_button=None, timeout=4):
+        """Show a toast; with button and on_button it offers an action (e.g. Undo). Returns the toast."""
+        toast = Adw.Toast(title=GLib.markup_escape_text(text), timeout=timeout)
+        if button and on_button:
+            toast.set_button_label(button)
+            toast.connect("button-clicked", lambda *_: on_button())
+        self.toasts.add_toast(toast)
+        return toast
 
     def set_busy(self, busy):
         self._busy += 1 if busy else -1

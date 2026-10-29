@@ -75,8 +75,9 @@ CI runs everything on Ubuntu 22.04 and 24.04 for every pull request.
 bash cleanmate.sh --gui --dry-run     # run it from your clone
 ```
 
-Pages live in `gui/cleanmate_gui/scanpage.py`, the window and sidebar in `window.py`, the engine
-wrapper in `engine.py`. Keep all deletion logic in the engine.
+Pages live in `gui/cleanmate_gui/scanpage.py` (cleanup) and `largefiles.py` (Large & Old Files),
+the window and sidebar in `window.py`, the engine wrapper in `engine.py`. Keep all deletion logic
+in the engine: pages only call `--json` commands (see the protocol in `docs/ROADMAP.md`).
 
 ## Releasing
 

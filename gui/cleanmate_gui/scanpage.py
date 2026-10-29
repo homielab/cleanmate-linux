@@ -12,6 +12,17 @@ def size_class(n):
     return "size-small" if n > 0 else "dim-label"
 
 
+def size_widgets(n, biggest):
+    """The size column every list shares: a bar relative to the biggest row, then the size."""
+    bar = Gtk.LevelBar(min_value=0, max_value=1, value=max(n / max(biggest, 1), 0.02),
+                       width_request=90, valign=Gtk.Align.CENTER)
+    bar.remove_offset_value("low")
+    bar.remove_offset_value("high")
+    bar.remove_offset_value("full")
+    size = Gtk.Label(label=human(n), width_chars=9, xalign=1, css_classes=["numeric", size_class(n)])
+    return bar, size
+
+
 class ScanPage(Gtk.Box):
     """Scan some categories, review the results, clean the selection."""
 
@@ -198,15 +209,8 @@ class ScanPage(Gtk.Box):
         if e["root"] and not locked:
             row.add_suffix(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text="Needs your password"))
         if not self.privacy:
-            bar = Gtk.LevelBar(min_value=0, max_value=1, value=max(e["bytes"] / biggest, 0.02),
-                               width_request=90, valign=Gtk.Align.CENTER)
-            bar.remove_offset_value("low")
-            bar.remove_offset_value("high")
-            bar.remove_offset_value("full")
-            row.add_suffix(bar)
-            size = Gtk.Label(label=human(e["bytes"]), width_chars=9, xalign=1,
-                             css_classes=["numeric", size_class(e["bytes"])])
-            row.add_suffix(size)
+            for widget in size_widgets(e["bytes"], biggest):
+                row.add_suffix(widget)
         info = Gtk.Button(icon_name="go-next-symbolic", valign=Gtk.Align.CENTER,
                           css_classes=["flat"], tooltip_text="Show what's inside")
         info.connect("clicked", lambda *_: self.show_details(e))

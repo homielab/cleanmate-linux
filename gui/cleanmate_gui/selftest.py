@@ -1,8 +1,15 @@
 """`--selftest`: drive the real window like a user would, print results, quit.
 
-Used by tests/gui_smoke.sh on a virtual display. Only cleans in dry-run mode and
-never touches system items (so no password prompt can appear).
+Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
+never touches system items (so no password prompt can appear). The Large & Old
+Files check moves files to the Trash for real, but only files it made itself in
+a throwaway home folder, with the engine pointed at that folder.
 """
+import os
+import shutil
+import tempfile
+import time
+
 from gi.repository import Adw, GLib
 
 
@@ -69,7 +76,7 @@ def run(app, win):
             GLib.timeout_add(1500, lambda: (screenshot(win, app.screenshot, finish), False)[1])
             return
         if not found:
-            return finish()
+            return large_files_test(win, report, wait, finish)
         first = sorted(found, key=lambda e: (bool(e.get("locked")), -e["bytes"]))[0]  # a row that can be ticked
         before = page.summary.get_text()
         page.checks[first["id"]].set_active(not page.selected[first["id"]])
@@ -125,7 +132,7 @@ def run(app, win):
                       if e["status"] == "found" and not e["root"] and not e.get("locked")]
         if not (win.engine.dry_run and user_items):
             report(True, "clean skipped (not a dry run, or nothing to clean)")
-            return finish()
+            return large_files_test(win, report, wait, finish)
         target = user_items[0]["id"]
         for i in list(page.selected):
             page.selected[i] = i == target
@@ -134,13 +141,98 @@ def run(app, win):
 
     def after_clean():
         report(True, f"dry-run clean finished: {page.clean_title.get_text()}")
-        finish()
+        large_files_test(win, report, wait, finish)
 
     if app.screenshot:
         return run_scene(app, win, app.scene, app.screenshot, report, wait, finish)
     page.scan()
     wait(lambda: page.running is None and page.stack.get_visible_child_name() != "scanning",
          after_scan, 120, "scan")
+
+
+def large_files_test(win, report, wait, finish):
+    """Search with filters, select, dry-run, then Trash and Undo in a throwaway home."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home = os.path.join(sandbox, "home")
+    videos = os.path.join(home, "Videos")
+    os.makedirs(videos)
+    film, backup, note = (os.path.join(videos, n) for n in ("film.mkv", "old backup.iso", "note.txt"))
+    for path, size in ((film, 120 << 20), (backup, 60 << 20), (note, 1024)):  # sparse: no real disk use
+        with open(path, "wb") as f:
+            f.truncate(size)
+    then = time.time() - 200 * 86400
+    os.utime(backup, (then, then))
+    env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share")}
+
+    win.show_page("large")
+    page = win.pages["large"]
+    real_engine = page.engine
+    page.engine = Engine(real_engine.path, dry_run=True, env=env)
+    page.set_folder(videos)
+    page.size_drop.set_selected(0)  # 50 MB
+
+    def idle():
+        return page.running is None and page.stack.get_visible_child_name() != "searching"
+
+    def names():
+        return [os.path.basename(e["path"]) for e in page.files]
+
+    def done():
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def searched():
+        report(names() == ["film.mkv", "old backup.iso"], f"large files biggest first, small one left out: {names()}")
+        page.age_drop.set_selected(2)  # 90 days: changing a filter searches again
+        wait(idle, aged, 60, "search by age")
+
+    def aged():
+        report(names() == ["old backup.iso"], "age filter keeps only the old file")
+        page.age_drop.set_selected(0)
+        wait(idle, selection, 60, "search again")
+
+    def selection():
+        before = page.summary.get_text()
+        page.checks[film].set_active(True)
+        report(page.summary.get_text() != before and page.all_check.get_inconsistent(),
+               "ticking a file updates the summary; the All box shows some")
+        page.all_check.set_active(True)
+        report(page.selected == {film, backup} and not page.all_check.get_inconsistent(), "All box selects every file")
+        page.all_check.set_active(False)
+        report(not page.selected, "All box clears every file")
+        page.checks[film].get_ancestor(Adw.ActionRow).activate()
+        report(page.selected == {film}, "activating a file row toggles its box")
+        page.trash([film])
+        wait(lambda: page.running is None, dry_trashed, 60, "dry-run trash")
+
+    def dry_trashed():
+        report(os.path.exists(film) and film in [e["path"] for e in page.files], "dry run: the file stays")
+        if os.geteuid() == 0:
+            report(True, "Trash and Undo skipped: the engine refuses them as root")
+            return done()
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.trash([film])
+        wait(lambda: page.running is None, trashed, 60, "trash")
+
+    def trashed():
+        in_trash = os.path.join(home, ".local", "share", "Trash", "files", "film.mkv")
+        report(not os.path.exists(film) and os.path.exists(in_trash) and names() == ["old backup.iso"],
+               "Move to Trash moves the file and drops its row")
+        if not page.undo_toast:
+            report(False, "no Undo toast after moving to the Trash")
+            return done()
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: page.running is None and os.path.exists(film), undone, 60, "undo")
+
+    def undone():
+        report(os.path.exists(film) and names() == ["film.mkv", "old backup.iso"],
+               "Undo from the toast puts the file back where it was")
+        done()
+
+    page.search()
+    wait(idle, searched, 60, "large files search")
 
 
 def run_scene(app, win, scene, path, report, wait, finish):

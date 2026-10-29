@@ -4856,7 +4856,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|trash|restore …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -4921,7 +4921,10 @@ json_main() { # SUBCOMMAND ARGS…
       done
       printf '{"event":"details","id":"%s","lines":[%s]}\n{"event":"done"}\n' "$id" "$out" ;;
     clean) json_clean "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…"; return 2 ;;
+    large) json_large "$@" ;;
+    trash) json_trash "$@" ;;
+    restore) json_restore "$@" ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|trash PATH…|restore NAME…"; return 2 ;;
   esac
 }
 
@@ -4974,6 +4977,132 @@ json_clean() { # ID… — clean exactly these items, streaming "task" events
   ((DRY_RUN)) || record_cleanup "$total"
   log "GUI cleanup finished — $(human "$total") freed (dry-run=$DRY_RUN)"
   printf '{"event":"done","freed":%d,"avail_before":%d,"avail_after":%d}\n' "$total" "$avail0" "$avail1"
+}
+
+# ── Large & Old Files, Trash and undo for the desktop app ──
+
+LARGE_LIMIT=500 # the biggest files listed by `--json large`
+
+file_kind() { # VAR PATH → video|audio|image|archive|package|disk|document|other
+  local -n __fk=$1
+  local n=${2##*/} e=""
+  [[ $n == ?*.* ]] && e=${n##*.}
+  case ${e,,} in
+    mp4 | mkv | avi | mov | wmv | flv | webm | m4v | mpg | mpeg | ts | 3gp) __fk=video ;;
+    mp3 | flac | wav | ogg | oga | m4a | aac | opus | wma) __fk=audio ;;
+    jpg | jpeg | png | gif | bmp | tif | tiff | heic | webp | raw | cr2 | nef | arw | dng | psd | xcf) __fk=image ;;
+    zip | tar | gz | tgz | bz2 | xz | zst | 7z | rar) __fk=archive ;;
+    deb | rpm | snap | flatpak | appimage) __fk=package ;;
+    iso | img | vdi | vmdk | qcow2 | vhd | vhdx | dmg) __fk=disk ;;
+    pdf | doc | docx | odt | xls | xlsx | ods | ppt | pptx | odp | epub | txt | csv) __fk=document ;;
+    *) __fk=other ;;
+  esac
+}
+
+urldecode_path() { # VAR TEXT — undoes urlencode_path (a Trash Path= value)
+  local -n __ud=$1
+  local s=$2 c pre out=""
+  while [[ $s == *%[0-9A-Fa-f][0-9A-Fa-f]* ]]; do
+    pre=${s%%%[0-9A-Fa-f][0-9A-Fa-f]*}
+    out+=$pre s=${s:${#pre}}
+    printf -v c "\\x${s:1:2}"
+    out+=$c s=${s:3}
+  done
+  __ud=$out$s
+}
+
+json_large() { # [--min BYTES] [--days N] [--path DIR] — the biggest files first
+  local min=$((100 * 1024 * 1024)) days=0 dir=$HOME tmp found b m a p kind jp listed=0 sum=0
+  while (($#)); do
+    case $1 in
+      --min | --days | --path) (($# >= 2)) || { json_error "$1 needs a value."; return 2; } ;;&
+      --min) min=$2 ;;
+      --days) days=$2 ;;
+      --path) dir=$2 ;;
+      *) json_error "Unknown option for large: $1"; return 2 ;;
+    esac
+    shift 2
+  done
+  [[ $min =~ ^[0-9]+$ ]] || { json_error "Invalid size: $min"; return 2; }
+  [[ $days =~ ^[0-9]+$ ]] || { json_error "Invalid number of days: $days"; return 2; }
+  [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
+  dir=$(realpath -- "$dir")
+  local filt=(-type f)
+  ((min > 0)) && filt+=(-size +$((min - 1))c)
+  # old = neither changed nor opened for that long
+  ((days > 0)) && filt+=(-mmin +$((days * 1440)) -amin +$((days * 1440)))
+  tmp=$(mktemp -p "$SESSION_TMP") || return 1
+  # skip caches (Smart Scan's job), Trash folders and git internals; stay on one file system
+  find "$dir" -xdev \( -type d \( -name .cache -o -name .git -o -name Trash -o -name '.Trash-*' \) \
+    -not -path "$dir" -prune \) -o \( "${filt[@]}" -printf '%s\t%T@\t%A@\t%p\0' \) 2>/dev/null >"$tmp"
+  found=$(tr -cd '\0' <"$tmp" | wc -c)
+  # only names that are valid UTF-8 without control characters can round-trip through JSON
+  while IFS=$'\t' read -r -d '' b m a p; do
+    [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
+    file_kind kind "$p"
+    json_str jp "$p"
+    printf '{"event":"file","path":%s,"bytes":%d,"mtime":%d,"atime":%d,"kind":"%s"}\n' \
+      "$jp" "$b" "${m%.*}" "${a%.*}" "$kind"
+    listed=$((listed + 1)) sum=$((sum + b))
+  done < <(LC_ALL=C.UTF-8 grep -zax '.*' "$tmp" | sort -z -t$'\t' -k1,1rn | head -z -n "$LARGE_LIMIT")
+  rm -f "$tmp"
+  printf '{"event":"done","count":%d,"found":%d,"total_bytes":%d}\n' "$listed" "$found" "$sum"
+}
+
+json_file_task() { # PATH STATE INFO BYTES [TRASH-NAME] → one "task" event about a file
+  local id info name
+  json_str id "$1"; json_str info "$3"; json_str name "${5:-}"
+  printf '{"event":"task","id":%s,"state":"%s","info":%s,"freed":%d,"trash":%s}\n' "$id" "$2" "$info" "${4:-0}" "$name"
+}
+
+json_trash() { # PATH… — move these to the Trash; "trash" names what `restore` puts back
+  ((EUID != 0)) || { json_error "Refusing to move files to the Trash as root"; return 2; }
+  (($#)) || { json_error "No files given."; return 2; }
+  local p b moved=0 failed=0 freed=0 errf why name
+  errf=$(mktemp -p "$SESSION_TMP") || return 1
+  for p in "$@"; do
+    if [[ $p != /* ]]; then json_file_task "$p" fail "Not an absolute path" 0; ((++failed)); continue; fi
+    if [[ ! -e $p && ! -L $p ]]; then json_file_task "$p" fail "Not found" 0; ((++failed)); continue; fi
+    if [[ -d $p && ! -L $p ]]; then b=$(du -sb -- "$p" 2>/dev/null | cut -f1)
+    else b=$(stat -c %s -- "$p" 2>/dev/null); fi
+    UNDO_BATCH=()
+    if move_to_trash "$p" >/dev/null 2>"$errf"; then
+      name=""
+      ((${#UNDO_BATCH[@]})) && name=${UNDO_BATCH[0]%%$'\t'*}
+      if ((DRY_RUN)); then json_file_task "$p" ok "would be moved to the Trash" "${b:-0}"
+      else json_file_task "$p" ok "moved to the Trash" "${b:-0}" "$name"; fi
+      moved=$((moved + 1)) freed=$((freed + ${b:-0}))
+    else
+      why=$(tail -n 1 "$errf"); why=${why//$'\e'\[*([0-9;])m/}; why=${why#*✘ }
+      json_file_task "$p" fail "${why:-Could not move it to the Trash}" 0
+      ((++failed))
+    fi
+  done
+  rm -f "$errf"
+  printf '{"event":"done","moved":%d,"failed":%d,"freed":%d}\n' "$moved" "$failed" "$freed"
+}
+
+json_restore() { # NAME… — put these back from the Trash (names from the "trash" field of `trash`)
+  ((EUID != 0)) || { json_error "Refusing to restore files as root"; return 2; }
+  (($#)) || { json_error "No files given."; return 2; }
+  local name info orig raw ok=0 failed=0
+  for name in "$@"; do
+    info=$TRASH_DIR/info/$name.trashinfo orig=""
+    if [[ -n $name && $name != */* && $name != . && $name != .. && -f $info ]]; then
+      raw=$(sed -n 's/^Path=//p' "$info" | head -n 1)
+      urldecode_path orig "$raw"
+    fi
+    if [[ $orig != "$HOME"/* ]] || is_protected "$orig"; then
+      json_file_task "${orig:-$name}" fail "Not in the Trash any more" 0 "$name"; ((++failed)); continue
+    fi
+    if ((DRY_RUN)); then json_file_task "$orig" ok "would be put back" 0 "$name"; ((++ok)); continue; fi
+    UNDO_BATCH=("$name"$'\t'"$orig")
+    undo_trash
+    if ((UNDO_OK)); then json_file_task "$orig" ok "put back" 0 "$name"; ((++ok))
+    elif [[ -e $orig || -L $orig ]]; then json_file_task "$orig" fail "A file with this name is already there" 0 "$name"; ((++failed))
+    else json_file_task "$orig" fail "Not in the Trash any more" 0 "$name"; ((++failed)); fi
+  done
+  printf '{"event":"done","restored":%d,"failed":%d}\n' "$ok" "$failed"
 }
 
 # ───────────────────────────── desktop app ──────────────────────────────────
@@ -5052,7 +5181,8 @@ Install & update
   -v, --version     Print the version
 
 For the desktop app
-      --json CMD    Machine-readable engine: items, scan, details ID, clean ID…
+      --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
+                    large [--min BYTES] [--days N] [--path DIR], trash PATH…, restore NAME…
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help
 
@@ -5164,7 +5294,9 @@ while (($#)); do
     --update) MODE=update ;;
     --json) MODE=json ;;
     --gui) MODE=gui ;;
-    -*) err "Unknown option: $1"; usage; exit 2 ;;
+    -*)
+      [[ $MODE == json && ${#JSON_ARGS[@]} -gt 0 ]] || { err "Unknown option: $1"; usage; exit 2; }
+      JSON_ARGS+=("$1") ;; # an option of the JSON command, e.g. large --min
     *)
       [[ $MODE == json ]] || { err "Unknown argument: $1"; usage; exit 2; }
       JSON_ARGS+=("$1") ;;

@@ -63,7 +63,8 @@ folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app nee
 
 **Desktop app** — open *CleanMate*, press **Scan**, untick anything you want to keep, press
 **Clean**. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
-as you.
+as you. **Large & Old Files** lists your biggest files (by minimum size, how long unused, and
+folder or drive); what you move to the Trash comes back with **Undo**.
 
 **Terminal app** — run `cm`. Press `1` for a Smart Scan, `c` to clean.
 
@@ -111,8 +112,8 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
   TRIM, free RAM, and lasting limits so old snap versions and system logs don't pile up again.
 - **System Overview** — storage, free-space history, and space outside your folders: Timeshift
   snapshots, the swap file, ext4's reserved space.
-- Space Lens (browse folders by size), Large & Old Files (including virtual machine disks),
-  Duplicates, Startup Items and Settings.
+- Space Lens (browse folders by size), Large & Old Files (also in the desktop app; here with
+  virtual machine disks), Duplicates, Startup Items and Settings.
 
 ## Safe by design
 

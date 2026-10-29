@@ -16,7 +16,7 @@ Where CleanMate is going, and the decisions behind it. Ideas and votes are welco
 
 ## Next
 
-- [ ] **Desktop app: file tools** — Space Lens (drill-down list), Large & Old Files, Duplicates,
+- [ ] **Desktop app: file tools** — Space Lens (drill-down list), Large & Old Files (done), Duplicates,
       each with an *Undo* toast that uses the engine's Trash code.
 - [ ] **Desktop app: apps & system** — Uninstaller, Startup Items, Maintenance, System Overview with
       the free-space graph, and a Settings page (automatic cleaning, updates, retention).
@@ -48,4 +48,7 @@ Every line on stdout is one JSON object with an `"event"` field; sizes are bytes
 | `--json scan [--only LIST]` | `progress` (`done`, `total`, `current`) …, `item` (+ `status` found/clean/timeout, `bytes`, `note`, `selected`, `locked`: the running program that makes a clean skip the item, empty if none) …, `done` (`ms`, `total_bytes`, `locations`) |
 | `--json details ID` | `details` (`id`, `lines`), `done` |
 | `--json [--dry-run] clean ID…` | `task` (`id`, `state` run/ok/skip/fail — skip while the item's program runs, `info`, `freed`) …, `done` (`freed`, `avail_before`, `avail_after`) |
+| `--json large [--min BYTES] [--days N] [--path DIR]` | `file` (`path`, `bytes`, `mtime`, `atime`, `kind` video/audio/image/archive/package/disk/document/other) … biggest first, at most 500, `done` (`count` listed, `found` matched, `total_bytes` listed). Defaults: 100 MB, any age, your home folder; `--days` = neither changed nor opened for N days; skips `.cache`, `.git` and Trash folders and other file systems |
+| `--json [--dry-run] trash PATH…` | `task` (`id` = the path, `state` ok/fail, `info`, `freed`, `trash`: its name in your Trash, empty when it can't be put back — outside your home folder or a dry run) …, `done` (`moved`, `failed`, `freed`). Refused as root |
+| `--json [--dry-run] restore NAME…` | `task` (`id` = the original path, `state` ok/fail, `info`, `trash`) …, `done` (`restored`, `failed`). NAME is a `trash` value; only files that came from your home folder are put back, never over an existing file. Refused as root |
 | any error | `error` (`message`), non-zero exit |
