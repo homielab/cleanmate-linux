@@ -730,6 +730,44 @@ for l in sys.stdin:
   assert_exists "$big/Deeper/Deepest/a.bin"
 }
 
+dupe_groups() { # reads `--json dupes` → "bytes name,name…" per group (newest first), then "done …"
+  python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "group": print(e["bytes"], ",".join("/".join(f["path"].rsplit("/", 2)[-2:]) for f in e["files"]))
+    elif e["event"] == "done": print("done", e["groups"], e["found"], e["files"], e["total_bytes"])
+    elif e["event"] != "progress": print(e["event"], e.get("message", ""))'
+}
+
+test_json_duplicates() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out d=$HOME_DIR
+  mkdir -p "$d/Photos" "$d/Backup" "$d/Downloads" "$d/.hidden" "$d/code/node_modules/x"
+  head -c 2000000 /dev/urandom >"$d/Photos/beach.jpg"
+  cp "$d/Photos/beach.jpg" "$d/Backup/beach.jpg"; cp "$d/Photos/beach.jpg" "$d/Downloads/beach (1).jpg"
+  cp "$d/Photos/beach.jpg" "$d/.hidden/beach.jpg"; cp "$d/Photos/beach.jpg" "$d/code/node_modules/x/beach.jpg"
+  touch -d '3 days ago' "$d/Photos/beach.jpg"; touch -d '2 days ago' "$d/Backup/beach.jpg"
+  ln "$d/Backup/beach.jpg" "$d/Backup/beach-link.jpg" # a hard link is the same file: counted once
+  # same size and same first 64 KB, different end: not duplicates
+  head -c 1500000 /dev/zero >"$d/Photos/a.raw"; { head -c 1499999 /dev/zero; printf x; } >"$d/Photos/b.raw"
+  # small duplicates (under --min) and a pair of 1.2 MB copies
+  printf 'same\n' >"$d/Photos/n1.txt"; printf 'same\n' >"$d/Backup/n1.txt"; touch -d '1 day ago' "$d/Photos/n1.txt"
+  head -c 1200000 /dev/urandom >"$d/Photos/clip.mp4"; cp "$d/Photos/clip.mp4" "$d/Downloads/clip.mp4"
+  touch -d '1 day ago' "$d/Photos/clip.mp4"
+  out=$(cm --json dupes | dupe_groups)
+  out=${out//Backup\/beach-link.jpg/Backup\/beach.jpg} # either name of the hard link may be listed
+  assert_eq "$out" $'2000000 Downloads/beach (1).jpg,Backup/beach.jpg,Photos/beach.jpg
+1200000 Downloads/clip.mp4,Photos/clip.mp4
+done 2 2 5 5200000' "groups biggest first, newest copy first; hard links, hidden folders, node_modules and different files left out"
+  out=$(cm --json dupes --min 0 --path "$d/Photos" | dupe_groups)
+  assert_eq "$out" "done 0 0 0 0" "one copy per folder: no group"
+  out=$(cm --json dupes --min 1 | dupe_groups)
+  assert_contains "$out" $'5 Backup/n1.txt,Photos/n1.txt'
+  out=$(cm --json dupes --min 1M 2>&1); assert_contains "$out" "Invalid size: 1M"
+  out=$(cm --json dupes --path "$d/nope" 2>&1); assert_contains "$out" "Not a folder"
+}
+
 app_fixtures() { # BIN — launchers, package stubs and home folders for gimp (apt), foo (apt) and Spotify (flatpak)
   local bin=$1 sys=$HOME_DIR/sys
   mkdir -p "$bin" "$sys"
@@ -861,6 +899,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "three folders deep, the path bar shows each"
     assert_contains "$out" "outside the home folder: view only"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the folder back where it was"
+    assert_contains "$out" "the older copies are ticked, the newest is kept"
+    assert_contains "$out" "ticking every copy shows a warning"
+    ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the copies back in their group"
     assert_contains "$out" "apps listed, part of Ubuntu hidden"
     assert_contains "$out" "ticking an app ticks its leftover folder"
     assert_contains "$out" "dry run removes nothing"

@@ -5,6 +5,7 @@ import subprocess
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
+from .duplicates import DuplicatesPage
 from .engine import SMART_SCAN, Selection, human
 from .i18n import _
 from .largefiles import LargeFilesPage
@@ -12,7 +13,8 @@ from .scanpage import ScanPage
 from .spacelens import SpaceLensPage
 from .uninstaller import UninstallerPage
 
-TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "uninstall": UninstallerPage}  # pages with their own engine commands
+TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "dupes": DuplicatesPage,
+              "uninstall": UninstallerPage}  # pages with their own engine commands
 
 # (id, title, icon, categories, description) — same order as the terminal app's menu
 PAGES = [
@@ -39,6 +41,8 @@ PAGES = [
     ("large", _("Large & Old Files"), "drive-harddisk-symbolic", None,
      _("Find the biggest files, or the ones you haven't opened in months, and move what you don't need "
        "to the Trash. You can undo it.")),
+    ("dupes", _("Duplicates"), "edit-copy-symbolic", None,
+     _("Find identical files, keep one copy of each and move the others to the Trash. You can undo it.")),
     ("uninstall", _("Uninstaller"), "application-x-addon-symbolic", None,
      _("Remove apps from apt, Snap and Flatpak, and the folders they leave in your home.")),
 ]
@@ -70,8 +74,8 @@ class Window(Adw.ApplicationWindow):
         more = Gtk.Box(spacing=12)
         more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
         more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
-        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Duplicates, Startup Items, Maintenance, "
-                                                            "Settings… in the terminal app"))
+        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Startup Items, Maintenance, Settings… "
+                                                            "in the terminal app"))
         more_row.page_id = "terminal"
         self.sidebar_list.append(more_row)
         self.sidebar_list.connect("row-activated", self._on_row_activated)

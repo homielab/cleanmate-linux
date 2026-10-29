@@ -67,7 +67,9 @@ group. Items with a 🔒 need your password (the standard Ubuntu dialog); everyt
 as you. An item whose program is running is locked until you close it. **Space Lens** lists what
 takes up the space in your home folder (or any folder or drive), biggest first: click a folder to
 dig deeper, tick what you don't need and move it to the Trash, **Undo** puts it back; outside your
-home folder it only shows. **Large & Old Files** lists
+home folder it only shows. **Duplicates** groups identical files (from 1 MB, in a folder or drive you
+pick) and ticks every copy except the newest; you're warned if every copy of a file is ticked.
+**Large & Old Files** lists
 your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
 Trash comes back with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps and, if you tick
 them, the folders they leave in your home (to the Trash).
@@ -111,7 +113,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 **Privacy** (never part of Smart Scan) clears shell history (bash, zsh, fish), *Recent files*,
 Python/Node/database shell history, Vim history, and the Alt+F2 and emoji history.
 
-**More tools in the terminal app** (Space Lens, the Uninstaller and Large & Old Files are in the desktop app too):
+**More tools in the terminal app** (Space Lens, Large & Old Files, Duplicates and the Uninstaller are in the desktop app too):
 
 - **Uninstaller** — every app you can open (apt, Snap, Flatpak), with its real size (the app *plus*
   its folders in your home) and when you last used it. Sort by size or last use, or show only apps
@@ -123,7 +125,7 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
 - **System Overview** — storage, free-space history, and space outside your folders: Timeshift
   snapshots, the swap file, ext4's reserved space.
 - Space Lens (browse folders by size), Large & Old Files (here with virtual machine disks),
-  Duplicates, Startup Items and Settings.
+  Duplicates (here the oldest copy is kept), Startup Items and Settings.
 
 ## Safe by design
 

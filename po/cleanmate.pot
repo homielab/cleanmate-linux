@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: contact@homielab.com\n"
-"POT-Creation-Date: 2026-10-30 14:00+0700\n"
+"POT-Creation-Date: 2026-10-30 15:00+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,11 +23,215 @@ msgstr ""
 msgid "Engine not found: {path}"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:16 gui/cleanmate_gui/window.py:22
+#: gui/cleanmate_gui/duplicates.py:51
+msgid "Smallest file size to compare"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:58 gui/cleanmate_gui/largefiles.py:67
+msgid "Folder to search (also a drive)"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:63 gui/cleanmate_gui/largefiles.py:72
+msgid "At least"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:63 gui/cleanmate_gui/largefiles.py:72
+msgid "In"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:73 gui/cleanmate_gui/largefiles.py:83
+msgid "Search"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:78 gui/cleanmate_gui/largefiles.py:88
+msgid "Searching…"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:80
+msgid "No duplicates found"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:81
+msgid "Try a smaller size or another folder."
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:91 gui/cleanmate_gui/duplicates.py:308
+#: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:274
+#: gui/cleanmate_gui/spacelens.py:88 gui/cleanmate_gui/spacelens.py:328
+msgid "Move to Trash"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:94 gui/cleanmate_gui/largefiles.py:104
+msgid "Search again"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:101 gui/cleanmate_gui/largefiles.py:111
+msgid "Folder to search"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:130
+msgid "Listing files…"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:141
+#, python-brace-format
+msgid "Comparing {done} of {total} files of the same size…"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:142
+#, python-brace-format
+msgid "Checking {done} of {total} likely duplicates…"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:186
+#, python-brace-format
+msgid "{n} group of duplicates"
+msgid_plural "{n} groups of duplicates"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:188
+#, python-brace-format
+msgid "{size} can be freed by keeping one copy of each, in {folder}"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:191 gui/cleanmate_gui/largefiles.py:185
+#: gui/cleanmate_gui/spacelens.py:223
+#, python-brace-format
+msgid "the {n} biggest of {found}"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:195
+msgid "Select automatically"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:196
+msgid "Tick every copy except the newest one of each group"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:218 gui/cleanmate_gui/duplicates.py:258
+msgid "Every copy is selected: none would be kept"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:233
+#, python-brace-format
+msgid "Newest · modified {date}"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:233
+#, python-brace-format
+msgid "Modified {date}"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:237
+msgid "Move this copy to the Trash"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:244 gui/cleanmate_gui/largefiles.py:223
+#: gui/cleanmate_gui/spacelens.py:269
+msgid "Show in Files"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:260
+#, python-brace-format
+msgid "{n} copy of {size}, {k} selected"
+msgid_plural "{n} copies of {size}, {k} selected"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:277 gui/cleanmate_gui/largefiles.py:245
+#, python-brace-format
+msgid "Selected <b>{size}</b> in {n} file"
+msgid_plural "Selected <b>{size}</b> in {n} files"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:290
+#, python-brace-format
+msgid "Every copy of {n} file is selected: none of its copies would be kept."
+msgid_plural ""
+"Every copy of {n} files is selected: none of their copies would be kept."
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:301 gui/cleanmate_gui/largefiles.py:267
+#: gui/cleanmate_gui/scanpage.py:295 gui/cleanmate_gui/spacelens.py:321
+#: gui/cleanmate_gui/uninstaller.py:303
+#, python-brace-format
+msgid "… and {n} more"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:303 gui/cleanmate_gui/largefiles.py:269
+#, python-brace-format
+msgid "Move {n} file to the Trash?"
+msgid_plural "Move {n} files to the Trash?"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:304 gui/cleanmate_gui/largefiles.py:270
+#: gui/cleanmate_gui/spacelens.py:324
+#, python-brace-format
+msgid ""
+"{size}. You can undo this right away, or restore the files from the Trash "
+"later."
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:307 gui/cleanmate_gui/largefiles.py:273
+#: gui/cleanmate_gui/scanpage.py:306 gui/cleanmate_gui/spacelens.py:327
+#: gui/cleanmate_gui/uninstaller.py:318
+msgid "Cancel"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:348 gui/cleanmate_gui/largefiles.py:313
+#, python-brace-format
+msgid "Dry run: {n} file ({size}) would be moved to the Trash"
+msgid_plural "Dry run: {n} files ({size}) would be moved to the Trash"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:352 gui/cleanmate_gui/largefiles.py:317
+#, python-brace-format
+msgid "Moved {n} file ({size}) to the Trash"
+msgid_plural "Moved {n} files ({size}) to the Trash"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:353 gui/cleanmate_gui/largefiles.py:318
+#: gui/cleanmate_gui/spacelens.py:374
+msgid "Nothing was moved"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:355 gui/cleanmate_gui/largefiles.py:320
+#: gui/cleanmate_gui/spacelens.py:376
+#, python-brace-format
+msgid "{n} could not be moved: {reason}"
+msgid_plural "{n} could not be moved: {reason}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:359 gui/cleanmate_gui/largefiles.py:324
+#: gui/cleanmate_gui/spacelens.py:380
+msgid "Undo"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:395 gui/cleanmate_gui/largefiles.py:360
+#: gui/cleanmate_gui/spacelens.py:413 gui/cleanmate_gui/uninstaller.py:453
+#, python-brace-format
+msgid "Put back {back}, {failed} could not be restored: {reason}"
+msgstr ""
+
+#: gui/cleanmate_gui/duplicates.py:398 gui/cleanmate_gui/largefiles.py:363
+#, python-brace-format
+msgid "Put back {n} file from the Trash"
+msgid_plural "Put back {n} files from the Trash"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/engine.py:16 gui/cleanmate_gui/window.py:24
 msgid "System Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:17 gui/cleanmate_gui/window.py:24
+#: gui/cleanmate_gui/engine.py:17 gui/cleanmate_gui/window.py:26
 msgid "Logs"
 msgstr ""
 
@@ -43,7 +247,7 @@ msgstr ""
 msgid "App Caches"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/window.py:28
+#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/window.py:30
 msgid "AI Tools"
 msgstr ""
 
@@ -51,11 +255,11 @@ msgstr ""
 msgid "AI Models"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:23 gui/cleanmate_gui/window.py:31
+#: gui/cleanmate_gui/engine.py:23 gui/cleanmate_gui/window.py:33
 msgid "Developer Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:24 gui/cleanmate_gui/window.py:33
+#: gui/cleanmate_gui/engine.py:24 gui/cleanmate_gui/window.py:35
 msgid "Privacy"
 msgstr ""
 
@@ -87,28 +291,8 @@ msgstr ""
 msgid "Only files not changed or opened for this long"
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:67
-msgid "Folder to search (also a drive)"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:72
-msgid "At least"
-msgstr ""
-
 #: gui/cleanmate_gui/largefiles.py:72
 msgid "Unused for"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:72
-msgid "In"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:83
-msgid "Search"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:88
-msgid "Searching…"
 msgstr ""
 
 #: gui/cleanmate_gui/largefiles.py:90
@@ -117,19 +301,6 @@ msgstr ""
 
 #: gui/cleanmate_gui/largefiles.py:91
 msgid "Try a smaller size, any age, or another folder."
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:274
-#: gui/cleanmate_gui/spacelens.py:88 gui/cleanmate_gui/spacelens.py:328
-msgid "Move to Trash"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:104
-msgid "Search again"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:111
-msgid "Folder to search"
 msgstr ""
 
 #: gui/cleanmate_gui/largefiles.py:141
@@ -147,11 +318,6 @@ msgstr[1] ""
 #: gui/cleanmate_gui/largefiles.py:183
 #, python-brace-format
 msgid "Biggest first, in {folder}"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:185 gui/cleanmate_gui/spacelens.py:223
-#, python-brace-format
-msgid "the {n} biggest of {found}"
 msgstr ""
 
 #: gui/cleanmate_gui/largefiles.py:193 gui/cleanmate_gui/scanpage.py:172
@@ -172,84 +338,6 @@ msgstr ""
 #, python-brace-format
 msgid "Last opened {date}"
 msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:223 gui/cleanmate_gui/spacelens.py:269
-msgid "Show in Files"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:245
-#, python-brace-format
-msgid "Selected <b>{size}</b> in {n} file"
-msgid_plural "Selected <b>{size}</b> in {n} files"
-msgstr[0] ""
-msgstr[1] ""
-
-#: gui/cleanmate_gui/largefiles.py:267 gui/cleanmate_gui/scanpage.py:295
-#: gui/cleanmate_gui/spacelens.py:321 gui/cleanmate_gui/uninstaller.py:303
-#, python-brace-format
-msgid "… and {n} more"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:269
-#, python-brace-format
-msgid "Move {n} file to the Trash?"
-msgid_plural "Move {n} files to the Trash?"
-msgstr[0] ""
-msgstr[1] ""
-
-#: gui/cleanmate_gui/largefiles.py:270 gui/cleanmate_gui/spacelens.py:324
-#, python-brace-format
-msgid ""
-"{size}. You can undo this right away, or restore the files from the Trash "
-"later."
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:273 gui/cleanmate_gui/scanpage.py:306
-#: gui/cleanmate_gui/spacelens.py:327 gui/cleanmate_gui/uninstaller.py:318
-msgid "Cancel"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:313
-#, python-brace-format
-msgid "Dry run: {n} file ({size}) would be moved to the Trash"
-msgid_plural "Dry run: {n} files ({size}) would be moved to the Trash"
-msgstr[0] ""
-msgstr[1] ""
-
-#: gui/cleanmate_gui/largefiles.py:317
-#, python-brace-format
-msgid "Moved {n} file ({size}) to the Trash"
-msgid_plural "Moved {n} files ({size}) to the Trash"
-msgstr[0] ""
-msgstr[1] ""
-
-#: gui/cleanmate_gui/largefiles.py:318 gui/cleanmate_gui/spacelens.py:374
-msgid "Nothing was moved"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:320 gui/cleanmate_gui/spacelens.py:376
-#, python-brace-format
-msgid "{n} could not be moved: {reason}"
-msgid_plural "{n} could not be moved: {reason}"
-msgstr[0] ""
-msgstr[1] ""
-
-#: gui/cleanmate_gui/largefiles.py:324 gui/cleanmate_gui/spacelens.py:380
-msgid "Undo"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:360 gui/cleanmate_gui/spacelens.py:413
-#: gui/cleanmate_gui/uninstaller.py:453
-#, python-brace-format
-msgid "Put back {back}, {failed} could not be restored: {reason}"
-msgstr ""
-
-#: gui/cleanmate_gui/largefiles.py:363
-#, python-brace-format
-msgid "Put back {n} file from the Trash"
-msgid_plural "Put back {n} files from the Trash"
-msgstr[0] ""
-msgstr[1] ""
 
 #: gui/cleanmate_gui/scanpage.py:48
 msgid "Scan"
@@ -757,141 +845,151 @@ msgid_plural "Put back {n} folders from the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/window.py:19 gui/cleanmate_gui/window.py:110
+#: gui/cleanmate_gui/window.py:21 gui/cleanmate_gui/window.py:114
 msgid "Smart Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:20
+#: gui/cleanmate_gui/window.py:22
 msgid ""
 "Scan everything in one go and clean what you don't need. Nothing is removed "
 "until you confirm."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:23
+#: gui/cleanmate_gui/window.py:25
 msgid ""
 "Package cache, unused packages and kernels, leftover configs, old Snap "
 "revisions, temp files."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:25
+#: gui/cleanmate_gui/window.py:27
 msgid ""
 "Systemd journal, oversized and rotated logs, crash reports, old app logs."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:26
+#: gui/cleanmate_gui/window.py:28
 msgid "User & App Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:27
+#: gui/cleanmate_gui/window.py:29
 msgid ""
 "Trash, thumbnails, stale caches — and every browser and app cache on its own."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:29
+#: gui/cleanmate_gui/window.py:31
 msgid ""
 "Caches, logs and old chat sessions of Claude, Codex, Gemini/Antigravity, "
 "opencode, ZCode, Zed and more — and downloaded Ollama, Hugging Face and LM "
 "Studio models, each on its own."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:32
+#: gui/cleanmate_gui/window.py:34
 msgid ""
 "Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, "
 "Firebase CLI logs."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:34
+#: gui/cleanmate_gui/window.py:36
 msgid "Terminal history, recent files, run dialog and emoji history."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:36
+#: gui/cleanmate_gui/window.py:38
 msgid "Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:37
+#: gui/cleanmate_gui/window.py:39
 msgid ""
 "See what takes up the space, folder by folder, and move what you don't need "
 "to the Trash. You can undo it."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:39
+#: gui/cleanmate_gui/window.py:41
 msgid "Large & Old Files"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:40
+#: gui/cleanmate_gui/window.py:42
 msgid ""
 "Find the biggest files, or the ones you haven't opened in months, and move "
 "what you don't need to the Trash. You can undo it."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:42
+#: gui/cleanmate_gui/window.py:44
+msgid "Duplicates"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:45
+msgid ""
+"Find identical files, keep one copy of each and move the others to the "
+"Trash. You can undo it."
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:46
 msgid "Uninstaller"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:43
+#: gui/cleanmate_gui/window.py:47
 msgid ""
 "Remove apps from apt, Snap and Flatpak, and the folders they leave in your "
 "home."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:72
+#: gui/cleanmate_gui/window.py:76
 msgid "All tools (terminal)"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:73
-msgid "Duplicates, Startup Items, Maintenance, Settings… in the terminal app"
-msgstr ""
-
-#: gui/cleanmate_gui/window.py:87
-msgid "Open the terminal app"
-msgstr ""
-
-#: gui/cleanmate_gui/window.py:88
-msgid "Source code"
-msgstr ""
-
-#: gui/cleanmate_gui/window.py:89
-msgid "Report a problem"
+#: gui/cleanmate_gui/window.py:77
+msgid "Startup Items, Maintenance, Settings… in the terminal app"
 msgstr ""
 
 #: gui/cleanmate_gui/window.py:91
+msgid "Open the terminal app"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:92
+msgid "Source code"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:93
+msgid "Report a problem"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:95
 msgid "About CleanMate"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:94
+#: gui/cleanmate_gui/window.py:98
 msgid "Main menu"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:108
+#: gui/cleanmate_gui/window.py:112
 msgid "Dry run — nothing will be deleted"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:135
+#: gui/cleanmate_gui/window.py:139
 msgid "Cleanup"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:135
+#: gui/cleanmate_gui/window.py:139
 msgid "Tools"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:135
+#: gui/cleanmate_gui/window.py:139
 msgid "More"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:182
+#: gui/cleanmate_gui/window.py:186
 #, python-brace-format
 msgid "{free} free of {total}"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:193
+#: gui/cleanmate_gui/window.py:197
 msgid "No terminal app found — run cm in a terminal."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:204
+#: gui/cleanmate_gui/window.py:208
 msgid "translator-credits"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:205
+#: gui/cleanmate_gui/window.py:209
 msgid ""
 "A friendly system cleaner for Ubuntu, inspired by CleanMyMac. Not affiliated "
 "with MacPaw."

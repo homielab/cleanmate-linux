@@ -4903,7 +4903,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean|large|lens|trash|restore|apps|uninstall …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|apps|uninstall …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -4970,11 +4970,12 @@ json_main() { # SUBCOMMAND ARGS…
     clean) json_clean "$@" ;;
     large) json_large "$@" ;;
     lens) json_lens "$@" ;;
+    dupes) json_dupes "$@" ;;
     trash) json_trash "$@" ;;
     restore) json_restore "$@" ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|trash PATH…|restore NAME…|apps|uninstall [--check] ID…"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore NAME…|apps|uninstall [--check] ID…"; return 2 ;;
   esac
 }
 
@@ -5137,6 +5138,79 @@ json_lens() { # [--path DIR] — DIR's files and folders with their size (du -x)
   rm -f "$tmp"
   json_str jp "$dir"
   printf '{"event":"done","path":%s,"bytes":%d,"items":%d,"count":%d,"found":%d}\n' "$jp" "$total" "$items" "$listed" "$found"
+}
+
+DUPES_LIMIT=500 # the biggest groups listed by `--json dupes`
+
+json_dupes_progress() { # STAGE DONE TOTAL
+  printf '{"event":"progress","stage":"%s","done":%d,"total":%d}\n' "$1" "$2" "$3"
+}
+
+# Duplicates like the terminal app (dup_scan): same size → same MD5 of the first 64 KB →
+# same full MD5; hidden folders and node_modules skipped. Hard links count once.
+json_dupes() { # [--min BYTES] [--path DIR] — groups of identical files, biggest first
+  local min=$((1024 * 1024)) dir=$HOME s id m p h i n k key jp files first listed=0 found=0 wasted=0 nfiles=0
+  while (($#)); do
+    case $1 in
+      --min | --path) (($# >= 2)) || { json_error "$1 needs a value."; return 2; } ;;&
+      --min) min=$2 ;;
+      --path) dir=$2 ;;
+      *) json_error "Unknown option for dupes: $1"; return 2 ;;
+    esac
+    shift 2
+  done
+  [[ $min =~ ^[0-9]+$ ]] || { json_error "Invalid size: $min"; return 2; }
+  [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
+  ((min > 0)) || min=1 # empty files are all alike, never duplicates
+  dir=$(realpath -m -s -- "$dir")
+  local -a S=() M=() P=() cand=() keys=()
+  local -A seen=() nsize=() nhead=() hh=() group=()
+  json_dupes_progress list 0 0
+  while IFS=$'\t' read -r -d '' s id m p; do
+    [[ -n ${seen[$id]:-} ]] && continue # another name of a file already listed
+    seen[$id]=1
+    [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
+    S+=("$s") M+=("${m%.*}") P+=("$p")
+    nsize[$s]=$((${nsize[$s]:-0} + 1))
+  done < <(find "$dir" -xdev -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o \
+    -type f -size +$((min - 1))c -printf '%s\t%D:%i\t%T@\t%p\0' 2>/dev/null | LC_ALL=C.UTF-8 grep -zax '.*')
+  for i in "${!P[@]}"; do ((${nsize[${S[i]}]} > 1)) && cand+=("$i"); done
+  n=${#cand[@]} k=0
+  for i in "${cand[@]}"; do
+    ((++k % 25 == 0)) && json_dupes_progress compare "$k" "$n"
+    h=$(head -c 65536 -- "${P[i]}" 2>/dev/null | md5sum) || continue
+    hh[$i]=${S[i]}:${h%% *}
+    nhead[${hh[$i]}]=$((${nhead[${hh[$i]}]:-0} + 1))
+  done
+  cand=()
+  for i in "${!hh[@]}"; do ((${nhead[${hh[$i]}]} > 1)) && cand+=("$i"); done
+  n=${#cand[@]} k=0
+  for i in "${cand[@]}"; do
+    ((++k % 5 == 0)) && json_dupes_progress verify "$k" "$n"
+    key=${hh[$i]}
+    if ((S[i] > 65536)); then
+      h=$(md5sum -- "${P[i]}" 2>/dev/null) || continue
+      h=${h%% *}; key=${S[i]}:${h#\\}
+    fi
+    [[ -n ${group[$key]:-} ]] || keys+=("$key")
+    group[$key]+=" $i"
+  done
+  # biggest files first; in a group the newest copy first
+  while IFS= read -r key; do
+    read -ra cand <<<"${group[$key]}"
+    ((${#cand[@]} > 1)) || continue
+    found=$((found + 1))
+    ((listed < DUPES_LIMIT)) || continue
+    files="" first=1
+    while IFS=$'\t' read -r m i; do
+      json_str jp "${P[i]}"
+      ((first)) || files+=","
+      files+="{\"path\":$jp,\"mtime\":$m}" first=0
+    done < <(for i in "${cand[@]}"; do printf '%s\t%s\n' "${M[i]}" "$i"; done | sort -t$'\t' -k1,1rn -k2,2n)
+    printf '{"event":"group","hash":"%s","bytes":%d,"files":[%s]}\n' "${key#*:}" "${key%%:*}" "$files"
+    listed=$((listed + 1)) nfiles=$((nfiles + ${#cand[@]})) wasted=$((wasted + ${key%%:*} * (${#cand[@]} - 1)))
+  done < <(((${#keys[@]})) && printf '%s\n' "${keys[@]}" | sort -t: -k1,1rn -k2,2)
+  printf '{"event":"done","groups":%d,"found":%d,"files":%d,"total_bytes":%d}\n' "$listed" "$found" "$nfiles" "$wasted"
 }
 
 json_file_task() { # PATH STATE INFO BYTES [TRASH-NAME] → one "task" event about a file
@@ -5344,6 +5418,7 @@ Install & update
 For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
                     large [--min BYTES] [--days N] [--path DIR], lens [--path DIR],
+                    dupes [--min BYTES] [--path DIR],
                     trash [--home-only] PATH…, restore NAME…, apps, uninstall [--check] KIND:ID…
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help

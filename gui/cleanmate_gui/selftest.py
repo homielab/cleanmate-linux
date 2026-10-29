@@ -2,7 +2,7 @@
 
 Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
-Files and Space Lens checks move files to the Trash for real, but only files they
+Files, Space Lens and Duplicates checks move files to the Trash for real, but only files they
 made themselves in a throwaway home folder, with the engine pointed at that folder.
 """
 import os
@@ -274,7 +274,7 @@ def space_lens_test(win, report, wait, finish):
         page.engine = real_engine
         page.set_root(os.path.expanduser("~"))
         shutil.rmtree(sandbox, ignore_errors=True)
-        uninstaller_test(win, report, wait, finish)
+        duplicates_test(win, report, wait, finish)
 
     def first():
         report(page.stack.get_visible_child_name() in ("results", "empty"), "Space Lens lists the home folder on opening")
@@ -353,6 +353,85 @@ def space_lens_test(win, report, wait, finish):
         done()
 
     wait(idle, first, 120, "first Space Lens list")
+
+
+def duplicates_test(win, report, wait, finish):
+    """Three copies of a photo: one group with the two older copies ticked; dry run, then Trash and Undo
+    in a throwaway home."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home = os.path.join(sandbox, "home")
+    copies = [os.path.join(home, d, "beach.jpg") for d in ("Photos", "Backup", "Downloads")]
+    data = os.urandom(1536 << 10)
+    for i, path in enumerate(copies):  # Photos oldest, Downloads newest
+        os.makedirs(os.path.dirname(path))
+        with open(path, "wb") as f:
+            f.write(data)
+        then = time.time() - (3 - i) * 86400
+        os.utime(path, (then, then))
+    with open(os.path.join(home, "Photos", "other.jpg"), "wb") as f:  # same size, other content
+        f.write(os.urandom(1536 << 10))
+    env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share")}
+    older, newest = copies[:2], copies[2]
+
+    win.show_page("dupes")
+    page = win.pages["dupes"]
+    real_engine = page.engine
+    page.engine = Engine(real_engine.path, dry_run=True, env=env)
+    page.set_folder(home)
+
+    def idle():
+        return page.running is None and page.stack.get_visible_child_name() != "searching"
+
+    def files():
+        return [[f["path"] for f in g["files"]] for g in page.shown_groups()]
+
+    def done():
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        uninstaller_test(win, report, wait, finish)
+
+    def searched():
+        report(files() == [[newest] + older[::-1]], f"one group of three copies, newest first: {files()}")
+        report(page.selected == set(older) and not page.checks[newest].get_active(),
+               "the older copies are ticked, the newest is kept")
+        page.checks[newest].set_active(True)
+        row, warning = next(iter(page.group_rows.values()))
+        report(warning.get_visible() and row.get_subtitle() == _("Every copy is selected: none would be kept"),
+               "ticking every copy shows a warning")
+        page.checks[older[0]].get_ancestor(Adw.ActionRow).activate()
+        report(not warning.get_visible() and older[0] not in page.selected, "activating a copy's row toggles its box")
+        page.select_automatically()
+        report(page.selected == set(older) and not page.checks[newest].get_active(),
+               "Select automatically keeps the newest copy")
+        page.trash(sorted(page.selected))
+        wait(lambda: page.running is None, dry_trashed, 60, "dry-run trash")
+
+    def dry_trashed():
+        report(all(os.path.exists(p) for p in copies) and len(files()) == 1, "dry run: the copies stay")
+        if os.geteuid() == 0:
+            report(True, "Trash and Undo skipped: the engine refuses them as root")
+            return done()
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.trash(sorted(page.selected))
+        wait(lambda: page.running is None, trashed, 60, "trash")
+
+    def trashed():
+        report(os.path.exists(newest) and not any(os.path.exists(p) for p in older) and not files(),
+               "Move to Trash keeps the newest copy; the group is gone")
+        if not page.undo_toast:
+            report(False, "no Undo toast after moving to the Trash")
+            return done()
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: page.running is None and all(os.path.exists(p) for p in older), undone, 60, "undo")
+
+    def undone():
+        report(all(os.path.exists(p) for p in copies) and files() == [[newest] + older[::-1]],
+               "Undo from the toast puts the copies back in their group")
+        done()
+
+    page.search()
+    wait(idle, searched, 60, "duplicates search")
 
 
 STUBS = {  # package tools for the Uninstaller check: gimp (apt), Spotify (Flatpak), BusyBox (part of Ubuntu)

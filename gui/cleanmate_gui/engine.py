@@ -118,6 +118,9 @@ class Engine:
         return self.run(["large", "--min", str(min_bytes), "--days", str(days), "--path", folder],
                         on_event, on_done)
 
+    def dupes(self, min_bytes, folder, on_event, on_done):
+        return self.run(["dupes", "--min", str(min_bytes), "--path", folder], on_event, on_done)
+
     def lens(self, folder, on_event, on_done):
         return self.run(["lens", "--path", folder], on_event, on_done)
 

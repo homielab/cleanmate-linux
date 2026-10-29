@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- Desktop app: **Duplicates** page — identical files (same size, then same content) grouped, biggest first, from a minimum size (1 MB by default) in a folder or drive you choose. Every copy except the newest is ticked (*Select automatically* does it again), you're warned when every copy of a file is ticked, and **Undo** in the notification puts moved copies back. Hard links count as one file.
 - Desktop app: **Space Lens** page — your home folder's files and folders by size, biggest first; click a folder to dig deeper, go back with the path bar. Tick what you don't need and move it to the Trash; **Undo** in the notification puts it back. Other folders and drives can be explored too, view only outside your home folder.
 - New screenshots of the desktop app, including the Large & Old Files and Uninstaller pages.
 - Desktop app in Vietnamese: it follows your system language. Cleanup item names and notes are still in English.

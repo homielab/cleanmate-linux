@@ -77,7 +77,7 @@ bash cleanmate.sh --gui --dry-run     # run it from your clone
 ```
 
 Pages live in `gui/cleanmate_gui/scanpage.py` (cleanup), `spacelens.py` (Space Lens), `largefiles.py`
-(Large & Old Files) and `uninstaller.py`; the window and sidebar in `window.py`, the engine wrapper in `engine.py`. Keep all
+(Large & Old Files), `duplicates.py` and `uninstaller.py`; the window and sidebar in `window.py`, the engine wrapper in `engine.py`. Keep all
 deletion logic in the engine: pages only call `--json` commands (see the protocol in `docs/ROADMAP.md`).
 `CLEANMATE_APP_DIRS` (colon-separated) replaces the launcher folders the app list reads, for tests.
 
