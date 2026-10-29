@@ -11,6 +11,7 @@ All notable changes are listed here. The format follows
 - Developer Junk: uv cache, rustup downloads (installed toolchains are kept) and the Playwright, Puppeteer and Cypress browser downloads (not pre-selected).
 - AI Tools: caches and logs of Cursor, Windsurf (code index, browser cache), Cline and Kilo Code, and opencode logs. Chats, sessions, settings and logins are kept.
 - Desktop app: larger checkboxes, rows at least 48 px tall, a three-state checkbox on each group header, and the reason shown on items that need your password.
+- Desktop app: an item whose program is running (a browser, Claude Code, LM Studio…) shows a lock and "Close <program> and scan again", and can't be selected, also not with the group checkbox. The terminal app shows "close <program> first" next to it.
 
 ### Fixed
 

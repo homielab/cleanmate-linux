@@ -45,7 +45,7 @@ Every line on stdout is one JSON object with an `"event"` field; sizes are bytes
 | Command | Events |
 |---|---|
 | `--json items` | `item` (`id`, `category`, `label`, `description`, `default`, `root`) …, `done` |
-| `--json scan [--only LIST]` | `progress` (`done`, `total`, `current`) …, `item` (+ `status` found/clean/timeout, `bytes`, `note`, `selected`) …, `done` (`ms`, `total_bytes`, `locations`) |
+| `--json scan [--only LIST]` | `progress` (`done`, `total`, `current`) …, `item` (+ `status` found/clean/timeout, `bytes`, `note`, `selected`, `locked`: the running program that makes a clean skip the item, empty if none) …, `done` (`ms`, `total_bytes`, `locations`) |
 | `--json details ID` | `details` (`id`, `lines`), `done` |
-| `--json [--dry-run] clean ID…` | `task` (`id`, `state` run/ok/skip/fail, `info`, `freed`) …, `done` (`freed`, `avail_before`, `avail_after`) |
+| `--json [--dry-run] clean ID…` | `task` (`id`, `state` run/ok/skip/fail — skip while the item's program runs, `info`, `freed`) …, `done` (`freed`, `avail_before`, `avail_after`) |
 | any error | `error` (`message`), non-zero exit |

@@ -175,6 +175,44 @@ test_browser_items_are_separate() {
   assert_exists "$HOME_DIR/.cache/google-chrome/Default/Cache/a"
 }
 
+running_stub() { # DIR NAME… — a pgrep that reports these programs as running
+  local d=$1; shift
+  mkdir -p "$d"
+  { echo '#!/bin/sh'
+    echo 'for a; do case $a in'
+    for n; do printf '  %s) echo "4242 %s"; exit 0 ;;\n' "$n" "$n"; done
+    echo 'esac; done; exit 1'; } >"$d/pgrep"
+  chmod 755 "$d/pgrep"
+}
+
+# A program that is running locks its items: the scan says which one, and an
+# unattended clean (--json, --yes) skips the item.
+test_running_tool_locks_item() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/lockbin out lock
+  running_stub "$bin" firefox claude
+  new "$HOME_DIR/.cache/mozilla/firefox/x/cache2/b"
+  new "$HOME_DIR/.cache/google-chrome/Default/Cache/a"
+  new "$HOME_DIR/.claude/cache/c"
+  lock='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item": print(e["id"], e["status"], repr(e["locked"]))'
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan | python3 -c "$lock")
+  assert_contains "$out" "browser_firefox found 'firefox'"
+  assert_contains "$out" "ai_claude_cache found 'claude'"
+  assert_contains "$out" "browser_chrome found ''"
+  assert_contains "$out" "thumbs clean ''"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --scan --only browser 2>&1)
+  assert_contains "$out" "close firefox first"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean browser_firefox browser_chrome 2>&1)
+  assert_contains "$out" '"id":"browser_firefox","state":"skip"'
+  assert_contains "$out" '"id":"browser_chrome","state":"ok"'
+  assert_exists "$HOME_DIR/.cache/mozilla/firefox/x/cache2/b"
+  assert_missing "$HOME_DIR/.cache/google-chrome/Default/Cache/a"
+}
+
 test_app_cache_keeps_app_data() {
   fresh_home
   new "$HOME_DIR/.config/Slack/Cache/c"
@@ -578,13 +616,16 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   local out srv display=$((50 + RANDOM % 40))
   mkdir -p "$HOME_DIR/.cache/thumbnails/large"; echo x >"$HOME_DIR/.cache/thumbnails/large/a.png"
   new "$HOME_DIR/.cache/pip/p"; new "$HOME_DIR/.npm/_cacache/n"; new "$HOME_DIR/.cache/go-build/g" # two more items, so a group has several rows
+  # Claude Code "running": its row is locked, in a group whose box covers the two others
+  new "$HOME_DIR/.claude/cache/c"; new "$HOME_DIR/.cline/data/logs/l"; new "$HOME_DIR/.cache/kilo/k"
+  running_stub "$WORK/guilock" claude
   local rt=$WORK/runtime-$display # the display's socket lives here; shared by server and app
   mkdir -p "$rt" && chmod 700 "$rt"
   XDG_RUNTIME_DIR=$rt gtk4-broadwayd ":$display" >/dev/null 2>&1 &
   srv=$!
   sleep 1
   # a private, invisible display; dry run; the self-test never touches system items
-  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" \
+  out=$(env -i HOME="$HOME_DIR" PATH="$WORK/guilock:$BASE_PATH" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" \
     GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
     timeout 120 "$py" "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
   kill "$srv" 2>/dev/null
@@ -593,6 +634,8 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   [[ $out == *"SELFTEST FAIL"* ]] && { fail "GUI self-test reported a failure"; grep 'SELFTEST FAIL' <<<"$out" | sed 's/^/      | /'; }
   assert_contains "$out" "dry-run clean finished"
   assert_contains "$out" "group box selects the whole group"
+  assert_contains "$out" "locked row “Claude Code — cache & logs” can't be ticked (claude running)"
+  assert_contains "$out" "group boxes leave locked rows unticked"
   assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
 }
 

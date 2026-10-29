@@ -1170,11 +1170,25 @@ cache_item_details() {
   return 0
 }
 
+running_proc() { # PGREP_ARGS… PATTERN → name of the first matching process; fails when none runs
+  local out pid name
+  out=$(pgrep -l "$@" 2>/dev/null) || return 1 # pgrep's status decides, the name is only shown
+  read -r pid name <<<"$out"
+  printf '%s\n' "${name:-${!#}}"
+}
+
+# lockedby_ID (made by the generators below) prints the running program that
+# makes the item skip when cleaning unattended (--yes, the desktop app); a scan
+# reports it as the item's lock.
+item_locked() { declare -F "lockedby_$1" >/dev/null && "lockedby_$1"; }
+
 cache_item_precheck() { # ask (or skip when unattended) if the program is running
-  pgrep -xi "${ITEM_PROCS[$1]}" >/dev/null 2>&1 || return 0
+  lockedby_cache_item "$1" >/dev/null || return 0
   if ((ASSUME_YES)); then warn "Skipping ${ITEM_LABEL[$1]}: it is running."; return 1; fi
   ui_confirm "${ITEM_LABEL[$1]} is running" "Close it first for best results. Clean its cache anyway?" n
 }
+
+lockedby_cache_item() { running_proc -xi "${ITEM_PROCS[$1]}"; }
 
 reg_cache_item() { # ID CATEGORY LABEL DEFAULT DESCRIPTION PATHS [PROCESS_REGEX]
   local id=$1
@@ -1185,7 +1199,8 @@ reg_cache_item() { # ID CATEGORY LABEL DEFAULT DESCRIPTION PATHS [PROCESS_REGEX]
   eval "scan_$id() { cache_item_scan $id; }
         clean_$id() { cache_item_clean $id; }
         details_$id() { cache_item_details $id; }"
-  [[ -n ${7:-} ]] && eval "precheck_$id() { cache_item_precheck $id; }"
+  [[ -n ${7:-} ]] && eval "precheck_$id() { cache_item_precheck $id; }
+                          lockedby_$id() { lockedby_cache_item $id; }"
   return 0
 }
 
@@ -1502,8 +1517,10 @@ list_details() {
   return 0
 }
 
+lockedby_list_item() { running_proc -x "${ITEM_PROCS[$1]}"; }
+
 list_precheck() { # the tool is running: skip when unattended, otherwise ask
-  pgrep -x "${ITEM_PROCS[$1]}" >/dev/null 2>&1 || return 0
+  lockedby_list_item "$1" >/dev/null || return 0
   if ((ASSUME_YES)); then warn "Skipping ${ITEM_LABEL[$1]}: the app is running."; return 1; fi
   ui_confirm "${ITEM_LABEL[$1]%% —*} is running" \
     "Only old sessions and rebuildable caches are removed. Continue?" "${LIST_RUN_DEFAULT[$1]:-y}"
@@ -1517,7 +1534,8 @@ reg_list_item() { # ID LABEL DEFAULT NOUN DESCRIPTION LIST_FN ROOTS [PROCESS_REG
   eval "scan_$id() { list_scan $id; }
         clean_$id() { list_clean $id; }
         details_$id() { list_details $id; }"
-  [[ -n ${8:-} ]] && eval "precheck_$id() { list_precheck $id; }"
+  [[ -n ${8:-} ]] && eval "precheck_$id() { list_precheck $id; }
+                          lockedby_$id() { lockedby_list_item $id; }"
   return 0
 }
 
@@ -2014,8 +2032,9 @@ model_details() {
   esac
   return 0
 }
+lockedby_model() { [[ ${MODEL_KIND[$1]} == lms ]] && running_proc -xi 'lm-studio|lm studio|lms'; }
 model_precheck() { # LM Studio may have the model loaded
-  [[ ${MODEL_KIND[$1]} == lms ]] && pgrep -xi 'lm-studio|lm studio|lms' >/dev/null 2>&1 || return 0
+  lockedby_model "$1" >/dev/null || return 0
   if ((ASSUME_YES)); then warn "Skipping ${ITEM_LABEL[$1]}: LM Studio is running."; return 1; fi
   ui_confirm "LM Studio is running" "Eject the model in LM Studio first. Delete it anyway?" n
 }
@@ -2031,7 +2050,8 @@ reg_model_item() { # KIND REF LABEL DESCRIPTION
   eval "scan_$id() { model_scan $id; }
         clean_$id() { model_clean $id; }
         details_$id() { model_details $id; }
-        precheck_$id() { model_precheck $id; }"
+        precheck_$id() { model_precheck $id; }
+        lockedby_$id() { lockedby_model $id; }"
 }
 
 discover_models() {
@@ -2263,7 +2283,13 @@ disk_history_lines() { # for System Overview
 
 # ───────────────────────────── scan engine ──────────────────────────────────
 
-declare -A RES_BYTES RES_NOTE RES_RC RES_HUMAN SEL SCAN_GOT
+declare -A RES_BYTES RES_NOTE RES_RC RES_HUMAN RES_LOCK SEL SCAN_GOT
+
+res_notev() { # VAR ID — the scan note, led by the program that has to be closed first
+  local n=${RES_NOTE[$2]}
+  [[ -n ${RES_LOCK[$2]:-} ]] && n="close ${RES_LOCK[$2]} first${n:+ · $n}"
+  printf -v "$1" '%s' "$n"
+}
 SCAN_TIMEOUT=120
 
 kill_tree() { local c; for c in $(pgrep -P "$1"); do kill_tree "$c"; done; kill "$1" 2>/dev/null; }
@@ -2313,7 +2339,7 @@ draw_scan_frame() { # DONE TOTAL CURRENT
 # by category, junk first, biggest first), SCAN_MS and SCAN_COUNT.
 scan_items() { # CATEGORY...
   SCANNED=() SCAN_CATS=("$@") SCAN_IDS=() SCAN_GOT=()
-  local found=() id cat tmp rc bytes note t0 done_n pending k json_last=-1
+  local found=() id cat tmp rc bytes lock note t0 done_n pending k json_last=-1
   declare -A pid_of=()
   for cat in "$@"; do
     for id in "${ITEM_IDS[@]}"; do [[ ${ITEM_CAT[$id]} == "$cat" ]] && SCAN_IDS+=("$id"); done
@@ -2325,7 +2351,9 @@ scan_items() { # CATEGORY...
     (
       SCAN_BYTES=0 SCAN_NOTE=""
       "scan_$id" </dev/null >/dev/null 2>&1; rc=$?
-      printf '%s\t%s\t%s\n' "$rc" "${SCAN_BYTES:-0}" "$SCAN_NOTE" >"$tmp/$id.part" && mv "$tmp/$id.part" "$tmp/$id"
+      lock=""; ((rc == 0)) && lock=$(item_locked "$id" </dev/null 2>/dev/null)
+      # fields split by \x1f: tabs are IFS whitespace, so an empty lock would vanish
+      printf '%s\x1f%s\x1f%s\x1f%s\n' "$rc" "${SCAN_BYTES:-0}" "$lock" "$SCAN_NOTE" >"$tmp/$id.part" && mv "$tmp/$id.part" "$tmp/$id"
     ) &
     pid_of[$id]=$!
   done
@@ -2335,8 +2363,8 @@ scan_items() { # CATEGORY...
     for id in "${SCAN_IDS[@]}"; do
       if [[ -n ${SCAN_GOT[$id]} ]]; then ((++done_n))
       elif [[ -e $tmp/$id ]]; then
-        IFS=$'\t' read -r rc bytes note <"$tmp/$id"
-        RES_RC[$id]=$rc RES_BYTES[$id]=${bytes:-0} RES_NOTE[$id]=$note SCAN_GOT[$id]=1
+        IFS=$'\x1f' read -r rc bytes lock note <"$tmp/$id"
+        RES_RC[$id]=$rc RES_BYTES[$id]=${bytes:-0} RES_LOCK[$id]=$lock RES_NOTE[$id]=$note SCAN_GOT[$id]=1
         ((++done_n))
       else pending=${pending:-${ITEM_LABEL[$id]}}; fi
     done
@@ -2370,7 +2398,7 @@ scan_items() { # CATEGORY...
   SCAN_COUNT=${#SCAN_IDS[@]}
 
   for id in "${SCAN_IDS[@]}"; do
-    [[ -n ${SCAN_GOT[$id]} ]] || RES_RC[$id]=3 RES_BYTES[$id]=0 RES_NOTE[$id]="scan timed out"
+    [[ -n ${SCAN_GOT[$id]} ]] || RES_RC[$id]=3 RES_BYTES[$id]=0 RES_LOCK[$id]="" RES_NOTE[$id]="scan timed out"
     ((RES_RC[$id] == 1)) && continue
     RES_HUMAN[$id]=$(human "${RES_BYTES[$id]}")
     SEL[$id]=0
@@ -2408,7 +2436,7 @@ found_total() { # → FOUND_TOTAL, FOUND_N, SELECTED_TOTAL, SELECTED_N
 # ── plain output (--scan / --clean) ──
 
 plain_results() {
-  local i=0 id cat last="" box size
+  local i=0 id cat last="" box size note
   declare -A cat_total=()
   found_total
   if [[ ${SCAN_CATS[*]} == privacy ]]; then
@@ -2435,8 +2463,9 @@ plain_results() {
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
     if ((RES_BYTES[$id] > 0)); then size=${RES_HUMAN[$id]}; else size="—"; fi
+    res_notev note "$id"
     printf '  %2d) %s %-34s %s%10s%s  %s%s%s\n' "$i" "$box" "${ITEM_LABEL[$id]}" \
-      "$(size_color "${RES_BYTES[$id]}")" "$size" "$NC" "$DIM" "${RES_NOTE[$id]}" "$NC"
+      "$(size_color "${RES_BYTES[$id]}")" "$size" "$NC" "$DIM" "$note" "$NC"
   done
 }
 
@@ -2511,7 +2540,8 @@ review_row() {
     i)
       local id=$ref
       fitv lbl "${ITEM_LABEL[$id]}" "$RV_LW"
-      fitv nt "${RES_NOTE[$id]}" "$RV_NW"
+      res_notev nt "$id"
+      fitv nt "$nt" "$RV_NW"
       if ((RES_RC[$id] != 0)); then
         printf -v sz '%9s' ""
         local st="clean"; ((RES_RC[$id] == 3)) && st="timed out"
@@ -2630,11 +2660,12 @@ scan_and_review() { # TITLE CATEGORY...
 # ── details ──
 
 details_top() {
-  local clr st
+  local clr st note
   size_colorv clr "${RES_BYTES[$DETAIL_ID]}"
+  res_notev note "$DETAIL_ID"
   if ((SEL[$DETAIL_ID])); then st="${GREEN}● selected${NC}"; else st="${DIM}○ not selected${NC}"; fi
   fl ""
-  fl "  ${clr}${BOLD}${RES_HUMAN[$DETAIL_ID]}${NC}   $st   ${DIM}${RES_NOTE[$DETAIL_ID]}${NC}"
+  fl "  ${clr}${BOLD}${RES_HUMAN[$DETAIL_ID]}${NC}   $st   ${DIM}$note${NC}"
   fl "  ${DIM}${ITEM_DESC[$DETAIL_ID]}${NC}"
   fl ""
 }
@@ -4843,15 +4874,15 @@ json_str() { # VAR TEXT → a JSON string literal (colours and control character
 }
 
 json_item() { # ID [with scan results] → one "item" event
-  local id=$1 cat label desc note status=found
+  local id=$1 cat label desc note lock status=found
   json_str cat "${ITEM_CAT[$id]}"; json_str label "${ITEM_LABEL[$id]}"; json_str desc "${ITEM_DESC[$id]}"
   if [[ ${2:-} == scanned ]]; then
-    json_str note "${RES_NOTE[$id]}"
+    json_str note "${RES_NOTE[$id]}"; json_str lock "${RES_LOCK[$id]:-}"
     case ${RES_RC[$id]} in 0) status=found ;; 3) status=timeout ;; *) status=clean ;; esac
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s}\n' \
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s}\n' \
       "$id" "$cat" "$label" "$desc" "$( ((ITEM_DEFAULT[$id])) && echo true || echo false)" \
       "$([[ -n ${ITEM_ROOT[$id]:-} ]] && echo true || echo false)" "$status" "${RES_BYTES[$id]:-0}" "$note" \
-      "$( ((${SEL[$id]:-0})) && echo true || echo false)"
+      "$( ((${SEL[$id]:-0})) && echo true || echo false)" "$lock"
   else
     printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s}\n' \
       "$id" "$cat" "$label" "$desc" "$( ((ITEM_DEFAULT[$id])) && echo true || echo false)" \

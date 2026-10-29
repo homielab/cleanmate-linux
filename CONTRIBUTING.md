@@ -48,7 +48,9 @@ Rules of thumb:
   `--dry-run`, the protected-path checks and the activity log keep working.
 - **Prefer the tool's own cleanup command** (`npm cache clean`, `docker image prune`, …).
 - **Be conservative.** Personal data starts unselected; anything a running app might use gets a
-  `precheck_ID`; history items only remove things older than a limit.
+  `precheck_ID`, plus a `lockedby_ID` that prints the running program, so a scan can show the
+  item locked (`reg_cache_item` and `reg_list_item` make both from their process pattern); history
+  items only remove things older than a limit.
 - **Add a test** that creates the files your item should remove *and* the ones it must keep.
 
 ## Checking your change

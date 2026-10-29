@@ -70,12 +70,13 @@ def run(app, win):
             return
         if not found:
             return finish()
-        first = sorted(found, key=lambda e: -e["bytes"])[0]
+        first = sorted(found, key=lambda e: (bool(e.get("locked")), -e["bytes"]))[0]  # a row that can be ticked
         before = page.summary.get_text()
         page.checks[first["id"]].set_active(not page.selected[first["id"]])
         report(page.summary.get_text() != before, f"toggling “{first['label']}” updates the summary")
         page.checks[first["id"]].set_active(not page.checks[first["id"]].get_active())  # restore
         check_group(first)
+        check_locked(found)
         page.show_details(first)
         GLib.timeout_add(1500, lambda: (after_details(), False)[1])
 
@@ -102,8 +103,26 @@ def run(app, win):
         report(page.selected[ids[0]], "activating the row (click, Space, Enter) toggles its box")
         page.checks[ids[0]].set_active(False)
 
+    def check_locked(found):
+        locked = [e for e in found if e.get("locked")]
+        if not locked:
+            return report(True, "no locked item to check")
+        e = locked[0]
+        check = page.checks[e["id"]]
+        report(not check.get_sensitive() and not page.selected[e["id"]],
+               f"locked row “{e['label']}” can't be ticked ({e['locked']} running)")
+        check.get_ancestor(Adw.ActionRow).activate()
+        report(not page.selected[e["id"]], "activating a locked row leaves it unticked")
+        before = dict(page.selected)
+        for button, _ in page.group_buttons:
+            button.set_active(True)
+        report(not any(page.selected[x["id"]] for x in locked), "group boxes leave locked rows unticked")
+        for i, on in before.items():  # restore
+            page.checks[i].set_active(on)
+
     def after_details():
-        user_items = [e for e in page.items.values() if e["status"] == "found" and not e["root"]]
+        user_items = [e for e in page.items.values()
+                      if e["status"] == "found" and not e["root"] and not e.get("locked")]
         if not (win.engine.dry_run and user_items):
             report(True, "clean skipped (not a dry run, or nothing to clean)")
             return finish()

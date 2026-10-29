@@ -120,7 +120,9 @@ class ScanPage(Gtk.Box):
             child = self.results.get_first_child()
         self.checks.clear()
         self.group_buttons.clear()
-        self.selected = {i: e["selected"] for i, e in self.items.items() if e["status"] == "found"}
+        # an item whose program is running is skipped by the engine: never tick it
+        self.selected = {i: e["selected"] and not e.get("locked") for i, e in self.items.items()
+                         if e["status"] == "found"}
 
         found = [e for e in self.items.values() if e["status"] == "found"]
         total = sum(e["bytes"] for e in found)
@@ -150,12 +152,13 @@ class ScanPage(Gtk.Box):
             group = Adw.PreferencesGroup(title=CATEGORY_TITLES.get(cat, cat))
             if junk and not self.privacy:
                 group.set_description(human(sum(e["bytes"] for e in junk)))
-            if len(junk) > 1:
+            free = [e["id"] for e in junk if not e.get("locked")]  # the group box skips locked rows
+            if len(free) > 1:
                 toggle = Gtk.CheckButton(label="All", valign=Gtk.Align.CENTER, css_classes=["big-check"],
                                          tooltip_text="Select or deselect the whole group")
-                toggle.connect("toggled", self.on_group_toggle, [e["id"] for e in junk])
+                toggle.connect("toggled", self.on_group_toggle, free)
                 group.set_header_suffix(toggle)
-                self.group_buttons.append((toggle, [e["id"] for e in junk]))
+                self.group_buttons.append((toggle, free))
             for e in junk:
                 group.add(self.item_row(e, biggest))
             if clean:
@@ -174,18 +177,25 @@ class ScanPage(Gtk.Box):
         self.update_summary()
 
     def item_row(self, e, biggest):
+        locked = e.get("locked") or ""  # the program that has to be closed first
         subtitle = e["note"]
-        if e["root"]:
+        if locked:
+            subtitle = f"Close {locked} and scan again"
+        elif e["root"]:
             subtitle = f"{subtitle} · Needs your password" if subtitle else "Needs your password"
         row = Adw.ActionRow(title=e["label"], subtitle=subtitle, use_markup=False,
                             subtitle_lines=1, tooltip_text=e["description"], css_classes=["item-row"])
         check = Gtk.CheckButton(active=self.selected.get(e["id"], False), valign=Gtk.Align.CENTER,
-                                css_classes=["big-check"])
+                                css_classes=["big-check"], sensitive=not locked)
         check.connect("toggled", self.on_toggled, e["id"])
         self.checks[e["id"]] = check
         row.add_prefix(check)
-        row.set_activatable_widget(check)
-        if e["root"]:
+        if locked:
+            row.add_suffix(Gtk.Image(icon_name="changes-prevent-symbolic", css_classes=["warning"],
+                                     tooltip_text=f"{locked} is running — close it, then scan again"))
+        else:
+            row.set_activatable_widget(check)
+        if e["root"] and not locked:
             row.add_suffix(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text="Needs your password"))
         if not self.privacy:
             bar = Gtk.LevelBar(min_value=0, max_value=1, value=max(e["bytes"] / biggest, 0.02),
