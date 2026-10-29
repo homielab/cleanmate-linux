@@ -2,6 +2,7 @@
 from gi.repository import Adw, GLib, Gtk, Pango
 
 from .engine import CATEGORY_TITLES, human
+from .i18n import _, ngettext
 
 
 def size_class(n):
@@ -44,7 +45,7 @@ class ScanPage(Gtk.Box):
         self.append(self.stack)
 
         # 1. start
-        button = Gtk.Button(label="Scan", halign=Gtk.Align.CENTER)
+        button = Gtk.Button(label=_("Scan"), halign=Gtk.Align.CENTER)
         button.add_css_class("pill")
         button.add_css_class("suggested-action")
         button.connect("clicked", lambda *_: self.scan())
@@ -57,7 +58,7 @@ class ScanPage(Gtk.Box):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, halign=Gtk.Align.CENTER)
         box.append(self.progress)
         box.append(self.progress_label)
-        scanning = Adw.StatusPage(icon_name="system-search-symbolic", title="Scanning…", child=box)
+        scanning = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Scanning…"), child=box)
         self.stack.add_named(scanning, "scanning")
 
         # 3. results (filled in by show_results)
@@ -83,11 +84,11 @@ class ScanPage(Gtk.Box):
         self.bar = Gtk.ActionBar(revealed=False)
         self.summary = Gtk.Label(xalign=0)
         self.bar.pack_start(self.summary)
-        self.clean_button = Gtk.Button(label="Clear" if self.privacy else "Clean")
+        self.clean_button = Gtk.Button(label=_("Clear") if self.privacy else _("Clean"))
         self.clean_button.add_css_class("suggested-action")
         self.clean_button.connect("clicked", lambda *_: self.confirm_clean())
         self.bar.pack_end(self.clean_button)
-        rescan = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Scan again")
+        rescan = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Scan again"))
         rescan.connect("clicked", lambda *_: self.scan())
         self.bar.pack_end(rescan)
         self.append(self.bar)
@@ -98,7 +99,7 @@ class ScanPage(Gtk.Box):
             return
         self.items.clear()
         self.progress.set_fraction(0)
-        self.progress_label.set_text("Starting…")
+        self.progress_label.set_text(_("Starting…"))
         self.stack.set_visible_child_name("scanning")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
@@ -106,7 +107,7 @@ class ScanPage(Gtk.Box):
         def on_event(e):
             if e["event"] == "progress":
                 self.progress.set_fraction(e["done"] / max(e["total"], 1))
-                self.progress_label.set_text(f"Checking {e['current']}…" if e["current"] else "")
+                self.progress_label.set_text(_("Checking {name}…").format(name=e["current"]) if e["current"] else "")
             elif e["event"] == "item":
                 self.items[e["id"]] = e
             elif e["event"] == "done":
@@ -116,7 +117,7 @@ class ScanPage(Gtk.Box):
             self.running = None
             self.window.set_busy(False)
             if not ok and not self.items:
-                self.window.toast("The scan failed — try the terminal app (cm) for details.")
+                self.window.toast(_("The scan failed — try the terminal app (cm) for details."))
                 self.stack.set_visible_child_name("start")
                 return
             self.show_results()
@@ -138,14 +139,17 @@ class ScanPage(Gtk.Box):
         found = [e for e in self.items.values() if e["status"] == "found"]
         total = sum(e["bytes"] for e in found)
         if self.privacy:
-            head = f"{len(found)} history lists with entries" if found else "Nothing to clear"
-            sub = "Pick what to clear — nothing happens until you confirm."
+            head = ngettext("{n} history list with entries", "{n} history lists with entries", len(found)) \
+                if found else _("Nothing to clear")
+            sub = _("Pick what to clear — nothing happens until you confirm.")
         elif found:
-            head = f"{human(total)} of junk found in {len(found)} items"
-            sub = f"{getattr(self, 'scan_info', {}).get('locations', 0)} locations scanned in " \
-                  f"{getattr(self, 'scan_info', {}).get('ms', 0) / 1000:.1f}s"
+            info = getattr(self, "scan_info", {})
+            head = ngettext("{size} of junk found in {n} item", "{size} of junk found in {n} items", len(found),
+                            size=human(total))
+            sub = ngettext("{n} location scanned in {secs}s", "{n} locations scanned in {secs}s",
+                           info.get("locations", 0), secs=f"{info.get('ms', 0) / 1000:.1f}")
         else:
-            head, sub = "Your system is clean", "Nothing worth removing was found."
+            head, sub = _("Your system is clean"), _("Nothing worth removing was found.")
         title = Gtk.Label(label=head, xalign=0, wrap=True, css_classes=["title-1"])
         subtitle = Gtk.Label(label=sub, xalign=0, css_classes=["dim-label"])
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -165,19 +169,19 @@ class ScanPage(Gtk.Box):
                 group.set_description(human(sum(e["bytes"] for e in junk)))
             free = [e["id"] for e in junk if not e.get("locked")]  # the group box skips locked rows
             if len(free) > 1:
-                toggle = Gtk.CheckButton(label="All", valign=Gtk.Align.CENTER, css_classes=["big-check"],
-                                         tooltip_text="Select or deselect the whole group")
+                toggle = Gtk.CheckButton(label=_("All"), valign=Gtk.Align.CENTER, css_classes=["big-check"],
+                                         tooltip_text=_("Select or deselect the whole group"))
                 toggle.connect("toggled", self.on_group_toggle, free)
                 group.set_header_suffix(toggle)
                 self.group_buttons.append((toggle, free))
             for e in junk:
                 group.add(self.item_row(e, biggest))
             if clean:
-                more = Adw.ExpanderRow(title=f"{len(clean)} more {'item is' if len(clean) == 1 else 'items are'} clean",
+                more = Adw.ExpanderRow(title=ngettext("{n} more item is clean", "{n} more items are clean", len(clean)),
                                        use_markup=False)
                 more.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"]))
                 for e in clean:
-                    row = Adw.ActionRow(title=e["label"], subtitle=e["note"] or "clean", use_markup=False)
+                    row = Adw.ActionRow(title=e["label"], subtitle=e["note"] or _("clean"), use_markup=False)
                     row.add_css_class("dim-label")
                     more.add_row(row)
                 group.add(more)
@@ -191,9 +195,9 @@ class ScanPage(Gtk.Box):
         locked = e.get("locked") or ""  # the program that has to be closed first
         subtitle = e["note"]
         if locked:
-            subtitle = f"Close {locked} and scan again"
+            subtitle = _("Close {program} and scan again").format(program=locked)
         elif e["root"]:
-            subtitle = f"{subtitle} · Needs your password" if subtitle else "Needs your password"
+            subtitle = f"{subtitle} · {_('Needs your password')}" if subtitle else _("Needs your password")
         row = Adw.ActionRow(title=e["label"], subtitle=subtitle, use_markup=False,
                             subtitle_lines=1, tooltip_text=e["description"], css_classes=["item-row"])
         check = Gtk.CheckButton(active=self.selected.get(e["id"], False), valign=Gtk.Align.CENTER,
@@ -203,16 +207,16 @@ class ScanPage(Gtk.Box):
         row.add_prefix(check)
         if locked:
             row.add_suffix(Gtk.Image(icon_name="changes-prevent-symbolic", css_classes=["warning"],
-                                     tooltip_text=f"{locked} is running — close it, then scan again"))
+                                     tooltip_text=_("{program} is running — close it, then scan again").format(program=locked)))
         else:
             row.set_activatable_widget(check)
         if e["root"] and not locked:
-            row.add_suffix(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text="Needs your password"))
+            row.add_suffix(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password")))
         if not self.privacy:
             for widget in size_widgets(e["bytes"], biggest):
                 row.add_suffix(widget)
         info = Gtk.Button(icon_name="go-next-symbolic", valign=Gtk.Align.CENTER,
-                          css_classes=["flat"], tooltip_text="Show what's inside")
+                          css_classes=["flat"], tooltip_text=_("Show what's inside"))
         info.connect("clicked", lambda *_: self.show_details(e))
         row.add_suffix(info)
         return row
@@ -232,11 +236,10 @@ class ScanPage(Gtk.Box):
     def update_summary(self):
         ids = [i for i, on in self.selected.items() if on]
         if self.privacy:
-            self.summary.set_text(f"{len(ids)} selected")
+            self.summary.set_text(ngettext("{n} selected", "{n} selected", len(ids)))
         else:
-            self.summary.set_markup(
-                f"Selected <b>{human(sum(self.items[i]['bytes'] for i in ids))}</b> in {len(ids)} "
-                f"item{'s' if len(ids) != 1 else ''}")
+            self.summary.set_markup(ngettext("Selected <b>{size}</b> in {n} item", "Selected <b>{size}</b> in {n} items",
+                                             len(ids), size=human(sum(self.items[i]["bytes"] for i in ids))))
         self.clean_button.set_sensitive(bool(ids))
         self.syncing = True  # the group boxes follow the rows: none / some (inconsistent) / all
         for button, group_ids in self.group_buttons:
@@ -249,7 +252,7 @@ class ScanPage(Gtk.Box):
     def show_details(self, e):
         text = Gtk.TextView(editable=False, cursor_visible=False, monospace=True,
                             top_margin=12, bottom_margin=12, left_margin=12, right_margin=12)
-        text.get_buffer().set_text("Collecting details…")
+        text.get_buffer().set_text(_("Collecting details…"))
         desc = Gtk.Label(label=e["description"], wrap=True, xalign=0,
                          margin_start=12, margin_end=12, margin_top=6, css_classes=["dim-label"])
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -267,7 +270,7 @@ class ScanPage(Gtk.Box):
                 lines.extend(ev["lines"])
 
         def on_done(ok, status):
-            text.get_buffer().set_text("\n".join(lines) if lines else "Nothing more to show.")
+            text.get_buffer().set_text("\n".join(lines) if lines else _("Nothing more to show."))
 
         self.engine.details(e["id"], on_event, on_done)
 
@@ -289,18 +292,19 @@ class ScanPage(Gtk.Box):
                 row.append(Gtk.Label(label=human(e["bytes"]), css_classes=["numeric", "dim-label"]))
             lines.append(row)
         if len(ids) > 12:
-            lines.append(Gtk.Label(label=f"… and {len(ids) - 12} more", xalign=0, css_classes=["dim-label"]))
+            lines.append(Gtk.Label(label=_("… and {n} more").format(n=len(ids) - 12), xalign=0, css_classes=["dim-label"]))
 
         if self.privacy:
-            heading, body = f"Clear {len(ids)} history list{'s' if len(ids) != 1 else ''}?", "This can't be undone."
+            heading = ngettext("Clear {n} history list?", "Clear {n} history lists?", len(ids))
+            body = _("This can't be undone.")
         else:
-            heading = f"Clean {len(ids)} item{'s' if len(ids) != 1 else ''}?"
-            body = f"About {human(total)} will be removed."
+            heading = ngettext("Clean {n} item?", "Clean {n} items?", len(ids))
+            body = _("About {size} will be removed.").format(size=human(total))
         if needs_root:
-            body += " Items with a lock need your password."
+            body += " " + _("Items with a lock need your password.")
         dialog = Adw.AlertDialog(heading=heading, body=body, extra_child=lines)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("clean", "Clear" if self.privacy else "Clean")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("clean", _("Clear") if self.privacy else _("Clean"))
         dialog.set_response_appearance("clean", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("clean")
         dialog.set_close_response("cancel")
@@ -319,13 +323,13 @@ class ScanPage(Gtk.Box):
             self.clean_list.remove(child)
             child = self.clean_list.get_first_child()
         for i in user_ids + root_ids:
-            row = Adw.ActionRow(title=self.items[i]["label"], subtitle="waiting", use_markup=False)
+            row = Adw.ActionRow(title=self.items[i]["label"], subtitle=_("waiting"), use_markup=False)
             spinner = Gtk.Image(icon_name="content-loading-symbolic", css_classes=["dim-label"])
             row.add_prefix(spinner)
             row.icon = spinner
             self.clean_list.append(row)
             self.task_rows[i] = row
-        self.clean_title.set_text("Cleaning…")
+        self.clean_title.set_text(_("Cleaning…"))
         self.clean_progress.set_fraction(0)
         self.stack.set_visible_child_name("cleaning")
         self.bar.set_revealed(False)
@@ -336,12 +340,12 @@ class ScanPage(Gtk.Box):
                 return
             row = self.task_rows[e["id"]]
             if e["state"] == "run":
-                row.set_subtitle("working…")
+                row.set_subtitle(_("working…"))
                 return
             icon = {"ok": "emblem-ok-symbolic", "skip": "dialog-warning-symbolic"}.get(e["state"], "dialog-error-symbolic")
             row.icon.set_from_icon_name(icon)
             row.icon.set_css_classes([{"ok": "success", "skip": "warning"}.get(e["state"], "error")])
-            row.set_subtitle(e["info"] or e["state"])
+            row.set_subtitle(e["info"] or {"ok": _("done"), "skip": _("skipped")}.get(e["state"], _("failed")))
             self.freed += e["freed"]
             self.done_count += 1
             self.clean_progress.set_fraction(self.done_count / max(self.total_count, 1))
@@ -350,27 +354,27 @@ class ScanPage(Gtk.Box):
             if not root_ids:
                 return finish()
             for i in root_ids:
-                self.task_rows[i].set_subtitle("waiting for your password…")
+                self.task_rows[i].set_subtitle(_("waiting for your password…"))
             self.engine.clean(root_ids, on_event, root_done, as_root=True)
 
         def root_done(ok, status):
             if status in (126, 127):  # password dialog dismissed / not authorized
                 for i in root_ids:
                     row = self.task_rows[i]
-                    if row.get_subtitle().startswith("waiting"):
+                    if row.get_subtitle() in (_("waiting"), _("waiting for your password…")):
                         row.icon.set_from_icon_name("dialog-warning-symbolic")
                         row.icon.set_css_classes(["warning"])
-                        row.set_subtitle("Skipped — no password was entered")
+                        row.set_subtitle(_("Skipped — no password was entered"))
             finish()
 
         def finish():
             self.window.set_busy(False)
             if self.engine.dry_run:
-                msg = f"Dry run: {human(self.freed)} would be freed"
+                msg = _("Dry run: {size} would be freed").format(size=human(self.freed))
             elif self.privacy:
-                msg = "History cleared"
+                msg = _("History cleared")
             else:
-                msg = f"Freed {human(self.freed)}"
+                msg = _("Freed {size}").format(size=human(self.freed))
             self.clean_title.set_text(msg)
             self.window.toast(msg)
             self.window.refresh_disk()

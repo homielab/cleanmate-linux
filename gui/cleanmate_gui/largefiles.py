@@ -9,11 +9,12 @@ import time
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .engine import human
+from .i18n import _, ngettext
 from .scanpage import size_widgets
 
 MIN_SIZES = [("50 MB", 50 << 20), ("100 MB", 100 << 20), ("500 MB", 500 << 20), ("1 GB", 1 << 30),
              ("5 GB", 5 << 30)]
-AGES = [("Any age", 0), ("30 days", 30), ("90 days", 90), ("6 months", 182), ("1 year", 365)]
+AGES = [(_("Any age"), 0), (_("30 days"), 30), (_("90 days"), 90), (_("6 months"), 182), (_("1 year"), 365)]
 KIND_ICONS = {
     "video": "video-x-generic-symbolic",
     "audio": "audio-x-generic-symbolic",
@@ -28,10 +29,6 @@ KIND_ICONS = {
 def short_path(path):
     home = os.path.expanduser("~")
     return "~" + path[len(home):] if path == home or path.startswith(home + "/") else path
-
-
-def plural(n, word):
-    return f"{n} {word}{'' if n == 1 else 's'}"
 
 
 class LargeFilesPage(Gtk.Box):
@@ -57,9 +54,9 @@ class LargeFilesPage(Gtk.Box):
         # filters
         self.size_drop = Gtk.DropDown.new_from_strings([label for label, _ in MIN_SIZES])
         self.size_drop.set_selected(1)
-        self.size_drop.set_tooltip_text("Smallest file size to list")
+        self.size_drop.set_tooltip_text(_("Smallest file size to list"))
         self.age_drop = Gtk.DropDown.new_from_strings([label for label, _ in AGES])
-        self.age_drop.set_tooltip_text("Only files not changed or opened for this long")
+        self.age_drop.set_tooltip_text(_("Only files not changed or opened for this long"))
         for drop in (self.size_drop, self.age_drop):
             drop.connect("notify::selected", lambda *_: self.searched and self.search())
         self.folder_label = Gtk.Label(label=short_path(self.folder), ellipsize=Pango.EllipsizeMode.MIDDLE,
@@ -67,12 +64,12 @@ class LargeFilesPage(Gtk.Box):
         folder_box = Gtk.Box(spacing=6)
         folder_box.append(Gtk.Image(icon_name="folder-symbolic"))
         folder_box.append(self.folder_label)
-        folder_button = Gtk.Button(child=folder_box, tooltip_text="Folder to search (also a drive)")
+        folder_button = Gtk.Button(child=folder_box, tooltip_text=_("Folder to search (also a drive)"))
         folder_button.connect("clicked", lambda *_: self.choose_folder())
         filters = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=18, row_spacing=6,
                               max_children_per_line=3, margin_top=12, margin_bottom=12,
                               margin_start=12, margin_end=12)
-        for label, widget in (("At least", self.size_drop), ("Unused for", self.age_drop), ("In", folder_button)):
+        for label, widget in ((_("At least"), self.size_drop), (_("Unused for"), self.age_drop), (_("In"), folder_button)):
             box = Gtk.Box(spacing=8, halign=Gtk.Align.START)
             box.append(Gtk.Label(label=label, css_classes=["dim-label"]))
             box.append(widget)
@@ -83,15 +80,15 @@ class LargeFilesPage(Gtk.Box):
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vexpand=True)
         self.append(self.stack)
 
-        button = Gtk.Button(label="Search", halign=Gtk.Align.CENTER, css_classes=["pill", "suggested-action"])
+        button = Gtk.Button(label=_("Search"), halign=Gtk.Align.CENTER, css_classes=["pill", "suggested-action"])
         button.connect("clicked", lambda *_: self.search())
         self.stack.add_named(Adw.StatusPage(icon_name=icon, title=title, description=description, child=button),
                              "start")
         spinner = Gtk.Spinner(spinning=True, width_request=32, height_request=32, halign=Gtk.Align.CENTER)
-        self.searching = Adw.StatusPage(icon_name="system-search-symbolic", title="Searching…", child=spinner)
+        self.searching = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Searching…"), child=spinner)
         self.stack.add_named(self.searching, "searching")
-        self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title="No files match",
-                                    description="Try a smaller size, any age, or another folder.")
+        self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title=_("No files match"),
+                                    description=_("Try a smaller size, any age, or another folder."))
         self.stack.add_named(self.empty, "empty")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
@@ -101,17 +98,17 @@ class LargeFilesPage(Gtk.Box):
         self.bar = Gtk.ActionBar(revealed=False)
         self.summary = Gtk.Label(xalign=0)
         self.bar.pack_start(self.summary)
-        self.trash_button = Gtk.Button(label="Move to Trash", css_classes=["destructive-action"])
+        self.trash_button = Gtk.Button(label=_("Move to Trash"), css_classes=["destructive-action"])
         self.trash_button.connect("clicked", lambda *_: self.confirm_trash())
         self.bar.pack_end(self.trash_button)
-        again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Search again")
+        again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Search again"))
         again.connect("clicked", lambda *_: self.search())
         self.bar.pack_end(again)
         self.append(self.bar)
 
     # ── searching ──
     def choose_folder(self):
-        dialog = Gtk.FileDialog(title="Folder to search", initial_folder=Gio.File.new_for_path(self.folder))
+        dialog = Gtk.FileDialog(title=_("Folder to search"), initial_folder=Gio.File.new_for_path(self.folder))
 
         def chosen(d, result):
             try:
@@ -141,7 +138,7 @@ class LargeFilesPage(Gtk.Box):
         files, info = [], {}
         min_bytes = MIN_SIZES[self.size_drop.get_selected()][1]
         days = AGES[self.age_drop.get_selected()][1]
-        self.searching.set_description(f"Files of {human(min_bytes)} or more in {short_path(self.folder)}")
+        self.searching.set_description(_("Files of {size} or more in {folder}").format(size=human(min_bytes), folder=short_path(self.folder)))
         self.stack.set_visible_child_name("searching")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
@@ -180,11 +177,12 @@ class LargeFilesPage(Gtk.Box):
             return
 
         total = sum(e["bytes"] for e in self.files)
-        title = Gtk.Label(label=f"{plural(len(self.files), 'file')} · {human(total)}", xalign=0, wrap=True,
+        title = Gtk.Label(label=ngettext("{n} file · {size}", "{n} files · {size}", len(self.files), size=human(total)),
+                          xalign=0, wrap=True,
                           css_classes=["title-1"])
-        sub = f"Biggest first, in {short_path(self.folder)}"
+        sub = _("Biggest first, in {folder}").format(folder=short_path(self.folder))
         if self.found > len(self.files):
-            sub += f" — the {len(self.files)} biggest of {self.found}"
+            sub += " — " + _("the {n} biggest of {found}").format(n=len(self.files), found=self.found)
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         header.append(title)
         header.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
@@ -192,8 +190,8 @@ class LargeFilesPage(Gtk.Box):
 
         group = Adw.PreferencesGroup()
         if len(self.files) > 1:
-            self.all_check = Gtk.CheckButton(label="All", valign=Gtk.Align.CENTER, css_classes=["big-check"],
-                                             tooltip_text="Select or deselect every file")
+            self.all_check = Gtk.CheckButton(label=_("All"), valign=Gtk.Align.CENTER, css_classes=["big-check"],
+                                             tooltip_text=_("Select or deselect every file"))
             self.all_check.connect("toggled", self.on_all_toggled)
             group.set_header_suffix(self.all_check)
         biggest = self.files[0]["bytes"]
@@ -208,9 +206,11 @@ class LargeFilesPage(Gtk.Box):
         path = e["path"]
         folder, name = os.path.split(path)
         when = time.strftime("%-d %b %Y", time.localtime(e["mtime"]))
-        row = Adw.ActionRow(title=name, subtitle=f"{short_path(folder)} · modified {when}", use_markup=False,
+        row = Adw.ActionRow(title=name, subtitle=_("{folder} · modified {date}").format(folder=short_path(folder), date=when),
+                            use_markup=False,
                             subtitle_lines=1, css_classes=["item-row"],
-                            tooltip_text=f"{path}\nLast opened {time.strftime('%-d %b %Y', time.localtime(e['atime']))}")
+                            tooltip_text=path + "\n" + _("Last opened {date}").format(
+                                date=time.strftime("%-d %b %Y", time.localtime(e["atime"]))))
         check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"])
         check.connect("toggled", self.on_toggled, path)
         self.checks[path] = check
@@ -220,7 +220,7 @@ class LargeFilesPage(Gtk.Box):
         for widget in size_widgets(e["bytes"], biggest):
             row.add_suffix(widget)
         show = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                          tooltip_text="Show in Files")
+                          tooltip_text=_("Show in Files"))
         show.connect("clicked", lambda *_: Gtk.FileLauncher.new(Gio.File.new_for_path(path))
                      .open_containing_folder(self.window, None, None))
         row.add_suffix(show)
@@ -242,8 +242,8 @@ class LargeFilesPage(Gtk.Box):
 
     def update_summary(self):
         chosen = [e for e in self.files if e["path"] in self.selected]
-        self.summary.set_markup(f"Selected <b>{human(sum(e['bytes'] for e in chosen))}</b> in "
-                                f"{plural(len(chosen), 'file')}")
+        self.summary.set_markup(ngettext("Selected <b>{size}</b> in {n} file", "Selected <b>{size}</b> in {n} files",
+                                         len(chosen), size=human(sum(e["bytes"] for e in chosen))))
         self.trash_button.set_sensitive(bool(chosen) and not self.running)
         if self.all_check:
             self.syncing = True  # none / some (inconsistent) / all
@@ -264,14 +264,14 @@ class LargeFilesPage(Gtk.Box):
             row.append(Gtk.Label(label=human(e["bytes"]), css_classes=["numeric", "dim-label"]))
             lines.append(row)
         if len(chosen) > 12:
-            lines.append(Gtk.Label(label=f"… and {len(chosen) - 12} more", xalign=0, css_classes=["dim-label"]))
+            lines.append(Gtk.Label(label=_("… and {n} more").format(n=len(chosen) - 12), xalign=0, css_classes=["dim-label"]))
         dialog = Adw.AlertDialog(
-            heading=f"Move {plural(len(chosen), 'file')} to the Trash?",
-            body=f"{human(sum(e['bytes'] for e in chosen))}. You can undo this right away, "
-                 "or restore the files from the Trash later.",
+            heading=ngettext("Move {n} file to the Trash?", "Move {n} files to the Trash?", len(chosen)),
+            body=_("{size}. You can undo this right away, or restore the files from the Trash later.").format(
+                size=human(sum(e["bytes"] for e in chosen))),
             extra_child=lines)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("trash", "Move to Trash")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("trash", _("Move to Trash"))
         dialog.set_response_appearance("trash", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
@@ -310,14 +310,18 @@ class LargeFilesPage(Gtk.Box):
                 self.selected -= gone
                 self.show_results()
             if self.engine.dry_run:
-                self.window.toast(f"Dry run: {plural(n, 'file')} ({human(freed)}) would be moved to the Trash")
+                self.window.toast(ngettext("Dry run: {n} file ({size}) would be moved to the Trash",
+                                           "Dry run: {n} files ({size}) would be moved to the Trash", n,
+                                           size=human(freed)))
                 return
-            msg = f"Moved {plural(n, 'file')} ({human(freed)}) to the Trash" if n else "Nothing was moved"
+            msg = ngettext("Moved {n} file ({size}) to the Trash", "Moved {n} files ({size}) to the Trash", n,
+                           size=human(freed)) if n else _("Nothing was moved")
             if failed:
-                msg += f" — {len(failed)} could not be moved: {failed[0]['info']}" if len(failed) > 1 \
-                    else f" — {failed[0]['info']}"
+                msg += " — " + (ngettext("{n} could not be moved: {reason}", "{n} could not be moved: {reason}",
+                                         len(failed), reason=failed[0]["info"]) if len(failed) > 1
+                                else failed[0]["info"])
             if moved:
-                self.undo_toast = self.window.toast(msg, "Undo", lambda: self.undo(moved), timeout=10)
+                self.undo_toast = self.window.toast(msg, _("Undo"), lambda: self.undo(moved), timeout=10)
             else:
                 self.window.toast(msg, timeout=6)
             self.window.refresh_disk()
@@ -353,9 +357,11 @@ class LargeFilesPage(Gtk.Box):
                                     key=lambda e: -e["bytes"])
                 self.show_results()
             if failed:
-                self.window.toast(f"Put back {len(back)}, {len(failed)} could not be restored: {failed[0]['info']}")
+                self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
+                    back=len(back), failed=len(failed), reason=failed[0]["info"]))
             else:
-                self.window.toast(f"Put back {plural(len(back), 'file')} from the Trash")
+                self.window.toast(ngettext("Put back {n} file from the Trash", "Put back {n} files from the Trash",
+                                           len(back)))
             self.window.refresh_disk()
 
         self.window.set_busy(True)

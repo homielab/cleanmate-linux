@@ -776,7 +776,12 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   done
   [[ -n $py ]] || { SKIPPED="GTK 4 + libadwaita 1.5 not available"; return; }
   fresh_home
-  local out srv display=$((50 + RANDOM % 40))
+  local out srv lang display=$((50 + RANDOM % 40)) locales=(C.UTF-8)
+  if command -v msgfmt >/dev/null; then # the Vietnamese translation too
+    bash "$ROOT/po/compile.sh" "$WORK/locale" && locales+=(vi_VN.UTF-8)
+  else
+    echo "      (msgfmt not installed: GUI self-test in English only)"
+  fi
   mkdir -p "$HOME_DIR/.cache/thumbnails/large"; echo x >"$HOME_DIR/.cache/thumbnails/large/a.png"
   new "$HOME_DIR/.cache/pip/p"; new "$HOME_DIR/.npm/_cacache/n"; new "$HOME_DIR/.cache/go-build/g" # two more items, so a group has several rows
   # Claude Code "running": its row is locked, in a group whose box covers the two others
@@ -787,26 +792,30 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   XDG_RUNTIME_DIR=$rt gtk4-broadwayd ":$display" >/dev/null 2>&1 &
   srv=$!
   sleep 1
-  # a private, invisible display; dry run; the self-test never touches system items
-  out=$(env -i HOME="$HOME_DIR" PATH="$WORK/guilock:$BASE_PATH" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" \
-    GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
-    timeout 120 "$py" "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
+  for lang in "${locales[@]}"; do
+    # a private, invisible display; dry run; the self-test never touches system items
+    out=$(env -i HOME="$HOME_DIR" PATH="$WORK/guilock:$BASE_PATH" LANG="$lang" XDG_RUNTIME_DIR="$rt" \
+      CLEANMATE_LOCALEDIR="$WORK/locale" GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
+      timeout 120 "$py" "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
+    ((VERBOSE)) && echo "      $lang:"
+    ((VERBOSE)) && grep SELFTEST <<<"$out" | sed 's/^/      | /'
+    assert_contains "$out" "SELFTEST done"
+    [[ $out == *"SELFTEST FAIL"* ]] && { fail "GUI self-test reported a failure"; grep 'SELFTEST FAIL' <<<"$out" | sed 's/^/      | /'; }
+    assert_contains "$out" "dry-run clean finished"
+    assert_contains "$out" "group box selects the whole group"
+    assert_contains "$out" "locked row “Claude Code — cache & logs” can't be ticked (claude running)"
+    assert_contains "$out" "group boxes leave locked rows unticked"
+    assert_contains "$out" "age filter keeps only the old file"
+    assert_contains "$out" "dry run: the file stays"
+    ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the file back where it was" # root: refused
+    assert_contains "$out" "apps listed, part of Ubuntu hidden"
+    assert_contains "$out" "ticking an app ticks its leftover folder"
+    assert_contains "$out" "dry run removes nothing"
+    ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the app's folder back"
+    assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
+    if [[ $lang == vi* ]]; then assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"; fi
+  done
   kill "$srv" 2>/dev/null
-  ((VERBOSE)) && grep SELFTEST <<<"$out" | sed 's/^/      | /'
-  assert_contains "$out" "SELFTEST done"
-  [[ $out == *"SELFTEST FAIL"* ]] && { fail "GUI self-test reported a failure"; grep 'SELFTEST FAIL' <<<"$out" | sed 's/^/      | /'; }
-  assert_contains "$out" "dry-run clean finished"
-  assert_contains "$out" "group box selects the whole group"
-  assert_contains "$out" "locked row “Claude Code — cache & logs” can't be ticked (claude running)"
-  assert_contains "$out" "group boxes leave locked rows unticked"
-  assert_contains "$out" "age filter keeps only the old file"
-  assert_contains "$out" "dry run: the file stays"
-  ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the file back where it was" # root: refused
-  assert_contains "$out" "apps listed, part of Ubuntu hidden"
-  assert_contains "$out" "ticking an app ticks its leftover folder"
-  assert_contains "$out" "dry run removes nothing"
-  ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the app's folder back"
-  assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
 }
 
 test_deb_package() {

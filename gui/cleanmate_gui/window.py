@@ -6,6 +6,7 @@ import subprocess
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from .engine import SMART_SCAN, Selection, human
+from .i18n import _
 from .largefiles import LargeFilesPage
 from .scanpage import ScanPage
 from .uninstaller import UninstallerPage
@@ -14,28 +15,28 @@ TOOL_PAGES = {"large": LargeFilesPage, "uninstall": UninstallerPage}  # pages wi
 
 # (id, title, icon, categories, description) — same order as the terminal app's menu
 PAGES = [
-    ("smart", "Smart Scan", "starred-symbolic", SMART_SCAN,
-     "Scan everything in one go and clean what you don't need. Nothing is removed until you confirm."),
+    ("smart", _("Smart Scan"), "starred-symbolic", SMART_SCAN,
+     _("Scan everything in one go and clean what you don't need. Nothing is removed until you confirm.")),
     None,  # section: Cleanup
-    ("system", "System Junk", "computer-symbolic", ["system"],
-     "Package cache, unused packages and kernels, leftover configs, old Snap revisions, temp files."),
-    ("logs", "Logs", "text-x-generic-symbolic", ["logs"],
-     "Systemd journal, oversized and rotated logs, crash reports, old app logs."),
-    ("user", "User & App Junk", "user-home-symbolic", ["user", "browser", "apps"],
-     "Trash, thumbnails, stale caches — and every browser and app cache on its own."),
-    ("ai", "AI Tools", "applications-science-symbolic", ["ai", "models"],
-     "Caches, logs and old chat sessions of Claude, Codex, Gemini/Antigravity, opencode, ZCode, Zed and more — "
-     "and downloaded Ollama, Hugging Face and LM Studio models, each on its own."),
-    ("dev", "Developer Junk", "applications-engineering-symbolic", ["dev"],
-     "Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, Firebase CLI logs."),
-    ("privacy", "Privacy", "security-high-symbolic", ["privacy"],
-     "Terminal history, recent files, run dialog and emoji history."),
+    ("system", _("System Junk"), "computer-symbolic", ["system"],
+     _("Package cache, unused packages and kernels, leftover configs, old Snap revisions, temp files.")),
+    ("logs", _("Logs"), "text-x-generic-symbolic", ["logs"],
+     _("Systemd journal, oversized and rotated logs, crash reports, old app logs.")),
+    ("user", _("User & App Junk"), "user-home-symbolic", ["user", "browser", "apps"],
+     _("Trash, thumbnails, stale caches — and every browser and app cache on its own.")),
+    ("ai", _("AI Tools"), "applications-science-symbolic", ["ai", "models"],
+     _("Caches, logs and old chat sessions of Claude, Codex, Gemini/Antigravity, opencode, ZCode, Zed and more — "
+       "and downloaded Ollama, Hugging Face and LM Studio models, each on its own.")),
+    ("dev", _("Developer Junk"), "applications-engineering-symbolic", ["dev"],
+     _("Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, Firebase CLI logs.")),
+    ("privacy", _("Privacy"), "security-high-symbolic", ["privacy"],
+     _("Terminal history, recent files, run dialog and emoji history.")),
     None,  # section: Tools
-    ("large", "Large & Old Files", "drive-harddisk-symbolic", None,
-     "Find the biggest files, or the ones you haven't opened in months, and move what you don't need "
-     "to the Trash. You can undo it."),
-    ("uninstall", "Uninstaller", "application-x-addon-symbolic", None,
-     "Remove apps from apt, Snap and Flatpak, and the folders they leave in your home."),
+    ("large", _("Large & Old Files"), "drive-harddisk-symbolic", None,
+     _("Find the biggest files, or the ones you haven't opened in months, and move what you don't need "
+       "to the Trash. You can undo it.")),
+    ("uninstall", _("Uninstaller"), "application-x-addon-symbolic", None,
+     _("Remove apps from apt, Snap and Flatpak, and the folders they leave in your home.")),
 ]
 REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
@@ -55,7 +56,7 @@ class Window(Adw.ApplicationWindow):
         for spec in PAGES:
             if spec is None:
                 continue
-            pid, title, icon, _, _ = spec
+            pid, title, icon = spec[:3]
             box = Gtk.Box(spacing=12)
             box.append(Gtk.Image(icon_name=icon))
             box.append(Gtk.Label(label=title, xalign=0))
@@ -64,9 +65,9 @@ class Window(Adw.ApplicationWindow):
             self.sidebar_list.append(row)
         more = Gtk.Box(spacing=12)
         more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
-        more.append(Gtk.Label(label="All tools (terminal)", xalign=0))
-        more_row = Gtk.ListBoxRow(child=more, tooltip_text="Space Lens, Duplicates, Startup Items, "
-                                                          "Maintenance, Settings… in the terminal app")
+        more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
+        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Space Lens, Duplicates, Startup Items, "
+                                                            "Maintenance, Settings… in the terminal app"))
         more_row.page_id = "terminal"
         self.sidebar_list.append(more_row)
         self.sidebar_list.connect("row-activated", self._on_row_activated)
@@ -79,14 +80,14 @@ class Window(Adw.ApplicationWindow):
         disk.append(self.disk_label)
 
         menu = Gio.Menu()
-        menu.append("Open the terminal app", "win.terminal")
-        menu.append("Source code", "win.source")
-        menu.append("Report a problem", "win.issues")
+        menu.append(_("Open the terminal app"), "win.terminal")
+        menu.append(_("Source code"), "win.source")
+        menu.append(_("Report a problem"), "win.issues")
         menu.append("HomieLab", "win.homepage")
-        menu.append("About CleanMate", "win.about")
+        menu.append(_("About CleanMate"), "win.about")
         side_header = Adw.HeaderBar()
         side_header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
-                                            tooltip_text="Main menu"))
+                                            tooltip_text=_("Main menu")))
         side = Adw.ToolbarView(content=Gtk.ScrolledWindow(child=self.sidebar_list, vexpand=True))
         side.add_top_bar(side_header)
         side.add_bottom_bar(disk)
@@ -100,9 +101,9 @@ class Window(Adw.ApplicationWindow):
         content = Adw.ToolbarView(content=self.content_stack)
         content.add_top_bar(content_header)
         if engine.dry_run:
-            banner = Adw.Banner(title="Dry run — nothing will be deleted", revealed=True)
+            banner = Adw.Banner(title=_("Dry run — nothing will be deleted"), revealed=True)
             content.add_top_bar(banner)
-        self.content_page = Adw.NavigationPage(title="Smart Scan", child=content)
+        self.content_page = Adw.NavigationPage(title=_("Smart Scan"), child=content)
 
         self.split = Adw.NavigationSplitView(sidebar=sidebar_page, content=self.content_page,
                                              min_sidebar_width=220, max_sidebar_width=280)
@@ -127,7 +128,7 @@ class Window(Adw.ApplicationWindow):
 
     # ── navigation ──
     def _section_header(self, row, before):
-        titles = {"system": "Cleanup", "large": "Tools", "terminal": "More"}
+        titles = {"system": _("Cleanup"), "large": _("Tools"), "terminal": _("More")}
         title = titles.get(getattr(row, "page_id", ""))
         if title:
             label = Gtk.Label(label=title, xalign=0, margin_start=12, margin_top=12, margin_bottom=6,
@@ -174,7 +175,7 @@ class Window(Adw.ApplicationWindow):
         total, free = st.f_blocks * st.f_frsize, st.f_bavail * st.f_frsize
         used = 1 - free / total if total else 0
         self.disk_bar.set_value(used)
-        self.disk_label.set_text(f"{human(free)} free of {human(total)}")
+        self.disk_label.set_text(_("{free} free of {total}").format(free=human(free), total=human(total)))
 
     def open_terminal(self, *_):
         for term in ("x-terminal-emulator", "gnome-terminal", "ptyxis", "kgx"):
@@ -185,7 +186,7 @@ class Window(Adw.ApplicationWindow):
                     argv[-1:] = [argv[-1] + " --dry-run"] if term == "x-terminal-emulator" else [argv[-1], "--dry-run"]
                 subprocess.Popen(argv, start_new_session=True)
                 return
-        self.toast("No terminal app found — run cm in a terminal.")
+        self.toast(_("No terminal app found — run cm in a terminal."))
 
     def _open_url(self, url):
         Gtk.UriLauncher.new(url).launch(self, None, None)
@@ -196,6 +197,7 @@ class Window(Adw.ApplicationWindow):
             version=self.engine.version(), developer_name="HomieLab", developers=["HomieLab https://homielab.com"],
             copyright="© 2026 HomieLab", license_type=Gtk.License.MIT_X11, website=REPO_URL,
             issue_url=REPO_URL + "/issues",
-            comments="A friendly system cleaner for Ubuntu, inspired by CleanMyMac. "
-                     "Not affiliated with MacPaw.")
+            translator_credits=_("translator-credits"),
+            comments=_("A friendly system cleaner for Ubuntu, inspired by CleanMyMac. "
+                       "Not affiliated with MacPaw."))
         about.present(self)

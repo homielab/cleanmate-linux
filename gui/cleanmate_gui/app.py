@@ -10,6 +10,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
 from .engine import Engine  # noqa: E402
+from .i18n import _  # noqa: E402
 
 APP_ID = "com.homielab.CleanMate"
 
@@ -67,7 +68,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     engine_path = args.engine or os.path.join(os.path.dirname(__file__), "..", "..", "cleanmate.sh")
     if not os.path.isfile(engine_path):
-        print(f"Engine not found: {engine_path}", file=sys.stderr)
+        print(_("Engine not found: {path}").format(path=engine_path), file=sys.stderr)
         return 2
     app = App(Engine(engine_path, dry_run=args.dry_run), selftest=args.selftest or bool(args.screenshot))
     app.selftest_failed = False

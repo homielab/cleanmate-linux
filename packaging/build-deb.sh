@@ -41,6 +41,7 @@ ln -s cleanmate "$PKG/usr/bin/cm"
 d usr/share/cleanmate/gui/cleanmate_gui
 f 755 "$ROOT/gui/cleanmate-gui" usr/share/cleanmate/gui/cleanmate-gui
 for py in "$ROOT"/gui/cleanmate_gui/*.py; do f 644 "$py" "usr/share/cleanmate/gui/cleanmate_gui/$(basename "$py")"; done
+bash "$ROOT/po/compile.sh" "$PKG/usr/share/locale" # translations of the desktop app
 : >"$PKG/usr/share/cleanmate/packaged" # tells the app that apt handles updates
 chmod 644 "$PKG/usr/share/cleanmate/packaged"
 

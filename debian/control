@@ -3,6 +3,7 @@ Section: admin
 Priority: optional
 Maintainer: HomieLab <contact@homielab.com>
 Build-Depends: debhelper-compat (= 13),
+               gettext,
                python3,
                python3-gi,
                gir1.2-gdkpixbuf-2.0,

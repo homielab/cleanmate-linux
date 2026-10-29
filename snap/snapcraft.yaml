@@ -40,6 +40,7 @@ platforms:
 parts:
   cleanmate:
     plugin: nil
+    build-packages: [gettext]
     source: .
     override-build: |
       d=$CRAFT_PART_INSTALL
@@ -47,6 +48,7 @@ parts:
       install -d "$d/usr/share/cleanmate/gui/cleanmate_gui"
       install -m 755 gui/cleanmate-gui "$d/usr/share/cleanmate/gui/"
       install -m 644 gui/cleanmate_gui/*.py "$d/usr/share/cleanmate/gui/cleanmate_gui/"
+      bash po/compile.sh "$d/usr/share/locale"
       install -D -m 644 data/com.homielab.CleanMate.metainfo.xml \
         "$d/usr/share/metainfo/com.homielab.CleanMate.metainfo.xml"
       install -D -m 644 data/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg \

@@ -11,10 +11,11 @@ import time
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .engine import human
-from .largefiles import plural, short_path
+from .i18n import _, ngettext
+from .largefiles import short_path
 from .scanpage import size_widgets
 
-SORTS = [("Size", "size"), ("Last used", "used"), ("Name", "name")]
+SORTS = [(_("Size"), "size"), (_("Last used"), "used"), (_("Name"), "name")]
 KIND_LABELS = {"apt": "apt", "snap": "Snap", "flatpak": "Flatpak"}
 
 
@@ -23,12 +24,12 @@ def used_ago(epoch):
         return ""  # unknown
     days = int((time.time() - epoch) // 86400)
     if days < 1:
-        return "used today"
+        return _("used today")
     if days < 60:
-        return f"used {plural(days, 'day')} ago"
+        return ngettext("used {n} day ago", "used {n} days ago", days)
     if days < 730:
-        return f"used {days // 30} months ago"
-    return f"used {days // 365} years ago"
+        return ngettext("used {n} month ago", "used {n} months ago", days // 30)
+    return ngettext("used {n} year ago", "used {n} years ago", days // 365)
 
 
 def app_icon(desktop_id):
@@ -59,10 +60,10 @@ class UninstallerPage(Gtk.Box):
         self.busy = False  # listing, checking or uninstalling: nothing else starts
         self.undo_toast = None
 
-        self.search_entry = Gtk.SearchEntry(placeholder_text="Search apps", hexpand=True)
+        self.search_entry = Gtk.SearchEntry(placeholder_text=_("Search apps"), hexpand=True)
         self.search_entry.connect("search-changed", lambda *_: self.apply_filter())
         self.sort_drop = Gtk.DropDown.new_from_strings([label for label, _ in SORTS])
-        self.sort_drop.set_tooltip_text("Sort by")
+        self.sort_drop.set_tooltip_text(_("Sort by"))
         self.sort_drop.connect("notify::selected", lambda *_: self.apps and self.show_results())
         top = Gtk.Box(spacing=12, margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
         top.append(self.search_entry)
@@ -73,10 +74,10 @@ class UninstallerPage(Gtk.Box):
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vexpand=True)
         self.append(self.stack)
         spinner = Gtk.Spinner(spinning=True, width_request=32, height_request=32, halign=Gtk.Align.CENTER)
-        self.stack.add_named(Adw.StatusPage(icon_name=icon, title="Finding your apps…",
-                                            description="And the space each one uses.", child=spinner), "loading")
-        self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title="No apps found",
-                                    description="Only apps with a launcher are listed.")
+        self.stack.add_named(Adw.StatusPage(icon_name=icon, title=_("Finding your apps…"),
+                                            description=_("And the space each one uses."), child=spinner), "loading")
+        self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title=_("No apps found"),
+                                    description=_("Only apps with a launcher are listed."))
         self.stack.add_named(self.empty, "empty")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
@@ -94,10 +95,10 @@ class UninstallerPage(Gtk.Box):
         self.bar = Gtk.ActionBar(revealed=False)
         self.summary = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
         self.bar.pack_start(self.summary)
-        self.remove_button = Gtk.Button(label="Uninstall", css_classes=["destructive-action"])
+        self.remove_button = Gtk.Button(label=_("Uninstall"), css_classes=["destructive-action"])
         self.remove_button.connect("clicked", lambda *_: self.check())
         self.bar.pack_end(self.remove_button)
-        again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="List apps again")
+        again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("List apps again"))
         again.connect("clicked", lambda *_: self.load())
         self.bar.pack_end(again)
         self.append(self.bar)
@@ -153,11 +154,13 @@ class UninstallerPage(Gtk.Box):
             return
         total = sum(a["bytes"] + a["data_bytes"] for a in self.apps.values())
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        header.append(Gtk.Label(label=f"{plural(len(self.apps), 'app')} · {human(total)}", xalign=0, wrap=True,
+        header.append(Gtk.Label(label=ngettext("{n} app · {size}", "{n} apps · {size}", len(self.apps), size=human(total)),
+                                xalign=0, wrap=True,
                                 css_classes=["title-1"]))
-        sub = "Size = the app + its folders in your home."
+        sub = _("Size = the app + its folders in your home.")
         if self.hidden:
-            sub += f" {plural(self.hidden, 'part')} of Ubuntu itself can't be removed safely and aren't listed."
+            sub += " " + ngettext("{n} part of Ubuntu itself can't be removed safely and isn't listed.",
+                                  "{n} parts of Ubuntu itself can't be removed safely and aren't listed.", self.hidden)
         header.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
         self.results.append(header)
         group = Adw.PreferencesGroup()
@@ -176,9 +179,10 @@ class UninstallerPage(Gtk.Box):
         kind = KIND_LABELS.get(a["kind"], a["kind"])
         package = a["id"].split(":", 1)[1]
         subtitle = " · ".join(x for x in (kind, used_ago(a["last_used"])) if x)
-        tip = f"{kind} package {package}\nApp {human(a['bytes'])} · your data {human(a['data_bytes'])}"
+        tip = _("{kind} package {package}\nApp {size} · your data {data}").format(
+            kind=kind, package=package, size=human(a["bytes"]), data=human(a["data_bytes"]))
         if a["kind"] != "flatpak":
-            tip += "\nNeeds your password"
+            tip += "\n" + _("Needs your password")
         if a["leftovers"]:
             row = Adw.ExpanderRow(title=a["name"], subtitle=subtitle, use_markup=False, tooltip_text=tip,
                                   css_classes=["item-row"])
@@ -205,11 +209,11 @@ class UninstallerPage(Gtk.Box):
 
     def leftover_row(self, a, left):
         path = left["path"]
-        row = Adw.ActionRow(title=short_path(path), subtitle="Moved to the Trash after uninstalling",
+        row = Adw.ActionRow(title=short_path(path), subtitle=_("Moved to the Trash after uninstalling"),
                             use_markup=False, title_lines=1, css_classes=["item-row"])
         check = Gtk.CheckButton(active=path in self.left_selected, valign=Gtk.Align.CENTER,
                                 css_classes=["big-check"], sensitive=a["id"] in self.selected,
-                                tooltip_text="Also move this folder to the Trash")
+                                tooltip_text=_("Also move this folder to the Trash"))
         check.connect("toggled", self.on_left_toggled, path)
         self.left_checks[path] = check
         row.add_prefix(Gtk.Image(icon_name="folder-symbolic"))
@@ -253,9 +257,10 @@ class UninstallerPage(Gtk.Box):
     def update_summary(self):
         apps, folders = self.chosen()
         size = sum(a["bytes"] for a in apps) + sum(l["bytes"] for l in folders)
-        text = f"Selected <b>{human(size)}</b> in {plural(len(apps), 'app')}"
+        text = ngettext("Selected <b>{size}</b> in {n} app", "Selected <b>{size}</b> in {n} apps", len(apps),
+                        size=human(size))
         if folders:
-            text += f" + {plural(len(folders), 'folder')}"
+            text += " + " + ngettext("{n} folder", "{n} folders", len(folders))
         self.summary.set_markup(text)
         self.remove_button.set_sensitive(bool(apps) and not self.busy)
 
@@ -280,7 +285,7 @@ class UninstallerPage(Gtk.Box):
             if result.get("event") == "check" and result["ok"]:
                 self.confirm(apps, folders, result)
             else:
-                self.window.toast(result.get("message") or "Couldn't check what removing these apps does.",
+                self.window.toast(result.get("message") or _("Couldn't check what removing these apps does."),
                                   timeout=8)
 
         self.running = self.engine.uninstall([a["id"] for a in apps], on_event, on_done, check=True)
@@ -291,26 +296,27 @@ class UninstallerPage(Gtk.Box):
             row = Gtk.Box(spacing=12)
             row.append(Gtk.Label(label=a["name"], xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
             if a["kind"] != "flatpak":
-                row.append(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text="Needs your password"))
+                row.append(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password")))
             row.append(Gtk.Label(label=human(a["bytes"]), css_classes=["numeric", "dim-label"]))
             lines.append(row)
         if len(apps) > 12:
-            lines.append(Gtk.Label(label=f"… and {len(apps) - 12} more", xalign=0, css_classes=["dim-label"]))
-        heading = f"Uninstall {plural(len(apps), 'app')}?"
+            lines.append(Gtk.Label(label=_("… and {n} more").format(n=len(apps) - 12), xalign=0, css_classes=["dim-label"]))
+        heading = ngettext("Uninstall {n} app?", "Uninstall {n} apps?", len(apps))
         body = []
         if check["extra"]:
-            heading = f"Also removes {plural(check['extra'], 'other package')}!"
-            body.append(f"apt will also remove: {check['extra_text']}.")
+            heading = ngettext("Also removes {n} other package!", "Also removes {n} other packages!", check["extra"])
+            body.append(_("apt will also remove: {packages}.").format(packages=check["extra_text"]))
         if folders:
-            body.append(f"{plural(len(folders), 'folder')} ({human(sum(l['bytes'] for l in folders))}) "
-                        "will go to the Trash — you can undo that.")
+            body.append(ngettext("{n} folder ({size}) will go to the Trash — you can undo that.",
+                                 "{n} folders ({size}) will go to the Trash — you can undo that.", len(folders),
+                                 size=human(sum(l["bytes"] for l in folders))))
         else:
-            body.append("Your folders in your home are kept.")
+            body.append(_("Your folders in your home are kept."))
         if any(a["kind"] != "flatpak" for a in apps):
-            body.append("Apps with a lock need your password.")
+            body.append(_("Apps with a lock need your password."))
         dialog = Adw.AlertDialog(heading=heading, body=" ".join(body), extra_child=lines)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("remove", "Uninstall")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("remove", _("Uninstall"))
         dialog.set_response_appearance("remove", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
@@ -332,12 +338,12 @@ class UninstallerPage(Gtk.Box):
             self.work_list.remove(child)
             child = self.work_list.get_first_child()
         for a in apps:
-            row = Adw.ActionRow(title=a["name"], subtitle="waiting", use_markup=False)
+            row = Adw.ActionRow(title=a["name"], subtitle=_("waiting"), use_markup=False)
             row.icon = Gtk.Image(icon_name="content-loading-symbolic", css_classes=["dim-label"])
             row.add_prefix(row.icon)
             self.work_list.append(row)
             rows[a["id"]] = row
-        self.work_title.set_text("Uninstalling…")
+        self.work_title.set_text(_("Uninstalling…"))
         self.stack.set_visible_child_name("working")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
@@ -354,9 +360,10 @@ class UninstallerPage(Gtk.Box):
             if e["event"] != "task" or e["id"] not in rows:
                 return
             if e["state"] == "run":
-                rows[e["id"]].set_subtitle("removing…")
+                rows[e["id"]].set_subtitle(_("removing…"))
                 return
-            set_row(rows[e["id"]], e["state"], e["info"] or e["state"])
+            set_row(rows[e["id"]], e["state"],
+                    e["info"] or {"ok": _("removed"), "skip": _("skipped")}.get(e["state"], _("failed")))
             if e["state"] == "ok":
                 removed.add(e["id"])
 
@@ -364,17 +371,17 @@ class UninstallerPage(Gtk.Box):
             if not root_ids:
                 return trash_leftovers()
             for i in root_ids:
-                rows[i].set_subtitle("waiting for your password…")
+                rows[i].set_subtitle(_("waiting for your password…"))
             self.running = self.engine.uninstall(root_ids, on_event, root_done, as_root=not dry)
 
         def root_done(ok, status):
             for i in root_ids:
                 row = rows[i]
-                if row.get_subtitle().startswith(("waiting", "removing")):
+                if row.get_subtitle() in (_("waiting"), _("waiting for your password…"), _("removing…")):
                     if status in (126, 127):  # password dialog dismissed / not authorized
-                        set_row(row, "skip", "Skipped — no password was entered")
+                        set_row(row, "skip", _("Skipped — no password was entered"))
                     else:
-                        set_row(row, "fail", "Not removed")
+                        set_row(row, "fail", _("Not removed"))
             trash_leftovers()
 
         def trash_leftovers():
@@ -401,16 +408,18 @@ class UninstallerPage(Gtk.Box):
             self.window.set_busy(False)
             n = len(removed)
             if dry:
-                msg = f"Dry run: {plural(n, 'app')} would be uninstalled"
+                msg = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", n)
                 if folders_done:
-                    msg += f", {plural(folders_done, 'folder')} would be moved to the Trash"
+                    msg += ngettext(", {n} folder would be moved to the Trash",
+                                    ", {n} folders would be moved to the Trash", folders_done)
             else:
-                msg = f"Uninstalled {plural(n, 'app')}"
+                msg = ngettext("Uninstalled {n} app", "Uninstalled {n} apps", n)
                 if folders_done:
-                    msg += f"; moved {plural(folders_done, 'folder')} to the Trash"
+                    msg += ngettext("; moved {n} folder to the Trash", "; moved {n} folders to the Trash",
+                                    folders_done)
             self.work_title.set_text(msg)
             if moved:
-                self.undo_toast = self.window.toast(msg, "Restore folders", lambda: self.restore(moved), timeout=10)
+                self.undo_toast = self.window.toast(msg, _("Restore folders"), lambda: self.restore(moved), timeout=10)
             else:
                 self.window.toast(msg)
             self.window.refresh_disk()
@@ -441,9 +450,11 @@ class UninstallerPage(Gtk.Box):
             self.running, self.busy = None, False
             self.window.set_busy(False)
             if failed:
-                self.window.toast(f"Put back {len(back)}, {len(failed)} could not be restored: {failed[0]['info']}")
+                self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
+                    back=len(back), failed=len(failed), reason=failed[0]["info"]))
             else:
-                self.window.toast(f"Put back {plural(len(back), 'folder')} from the Trash")
+                self.window.toast(ngettext("Put back {n} folder from the Trash", "Put back {n} folders from the Trash",
+                                           len(back)))
             self.load()
 
         self.running = self.engine.restore(list(moved), on_event, on_done)

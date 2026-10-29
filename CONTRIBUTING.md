@@ -10,6 +10,7 @@ to clean, and how to check your change. Questions: open an
 cleanmate.sh                the engine + terminal app (one Bash script, the source of truth)
 clean-my-ubuntu.sh          hands Clean My Ubuntu 1.x installs over to CleanMate (their update URL)
 gui/                        the desktop app (Python, GTK 4 + libadwaita) — talks to the engine
+po/                         translations of the desktop app (gettext)
 data/                       launcher, AppStream metainfo, icon
 packaging/                  .deb build script, polkit policy
 snap/                       Snap Store draft
@@ -79,6 +80,26 @@ Pages live in `gui/cleanmate_gui/scanpage.py` (cleanup), `largefiles.py` (Large 
 `uninstaller.py`; the window and sidebar in `window.py`, the engine wrapper in `engine.py`. Keep all
 deletion logic in the engine: pages only call `--json` commands (see the protocol in `docs/ROADMAP.md`).
 `CLEANMATE_APP_DIRS` (colon-separated) replaces the launcher folders the app list reads, for tests.
+
+## Translations
+
+The desktop app is translated with gettext (domain `cleanmate`, files in `po/`); the engine and the
+terminal app are English only, so item names and notes from the engine stay in English.
+
+- In code, wrap text in `_("…")`, and counts in `ngettext("{n} file", "{n} files", n)` (it fills in
+  `{n}` and any other `{field}=` you pass). Put values in `{named}` fields, never glue sentences together.
+- After changing text, update the template and the translations:
+  ```bash
+  xgettext -L Python -k_ -kngettext:1,2 --from-code=UTF-8 -o po/cleanmate.pot \
+    $(ls gui/cleanmate_gui/*.py | grep -v selftest)
+  msgmerge -U --backup=none po/vi.po po/cleanmate.pot
+  ```
+- New language: `msginit -i po/cleanmate.pot -l <lang> -o po/<lang>.po`, translate, done — packaging
+  compiles every `po/*.po`.
+- Check: `msgfmt --check po/vi.po`, then `po/compile.sh gui/locale` and
+  `LANG=vi_VN.UTF-8 bash cleanmate.sh --gui --dry-run`. `tests/run.sh gui_selftest` runs the self-test
+  in English and Vietnamese.
+- Vietnamese uses the macOS app's terms: Dọn dẹp, Thùng rác, Rác developer, Quét thông minh.
 
 ## Releasing
 

@@ -2,15 +2,18 @@
 Type=Application
 Name=CleanMate
 Comment=Free up disk space and keep Ubuntu tidy
+Comment[vi]=Giải phóng dung lượng ổ đĩa và giữ Ubuntu gọn gàng
 Exec=cleanmate --gui
 Icon=com.homielab.CleanMate
 Terminal=false
 Categories=GTK;System;
 Keywords=clean;disk;space;junk;cache;duplicates;cm;
+Keywords[vi]=dọn dẹp;ổ đĩa;dung lượng;rác;bộ nhớ đệm;trùng lặp;cm;
 StartupNotify=true
 StartupWMClass=com.homielab.CleanMate
 Actions=terminal;
 
 [Desktop Action terminal]
 Name=Open in Terminal
+Name[vi]=Mở trong Terminal
 Exec=x-terminal-emulator -e cleanmate

@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- Desktop app in Vietnamese: it follows your system language. Cleanup item names and notes are still in English.
 - Developer Junk: uv cache, rustup downloads (installed toolchains are kept) and the Playwright, Puppeteer and Cypress browser downloads (not pre-selected).
 - Developer Junk: Firebase CLI debug logs (`firebase mcp` can grow them to gigabytes; a log still being written is skipped) and downloaded Firebase emulators (not pre-selected). Your Firebase login, Crashlytics and extensions are kept.
 - AI Tools: ZCode logs (sessions and credentials are kept) and MiMoCode cache and logs (its databases and login are kept); both are skipped while the tool runs.

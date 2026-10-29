@@ -9,17 +9,19 @@ import os
 
 from gi.repository import Gio, GLib
 
+from .i18n import _
+
 # Same groups and order as the terminal app's Smart Scan.
 CATEGORY_TITLES = {
-    "system": "System Junk",
-    "logs": "Logs",
-    "user": "User Junk",
-    "browser": "Browsers",
-    "apps": "App Caches",
-    "ai": "AI Tools",
-    "models": "AI Models",
-    "dev": "Developer Junk",
-    "privacy": "Privacy",
+    "system": _("System Junk"),
+    "logs": _("Logs"),
+    "user": _("User Junk"),
+    "browser": _("Browsers"),
+    "apps": _("App Caches"),
+    "ai": _("AI Tools"),
+    "models": _("AI Models"),
+    "dev": _("Developer Junk"),
+    "privacy": _("Privacy"),
 }
 SMART_SCAN = ["system", "logs", "user", "browser", "apps", "ai", "models", "dev"]
 
@@ -85,7 +87,7 @@ class Engine:
 
         def got_line(s, result):
             try:
-                line, _ = s.read_line_finish_utf8(result)
+                line, _len = s.read_line_finish_utf8(result)
             except GLib.Error:
                 line = None
             if line is None:  # end of output
@@ -150,7 +152,7 @@ class Selection:
         try:
             with open(self.path, encoding="utf-8") as f:
                 for line in f:
-                    k, _, v = line.strip().partition("=")
+                    k, _sep, v = line.strip().partition("=")
                     if k and v in ("0", "1"):
                         prefs[k] = v
         except OSError:

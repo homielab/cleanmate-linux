@@ -12,6 +12,14 @@ import time
 
 from gi.repository import Adw, GLib
 
+from . import i18n
+from .i18n import _, ngettext
+
+
+def lead(text, plural=None):
+    """The fixed start of a translated message, before its first {field}."""
+    return (i18n._t.ngettext(text, plural, 2) if plural else text).split("{")[0]
+
 
 def screenshot(win, path, then=None, tries=15):
     """Render the window to a PNG (works on any backend, including broadway).
@@ -121,7 +129,7 @@ def run(app, win):
         check.get_ancestor(Adw.ActionRow).activate()
         report(not page.selected[e["id"]], "activating a locked row leaves it unticked")
         before = dict(page.selected)
-        for button, _ in page.group_buttons:
+        for button, _ids in page.group_buttons:
             button.set_active(True)
         report(not any(page.selected[x["id"]] for x in locked), "group boxes leave locked rows unticked")
         for i, on in before.items():  # restore
@@ -137,7 +145,7 @@ def run(app, win):
         for i in list(page.selected):
             page.selected[i] = i == target
         page.clean([target])
-        wait(lambda: page.clean_title.get_text().startswith("Dry run"), after_clean, 60, "dry-run clean")
+        wait(lambda: page.clean_title.get_text().startswith(lead(_("Dry run: {size} would be freed"))), after_clean, 60, "dry-run clean")
 
     def after_clean():
         report(True, f"dry-run clean finished: {page.clean_title.get_text()}")
@@ -315,10 +323,10 @@ def uninstaller_test(win, report, wait, finish):
         before = page.summary.get_text()
         page.checks["apt:gimp"].set_active(True)
         box = page.left_checks.get(gimp_left)
-        report(box is not None and box.get_active() and box.get_sensitive() and "1 folder" in page.summary.get_text()
+        report(box is not None and box.get_active() and box.get_sensitive() and ngettext("{n} folder", "{n} folders", 1) in page.summary.get_text()
                and page.summary.get_text() != before, "ticking an app ticks its leftover folder")
         box.set_active(False)
-        report("folder" not in page.summary.get_text(), "a leftover folder can be left out")
+        report(" + " not in page.summary.get_text(), "a leftover folder can be left out")
         box.set_active(True)
         page.checks["apt:gimp"].set_active(False)
         report(not box.get_active() and not box.get_sensitive(), "unticking the app clears its folders")
@@ -338,11 +346,15 @@ def uninstaller_test(win, report, wait, finish):
                "check shows the other package apt removes")
         apps, folders = page.chosen()
         page.uninstall(apps, folders)
-        wait(lambda: idle() and page.work_title.get_text().startswith("Dry run"), dry_done, 60, "dry-run uninstall")
+        wait(lambda: idle() and page.work_title.get_text().startswith(
+            lead("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled")), dry_done, 60, "dry-run uninstall")
 
     def dry_done():
-        expected = "Dry run: 1 app would be uninstalled" if os.geteuid() == 0 else \
-            "Dry run: 2 apps would be uninstalled, 2 folders would be moved to the Trash"  # root: Flatpak refused
+        dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 1)
+        if os.geteuid() != 0:  # root: Flatpak refused
+            dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 2) + \
+                ngettext(", {n} folder would be moved to the Trash", ", {n} folders would be moved to the Trash", 2)
+        expected = dry
         report(page.work_title.get_text() == expected and os.path.isdir(spotify_data) and not os.path.exists(os.path.join(home, "removed.log")),
                f"dry run removes nothing: {page.work_title.get_text()}")
         if os.geteuid() == 0:
@@ -355,7 +367,8 @@ def uninstaller_test(win, report, wait, finish):
         page.selected = {"flatpak:com.spotify.Client"}
         apps, folders = page.chosen()
         page.uninstall(apps, folders)
-        wait(lambda: idle() and page.work_title.get_text().startswith("Uninstalled"), removed, 60, "uninstall")
+        wait(lambda: idle() and page.work_title.get_text().startswith(
+            lead("Uninstalled {n} app", "Uninstalled {n} apps")), removed, 60, "uninstall")
 
     def removed():
         log = open(os.path.join(home, "removed.log")).read() if os.path.exists(os.path.join(home, "removed.log")) else ""
@@ -407,7 +420,8 @@ def run_scene(app, win, scene, path, report, wait, finish):
                 page.selected[i] = i in ids
             page.clean(ids)
             # the page rescans 1.2 s after finishing: capture the summary before that
-            return wait(lambda: page.clean_title.get_text().startswith(("Freed", "Dry run", "History")),
+            return wait(lambda: page.clean_title.get_text().startswith(
+                (lead(_("Freed {size}")), lead(_("Dry run: {size} would be freed")), _("History cleared"))),
                         lambda: shoot(300), 120, "clean")
         shoot()
 
