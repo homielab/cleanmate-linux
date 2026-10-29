@@ -39,7 +39,8 @@ fresh_home() { HOME_DIR=$(mktemp -d -p "$WORK" home.XXXX); mkdir -p "$HOME_DIR/.
 
 cm() { # run the app non-interactively inside the fake home
   "${AS_USER[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb \
-    CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} bash "$SCRIPT" "$@"
+    CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} \
+    ${CLEANMATE_APP_DIRS:+CLEANMATE_APP_DIRS=$CLEANMATE_APP_DIRS} bash "$SCRIPT" "$@"
 }
 
 # As root, `--json clean` refuses home items (the desktop app elevates only for
@@ -679,6 +680,92 @@ for l in sys.stdin:
   assert_missing "$(dirname "$HOME_DIR")/escaped"; assert_exists "$trash/files/evil"
 }
 
+app_fixtures() { # BIN — launchers, package stubs and home folders for gimp (apt), foo (apt) and Spotify (flatpak)
+  local bin=$1 sys=$HOME_DIR/sys
+  mkdir -p "$bin" "$sys"
+  desk() { printf '[Desktop Entry]\nType=Application\nName=%s\nExec=%s\n%s\n' "$2" "$3" "${4:-}" >"$1"; }
+  desk "$sys/gimp.desktop" "GNU Image Manipulation Program" "gimp-2.10 %U"
+  desk "$sys/foo.desktop" "Foo" "foo"
+  desk "$sys/busybox.desktop" "BusyBox" "busybox"
+  desk "$sys/gnome-control-center.desktop" "Settings" "gnome-control-center"
+  desk "$sys/com.spotify.Client.desktop" "Spotify" "flatpak run com.spotify.Client" "X-Flatpak=com.spotify.Client"
+  cat >"$bin/dpkg" <<'EOS'
+#!/bin/sh
+[ "$1" = -S ] || exit 1; shift
+for f; do n=${f##*/}; n=${n%.desktop}; case $n in gimp|foo|busybox|gnome-control-center) echo "$n: $f" ;; esac; done
+EOS
+  cat >"$bin/dpkg-query" <<'EOS'
+#!/bin/sh
+case "$*" in
+  *Status-Abbrev*) printf 'ii  ubuntu-desktop-minimal\n' ;;
+  *Installed-Size*) printf 'gimp\t20000\toptional\tno\nfoo\t100\toptional\tno\nbusybox\t900\trequired\tno\ngnome-control-center\t5000\toptional\tno\n' ;;
+  *) for p; do case $p in -*) ;; libsystemd0) echo "libsystemd0 required " ;; *) echo "$p optional " ;; esac; done ;;
+esac
+EOS
+  printf '#!/bin/sh\nprintf "ubuntu-desktop-minimal\\n  Depends: gnome-control-center\\n"\n' >"$bin/apt-cache"
+  cat >"$bin/apt-get" <<'EOS'
+#!/bin/sh
+case "$*" in
+  "-s purge gimp") printf 'Purg gimp [2.10]\nPurg gimp-data [2.10]\n' ;;
+  "-s purge foo") printf 'Purg foo [1]\nPurg libsystemd0 [255]\n' ;;
+  -s*) ;;
+  *) echo "apt-get $*" >>"$HOME/removed.log" ;;
+esac
+EOS
+  cat >"$bin/flatpak" <<'EOS'
+#!/bin/sh
+case $1 in list) printf 'com.spotify.Client\t123.0 MB\n' ;; uninstall) echo "flatpak $*" >>"$HOME/removed.log" ;; esac
+EOS
+  chmod +x "$bin"/*
+  new "$HOME_DIR/.config/GIMP/2.10/gimprc"; new "$HOME_DIR/.var/app/com.spotify.Client/cache/x"
+}
+
+test_json_apps_and_uninstall() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/appjson out
+  app_fixtures "$bin"
+  local CLEANMATE_APP_DIRS="$HOME_DIR/.local/share/applications:$HOME_DIR/sys" BASE_PATH="$bin:$BASE_PATH"
+  out=$(cm --json apps | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "app":
+        print(e["id"], e["kind"], e["bytes"], e["desktop"], " ".join(f"{x['"'"'path'"'"']}={x['"'"'bytes'"'"'] > 0}" for x in e["leftovers"]))
+    else: print(e["event"], e.get("hidden", ""))' | sed "s|$HOME_DIR/||g" | sort)
+  assert_eq "$out" $'apt:foo apt 102400 foo \napt:gimp apt 20480000 gimp .config/GIMP=True\ndone 2\nflatpak:com.spotify.Client flatpak 123000000 com.spotify.Client .var/app/com.spotify.Client=True' \
+    "apps listed with leftovers; parts of Ubuntu hidden"
+  local ev='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "check": print("check", e["ok"], e["extra"], e["extra_text"], e["message"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["id"], e["state"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])
+    elif e["event"] == "done" and "removed" in e: print("done", e["removed"], e["failed"])'
+  out=$(cm --json uninstall --check apt:gimp flatpak:com.spotify.Client | python3 -c "$ev")
+  assert_eq "$out" "check True 1 gimp-data " "check reports what else apt removes"
+  out=$(cm --json uninstall --check apt:foo | python3 -c "$ev")
+  assert_eq "$out" "check False 0  Not removed: libsystemd0 is marked as required by Ubuntu. Use apt yourself if you're sure." "check refuses"
+  out=$(cm --json uninstall apt:foo | python3 -c "$ev")
+  assert_contains "$out" "error Not removed: libsystemd0"
+  out=$(cm --json uninstall apt:busybox | python3 -c "$ev"); assert_eq "$out" "error Not an app CleanMate can remove: apt:busybox" "part of Ubuntu refused"
+  out=$(cm --json uninstall apt:gnome-control-center | python3 -c "$ev"); assert_contains "$out" "error Not an app CleanMate can remove"
+  out=$(user_cm --json --dry-run uninstall apt:gimp flatpak:com.spotify.Client | python3 -c "$ev")
+  assert_eq "$out" $'apt:gimp ok would be uninstalled\nflatpak:com.spotify.Client ok would be uninstalled\ndone 2 0' "dry run"
+  assert_missing "$HOME_DIR/removed.log"
+  out=$(user_cm --json uninstall flatpak:com.spotify.Client | python3 -c "$ev")
+  assert_eq "$out" $'flatpak:com.spotify.Client ok uninstalled\ndone 1 0' "flatpak removed as you"
+  assert_eq "$(cat "$HOME_DIR/removed.log")" "flatpak uninstall -y --noninteractive --delete-data com.spotify.Client" "flatpak command"
+  assert_exists "$HOME_DIR/.var/app/com.spotify.Client" # leftovers only through trash, after the app is gone
+  if ((EUID == 0)); then
+    out=$(cm --json uninstall apt:gimp | python3 -c "$ev")
+    assert_eq "$out" $'apt:gimp ok uninstalled\ndone 1 0' "apt removed as root"
+    assert_contains "$(cat "$HOME_DIR/removed.log")" "apt-get purge -y gimp"
+    out=$(cm --json uninstall flatpak:com.spotify.Client | python3 -c "$ev"); assert_contains "$out" "error Flatpak apps are removed as you"
+  else
+    out=$(cm --json uninstall apt:gimp | python3 -c "$ev"); assert_contains "$out" "apt:gimp fail" # no password: sudo -n fails
+  fi
+}
+
 test_gui_selftest() {
   command -v gtk4-broadwayd >/dev/null || { SKIPPED="gtk4-broadwayd not installed (package libgtk-4-bin)"; return; }
   local py="" c
@@ -715,6 +802,10 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   assert_contains "$out" "age filter keeps only the old file"
   assert_contains "$out" "dry run: the file stays"
   ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the file back where it was" # root: refused
+  assert_contains "$out" "apps listed, part of Ubuntu hidden"
+  assert_contains "$out" "ticking an app ticks its leftover folder"
+  assert_contains "$out" "dry run removes nothing"
+  ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the app's folder back"
   assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
 }
 

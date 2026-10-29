@@ -122,6 +122,12 @@ class Engine:
     def restore(self, names, on_event, on_done):
         return self.run(["restore", *names], on_event, on_done)
 
+    def apps(self, on_event, on_done):
+        return self.run(["apps"], on_event, on_done)
+
+    def uninstall(self, ids, on_event, on_done, check=False, as_root=False):
+        return self.run(["uninstall", *(["--check"] if check else []), *ids], on_event, on_done, as_root=as_root)
+
     def version(self):
         try:
             out = GLib.spawn_sync(None, ["bash", self.path, "--version"], None,

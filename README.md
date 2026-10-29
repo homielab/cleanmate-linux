@@ -64,7 +64,8 @@ folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app nee
 **Desktop app** — open *CleanMate*, press **Scan**, untick anything you want to keep, press
 **Clean**. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
 as you. **Large & Old Files** lists your biggest files (by minimum size, how long unused, and
-folder or drive); what you move to the Trash comes back with **Undo**.
+folder or drive); what you move to the Trash comes back with **Undo**. **Uninstaller** removes apt,
+Snap and Flatpak apps and, if you tick them, the folders they leave in your home (to the Trash).
 
 **Terminal app** — run `cm`. Press `1` for a Smart Scan, `c` to clean.
 
@@ -101,7 +102,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 **Privacy** (never part of Smart Scan) clears shell history (bash, zsh, fish), *Recent files*,
 Python/Node/database shell history, Vim history, and the Alt+F2 and emoji history.
 
-**More tools in the terminal app:**
+**More tools in the terminal app** (the Uninstaller and Large & Old Files are in the desktop app too):
 
 - **Uninstaller** — every app you can open (apt, Snap, Flatpak), with its real size (the app *plus*
   its folders in your home) and when you last used it. Sort by size or last use, or show only apps
@@ -112,8 +113,8 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
   TRIM, free RAM, and lasting limits so old snap versions and system logs don't pile up again.
 - **System Overview** — storage, free-space history, and space outside your folders: Timeshift
   snapshots, the swap file, ext4's reserved space.
-- Space Lens (browse folders by size), Large & Old Files (also in the desktop app; here with
-  virtual machine disks), Duplicates, Startup Items and Settings.
+- Space Lens (browse folders by size), Large & Old Files (here with virtual machine disks),
+  Duplicates, Startup Items and Settings.
 
 ## Safe by design
 

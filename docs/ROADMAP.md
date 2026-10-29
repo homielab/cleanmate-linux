@@ -18,7 +18,7 @@ Where CleanMate is going, and the decisions behind it. Ideas and votes are welco
 
 - [ ] **Desktop app: file tools** — Space Lens (drill-down list), Large & Old Files (done), Duplicates,
       each with an *Undo* toast that uses the engine's Trash code.
-- [ ] **Desktop app: apps & system** — Uninstaller, Startup Items, Maintenance, System Overview with
+- [ ] **Desktop app: apps & system** — Uninstaller (done), Startup Items, Maintenance, System Overview with
       the free-space graph, and a Settings page (automatic cleaning, updates, retention).
 - [x] **Launchpad PPA** — `ppa:homielab/clean-my-ubuntu`, uploaded by CI on every release (1.0.1).
 - [ ] **Snap Store** — classic confinement was declined for now (project too new); ask again once
@@ -51,4 +51,7 @@ Every line on stdout is one JSON object with an `"event"` field; sizes are bytes
 | `--json large [--min BYTES] [--days N] [--path DIR]` | `file` (`path`, `bytes`, `mtime`, `atime`, `kind` video/audio/image/archive/package/disk/document/other) … biggest first, at most 500, `done` (`count` listed, `found` matched, `total_bytes` listed). Defaults: 100 MB, any age, your home folder; `--days` = neither changed nor opened for N days; skips `.cache`, `.git` and Trash folders and other file systems |
 | `--json [--dry-run] trash PATH…` | `task` (`id` = the path, `state` ok/fail, `info`, `freed`, `trash`: its name in your Trash, empty when it can't be put back — outside your home folder or a dry run) …, `done` (`moved`, `failed`, `freed`). Refused as root |
 | `--json [--dry-run] restore NAME…` | `task` (`id` = the original path, `state` ok/fail, `info`, `trash`) …, `done` (`restored`, `failed`). NAME is a `trash` value; only files that came from your home folder are put back, never over an existing file. Refused as root |
+| `--json apps` | `app` (`id` = KIND:PACKAGE, `kind` apt/snap/flatpak, `name`, `bytes` of the app, `data_bytes` of its folders, `last_used` epoch or 0, `desktop` launcher id, `leftovers` [{`path`, `bytes`}]: folders in your home only this app uses) …, `done` (`hidden`: parts of Ubuntu left out) |
+| `--json uninstall --check ID…` | `check` (`ok`, `message` why not, `extra` number and `extra_text` of other packages apt would remove), `done` |
+| `--json [--dry-run] uninstall ID…` | `task` (`id`, `state` run/ok/fail, `info`) …, `done` (`removed`, `failed`). Only IDs `apps` lists; apt removals that would take a part of Ubuntu are refused. apt and Snap need root (`pkexec`), Flatpak runs as you. Leftover folders: `trash` as you, after the app is gone |
 | any error | `error` (`message`), non-zero exit |

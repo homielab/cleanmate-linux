@@ -181,7 +181,7 @@ def large_files_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        uninstaller_test(win, report, wait, finish)
 
     def searched():
         report(names() == ["film.mkv", "old backup.iso"], f"large files biggest first, small one left out: {names()}")
@@ -233,6 +233,145 @@ def large_files_test(win, report, wait, finish):
 
     page.search()
     wait(idle, searched, 60, "large files search")
+
+
+STUBS = {  # package tools for the Uninstaller check: gimp (apt), Spotify (Flatpak), BusyBox (part of Ubuntu)
+    "dpkg": """#!/bin/sh
+[ "$1" = -S ] || exit 1; shift
+for f; do n=${f##*/}; n=${n%.desktop}; case $n in gimp|busybox) echo "$n: $f" ;; esac; done
+""",
+    "dpkg-query": """#!/bin/sh
+case "$*" in
+  *Status-Abbrev*) ;;
+  *Installed-Size*) printf 'gimp\\t20000\\toptional\\tno\\nbusybox\\t900\\trequired\\tno\\n' ;;
+  *) for p; do case $p in -*) ;; *) echo "$p optional " ;; esac; done ;;
+esac
+""",
+    "apt-cache": "#!/bin/sh\n",
+    "apt-get": """#!/bin/sh
+case "$*" in "-s purge gimp") printf 'Purg gimp [2.10]\\nPurg gimp-data [2.10]\\n' ;; -s*) ;; *) echo "apt-get $*" >>"$HOME/removed.log" ;; esac
+""",
+    "flatpak": """#!/bin/sh
+case $1 in list) printf 'com.spotify.Client\\t123.0 MB\\n' ;; uninstall) echo "flatpak $*" >>"$HOME/removed.log" ;; esac
+""",
+    "sudo": "#!/bin/sh\nexit 1\n",
+    "pkexec": "#!/bin/sh\nexit 126\n",  # never a real password prompt
+}
+
+
+def uninstaller_test(win, report, wait, finish):
+    """List apps from stub launchers and package tools, select, check, dry-run; then remove the
+    Flatpak app for real (a stub) and put its folder back, all in a throwaway home."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir, apps_dir = (os.path.join(sandbox, d) for d in ("home", "bin", "applications"))
+    for d in (bin_dir, apps_dir, os.path.join(home, ".config", "GIMP"),
+              os.path.join(home, ".var", "app", "com.spotify.Client")):
+        os.makedirs(d)
+    for name, text in STUBS.items():
+        with open(os.path.join(bin_dir, name), "w") as f:
+            f.write(text)
+        os.chmod(os.path.join(bin_dir, name), 0o755)
+    for name, title, exe, extra in (("gimp", "GNU Image Manipulation Program", "gimp-2.10 %U", ""),
+                                    ("busybox", "BusyBox", "busybox", ""),
+                                    ("com.spotify.Client", "Spotify", "flatpak run com.spotify.Client",
+                                     "X-Flatpak=com.spotify.Client")):
+        with open(os.path.join(apps_dir, name + ".desktop"), "w") as f:
+            f.write(f"[Desktop Entry]\nType=Application\nName={title}\nExec={exe}\n{extra}\n")
+    for path in (os.path.join(home, ".config", "GIMP", "gimprc"),
+                 os.path.join(home, ".var", "app", "com.spotify.Client", "data")):
+        with open(path, "w") as f:
+            f.write("data\n")
+    spotify_data = os.path.join(home, ".var", "app", "com.spotify.Client")
+    env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
+           "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_APP_DIRS": apps_dir,
+           "CLEANMATE_NO_UPDATE_CHECK": "1", "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+
+    win.show_page("uninstall")
+    page = win.pages["uninstall"]
+    real_engine = page.engine
+    checked = {}
+    page.confirm = lambda apps, folders, check: checked.update(check)  # the dialog itself needs a click
+
+    def idle():
+        return not page.busy
+
+    def done():
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def first_list():  # the real list of this machine, then the stub one
+        report(page.stack.get_visible_child_name() in ("results", "empty"), "Uninstaller lists this computer's apps")
+        page.engine = Engine(real_engine.path, dry_run=True, env=env)
+        page.load()
+        wait(idle, listed, 60, "app list")
+
+    def listed():
+        ids = sorted(page.apps)
+        report(ids == ["apt:gimp", "flatpak:com.spotify.Client"] and page.hidden == 1,
+               f"apps listed, part of Ubuntu hidden: {ids}, {page.hidden} hidden")
+        gimp_left = os.path.join(home, ".config", "GIMP")
+        before = page.summary.get_text()
+        page.checks["apt:gimp"].set_active(True)
+        box = page.left_checks.get(gimp_left)
+        report(box is not None and box.get_active() and box.get_sensitive() and "1 folder" in page.summary.get_text()
+               and page.summary.get_text() != before, "ticking an app ticks its leftover folder")
+        box.set_active(False)
+        report("folder" not in page.summary.get_text(), "a leftover folder can be left out")
+        box.set_active(True)
+        page.checks["apt:gimp"].set_active(False)
+        report(not box.get_active() and not box.get_sensitive(), "unticking the app clears its folders")
+        page.search_entry.set_text("spot")
+        wait(lambda: not page.rows["apt:gimp"].get_visible(), searched, 5, "search")
+
+    def searched():
+        report(page.rows["flatpak:com.spotify.Client"].get_visible(), "search filters the list")
+        page.search_entry.set_text("")
+        for i in page.apps:
+            page.checks[i].set_active(True)
+        page.check()
+        wait(lambda: idle() and checked, checked_done, 60, "check")
+
+    def checked_done():
+        report(checked.get("ok") and checked.get("extra") == 1 and "gimp-data" in checked.get("extra_text", ""),
+               "check shows the other package apt removes")
+        apps, folders = page.chosen()
+        page.uninstall(apps, folders)
+        wait(lambda: idle() and page.work_title.get_text().startswith("Dry run"), dry_done, 60, "dry-run uninstall")
+
+    def dry_done():
+        expected = "Dry run: 1 app would be uninstalled" if os.geteuid() == 0 else \
+            "Dry run: 2 apps would be uninstalled, 2 folders would be moved to the Trash"  # root: Flatpak refused
+        report(page.work_title.get_text() == expected and os.path.isdir(spotify_data) and not os.path.exists(os.path.join(home, "removed.log")),
+               f"dry run removes nothing: {page.work_title.get_text()}")
+        if os.geteuid() == 0:
+            report(True, "real uninstall skipped: the engine refuses Flatpak and folders as root")
+            return done()
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        wait(idle, real_run, 30, "list after the dry run")
+
+    def real_run():
+        page.selected = {"flatpak:com.spotify.Client"}
+        apps, folders = page.chosen()
+        page.uninstall(apps, folders)
+        wait(lambda: idle() and page.work_title.get_text().startswith("Uninstalled"), removed, 60, "uninstall")
+
+    def removed():
+        log = open(os.path.join(home, "removed.log")).read() if os.path.exists(os.path.join(home, "removed.log")) else ""
+        report("flatpak uninstall -y --noninteractive --delete-data com.spotify.Client" in log
+               and not os.path.exists(spotify_data), "the Flatpak app is removed and its folder moved to the Trash")
+        if not page.undo_toast:
+            report(False, "no Restore folders toast after uninstalling")
+            return done()
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: idle() and os.path.isdir(spotify_data), restored, 60, "restore folders")
+
+    def restored():
+        report(os.path.isdir(spotify_data), "Restore folders in the toast puts the app's folder back")
+        wait(idle, done, 30, "list after restoring")
+
+    wait(idle, first_list, 120, "first app list")
 
 
 def run_scene(app, win, scene, path, report, wait, finish):

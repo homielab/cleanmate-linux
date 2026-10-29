@@ -8,6 +8,9 @@ from gi.repository import Adw, Gio, GLib, Gtk
 from .engine import SMART_SCAN, Selection, human
 from .largefiles import LargeFilesPage
 from .scanpage import ScanPage
+from .uninstaller import UninstallerPage
+
+TOOL_PAGES = {"large": LargeFilesPage, "uninstall": UninstallerPage}  # pages with their own engine commands
 
 # (id, title, icon, categories, description) — same order as the terminal app's menu
 PAGES = [
@@ -27,10 +30,12 @@ PAGES = [
      "Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers."),
     ("privacy", "Privacy", "security-high-symbolic", ["privacy"],
      "Terminal history, recent files, run dialog and emoji history."),
-    None,  # section: Files
+    None,  # section: Tools
     ("large", "Large & Old Files", "drive-harddisk-symbolic", None,
      "Find the biggest files, or the ones you haven't opened in months, and move what you don't need "
      "to the Trash. You can undo it."),
+    ("uninstall", "Uninstaller", "application-x-addon-symbolic", None,
+     "Remove apps from apt, Snap and Flatpak, and the folders they leave in your home."),
 ]
 REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
@@ -60,7 +65,7 @@ class Window(Adw.ApplicationWindow):
         more = Gtk.Box(spacing=12)
         more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
         more.append(Gtk.Label(label="All tools (terminal)", xalign=0))
-        more_row = Gtk.ListBoxRow(child=more, tooltip_text="Space Lens, Duplicates, Uninstaller, Startup Items, "
+        more_row = Gtk.ListBoxRow(child=more, tooltip_text="Space Lens, Duplicates, Startup Items, "
                                                           "Maintenance, Settings… in the terminal app")
         more_row.page_id = "terminal"
         self.sidebar_list.append(more_row)
@@ -122,7 +127,7 @@ class Window(Adw.ApplicationWindow):
 
     # ── navigation ──
     def _section_header(self, row, before):
-        titles = {"system": "Cleanup", "large": "Files", "terminal": "More"}
+        titles = {"system": "Cleanup", "large": "Tools", "terminal": "More"}
         title = titles.get(getattr(row, "page_id", ""))
         if title:
             label = Gtk.Label(label=title, xalign=0, margin_start=12, margin_top=12, margin_bottom=6,
@@ -141,8 +146,8 @@ class Window(Adw.ApplicationWindow):
     def show_page(self, pid):
         spec = next(s for s in PAGES if s and s[0] == pid)
         if pid not in self.pages:
-            if spec[3] is None:
-                page = LargeFilesPage(self, spec[1], spec[2], spec[4])
+            if pid in TOOL_PAGES:
+                page = TOOL_PAGES[pid](self, spec[1], spec[2], spec[4])
             else:
                 page = ScanPage(self, spec[1], spec[3], spec[2], spec[4])
             self.pages[pid] = page

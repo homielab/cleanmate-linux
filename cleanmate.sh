@@ -3258,6 +3258,7 @@ APPS_DIR_USER=${XDG_DATA_HOME:-$HOME/.local/share}
 APP_DESKTOP_DIRS=("$APPS_DIR_USER/applications" "$APPS_DIR_USER/flatpak/exports/share/applications"
   /var/lib/flatpak/exports/share/applications /var/lib/snapd/desktop/applications
   /usr/local/share/applications /usr/share/applications) # earlier folders override later ones
+[[ -n ${CLEANMATE_APP_DIRS:-} ]] && IFS=: read -ra APP_DESKTOP_DIRS <<<"$CLEANMATE_APP_DIRS" # tests: other launchers
 # never offered: removing these breaks the desktop, logins or package management
 APP_CORE_RE='^(gnome-shell|gnome-shell-common|gdm3|gnome-session.*|ubuntu-session|systemd|systemd-sysv|sudo|apt|dpkg|network-manager|xserver-xorg-core|xwayland|snapd|polkitd|pkexec|policykit-1|plymouth|grub.*|shim.*|linux-image-.*|linux-generic.*)$'
 APP_META_RE='^(ubuntu-desktop.*|ubuntu-minimal|ubuntu-standard|ubuntu-server|[a-z]+ubuntu-desktop|ubuntu-[a-z]+-desktop)$'
@@ -3305,7 +3306,7 @@ gnome_last_seen() { # desktop-id<TAB>epoch, from GNOME Shell's own record of app
     sed -n 's/.*id="\([^"]*\)".*last-seen="\([0-9]*\)".*/\1\t\2/p'
 }
 
-app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<TAB>data_bytes<TAB>last_used<TAB>paths(\x1f)
+app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<TAB>data_bytes<TAB>last_used<TAB>launcher id<TAB>paths(\x1f)
   local file name ex hid snap fp base key src id line
   local -A seen=() a_src=() a_id=() a_name=() a_desk=() a_exec=() owner=() psize=() pskip=() fpsize=() last_seen=() claims=()
   local -a keys=() debfiles=() others=()
@@ -3410,8 +3411,8 @@ app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<
     ((${#list[@]})) && datab=$(du_sum "${list[@]}") &&
       last=$(find "${list[@]}" -maxdepth 1 -printf '%T@\n' 2>/dev/null | sort -n | tail -n1) && last=${last%.*}
     while IFS= read -r nm; do [[ -n $nm ]] && t=${last_seen[$nm]:-0} && ((t > last)) && last=$t; done <<<"${a_desk[$key]}"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$src" "$id" "${a_name[$key]:-$id}" "${pkgb:-0}" "${datab:-0}" "${last:-0}" \
-      "$(IFS=$'\x1f'; printf '%s' "${list[*]}")"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$src" "$id" "${a_name[$key]:-$id}" "${pkgb:-0}" "${datab:-0}" "${last:-0}" \
+      "${a_desk[$key]%%$'\n'*}" "$(IFS=$'\x1f'; printf '%s' "${list[*]}")" # paths last: may be empty
   done
 }
 
@@ -3438,7 +3439,7 @@ load_apps() {
   while IFS=$'\t' read -r -a line; do
     if [[ ${line[0]} == '#hidden' ]]; then A_HIDDEN=${line[1]}; continue; fi
     A_SRC+=("${line[0]}") A_ID+=("${line[1]}") A_NAME+=("${line[2]}") A_PKG+=("${line[3]}")
-    A_DATA+=("${line[4]}") A_LAST+=("${line[5]}") A_PATHS+=("${line[6]:-}")
+    A_DATA+=("${line[4]}") A_LAST+=("${line[5]}") A_PATHS+=("${line[7]:-}")
   done <"$tmp"
   rm -f "$tmp"
 }
@@ -3571,16 +3572,18 @@ apps_menu() {
 }
 
 # apt must remove exactly what was asked for — and never a part of Ubuntu itself.
-apt_check_removal() { # PKG... → APT_EXTRA_N, APT_EXTRA_TEXT; returns 1 (with a toast) when it must not go ahead
+apt_check_removal() { # PKG... → APT_EXTRA_N, APT_EXTRA_TEXT; returns 1 (with a toast, APT_ERR) when it must not go ahead
   local sim others core
-  APT_EXTRA_N=0 APT_EXTRA_TEXT=""
+  APT_EXTRA_N=0 APT_EXTRA_TEXT="" APT_ERR=""
   if ! sim=$(LC_ALL=C apt-get -s purge "$@" 2>&1); then
-    toast "${RED}✘${NC} apt can't remove this cleanly: $(grep -m1 '^E:' <<<"$sim" | cut -c4-)"
+    APT_ERR="apt can't remove this cleanly: $(grep -m1 '^E:' <<<"$sim" | cut -c4-)"
+    toast "${RED}✘${NC} $APT_ERR"
     return 1
   fi
   core=$(grep '^Purg' <<<"$sim" | awk '{print $2}' | grep -E "$APP_CORE_RE|^linux-image-$(uname -r)\$" | head -n 3 | paste -sd, - | sed 's/,/, /g')
   if [[ -n $core ]]; then
-    toast "${RED}✘${NC} Not removed: apt would also take $core, which Ubuntu needs to run."
+    APT_ERR="Not removed: apt would also take $core, which Ubuntu needs to run."
+    toast "${RED}✘${NC} $APT_ERR"
     return 1
   fi
   local purg=()
@@ -3588,7 +3591,8 @@ apt_check_removal() { # PKG... → APT_EXTRA_N, APT_EXTRA_TEXT; returns 1 (with 
   core=$( ((${#purg[@]})) && dpkg-query -W -f='${Package} ${Priority} ${Essential}\n' "${purg[@]}" 2>/dev/null |
     awk '$2 == "required" || $2 == "important" || $3 == "yes" {print $1}' | head -n 3 | paste -sd, - | sed 's/,/, /g')
   if [[ -n $core ]]; then
-    toast "${RED}✘${NC} Not removed: $core is marked as required by Ubuntu. Use apt yourself if you're sure."
+    APT_ERR="Not removed: $core is marked as required by Ubuntu. Use apt yourself if you're sure."
+    toast "${RED}✘${NC} $APT_ERR"
     return 1
   fi
   others=$(printf '%s\n' "${purg[@]}" | grep -vxF -f <(printf '%s\n' "$@"))
@@ -4859,7 +4863,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean|large|trash|restore …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|trash|restore|apps|uninstall …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -4927,7 +4931,9 @@ json_main() { # SUBCOMMAND ARGS…
     large) json_large "$@" ;;
     trash) json_trash "$@" ;;
     restore) json_restore "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|trash PATH…|restore NAME…"; return 2 ;;
+    apps) json_apps ;;
+    uninstall) json_uninstall "$@" ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|trash PATH…|restore NAME…|apps|uninstall [--check] ID…"; return 2 ;;
   esac
 }
 
@@ -5109,6 +5115,71 @@ json_restore() { # NAME… — put these back from the Trash (names from the "tr
   printf '{"event":"done","restored":%d,"failed":%d}\n' "$ok" "$failed"
 }
 
+# ── Uninstaller for the desktop app ──
+#
+# `apps` lists exactly what the terminal app's Uninstaller offers (parts of
+# Ubuntu are never listed), and `uninstall` only removes apps on that list.
+# apt and Snap need root (the app runs this through pkexec); Flatpak apps are
+# removed as you. Leftover folders go to the Trash with `trash`, as you, after
+# the app is gone.
+
+json_apps() {
+  local src id name pkgb datab last paths desk p b jp left jn jid jd hidden=0
+  local -a ps
+  while IFS=$'\t' read -r src id name pkgb datab last desk paths; do
+    if [[ $src == '#hidden' ]]; then hidden=$id; continue; fi
+    left=""
+    IFS=$'\x1f' read -ra ps <<<"$paths"
+    for p in "${ps[@]}"; do
+      [[ -n $p ]] || continue
+      b=$(du_sum "$p"); json_str jp "$p"
+      left+="${left:+,}{\"path\":$jp,\"bytes\":${b:-0}}"
+    done
+    json_str jid "$src:$id"; json_str jn "$name"; json_str jd "$desk"
+    printf '{"event":"app","id":%s,"kind":"%s","name":%s,"bytes":%d,"data_bytes":%d,"last_used":%d,"desktop":%s,"leftovers":[%s]}\n' \
+      "$jid" "$src" "$jn" "${pkgb:-0}" "${datab:-0}" "${last:-0}" "$jd" "$left"
+  done < <(app_inventory 2>/dev/null)
+  printf '{"event":"done","hidden":%d}\n' "$hidden"
+}
+
+json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only says what apt would do
+  local check=0 a src id apt=() out rc why gone=0 failed=0 msg extra
+  local -A known=()
+  [[ ${1:-} == --check ]] && { check=1; shift; }
+  (($#)) || { json_error "No apps given."; return 2; }
+  while IFS=$'\t' read -r src id _; do [[ $src == '#hidden' ]] || known[$src:$id]=1; done < <(app_inventory 2>/dev/null)
+  for a in "$@"; do
+    [[ -n ${known[$a]:-} ]] || { json_error "Not an app CleanMate can remove: $a"; return 2; }
+    src=${a%%:*}
+    if ((EUID == 0 && !check)) && [[ $src == flatpak ]]; then json_error "Flatpak apps are removed as you, not as root: $a"; return 2; fi
+    [[ $src == apt ]] && apt+=("${a#*:}")
+  done
+  msg="" extra=0
+  if ((${#apt[@]})); then # simulate first: apt may refuse, or take other packages with it
+    if apt_check_removal "${apt[@]}"; then extra=$APT_EXTRA_N; else msg=$APT_ERR; fi
+  fi
+  if ((check)); then
+    local jm je
+    json_str jm "$msg"; json_str je "$( ((extra)) && printf '%s' "$APT_EXTRA_TEXT")"
+    printf '{"event":"check","ok":%s,"message":%s,"extra":%d,"extra_text":%s}\n{"event":"done"}\n' \
+      "$([[ -z $msg ]] && echo true || echo false)" "$jm" "$extra" "$je"
+    return
+  fi
+  [[ -z $msg ]] || { json_error "$msg"; return 2; }
+  for a in "$@"; do
+    json_file_task "$a" run "" 0
+    out=$(task_uninstall "$a" 2>&1 </dev/null); rc=$?
+    if ((rc == 0)); then
+      json_file_task "$a" ok "$( ((DRY_RUN)) && echo "would be uninstalled" || echo "uninstalled")" 0; ((++gone))
+    else
+      why=$(grep -v '^\s*$' <<<"$out" | tail -n 1)
+      json_file_task "$a" fail "${why:-failed (exit $rc)}" 0; ((++failed))
+      log "json uninstall $a failed: $why"
+    fi
+  done
+  printf '{"event":"done","removed":%d,"failed":%d}\n' "$gone" "$failed"
+}
+
 # ───────────────────────────── desktop app ──────────────────────────────────
 
 GUI_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cleanmate/gui"
@@ -5186,7 +5257,8 @@ Install & update
 
 For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
-                    large [--min BYTES] [--days N] [--path DIR], trash PATH…, restore NAME…
+                    large [--min BYTES] [--days N] [--path DIR], trash PATH…, restore NAME…,
+                    apps, uninstall [--check] KIND:ID…
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help
 
