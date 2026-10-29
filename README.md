@@ -62,10 +62,16 @@ folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app nee
 ## Use it
 
 **Desktop app** — open *CleanMate*, press **Scan**, untick anything you want to keep, press
-**Clean**. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
-as you. **Large & Old Files** lists your biggest files (by minimum size, how long unused, and
-folder or drive); what you move to the Trash comes back with **Undo**. **Uninstaller** removes apt,
-Snap and Flatpak apps and, if you tick them, the folders they leave in your home (to the Trash).
+**Clean**. Click anywhere on a row to tick it; the **All** box on a group ticks or clears the whole
+group. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
+as you. An item whose program is running is locked until you close it. **Large & Old Files** lists
+your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
+Trash comes back with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps and, if you tick
+them, the folders they leave in your home (to the Trash).
+
+| Large & Old Files | Uninstaller |
+| --- | --- |
+| ![Large & Old Files](docs/screenshots/desktop-7-large.png) | ![Uninstaller](docs/screenshots/desktop-8-uninstall.png) |
 
 **Terminal app** — run `cm`. Press `1` for a Smart Scan, `c` to clean.
 

@@ -86,6 +86,14 @@
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-5-ai.png</image>
     </screenshot>
     <screenshot>
+      <caption>Find large and old files and move them to the Trash, with undo</caption>
+      <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-7-large.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Uninstall apt, Snap and Flatpak apps with the folders they leave behind</caption>
+      <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-8-uninstall.png</image>
+    </screenshot>
+    <screenshot>
       <caption>The same engine in the terminal: run cm</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/terminal-2-smart-scan.png</image>
     </screenshot>

@@ -9,7 +9,10 @@
 # invisible display (gtk4-broadwayd); the terminal app is rendered by
 # packaging/render_terminal.py. Needs: python3-gi with GTK 4 + libadwaita,
 # libgtk-4-bin, pyte (pip), Pillow, fonts-ubuntu, fonts-noto-color-emoji.
+# Run it as a normal user: as root the engine refuses to clean a home folder.
+# No display needed; CONTRIBUTING.md shows how to run it in a container.
 set -euo pipefail
+((EUID != 0)) || { echo "Run as a normal user, not root." >&2; exit 1; }
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 OUT=${OUT:-$ROOT/docs/screenshots}
@@ -51,6 +54,16 @@ blob code/website/node_modules/.store/packages 480
 echo '{}' >"$DEMO/code/website/package.json"; echo '{}' >"$DEMO/code/website/package-lock.json"
 touch -d '200 days ago' "$DEMO/code/website/package.json" "$DEMO/code/website/package-lock.json" \
   "$DEMO/code/website/node_modules" "$DEMO/code/website"
+# Large & Old Files
+blob Videos/holiday-2025.mkv 2300 400
+blob Downloads/ubuntu-24.04.3-desktop-amd64.iso 1600 200
+blob Downloads/project-backup-2024.zip 750 300
+blob Music/podcast-archive.tar 420 500
+# Uninstaller: the apps' own folders
+blob .config/GIMP/2.10/swap 120
+blob .config/inkscape/extensions 15
+blob .var/app/com.spotify.Client/cache 850
+blob .var/app/md.obsidian.Obsidian/config 60
 blob .claude/cache/models 40
 blob .codex/.tmp/plugins/catalog 95
 blob .gemini/antigravity-ide/conversations/old-chat.pb 30 60
@@ -79,7 +92,31 @@ case "$*" in
   "volume ls -qf dangling=true") printf 'v1\nv2\n' ;;
 esac
 EOF
-chmod +x "$STUBS"/*
+# Uninstaller scene only (the other scenes use the real dpkg): three apt apps and two Flatpaks
+mkdir -p "$STUBS/apps" "$DEMO/.apps"
+cat >"$STUBS/apps/dpkg" <<'EOF'
+#!/bin/sh
+[ "$1" = -S ] || exit 1; shift
+for f; do n=${f##*/}; n=${n%.desktop}; case $n in gimp|inkscape|vlc) echo "$n: $f" ;; esac; done
+EOF
+cat >"$STUBS/apps/dpkg-query" <<'EOF'
+#!/bin/sh
+case "$*" in
+  *Installed-Size*) printf 'gimp\t98000\toptional\tno\ninkscape\t121000\toptional\tno\nvlc\t9400\toptional\tno\n' ;;
+esac
+EOF
+printf '#!/bin/sh\n' >"$STUBS/apps/apt-cache"
+cat >"$STUBS/apps/flatpak" <<'EOF'
+#!/bin/sh
+[ "$1" = list ] && printf 'com.spotify.Client\t312.4 MB\nmd.obsidian.Obsidian\t268.0 MB\n'
+EOF
+for app in "gimp|GNU Image Manipulation Program|gimp-2.10 %U|" "inkscape|Inkscape|inkscape %F|" \
+  "vlc|VLC media player|vlc %U|" "com.spotify.Client|Spotify|flatpak run com.spotify.Client|X-Flatpak=com.spotify.Client" \
+  "md.obsidian.Obsidian|Obsidian|flatpak run md.obsidian.Obsidian|X-Flatpak=md.obsidian.Obsidian"; do
+  IFS='|' read -r id name exe extra <<<"$app"
+  printf '[Desktop Entry]\nType=Application\nName=%s\nExec=%s\n%s\n' "$name" "$exe" "$extra" >"$DEMO/.apps/$id.desktop"
+done
+chmod +x "$STUBS"/* "$STUBS"/apps/*
 DEMO_PATH="$STUBS:/usr/local/bin:/usr/bin:/bin"
 
 # ── desktop app scenes ──
@@ -89,14 +126,16 @@ if command -v gtk4-broadwayd >/dev/null; then
   XDG_RUNTIME_DIR=$rt gtk4-broadwayd :77 >/dev/null 2>&1 &
   srv=$!
   sleep 1
-  n=1
-  for scene in results details confirm "done" ai privacy; do
-    env -i HOME="$DEMO" PATH="$DEMO_PATH" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" GDK_BACKEND=broadway \
+  # "done" really cleans the demo caches, so it runs last; the number keeps the file order
+  for scene in 1:results 2:details 3:confirm 5:ai 6:privacy 7:large 8:uninstall 4:done; do
+    n=${scene%%:*} scene=${scene#*:}
+    path=$DEMO_PATH
+    [[ $scene == uninstall ]] && path=$STUBS/apps:$DEMO_PATH
+    env -i HOME="$DEMO" PATH="$path" CLEANMATE_APP_DIRS="$DEMO/.apps" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" GDK_BACKEND=broadway \
       BROADWAY_DISPLAY=:77 CLEANMATE_NO_UPDATE_CHECK=1 timeout 180 /usr/bin/python3 "$ROOT/gui/cleanmate-gui" \
       --engine "$ROOT/cleanmate.sh" --screenshot "$OUT/desktop-$n-$scene.png" --scene "$scene" \
       --window-size 1280x800 2>/dev/null | grep -q "screenshot saved" &&
       echo "  desktop-$n-$scene.png" || echo "  ✘ desktop scene '$scene' failed"
-    n=$((n + 1))
   done
   kill "$srv"
 else

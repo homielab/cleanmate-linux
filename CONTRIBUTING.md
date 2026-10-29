@@ -81,6 +81,23 @@ Pages live in `gui/cleanmate_gui/scanpage.py` (cleanup), `largefiles.py` (Large 
 deletion logic in the engine: pages only call `--json` commands (see the protocol in `docs/ROADMAP.md`).
 `CLEANMATE_APP_DIRS` (colon-separated) replaces the launcher folders the app list reads, for tests.
 
+### Screenshots
+
+`packaging/make-screenshots.sh` regenerates `docs/screenshots/` from a throwaway demo home (no
+personal data) on an invisible display, so it needs no screen. Run it as a normal user, not root.
+In a container:
+
+```bash
+docker run --rm -v "$PWD":/src:ro -v "$PWD/docs/screenshots":/out ubuntu:24.04 bash -c '
+  apt-get update && apt-get install -y python3-gi python3-pyte python3-pil gir1.2-gtk-4.0 \
+    gir1.2-adw-1 libgtk-4-bin fonts-ubuntu fonts-noto-color-emoji
+  cp -r /src /w && useradd -m u && chown -R u /w
+  su u -c "OUT=/tmp/shots bash /w/packaging/make-screenshots.sh" && cp /tmp/shots/*.png /out/'
+```
+
+A new screenshot scene goes in `run_scene` / `tool_scene` (`gui/cleanmate_gui/selftest.py`) and in
+the script's scene list; README and `data/*.metainfo.xml` link the images.
+
 ## Translations
 
 The desktop app is translated with gettext (domain `cleanmate`, files in `po/`); the engine and the

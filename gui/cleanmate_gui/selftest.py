@@ -387,10 +387,52 @@ def uninstaller_test(win, report, wait, finish):
     wait(idle, first_list, 120, "first app list")
 
 
+def show_scene_page(win, page_id):
+    """Show a page with its sidebar row highlighted, as a click would."""
+    win.show_page(page_id)
+    row = win.sidebar_list.get_first_child()
+    while row and getattr(row, "page_id", None) != page_id:
+        row = row.get_next_sibling()
+    if row:
+        win.sidebar_list.select_row(row)
+
+
+def tool_scene(win, scene, path, wait, finish):
+    """Large & Old Files with the two biggest files ticked; the Uninstaller with a Flatpak app ticked."""
+    show_scene_page(win, scene)
+    page = win.pages[scene]
+
+    def shoot():
+        GLib.timeout_add(1200, lambda: (screenshot(win, path, finish), False)[1])
+
+    if scene == "large":
+        def found():
+            for e in page.files[:2]:
+                page.checks[e["path"]].set_active(True)
+            shoot()
+
+        page.age_drop.set_selected(2)  # unused for 90 days: the demo's old files, not its caches
+        page.search()
+        return wait(lambda: page.running is None and page.stack.get_visible_child_name() != "searching",
+                    found, 120, "search")
+
+    def listed():
+        for app_id, row in page.rows.items():
+            if app_id.startswith("flatpak:") and page.apps[app_id]["leftovers"]:
+                page.checks[app_id].set_active(True)
+                row.set_expanded(True)
+                break
+        shoot()
+
+    wait(lambda: not page.busy, listed, 120, "app list")
+
+
 def run_scene(app, win, scene, path, report, wait, finish):
     """Screenshot scenes for docs and app stores (packaging/make-screenshots.sh)."""
+    if scene in ("large", "uninstall"):
+        return tool_scene(win, scene, path, wait, finish)
     page_id = {"privacy": "privacy", "ai": "ai", "user": "user"}.get(scene, "smart")
-    win.show_page(page_id)
+    show_scene_page(win, page_id)
     page = win.pages[page_id]
 
     def shoot(delay_ms=1200):
@@ -409,7 +451,7 @@ def run_scene(app, win, scene, path, report, wait, finish):
             return shoot(2500)
         if scene == "confirm":
             page.confirm_clean()
-            return shoot(1200)
+            return shoot(2500)
         if scene == "done":
             # only caches inside the (demo) home folder — never /tmp or anything system-wide
             safe = {"npm", "pip", "gobuild", "yarn", "thumbs", "ai_claude_cache", "ai_codex_cache", "browser_chrome"}
