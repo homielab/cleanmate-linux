@@ -18,6 +18,8 @@ CSS = """
 .size-medium { color: @warning_color; }
 .size-small  { color: @success_color; }
 levelbar block.filled { background-color: @accent_bg_color; }
+checkbutton.big-check check { min-width: 24px; min-height: 24px; }
+row.item-row { min-height: 48px; }
 """
 
 

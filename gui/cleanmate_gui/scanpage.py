@@ -25,7 +25,8 @@ class ScanPage(Gtk.Box):
         self.items = {}  # id → item event (from the last scan)
         self.selected = {}  # id → bool
         self.checks = {}  # id → Gtk.CheckButton
-        self.group_buttons = []  # (button, ids) — "Select all" / "Deselect all"
+        self.group_buttons = []  # (tri-state check, ids)
+        self.syncing = False
         self.running = None  # Gio.Cancellable of the current engine run
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vexpand=True)
@@ -150,8 +151,9 @@ class ScanPage(Gtk.Box):
             if junk and not self.privacy:
                 group.set_description(human(sum(e["bytes"] for e in junk)))
             if len(junk) > 1:
-                toggle = Gtk.Button(label="Select all", valign=Gtk.Align.CENTER, css_classes=["flat"])
-                toggle.connect("clicked", self.on_group_toggle, [e["id"] for e in junk])
+                toggle = Gtk.CheckButton(label="All", valign=Gtk.Align.CENTER, css_classes=["big-check"],
+                                         tooltip_text="Select or deselect the whole group")
+                toggle.connect("toggled", self.on_group_toggle, [e["id"] for e in junk])
                 group.set_header_suffix(toggle)
                 self.group_buttons.append((toggle, [e["id"] for e in junk]))
             for e in junk:
@@ -172,9 +174,13 @@ class ScanPage(Gtk.Box):
         self.update_summary()
 
     def item_row(self, e, biggest):
-        row = Adw.ActionRow(title=e["label"], subtitle=e["note"], use_markup=False,
-                            subtitle_lines=1, tooltip_text=e["description"])
-        check = Gtk.CheckButton(active=self.selected.get(e["id"], False), valign=Gtk.Align.CENTER)
+        subtitle = e["note"]
+        if e["root"]:
+            subtitle = f"{subtitle} · Needs your password" if subtitle else "Needs your password"
+        row = Adw.ActionRow(title=e["label"], subtitle=subtitle, use_markup=False,
+                            subtitle_lines=1, tooltip_text=e["description"], css_classes=["item-row"])
+        check = Gtk.CheckButton(active=self.selected.get(e["id"], False), valign=Gtk.Align.CENTER,
+                                css_classes=["big-check"])
         check.connect("toggled", self.on_toggled, e["id"])
         self.checks[e["id"]] = check
         row.add_prefix(check)
@@ -203,7 +209,9 @@ class ScanPage(Gtk.Box):
         self.update_summary()
 
     def on_group_toggle(self, button, ids):
-        target = not all(self.selected.get(i) for i in ids)
+        if self.syncing:
+            return
+        target = button.get_active()  # read once: each row change re-syncs the box
         for i in ids:
             self.checks[i].set_active(target)
 
@@ -216,8 +224,12 @@ class ScanPage(Gtk.Box):
                 f"Selected <b>{human(sum(self.items[i]['bytes'] for i in ids))}</b> in {len(ids)} "
                 f"item{'s' if len(ids) != 1 else ''}")
         self.clean_button.set_sensitive(bool(ids))
+        self.syncing = True  # the group boxes follow the rows: none / some (inconsistent) / all
         for button, group_ids in self.group_buttons:
-            button.set_label("Deselect all" if all(self.selected.get(i) for i in group_ids) else "Select all")
+            n = sum(1 for i in group_ids if self.selected.get(i))
+            button.set_inconsistent(0 < n < len(group_ids))
+            button.set_active(n == len(group_ids))
+        self.syncing = False
 
     # ── details ──
     def show_details(self, e):

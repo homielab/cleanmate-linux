@@ -557,6 +557,7 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   fresh_home
   local out srv display=$((50 + RANDOM % 40))
   mkdir -p "$HOME_DIR/.cache/thumbnails/large"; echo x >"$HOME_DIR/.cache/thumbnails/large/a.png"
+  new "$HOME_DIR/.cache/pip/p"; new "$HOME_DIR/.npm/_cacache/n"; new "$HOME_DIR/.cache/go-build/g" # two more items, so a group has several rows
   local rt=$WORK/runtime-$display # the display's socket lives here; shared by server and app
   mkdir -p "$rt" && chmod 700 "$rt"
   XDG_RUNTIME_DIR=$rt gtk4-broadwayd ":$display" >/dev/null 2>&1 &
@@ -571,6 +572,7 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   assert_contains "$out" "SELFTEST done"
   [[ $out == *"SELFTEST FAIL"* ]] && { fail "GUI self-test reported a failure"; grep 'SELFTEST FAIL' <<<"$out" | sed 's/^/      | /'; }
   assert_contains "$out" "dry-run clean finished"
+  assert_contains "$out" "group box selects the whole group"
   assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
 }
 

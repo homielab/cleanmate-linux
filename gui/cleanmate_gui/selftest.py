@@ -3,7 +3,7 @@
 Used by tests/gui_smoke.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear).
 """
-from gi.repository import GLib
+from gi.repository import Adw, GLib
 
 
 def screenshot(win, path, then=None, tries=15):
@@ -75,8 +75,32 @@ def run(app, win):
         page.checks[first["id"]].set_active(not page.selected[first["id"]])
         report(page.summary.get_text() != before, f"toggling “{first['label']}” updates the summary")
         page.checks[first["id"]].set_active(not page.checks[first["id"]].get_active())  # restore
+        check_group(first)
         page.show_details(first)
         GLib.timeout_add(1500, lambda: (after_details(), False)[1])
+
+    def check_group(first):
+        groups = sorted(page.group_buttons, key=lambda g: -len(g[1]))
+        if not groups:
+            return report(True, "no group with several items to check")
+        button, ids = groups[0]
+        report(len(ids) >= 3, f"group of {len(ids)} items under test")
+        for i in ids:
+            page.checks[i].set_active(False)
+        report(not button.get_active() and not button.get_inconsistent(), "group box: none")
+        page.checks[ids[0]].set_active(True)
+        report(button.get_inconsistent(), "group box: some (inconsistent)")
+        for i in ids:
+            page.checks[i].set_active(False)
+        button.set_active(True)  # from none: every item must end up ticked
+        report(all(page.selected[i] for i in ids) and button.get_active() and not button.get_inconsistent(),
+               "group box selects the whole group")
+        button.set_active(False)  # from all
+        report(not any(page.selected[i] for i in ids), "group box clears the whole group")
+        row = page.checks[ids[0]].get_ancestor(Adw.ActionRow)
+        row.activate()
+        report(page.selected[ids[0]], "activating the row (click, Space, Enter) toggles its box")
+        page.checks[ids[0]].set_active(False)
 
     def after_details():
         user_items = [e for e in page.items.values() if e["status"] == "found" and not e["root"]]
