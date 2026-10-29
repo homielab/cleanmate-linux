@@ -759,7 +759,10 @@ undo_trash() { # put the last batch back → UNDO_OK, UNDO_FAILED
     if [[ -e $orig || -L $orig || ! (-e $TRASH_DIR/files/$name || -L $TRASH_DIR/files/$name) ]]; then
       UNDO_FAILED=$((UNDO_FAILED + 1)); continue # already back, or emptied from the Trash
     fi
-    if mkdir -p -- "${orig%/*}" && mv -- "$TRASH_DIR/files/$name" "$orig"; then
+    # -n -T: never replace or move into something that appeared at that path meanwhile;
+    # mv -n may exit 0 when it skips, so success = the file left the Trash
+    if mkdir -p -- "${orig%/*}" && mv -n -T -- "$TRASH_DIR/files/$name" "$orig" 2>/dev/null &&
+      [[ ! -e $TRASH_DIR/files/$name && ! -L $TRASH_DIR/files/$name ]]; then
       rm -f -- "$TRASH_DIR/info/$name.trashinfo"
       log "restore $orig"
       UNDO_OK=$((UNDO_OK + 1))
@@ -5091,6 +5094,7 @@ json_restore() { # NAME… — put these back from the Trash (names from the "tr
     if [[ -n $name && $name != */* && $name != . && $name != .. && -f $info ]]; then
       raw=$(sed -n 's/^Path=//p' "$info" | head -n 1)
       urldecode_path orig "$raw"
+      [[ $orig == /* ]] && orig=$(realpath -m -s -- "$orig") # resolve ../ before the home check
     fi
     if [[ $orig != "$HOME"/* ]] || is_protected "$orig"; then
       json_file_task "${orig:-$name}" fail "Not in the Trash any more" 0 "$name"; ((++failed)); continue

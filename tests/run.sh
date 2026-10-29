@@ -671,6 +671,12 @@ for l in sys.stdin:
   assert_exists "$f2"
   out=$(user_cm --json restore "film one.mkv" | python3 -c "$tasks")
   assert_eq "$out" $'fail film one.mkv Not in the Trash any more\ndone 0 1' "restore twice"
+  # a Path= that climbs out of the home folder is never followed
+  mkdir -p "$trash/files" "$trash/info"; new "$trash/files/evil"
+  printf '[Trash Info]\nPath=%s/../escaped\nDeletionDate=2026-01-01T00:00:00\n' "$HOME_DIR" >"$trash/info/evil.trashinfo"
+  out=$(user_cm --json restore evil | python3 -c "$tasks")
+  assert_contains "$out" "fail evil Not in the Trash any more"
+  assert_missing "$(dirname "$HOME_DIR")/escaped"; assert_exists "$trash/files/evil"
 }
 
 test_gui_selftest() {

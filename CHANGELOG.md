@@ -16,6 +16,7 @@ All notable changes are listed here. The format follows
 
 ### Fixed
 
+- Undo (`z`) never replaces or moves into a file or folder that appeared where the trashed file used to be.
 - Terminal app: key presses were sometimes ignored with bash older than 5.3 (Ubuntu 22.04 and 24.04), and keys typed while a screen was busy were printed over it.
 
 ## [2.0.0] — 2026-10-25
