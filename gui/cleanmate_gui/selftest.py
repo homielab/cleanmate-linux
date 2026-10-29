@@ -2,8 +2,8 @@
 
 Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
-Files check moves files to the Trash for real, but only files it made itself in
-a throwaway home folder, with the engine pointed at that folder.
+Files and Space Lens checks move files to the Trash for real, but only files they
+made themselves in a throwaway home folder, with the engine pointed at that folder.
 """
 import os
 import shutil
@@ -189,7 +189,7 @@ def large_files_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        uninstaller_test(win, report, wait, finish)
+        space_lens_test(win, report, wait, finish)
 
     def searched():
         report(names() == ["film.mkv", "old backup.iso"], f"large files biggest first, small one left out: {names()}")
@@ -241,6 +241,118 @@ def large_files_test(win, report, wait, finish):
 
     page.search()
     wait(idle, searched, 60, "large files search")
+
+
+def space_lens_test(win, report, wait, finish):
+    """List a throwaway home by size, go three folders deep and back, check that a folder outside
+    home is view only, then move a folder to the Trash and undo it."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home = os.path.join(sandbox, "home")
+    projects, videos = os.path.join(home, "Projects"), os.path.join(home, "Videos")
+    app, build = os.path.join(projects, "App"), os.path.join(projects, "App", "Build")
+    os.makedirs(build)
+    os.makedirs(videos)
+    for path, size in ((os.path.join(build, "out.bin"), 90 << 20), (os.path.join(projects, "notes.txt"), 1024),
+                       (os.path.join(videos, "film.mkv"), 40 << 20), (os.path.join(home, "todo.txt"), 10)):
+        with open(path, "wb") as f:  # sparse: no real disk use
+            f.truncate(size)
+    env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
+           "XDG_CONFIG_HOME": os.path.join(home, ".config")}
+
+    win.show_page("lens")
+    page = win.pages["lens"]
+    real_engine = page.engine
+
+    def idle():
+        return page.running is None and not page.moving and page.stack.get_visible_child_name() != "measuring"
+
+    def names():
+        return [os.path.basename(e["path"]) for e in page.entries if not os.path.basename(e["path"]).startswith(".")]
+
+    def done():
+        page.engine = real_engine
+        page.set_root(os.path.expanduser("~"))
+        shutil.rmtree(sandbox, ignore_errors=True)
+        uninstaller_test(win, report, wait, finish)
+
+    def first():
+        report(page.stack.get_visible_child_name() in ("results", "empty"), "Space Lens lists the home folder on opening")
+        page.engine = Engine(real_engine.path, dry_run=True, env=env)
+        page.set_root(home)
+        wait(idle, listed, 60, "Space Lens list")
+
+    def listed():
+        report(names() == ["Projects", "Videos", "todo.txt"], f"home listed biggest first: {names()}")
+        page.rows[projects].activate()
+        wait(lambda: idle() and page.folder == projects, level1, 60, "open Projects")
+
+    def level1():
+        report(names() == ["App", "notes.txt"], f"opening a folder lists it: {names()}")
+        page.rows[app].activate()
+        wait(lambda: idle() and page.folder == app, level2, 60, "open App")
+
+    def level2():
+        page.rows[build].activate()
+        wait(lambda: idle() and page.folder == build, level3, 60, "open Build")
+
+    def level3():
+        report(names() == ["out.bin"] and len(page.crumb_buttons) == 4, "three folders deep, the path bar shows each")
+        page.up()
+        wait(lambda: idle() and page.folder == app, back1, 60, "up")
+
+    def back1():
+        report(names() == ["Build"], "Up goes back one folder")
+        page.crumb_buttons[0].emit("clicked")
+        wait(lambda: idle() and page.folder == home, back_home, 60, "path bar")
+
+    def back_home():
+        report(names() == ["Projects", "Videos", "todo.txt"] and not page.up_button.get_sensitive(),
+               "the path bar goes back to the start")
+        page.set_root(sandbox)
+        wait(lambda: idle() and page.folder == sandbox, outside, 60, "outside home")
+
+    def outside():
+        check = page.checks.get(home)
+        report(check is not None and not check.get_sensitive() and not page.trash_button.get_sensitive(),
+               "outside the home folder: view only")
+        page.set_root(home)
+        wait(lambda: idle() and page.folder == home, select, 60, "home again")
+
+    def select():
+        before = page.summary.get_text()
+        page.checks[videos].set_active(True)
+        report(page.summary.get_text() != before and page.trash_button.get_sensitive(),
+               "ticking a folder updates the summary")
+        page.trash([videos])
+        wait(idle, dry_trashed, 60, "dry-run trash")
+
+    def dry_trashed():
+        report(os.path.isdir(videos) and "Videos" in names(), "dry run: the folder stays")
+        if os.geteuid() == 0:
+            report(True, "Trash and Undo skipped: the engine refuses them as root")
+            return done()
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.undo_toast = None
+        page.trash([videos])
+        wait(idle, trashed, 60, "trash")
+
+    def trashed():
+        in_trash = os.path.join(home, ".local", "share", "Trash", "files", "Videos")
+        report(not os.path.exists(videos) and os.path.isdir(in_trash) and names() == ["Projects", "todo.txt"],
+               "Move to Trash moves the folder and measures again")
+        if not page.undo_toast:
+            report(False, "no Undo toast after moving to the Trash")
+            return done()
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: idle() and os.path.isdir(videos) and "Videos" in names(), undone, 60, "undo")
+
+    def undone():
+        report(os.path.isfile(os.path.join(videos, "film.mkv")) and names() == ["Projects", "Videos", "todo.txt"],
+               "Undo from the toast puts the folder back where it was")
+        done()
+
+    wait(idle, first, 120, "first Space Lens list")
 
 
 STUBS = {  # package tools for the Uninstaller check: gimp (apt), Spotify (Flatpak), BusyBox (part of Ubuntu)

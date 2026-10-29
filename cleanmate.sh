@@ -4903,7 +4903,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean|large|trash|restore|apps|uninstall …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|lens|trash|restore|apps|uninstall …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -4969,11 +4969,12 @@ json_main() { # SUBCOMMAND ARGS…
       printf '{"event":"details","id":"%s","lines":[%s]}\n{"event":"done"}\n' "$id" "$out" ;;
     clean) json_clean "$@" ;;
     large) json_large "$@" ;;
+    lens) json_lens "$@" ;;
     trash) json_trash "$@" ;;
     restore) json_restore "$@" ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|trash PATH…|restore NAME…|apps|uninstall [--check] ID…"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|trash PATH…|restore NAME…|apps|uninstall [--check] ID…"; return 2 ;;
   esac
 }
 
@@ -5098,19 +5099,64 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] — the biggest files fir
   printf '{"event":"done","count":%d,"found":%d,"total_bytes":%d}\n' "$listed" "$found" "$sum"
 }
 
+LENS_LIMIT=500 # the biggest entries listed by `--json lens`, like the terminal's Space Lens
+
+lens_movable() { # PATH (normalised) — Space Lens may only move what is in your home folder and not protected
+  [[ $1 == "$HOME"/* ]] && ! is_protected "$1"
+}
+
+json_lens() { # [--path DIR] — DIR's files and folders with their size (du -x), biggest first
+  local dir=$HOME tmp b p n kind jp movable listed=0 found=0 total=0 items=0
+  local -A count=()
+  while (($#)); do
+    case $1 in
+      --path) (($# >= 2)) || { json_error "$1 needs a value."; return 2; }; dir=$2 ;;
+      *) json_error "Unknown option for lens: $1"; return 2 ;;
+    esac
+    shift 2
+  done
+  [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
+  # tidy the path but keep symlinks (a linked home folder stays under $HOME); -D measures the target
+  dir=$(realpath -m -s -- "$dir")
+  tmp=$(mktemp -p "$SESSION_TMP") || return 1
+  while IFS=$'\t' read -r -d '' n p; do count[$p]=$n; done < <(du -0 -x -a -D --inodes --max-depth=1 -- "$dir" 2>/dev/null)
+  du -0 -x -a -D -b --max-depth=1 -- "$dir" 2>/dev/null >"$tmp"
+  found=$(($(tr -cd '\0' <"$tmp" | wc -c) - 1)) # every entry; du's last line is the folder itself
+  ((found >= 0)) || found=0
+  # only names that are valid UTF-8 without control characters can round-trip through JSON
+  while IFS=$'\t' read -r -d '' b p; do
+    if [[ $p == "$dir" ]]; then total=$b items=$((${count[$p]:-1} - 1)); continue; fi
+    ((listed < LENS_LIMIT)) || continue
+    [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
+    if [[ -d $p && ! -L $p ]]; then kind=dir n=$((${count[$p]:-1} - 1)); else kind=file n=1; fi
+    if lens_movable "$p"; then movable=true; else movable=false; fi
+    json_str jp "$p"
+    printf '{"event":"entry","path":%s,"bytes":%d,"kind":"%s","count":%d,"movable":%s}\n' "$jp" "$b" "$kind" "$n" "$movable"
+    listed=$((listed + 1))
+  done < <(LC_ALL=C.UTF-8 grep -zax '.*' "$tmp" | sort -z -t$'\t' -k1,1rn)
+  rm -f "$tmp"
+  json_str jp "$dir"
+  printf '{"event":"done","path":%s,"bytes":%d,"items":%d,"count":%d,"found":%d}\n' "$jp" "$total" "$items" "$listed" "$found"
+}
+
 json_file_task() { # PATH STATE INFO BYTES [TRASH-NAME] → one "task" event about a file
   local id info name
   json_str id "$1"; json_str info "$3"; json_str name "${5:-}"
   printf '{"event":"task","id":%s,"state":"%s","info":%s,"freed":%d,"trash":%s}\n' "$id" "$2" "$info" "${4:-0}" "$name"
 }
 
-json_trash() { # PATH… — move these to the Trash; "trash" names what `restore` puts back
+json_trash() { # [--home-only] PATH… — move these to the Trash; "trash" names what `restore` puts back
   ((EUID != 0)) || { json_error "Refusing to move files to the Trash as root"; return 2; }
+  local home_only=0
+  [[ ${1:-} == --home-only ]] && { home_only=1; shift; } # Space Lens: only what lens_movable allows
   (($#)) || { json_error "No files given."; return 2; }
   local p b moved=0 failed=0 freed=0 errf why name
   errf=$(mktemp -p "$SESSION_TMP") || return 1
   for p in "$@"; do
     if [[ $p != /* ]]; then json_file_task "$p" fail "Not an absolute path" 0; ((++failed)); continue; fi
+    if ((home_only)) && ! lens_movable "$(realpath -m -s -- "$p")"; then
+      json_file_task "$p" fail "Only items inside your home folder can be moved to the Trash here" 0; ((++failed)); continue
+    fi
     if [[ ! -e $p && ! -L $p ]]; then json_file_task "$p" fail "Not found" 0; ((++failed)); continue; fi
     if [[ -d $p && ! -L $p ]]; then b=$(du -sb -- "$p" 2>/dev/null | cut -f1)
     else b=$(stat -c %s -- "$p" 2>/dev/null); fi
@@ -5297,8 +5343,8 @@ Install & update
 
 For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
-                    large [--min BYTES] [--days N] [--path DIR], trash PATH…, restore NAME…,
-                    apps, uninstall [--check] KIND:ID…
+                    large [--min BYTES] [--days N] [--path DIR], lens [--path DIR],
+                    trash [--home-only] PATH…, restore NAME…, apps, uninstall [--check] KIND:ID…
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help
 

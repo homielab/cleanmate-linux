@@ -16,7 +16,7 @@ Where CleanMate is going, and the decisions behind it. Ideas and votes are welco
 
 ## Next
 
-- [ ] **Desktop app: file tools** — Space Lens (drill-down list), Large & Old Files (done), Duplicates,
+- [ ] **Desktop app: file tools** — Space Lens (drill-down list, done), Large & Old Files (done), Duplicates,
       each with an *Undo* toast that uses the engine's Trash code.
 - [ ] **Desktop app: apps & system** — Uninstaller (done), Startup Items, Maintenance, System Overview with
       the free-space graph, and a Settings page (automatic cleaning, updates, retention).
@@ -49,7 +49,8 @@ Every line on stdout is one JSON object with an `"event"` field; sizes are bytes
 | `--json details ID` | `details` (`id`, `lines`), `done` |
 | `--json [--dry-run] clean ID…` | `task` (`id`, `state` run/ok/skip/fail — skip while the item's program runs, `info`, `freed`) …, `done` (`freed`, `avail_before`, `avail_after`) |
 | `--json large [--min BYTES] [--days N] [--path DIR]` | `file` (`path`, `bytes`, `mtime`, `atime`, `kind` video/audio/image/archive/package/disk/document/other) … biggest first, at most 500, `done` (`count` listed, `found` matched, `total_bytes` listed). Defaults: 100 MB, any age, your home folder; `--days` = neither changed nor opened for N days; skips `.cache`, `.git` and Trash folders and other file systems |
-| `--json [--dry-run] trash PATH…` | `task` (`id` = the path, `state` ok/fail, `info`, `freed`, `trash`: its name in your Trash, empty when it can't be put back — outside your home folder or a dry run) …, `done` (`moved`, `failed`, `freed`). Refused as root |
+| `--json lens [--path DIR]` | `entry` (`path`, `bytes`, `kind` dir/file — a link is a file, `count` files and folders inside a folder or 1, `movable`: inside your home folder and not protected) … biggest first, at most 500, `done` (`path`, `bytes` and `items` of DIR, `count` listed, `found` entries). Measured like `du -x -b` (one file system), as you; default your home folder; skips names that aren't UTF-8 |
+| `--json [--dry-run] trash [--home-only] PATH…` | `task` (`id` = the path, `state` ok/fail, `info`, `freed`, `trash`: its name in your Trash, empty when it can't be put back — outside your home folder or a dry run) …, `done` (`moved`, `failed`, `freed`). `--home-only` (Space Lens) fails what `lens` marks not `movable`. Refused as root |
 | `--json [--dry-run] restore NAME…` | `task` (`id` = the original path, `state` ok/fail, `info`, `trash`) …, `done` (`restored`, `failed`). NAME is a `trash` value; only files that came from your home folder are put back, never over an existing file. Refused as root |
 | `--json apps` | `app` (`id` = KIND:PACKAGE, `kind` apt/snap/flatpak, `name`, `bytes` of the app, `data_bytes` of its folders, `last_used` epoch or 0, `desktop` launcher id, `leftovers` [{`path`, `bytes`}]: folders in your home only this app uses) …, `done` (`hidden`: parts of Ubuntu left out) |
 | `--json uninstall --check ID…` | `check` (`ok`, `message` why not, `extra` number and `extra_text` of other packages apt would remove), `done` |

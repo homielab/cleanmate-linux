@@ -680,6 +680,56 @@ for l in sys.stdin:
   assert_missing "$(dirname "$HOME_DIR")/escaped"; assert_exists "$trash/files/evil"
 }
 
+lens_entries() { # reads `--json lens` → "kind count movable name" lines (sizes checked apart), then "done …"
+  python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["kind"], e["count"], str(e["movable"]).lower(), e["path"].rsplit("/", 1)[1])
+    elif e["event"] == "done": print("done", e["items"], e["count"], e["found"])
+    else: print(e["event"], e.get("message", ""))'
+}
+
+test_json_lens() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out sizes outside big=$HOME_DIR/Big
+  mkdir -p "$big/Deeper/Deepest" "$HOME_DIR/.config/app"
+  truncate -s 3M "$big/Deeper/Deepest/a.bin"; truncate -s 1M "$big/b.bin"; truncate -s 2M "$HOME_DIR/movie.mkv"
+  truncate -s 10K "$HOME_DIR/.config/app/settings"
+  ln -s /usr "$HOME_DIR/usr link"
+  touch "$HOME_DIR/bad"$'\xff'"name" # not UTF-8: counted, not listed
+  outside=$(mktemp -d -p "$WORK" outside.XXXX); new "$outside/doc.txt"
+  out=$(cm --json lens | lens_entries)
+  assert_eq "$out" $'dir 4 true Big\nfile 1 true movie.mkv\ndir 3 false .config\nfile 1 false usr link\ndone 12 4 5' \
+    "home listed biggest first; the protected .config and a link to /usr are view only"
+  sizes=$(cm --json lens | python3 -c 'import sys, json
+s = {e["path"].rsplit("/", 1)[1]: e["bytes"] for e in map(json.loads, sys.stdin) if e["event"] == "entry"}
+print(4 << 20 <= s["Big"] < (4 << 20) + (1 << 20), s["movie.mkv"])')
+  assert_eq "$sizes" "True 2097152" "sizes like du -b, a folder's include everything inside"
+  out=$(cm --json lens --path "$big/Deeper/" | lens_entries)
+  assert_eq "$out" $'dir 1 true Deepest\ndone 2 1 1' "--path drills into a folder"
+  out=$(cm --json lens --path "$outside" | lens_entries)
+  assert_eq "$out" $'file 1 false doc.txt\ndone 1 1 1' "outside your home folder: view only"
+  out=$(cm --json lens --path "$HOME_DIR/nope" 2>&1); assert_contains "$out" "Not a folder"
+  out=$(cm --json lens --min 1 2>&1); assert_contains "$out" "Unknown option for lens: --min"
+  # Space Lens moves things to the Trash with --home-only: what it lists as view only is refused
+  local tasks='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task": print(e["state"], e["trash"] or "-", e["info"])
+    elif e["event"] == "done": print("done", e.get("moved", e.get("restored")), e["failed"])'
+  local why="Only items inside your home folder can be moved to the Trash here"
+  out=$(user_cm --json trash --home-only "$outside/doc.txt" "$big/../../${outside##*/}/doc.txt" "$HOME_DIR/.config" \
+    "$HOME_DIR/usr link" "$big" | python3 -c "$tasks")
+  assert_eq "$out" "fail - $why"$'\n'"fail - $why"$'\n'"fail - $why"$'\n'"fail - $why"$'\nok Big moved to the Trash\ndone 1 4' \
+    "trash --home-only refuses what is outside home or protected"
+  assert_exists "$outside/doc.txt"; assert_exists "$HOME_DIR/.config/app/settings"; assert_exists "$HOME_DIR/usr link"
+  assert_missing "$big"
+  out=$(user_cm --json restore Big | python3 -c "$tasks")
+  assert_eq "$out" $'ok Big put back\ndone 1 0' "undo puts the folder back"
+  assert_exists "$big/Deeper/Deepest/a.bin"
+}
+
 app_fixtures() { # BIN — launchers, package stubs and home folders for gimp (apt), foo (apt) and Spotify (flatpak)
   local bin=$1 sys=$HOME_DIR/sys
   mkdir -p "$bin" "$sys"
@@ -808,6 +858,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "age filter keeps only the old file"
     assert_contains "$out" "dry run: the file stays"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the file back where it was" # root: refused
+    assert_contains "$out" "three folders deep, the path bar shows each"
+    assert_contains "$out" "outside the home folder: view only"
+    ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the folder back where it was"
     assert_contains "$out" "apps listed, part of Ubuntu hidden"
     assert_contains "$out" "ticking an app ticks its leftover folder"
     assert_contains "$out" "dry run removes nothing"

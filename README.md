@@ -64,7 +64,10 @@ folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app nee
 **Desktop app** — open *CleanMate*, press **Scan**, untick anything you want to keep, press
 **Clean**. Click anywhere on a row to tick it; the **All** box on a group ticks or clears the whole
 group. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
-as you. An item whose program is running is locked until you close it. **Large & Old Files** lists
+as you. An item whose program is running is locked until you close it. **Space Lens** lists what
+takes up the space in your home folder (or any folder or drive), biggest first: click a folder to
+dig deeper, tick what you don't need and move it to the Trash, **Undo** puts it back; outside your
+home folder it only shows. **Large & Old Files** lists
 your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
 Trash comes back with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps and, if you tick
 them, the folders they leave in your home (to the Trash).
@@ -108,7 +111,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 **Privacy** (never part of Smart Scan) clears shell history (bash, zsh, fish), *Recent files*,
 Python/Node/database shell history, Vim history, and the Alt+F2 and emoji history.
 
-**More tools in the terminal app** (the Uninstaller and Large & Old Files are in the desktop app too):
+**More tools in the terminal app** (Space Lens, the Uninstaller and Large & Old Files are in the desktop app too):
 
 - **Uninstaller** — every app you can open (apt, Snap, Flatpak), with its real size (the app *plus*
   its folders in your home) and when you last used it. Sort by size or last use, or show only apps

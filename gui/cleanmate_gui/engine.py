@@ -118,8 +118,11 @@ class Engine:
         return self.run(["large", "--min", str(min_bytes), "--days", str(days), "--path", folder],
                         on_event, on_done)
 
-    def trash(self, paths, on_event, on_done):
-        return self.run(["trash", *paths], on_event, on_done)
+    def lens(self, folder, on_event, on_done):
+        return self.run(["lens", "--path", folder], on_event, on_done)
+
+    def trash(self, paths, on_event, on_done, home_only=False):
+        return self.run(["trash", *(["--home-only"] if home_only else []), *paths], on_event, on_done)
 
     def restore(self, names, on_event, on_done):
         return self.run(["restore", *names], on_event, on_done)

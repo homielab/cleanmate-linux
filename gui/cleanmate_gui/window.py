@@ -9,9 +9,10 @@ from .engine import SMART_SCAN, Selection, human
 from .i18n import _
 from .largefiles import LargeFilesPage
 from .scanpage import ScanPage
+from .spacelens import SpaceLensPage
 from .uninstaller import UninstallerPage
 
-TOOL_PAGES = {"large": LargeFilesPage, "uninstall": UninstallerPage}  # pages with their own engine commands
+TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "uninstall": UninstallerPage}  # pages with their own engine commands
 
 # (id, title, icon, categories, description) — same order as the terminal app's menu
 PAGES = [
@@ -32,6 +33,9 @@ PAGES = [
     ("privacy", _("Privacy"), "security-high-symbolic", ["privacy"],
      _("Terminal history, recent files, run dialog and emoji history.")),
     None,  # section: Tools
+    ("lens", _("Space Lens"), "folder-symbolic", None,
+     _("See what takes up the space, folder by folder, and move what you don't need to the Trash. "
+       "You can undo it.")),
     ("large", _("Large & Old Files"), "drive-harddisk-symbolic", None,
      _("Find the biggest files, or the ones you haven't opened in months, and move what you don't need "
        "to the Trash. You can undo it.")),
@@ -66,8 +70,8 @@ class Window(Adw.ApplicationWindow):
         more = Gtk.Box(spacing=12)
         more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
         more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
-        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Space Lens, Duplicates, Startup Items, "
-                                                            "Maintenance, Settings… in the terminal app"))
+        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Duplicates, Startup Items, Maintenance, "
+                                                            "Settings… in the terminal app"))
         more_row.page_id = "terminal"
         self.sidebar_list.append(more_row)
         self.sidebar_list.connect("row-activated", self._on_row_activated)
@@ -128,7 +132,7 @@ class Window(Adw.ApplicationWindow):
 
     # ── navigation ──
     def _section_header(self, row, before):
-        titles = {"system": _("Cleanup"), "large": _("Tools"), "terminal": _("More")}
+        titles = {"system": _("Cleanup"), "lens": _("Tools"), "terminal": _("More")}
         title = titles.get(getattr(row, "page_id", ""))
         if title:
             label = Gtk.Label(label=title, xalign=0, margin_start=12, margin_top=12, margin_bottom=6,
