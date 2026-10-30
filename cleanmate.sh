@@ -898,6 +898,7 @@ reg() { ITEM_IDS+=("$1"); ITEM_CAT[$1]=$2; ITEM_LABEL[$1]=$3; ITEM_DEFAULT[$1]=$
 reg apt_cache    system "APT package cache"                 1 "Downloaded .deb installers. apt re-downloads them if ever needed."
 reg old_installers system "Old installers in Downloads"     0 "Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) at the top of your Downloads folder, downloaded more than 30 days ago. Moved to the Trash."
 reg old_downloads system "Old downloads"                   0 "Files and folders at the top of your Downloads folder that you haven't opened or changed for more than 90 days. Moved to the Trash."
+reg old_screenshots system "Old screenshots"                 0 "Screenshots and screen recordings in your Pictures folder and its Screenshots folder that you haven't opened or changed for more than 90 days. Moved to the Trash."
 reg orphans      system "Unused packages & old kernels"     1 "Packages installed as dependencies that nothing needs any more (apt autoremove)."
 reg residual     system "Leftover package configs"          1 "System config files of packages that were removed but not purged."
 reg journal      logs   "Systemd journal logs"              1 "Archived system logs. Keeps the last 7 days and at most 100 MB."
@@ -935,7 +936,7 @@ reg podman       dev    "Podman: stopped containers & dangling images" 0 "podman
 for _id in apt_cache orphans residual journal old_logs big_logs crash coredump snap_old old_kernels; do ITEM_ROOT[$_id]=1; done
 unset _id
 # items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
-declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1)
+declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1)
 
 # ── detail helpers ──
 
@@ -1432,6 +1433,107 @@ clean_entries_old_downloads() { # encoded names (json_clean_entries only passes 
   done
   ((${#pick[@]})) || return 0
   trash_downloads "${pick[@]}"
+}
+
+# Old screenshots: screenshots and screen recordings at the top of your Pictures folder or of its
+# Screenshots folder, named the way GNOME ("Screenshot from <date>…", "Screencast from …", in Vietnamese
+# "Ảnh chụp màn hình …") and KDE Spectacle ("Screenshot_<date>…") name them, .png/.jpg/.jpeg/.webp/
+# .webm/.mp4, not changed or opened for OLD_DOWNLOAD_DAYS (Settings › Old downloads). Only a Pictures
+# folder inside your home folder (no symlinks); when it is your Downloads folder, Old downloads covers
+# it. Files a program has open and Never clean folders are skipped. Moved to the Trash; the terminal
+# app's z puts them back; the desktop app lists each file as an entry.
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_old_screenshots='^(Screenshots/)?[A-Za-z0-9._~%-]+$' # the path inside Pictures, percent-encoded
+
+pictures_dir() { # → your Pictures folder (xdg-user-dir; ~/Pictures when it isn't set)
+  local d=""
+  have xdg-user-dir && d=$(xdg-user-dir PICTURES 2>/dev/null)
+  d=${d%/}
+  [[ -n $d && $d != "$HOME" ]] || d=$HOME/Pictures # xdg-user-dir answers $HOME when it isn't set
+  printf '%s' "$d"
+}
+
+screenshot_name() { # NAME — a file name screenshot tools give
+  case $1 in
+    "Screenshot from "[0-9]* | Screenshot_[0-9]* | "Screencast from "* | "Ảnh chụp màn hình "*) ;;
+    *) return 1 ;;
+  esac
+  case ${1,,} in *.png | *.jpg | *.jpeg | *.webp | *.webm | *.mp4) return 0 ;; esac
+  return 1
+}
+
+old_screenshots() { # → OS_DIR, and OS_PATH (inside OS_DIR) / OS_BYTES / OS_DAYS (days since touched) biggest first
+  local b m a rel p open now mins
+  OS_DIR=$(pictures_dir) OS_PATH=() OS_BYTES=() OS_DAYS=()
+  [[ $OS_DIR == "$HOME"/* && ! -L $OS_DIR && -d $OS_DIR && $OS_DIR != "$(downloads_dir)" ]] || return 0
+  open=$'\n'$(open_files)$'\n'
+  printf -v now '%(%s)T' -1
+  mins=$((OLD_DOWNLOAD_DAYS * 1440))
+  while IFS=$'\t' read -r -d '' b m a rel; do
+    [[ -n $rel && $rel != *[[:cntrl:]]* ]] && screenshot_name "${rel##*/}" || continue
+    p=$OS_DIR/$rel
+    in_exclusion "$p" && continue
+    open_under "$open" "$p" && continue
+    m=${m%.*} a=${a%.*}
+    ((a > m)) && m=$a
+    OS_PATH+=("$rel") OS_BYTES+=("$b") OS_DAYS+=($(((now - m) / 86400)))
+  done < <(
+    {
+      find "$OS_DIR" -mindepth 1 -maxdepth 1 -type f -mmin +$mins -amin +$mins -printf '%s\t%T@\t%A@\t%f\0'
+      [[ -d $OS_DIR/Screenshots && ! -L $OS_DIR/Screenshots ]] &&
+        find "$OS_DIR/Screenshots" -mindepth 1 -maxdepth 1 -type f -mmin +$mins -amin +$mins \
+          -printf '%s\t%T@\t%A@\tScreenshots/%f\0'
+    } 2>/dev/null | sort -z -t $'\t' -k1,1nr
+  )
+}
+
+trash_screenshots() { # PATH… — move these of OS_DIR to the Trash; @@undo lines let the terminal app undo it
+  local rel e rc=0
+  UNDO_BATCH=()
+  for rel; do move_to_trash "$OS_DIR/$rel" || rc=1; done
+  for e in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$e"; done
+  return "$rc"
+}
+
+scan_old_screenshots() {
+  local b
+  old_screenshots
+  ((${#OS_PATH[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${OS_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#OS_PATH[@]} file) untouched for ${OLD_DOWNLOAD_DAYS}+ days"
+}
+clean_old_screenshots() {
+  old_screenshots
+  ((${#OS_PATH[@]})) || return 0
+  trash_screenshots "${OS_PATH[@]}"
+}
+details_old_screenshots() {
+  local i
+  old_screenshots
+  for i in "${!OS_PATH[@]}"; do
+    printf '  %s%10s%s  %s  %s(untouched for %s days)%s\n' "$(size_color "${OS_BYTES[i]}")" "$(human "${OS_BYTES[i]}")" "$NC" \
+      "${OS_DIR/#$HOME/\~}/${OS_PATH[i]}" "$DIM" "${OS_DAYS[i]}" "$NC"
+  done
+}
+entries_old_screenshots() {
+  local i
+  old_screenshots
+  for i in "${!OS_PATH[@]}"; do
+    printf '%s\t%s\t0\t%s · untouched for %s days\n' "$(urlencode_path "${OS_PATH[i]}")" "${OS_BYTES[i]}" \
+      "${OS_PATH[i]##*/}" "${OS_DAYS[i]}"
+  done
+}
+clean_entries_old_screenshots() { # encoded paths (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  old_screenshots
+  for id; do
+    for i in "${!OS_PATH[@]}"; do
+      [[ $(urlencode_path "${OS_PATH[i]}") == "$id" ]] && pick+=("${OS_PATH[i]}")
+    done
+  done
+  ((${#pick[@]})) || return 0
+  trash_screenshots "${pick[@]}"
 }
 
 # ── User ──
@@ -5875,6 +5977,7 @@ apply_settings() {
   done
   ITEM_DESC[old_installers]=${ITEM_DESC[old_installers]//more than +([0-9]) days/more than $OLD_INSTALLER_DAYS days}
   ITEM_DESC[old_downloads]=${ITEM_DESC[old_downloads]//more than +([0-9]) days/more than $OLD_DOWNLOAD_DAYS days}
+  ITEM_DESC[old_screenshots]=${ITEM_DESC[old_screenshots]//more than +([0-9]) days/more than $OLD_DOWNLOAD_DAYS days}
   ITEM_DESC[big_logs]="Live logs in /var/log over ${LOG_MAX_MB} MB, emptied in place — services keep logging normally."
   ITEM_DESC[app_logs]="Log files of apps (VS Code, Slack, …) not written for ${APPLOG_DAYS}+ days."
   ITEM_LABEL[app_cache]="Stale app caches (>${CACHE_DAYS} days)"
@@ -6274,7 +6377,7 @@ settings_menu() {
     mi b "App caches" "Clean when older than ${CACHE_DAYS} days"
     mi c "Project build folders" "Clean when the project is idle for ${NM_DAYS} days"
     mi i "Old installers" "Offer installers in Downloads older than ${OLD_INSTALLER_DAYS} days"
-    mi o "Old downloads" "Offer files and folders in Downloads untouched for ${OLD_DOWNLOAD_DAYS} days"
+    mi o "Old downloads" "Offer files and folders in Downloads, and screenshots, untouched for ${OLD_DOWNLOAD_DAYS} days"
     mi d "AI chat history" "Clean AI sessions older than ${AI_HISTORY_DAYS} days"
     mh "Your data"
     mi x "Never clean" "$( ((${#EXCLUDES[@]})) && plural ${#EXCLUDES[@]} folder || echo "No folders") that Large & Old Files, Duplicates, Space Lens, build folders, old installers and old downloads skip"
@@ -6306,7 +6409,7 @@ settings_menu() {
       "App caches") edit_number cache_days "Clean app caches older than how many days?" ;;
       "Project build folders") edit_number node_modules_days "Clean build folders of projects idle for how many days?" ;;
       "Old installers") edit_number installer_days "Offer installers in Downloads older than how many days?" ;;
-      "Old downloads") edit_number download_days "Offer files and folders in Downloads untouched for how many days?" ;;
+      "Old downloads") edit_number download_days "Offer files and folders in Downloads, and screenshots, untouched for how many days?" ;;
       "AI chat history") edit_number ai_history_days "Clean AI chat sessions older than how many days?" ;;
       "Never clean") exclusions_menu ;;
       "Reset selections")

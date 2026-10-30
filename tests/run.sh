@@ -878,8 +878,8 @@ for l in sys.stdin:
     if e["event"] == "done": print(json.dumps(e.get("trash"), sort_keys=True))
     elif e["event"] == "item": print(e["id"], e["trash"])
     elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["id"], e.get("trash", ""))'
-  out=$(cm --json items | python3 -c "$done_" | grep -E '^(old_installers|old_downloads|stale_build_dirs|vscode_stale_workspaces|thumbs|node_modules) ' | sort)
-  assert_eq "$out" $'node_modules False\nold_downloads True\nold_installers True\nstale_build_dirs True\nthumbs False\nvscode_stale_workspaces True' \
+  out=$(cm --json items | python3 -c "$done_" | grep -E '^(old_installers|old_downloads|old_screenshots|stale_build_dirs|vscode_stale_workspaces|thumbs|node_modules) ' | sort)
+  assert_eq "$out" $'node_modules False\nold_downloads True\nold_installers True\nold_screenshots True\nstale_build_dirs True\nthumbs False\nvscode_stale_workspaces True' \
     "items say which ones go to the Trash"
   out=$(user_cm --json --dry-run clean old_installers thumbs | python3 -c "$done_")
   assert_eq "$out" $'ok old_installers \nok thumbs \n{}' "dry run: nothing to undo"
@@ -1210,6 +1210,110 @@ for l in sys.stdin:
     "outside the home folder: a note, nothing listed"
   user_cm --json clean old_downloads >/dev/null 2>&1
   assert_exists "$WORK/data/dl2/x.pdf"
+}
+
+test_old_screenshots() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local pics=$HOME_DIR/Pictures shots=$HOME_DIR/Pictures/Screenshots out f pid hold=()
+  local gnome="Screenshot from 2025-01-01 10-00-00.png" cast="Screencast from 2025-02-01 09-00-00.webm"
+  local kde="Screenshot_20250101_100000.PNG" vi="Ảnh chụp màn hình từ 2025-01-01 10-00-00.png"
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  sized "$pics/$gnome" 1000                                               # GNOME, top of Pictures
+  sized "$shots/$cast" 5000                                               # GNOME screencast
+  sized "$shots/$kde" 300                                                 # KDE Spectacle
+  sized "$shots/$vi" 200                                                  # GNOME in Vietnamese
+  sized "$shots/Screenshot from 2026-10-21 08-00-00.png" 50               # changed 10 days ago
+  sized "$shots/Screenshot from 2026-01-02 08-00-00.png" 60               # opened 5 days ago
+  sized "$pics/photo.png" 70                                              # not a screenshot
+  sized "$pics/Screenshot from notes.png" 80                              # no date after "from"
+  sized "$pics/Screenshot from 2025-01-01.txt" 90                         # not a picture or video
+  sized "$shots/old/Screenshot from 2025-01-01 11-00-00.png" 100          # one folder deeper
+  sized "$shots/Screenshot from 2025-01-03 10-00-00.png" 110              # open in a program
+  sized "$WORK/shot.png" 120; ln -s "$WORK/shot.png" "$pics/Screenshot from 2025-01-04 10-00-00.png"
+  while IFS= read -r f; do touch -d "120 days ago" "$f"; done < <(find "$pics" -depth -mindepth 1 ! -type l)
+  touch -d "10 days ago" "$shots/Screenshot from 2026-10-21 08-00-00.png"
+  touch -a -d "5 days ago" "$shots/Screenshot from 2026-01-02 08-00-00.png"
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])'
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  "${hold[@]}" sleep 60 <"$shots/Screenshot from 2025-01-03 10-00-00.png" >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json scan --only system | grep '"id":"old_screenshots"' | python3 -c "$list")
+  assert_eq "$out" "old_screenshots 6500 4 files untouched for 90+ days False True False" \
+    "old screenshots in Pictures and Pictures/Screenshots, not ticked"
+  out=$(user_cm --json details old_screenshots | python3 -c "$list")
+  assert_eq "$out" "Screenshots/Screencast%20from%202025-02-01%2009-00-00.webm 5000 off $cast · untouched for 120 days
+Screenshot%20from%202025-01-01%2010-00-00.png 1000 off $gnome · untouched for 120 days
+Screenshots/Screenshot_20250101_100000.PNG 300 off $kde · untouched for 120 days
+Screenshots/$(in_app "urlencode_path '$vi'") 200 off $vi · untouched for 120 days" "one entry per file, biggest first"
+  # Never clean
+  user_cm --json settings-set exclusions add "$shots" >/dev/null
+  out=$(user_cm --json details old_screenshots | python3 -c "$list" | cut -d' ' -f1)
+  assert_eq "$out" "Screenshot%20from%202025-01-01%2010-00-00.png" "an excluded folder is skipped"
+  user_cm --json settings-set exclusions remove "$shots" >/dev/null
+  # automatic cleaning leaves them alone even when ticked
+  select_only old_screenshots
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$pics/$gnome"; assert_exists "$shots/$cast"
+  out=$(user_cm --json --dry-run clean old_screenshots | python3 -c "$list")
+  assert_contains "$out" "ok 6500"
+  assert_exists "$pics/$gnome"
+  out=$(user_cm --json clean old_screenshots --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of old_screenshots: ../etc"
+  out=$(user_cm --json clean old_screenshots --entries "Screenshots/Screencast%20from%202025-02-01%2009-00-00.webm,photo.png" |
+    python3 -c "$list")
+  assert_eq "$out" "ok 5000 4.9 KB freed" "only the chosen file"
+  assert_missing "$shots/$cast"; assert_exists "$HOME_DIR/.local/share/Trash/files/$cast"; assert_exists "$pics/$gnome"
+  out=$(user_cm --json clean old_screenshots | python3 -c "$list")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" "ok 1500 1.5 KB freed" "the rest"
+  assert_missing "$pics/$gnome"; assert_missing "$shots/$kde"; assert_missing "$shots/$vi"
+  for f in "Screenshots/Screenshot from 2026-10-21 08-00-00.png" "Screenshots/Screenshot from 2026-01-02 08-00-00.png" \
+    photo.png "Screenshot from notes.png" "Screenshot from 2025-01-01.txt" "Screenshots/old/Screenshot from 2025-01-01 11-00-00.png" \
+    "Screenshots/Screenshot from 2025-01-03 10-00-00.png" "Screenshot from 2025-01-04 10-00-00.png"; do
+    assert_exists "$pics/$f"
+  done
+  assert_exists "$WORK/shot.png"
+  out=$(user_cm --json restore "$cast" "$gnome" | python3 -c "$list")
+  assert_eq "$out" "ok 0 put back"$'\n'"ok 0 put back" "restore puts them back"
+  assert_exists "$shots/$cast"; assert_exists "$pics/$gnome"
+  # the terminal app: what a cleanup moved to the Trash is the batch z puts back
+  touch -d "120 days ago" "$shots/$cast" "$pics/$gnome"
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  out=$(in_app 'SESSION_TMP=$(mktemp -d) UI_ACTIVE=0 DRY_RUN=0; load_settings
+    new_tasks clean; add_task "Old screenshots" task_clean old_screenshots; CLEAN_UNDO=()
+    run_tasks Cleaning >/dev/null
+    echo "batch=${#CLEAN_UNDO[@]}"; UNDO_BATCH=("${CLEAN_UNDO[@]}")
+    undo_trash; echo "restored=$UNDO_OK"; rm -r "$SESSION_TMP"')
+  assert_eq "$out" "batch=3"$'\n'"restored=3" "z puts back what the cleanup trashed"
+  assert_exists "$shots/$cast"; assert_exists "$pics/$gnome"; assert_exists "$shots/Screenshot from 2025-01-03 10-00-00.png"
+  # Settings › Old downloads sets how long a screenshot stays untouched too
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  user_cm --json settings-set download_days 7 >/dev/null
+  assert_contains "$(user_cm --json details old_screenshots | python3 -c "$list")" "off Screenshot from 2026-10-21 08-00-00.png · untouched for 10 days"
+  assert_contains "$(user_cm --json items)" "its Screenshots folder that you haven't opened or changed for more than 7 days"
+  user_cm --json settings-set download_days 90 >/dev/null
+  # the folder xdg-user-dir names; Pictures in Downloads is left to Old downloads; outside home: nothing
+  mkdir -p "$HOME_DIR/.local/bin" "$HOME_DIR/Ảnh" "$WORK/data/pics"
+  sized "$HOME_DIR/Ảnh/$gnome" 10; touch -d "120 days ago" "$HOME_DIR/Ảnh/$gnome"
+  sized "$WORK/data/pics/$gnome" 20; touch -d "120 days ago" "$WORK/data/pics/$gnome"
+  printf '#!/bin/sh\n[ "$1" = PICTURES ] && echo "%s" || echo "%s"\n' "$HOME_DIR/Ảnh" "$HOME_DIR/Downloads" \
+    >"$HOME_DIR/.local/bin/xdg-user-dir"
+  chmod +x "$HOME_DIR/.local/bin/xdg-user-dir"
+  assert_eq "$(user_cm --json details old_screenshots | python3 -c "$list" | cut -d' ' -f2)" "10" "the folder xdg-user-dir names"
+  printf '#!/bin/sh\necho "%s"\n' "$HOME_DIR/Ảnh" >"$HOME_DIR/.local/bin/xdg-user-dir"
+  assert_eq "$(user_cm --json details old_screenshots | python3 -c "$list")" "" "Pictures is the Downloads folder"
+  printf '#!/bin/sh\necho "%s"\n' "$WORK/data/pics" >"$HOME_DIR/.local/bin/xdg-user-dir"
+  assert_eq "$(user_cm --json details old_screenshots | python3 -c "$list")" "" "Pictures outside the home folder"
+  user_cm --json clean old_screenshots >/dev/null 2>&1
+  assert_exists "$WORK/data/pics/$gnome"
 }
 
 test_stale_project_build_folders() {

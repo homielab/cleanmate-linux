@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 19:24+0000\n"
+"POT-Creation-Date: 2026-10-30 19:40+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -1292,9 +1292,11 @@ msgstr "Tải về cũ"
 
 #: gui/cleanmate_gui/settings.py:38
 msgid ""
-"Offer files and folders in Downloads not opened or changed for this many days"
+"Offer files and folders in Downloads, and screenshots, not opened or changed "
+"for this many days"
 msgstr ""
-"Gợi ý dọn tệp và thư mục trong Tải về không mở hay sửa trong số ngày này"
+"Gợi ý dọn tệp và thư mục trong Tải về, cùng ảnh chụp màn hình, không mở hay "
+"sửa trong số ngày này"
 
 #: gui/cleanmate_gui/settings.py:40
 msgid "AI chat history"
@@ -2260,6 +2262,20 @@ msgid ""
 msgstr ""
 "Tệp và thư mục ngay trong thư mục Tải về mà bạn không mở hay sửa hơn {0} "
 "ngày. Chuyển vào Thùng rác."
+
+#. old_screenshots label
+msgid "Old screenshots"
+msgstr "Ảnh chụp màn hình cũ"
+
+#. old_screenshots description
+#, python-brace-format
+msgid ""
+"Screenshots and screen recordings in your Pictures folder and its "
+"Screenshots folder that you haven't opened or changed for more than {0} "
+"days. Moved to the Trash."
+msgstr ""
+"Ảnh chụp và video quay màn hình trong thư mục Ảnh và thư mục Screenshots "
+"của nó mà bạn không mở hay sửa hơn {0} ngày. Chuyển vào Thùng rác."
 
 #. orphans label
 msgid "Unused packages & old kernels"

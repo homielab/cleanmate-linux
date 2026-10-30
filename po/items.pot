@@ -29,6 +29,15 @@ msgstr ""
 msgid "Files and folders at the top of your Downloads folder that you haven't opened or changed for more than {0} days. Moved to the Trash."
 msgstr ""
 
+#. old_screenshots label
+msgid "Old screenshots"
+msgstr ""
+
+#. old_screenshots description
+#, python-brace-format
+msgid "Screenshots and screen recordings in your Pictures folder and its Screenshots folder that you haven't opened or changed for more than {0} days. Moved to the Trash."
+msgstr ""
+
 #. orphans label
 msgid "Unused packages & old kernels"
 msgstr ""
