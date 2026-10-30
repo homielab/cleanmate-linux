@@ -22,10 +22,13 @@ ROOT = os.geteuid() == 0
 tmp = tempfile.mkdtemp(prefix="cleanmate-tui.")
 home, stubs = os.path.join(tmp, "home"), os.path.join(tmp, "stubs")
 os.makedirs(os.path.join(home, ".config", "cleanmate"))
+os.makedirs(os.path.join(home, ".var", "app", "org.example.Gone"))  # a Flatpak app removed earlier
+open(os.path.join(home, ".var", "app", "org.example.Gone", "data"), "w").close()
 os.makedirs(stubs)
-for name in ("sudo", "pkexec"):  # no password prompts, no cached credentials
+for name, text in (("sudo", "exit 1"), ("pkexec", "exit 1"),  # no password prompts, no cached credentials
+                   ("flatpak", "exit 0")):  # no Flatpak apps installed
     with open(os.path.join(stubs, name), "w") as f:
-        f.write("#!/bin/sh\nexit 1\n")
+        f.write(f"#!/bin/sh\n{text}\n")
     os.chmod(os.path.join(stubs, name), 0o755)
 
 pid, fd = pty.fork()
@@ -100,6 +103,12 @@ checks = start + [
     ("u", r"Uninstaller[\s\S]*apps? · all apps · by size"),  # app list, no search needed
     ("s", r"· by used"),                            # sort by last used
     ("f", r"not used for 90\+ days"),               # filter
+    ("", r"▸ ⌂ Leftovers of removed apps · 1 folder"),  # the last row (no app is unused in a new home)
+    ("\n", r"org\.example\.Gone[\s\S]*Selected 0 folders"),  # nothing ticked
+    (" ", r"Selected 1 folder"),
+    ("t", r"Move 1 folder to Trash\?"),
+    ("y", r"\[dry-run\] Would move 1 folder"),
+    ("q", r"Uninstaller"),
     ("q", r"CLEANUP"),
     ("m", r"Keep fewer snap versions[\s\S]*Limit journal size"),
     ("q", r"CLEANUP"),

@@ -53,6 +53,10 @@ Rules of thumb:
   item locked (`reg_cache_item` and `reg_list_item` make both from their process pattern); history
   items only remove things older than a limit.
 - **Add a test** that creates the files your item should remove *and* the ones it must keep.
+- A folder in `~/.config`, `~/.local/share`, `~/.local/state` or `~/.cache` that the Uninstaller
+  lists under *Leftovers of removed apps* although it isn't one (the desktop's own, shared by many
+  apps, or one your new item cleans): add its name to `ORPHAN_SHARED` in `cleanmate.sh` and a case
+  to `test_leftovers_of_removed_apps`.
 
 ## Checking your change
 

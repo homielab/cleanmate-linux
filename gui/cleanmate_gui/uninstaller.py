@@ -3,7 +3,8 @@
 The engine lists the apps (`--json apps`, parts of Ubuntu are never listed),
 checks and removes them (`--json uninstall`, apt and Snap through pkexec) and
 moves the chosen leftover folders to the Trash (`--json trash`) once the app
-is gone. This page only shows them and keeps the choice.
+is gone. Folders of apps removed earlier (`leftover` events) are a group of
+their own at the end, never ticked. This page only shows them and keeps the choice.
 """
 import os
 import time
@@ -17,6 +18,8 @@ from .scanpage import size_widgets
 
 SORTS = [(_("Size"), "size"), (_("Last used"), "used"), (_("Name"), "name")]
 KIND_LABELS = {"apt": "apt", "snap": "Snap", "flatpak": "Flatpak"}
+LEFTOVER_REASONS = {"flatpak": _("This Flatpak app is no longer installed"),
+                    "snap": _("This snap is no longer installed")}
 
 
 def used_ago(epoch):
@@ -51,6 +54,11 @@ class UninstallerPage(Gtk.Box):
         self.engine = window.engine
         self.apps = {}  # id → app event
         self.hidden = 0
+        self.orphans = []  # leftover events: folders of apps removed earlier
+        self.orphan_selected = set()  # their paths
+        self.orphan_checks = {}  # path → Gtk.CheckButton
+        self.orphan_rows = {}  # path → its row
+        self.orphan_button = None
         self.selected = set()  # app ids
         self.left_selected = set()  # leftover paths (only used for selected apps)
         self.checks = {}  # app id → Gtk.CheckButton
@@ -109,7 +117,7 @@ class UninstallerPage(Gtk.Box):
         if self.busy:
             return
         self.busy = True
-        apps, info = {}, {}
+        apps, info, orphans = {}, {}, []
         self.stack.set_visible_child_name("loading")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
@@ -117,6 +125,8 @@ class UninstallerPage(Gtk.Box):
         def on_event(e):
             if e["event"] == "app":
                 apps[e["id"]] = e
+            elif e["event"] == "leftover":
+                orphans.append(e)
             elif e["event"] in ("done", "error"):
                 info.update(e)
 
@@ -125,8 +135,9 @@ class UninstallerPage(Gtk.Box):
             self.window.set_busy(False)
             if "message" in info:
                 self.window.toast(info["message"])
-            self.apps, self.hidden = apps, info.get("hidden", 0)
+            self.apps, self.hidden, self.orphans = apps, info.get("hidden", 0), orphans
             self.selected &= set(apps)
+            self.orphan_selected &= {o["path"] for o in orphans}
             self.show_results()
 
         self.running = self.engine.apps(on_event, on_done)
@@ -148,7 +159,9 @@ class UninstallerPage(Gtk.Box):
         self.checks.clear()
         self.left_checks.clear()
         self.rows.clear()
-        if not self.apps:
+        self.orphan_checks.clear()
+        self.orphan_rows.clear()
+        if not self.apps and not self.orphans:
             self.stack.set_visible_child_name("empty")
             self.bar.set_revealed(False)
             return
@@ -163,13 +176,16 @@ class UninstallerPage(Gtk.Box):
                                   "{n} parts of Ubuntu itself can't be removed safely and aren't listed.", self.hidden)
         header.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
         self.results.append(header)
-        group = Adw.PreferencesGroup()
-        biggest = max(a["bytes"] + a["data_bytes"] for a in self.apps.values())
-        for a in self.sorted_apps():
-            row = self.app_row(a, biggest)
-            self.rows[a["id"]] = row
-            group.add(row)
-        self.results.append(group)
+        if self.apps:
+            group = Adw.PreferencesGroup()
+            biggest = max(a["bytes"] + a["data_bytes"] for a in self.apps.values())
+            for a in self.sorted_apps():
+                row = self.app_row(a, biggest)
+                self.rows[a["id"]] = row
+                group.add(row)
+            self.results.append(group)
+        if self.orphans:
+            self.results.append(self.orphan_group())
         self.stack.set_visible_child_name("results")
         self.bar.set_revealed(True)
         self.apply_filter()
@@ -223,11 +239,94 @@ class UninstallerPage(Gtk.Box):
                                  css_classes=["numeric", "dim-label"]))
         return row
 
+    def orphan_group(self):
+        """Leftovers of removed apps: one unticked row per folder, and a Move to Trash button."""
+        group = Adw.PreferencesGroup(
+            title=_("Leftovers of removed apps"),
+            description=_("Folders in your home that no installed app uses. Nothing is ticked; "
+                          "they go to the Trash, so you can put them back."))
+        self.orphan_button = Gtk.Button(label=_("Move to Trash"), valign=Gtk.Align.CENTER,
+                                        css_classes=["destructive-action"])
+        self.orphan_button.connect("clicked", lambda *_: self.trash_orphans())
+        group.set_header_suffix(self.orphan_button)
+        biggest = max(o["bytes"] for o in self.orphans)
+        for o in self.orphans:
+            path = o["path"]
+            row = Adw.ActionRow(title=short_path(path), use_markup=False, title_lines=1, css_classes=["item-row"],
+                                subtitle=LEFTOVER_REASONS.get(o["kind"], _("No app with this name is installed")),
+                                tooltip_text=path)
+            check = Gtk.CheckButton(active=path in self.orphan_selected, valign=Gtk.Align.CENTER,
+                                    css_classes=["big-check"])
+            check.connect("toggled", self.on_orphan_toggled, path)
+            self.orphan_checks[path] = check
+            row.add_prefix(Gtk.Image(icon_name="folder-symbolic", pixel_size=32))
+            row.add_prefix(check)
+            row.set_activatable_widget(check)
+            for widget in size_widgets(o["bytes"], biggest):
+                row.add_suffix(widget)
+            self.orphan_rows[path] = row
+            group.add(row)
+        self.update_orphan_button()
+        return group
+
+    def on_orphan_toggled(self, check, path):
+        if check.get_active():
+            self.orphan_selected.add(path)
+        else:
+            self.orphan_selected.discard(path)
+        self.update_orphan_button()
+
+    def update_orphan_button(self):
+        if not self.orphan_button:
+            return
+        chosen = [o for o in self.orphans if o["path"] in self.orphan_selected]
+        size = sum(o["bytes"] for o in chosen)
+        self.orphan_button.set_label(_("Move {size} to Trash").format(size=human(size)) if chosen else _("Move to Trash"))
+        self.orphan_button.set_sensitive(bool(chosen) and not self.busy)
+
+    def trash_orphans(self):
+        paths = [o["path"] for o in self.orphans if o["path"] in self.orphan_selected]
+        if not paths or self.busy:
+            return
+        self.busy = True
+        self.orphan_button.set_sensitive(False)
+        self.window.set_busy(True)
+        moved, done, failed = {}, [], []
+
+        def on_event(e):
+            if e["event"] == "error":
+                failed.append(e["message"])
+            elif e["event"] == "task" and e["state"] == "ok":
+                done.append(e["id"])
+                if e["trash"]:
+                    moved[e["trash"]] = e["id"]
+            elif e["event"] == "task":
+                failed.append(f"{short_path(e['id'])}: {e['info']}")
+
+        def on_done(ok, status):
+            self.running, self.busy = None, False
+            self.window.set_busy(False)
+            self.orphan_selected -= set(done)
+            if failed:
+                self.window.toast(failed[0], timeout=8)
+            elif self.engine.dry_run:
+                self.window.toast(ngettext("Dry run: {n} folder would be moved to the Trash",
+                                           "Dry run: {n} folders would be moved to the Trash", len(done)))
+            if moved:
+                msg = ngettext("Moved {n} folder to the Trash", "Moved {n} folders to the Trash", len(done))
+                self.undo_toast = self.window.toast(msg, _("Undo"), lambda: self.restore(moved), timeout=10)
+                self.window.refresh_disk()
+            self.load()
+
+        self.running = self.engine.trash(paths, on_event, on_done, home_only=True)
+
     def apply_filter(self):
         q = self.search_entry.get_text().strip().lower()
         for app_id, row in self.rows.items():
             a = self.apps[app_id]
             row.set_visible(not q or q in a["name"].lower() or q in app_id.lower())
+        for path, row in self.orphan_rows.items():
+            row.set_visible(not q or q in os.path.basename(path).lower())
 
     def on_app_toggled(self, check, app_id):
         on = check.get_active()

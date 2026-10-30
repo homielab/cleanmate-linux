@@ -3536,18 +3536,19 @@ files_bottom() {
   for i in "${!F_SEL[@]}"; do IFS=$'\t' read -r b _ <<<"${FOUND[i]}"; tot=$((tot + b)); ((++n)); done
   IFS=$'\t' read -r b d p <<<"${FOUND[$L_CUR]}"
   fl ""
-  local fn ft; pluralv fn "$n" file; humanv ft "$tot"
+  local fn ft; pluralv fn "$n" "$PICK_NOUN"; humanv ft "$tot"
   fl "  ${BOLD}Selected${NC} $fn · ${BOLD}$ft${NC}"
   fl "  ${ACCENT}ℹ${NC} ${DIM}${p/#$HOME/\~}${NC}"
 }
 
 file_text() { TEXT=${FOUND[$1]##*$'\t'}; }
-files_top() { fl ""; fl "  ${BOLD}$(plural ${#FOUND[@]} file)${NC} ${DIM}— biggest first${NC}"; fl ""; }
+files_top() { fl ""; fl "  ${BOLD}$(plural ${#FOUND[@]} "$PICK_NOUN")${NC} ${DIM}— biggest first${NC}"; fl ""; }
+PICK_NOUN="file" # what pick_files lists
 
 pick_files() { # TITLE — FOUND holds "bytes<TAB>date<TAB>path"
   local title=$1 i b d p keep=() n tot cur=0 scroll=0
   F_SEL=()
-  if ((${#FOUND[@]} == 0)); then toast "${GREEN}✔${NC} No matching files found."; return; fi
+  if ((${#FOUND[@]} == 0)); then toast "${GREEN}✔${NC} No matching ${PICK_NOUN}s found."; return; fi
   while :; do
     ((${#FOUND[@]} || ${#UNDO_BATCH[@]})) || return # stay while there's something to undo
     L_TITLE=$title L_TOP=files_top L_BOTTOM=files_bottom L_ROW=file_row L_FOCUSABLE="" L_TEXT=file_text
@@ -3570,7 +3571,7 @@ pick_files() { # TITLE — FOUND holds "bytes<TAB>date<TAB>path"
         ((${#F_SEL[@]})) || F_SEL[$cur]=1
         n=0 tot=0
         for i in "${!F_SEL[@]}"; do IFS=$'\t' read -r b _ <<<"${FOUND[i]}"; tot=$((tot + b)); ((++n)); done
-        ui_confirm "Move $(plural "$n" file) to Trash?" "$(human "$tot") — press z to undo." y || continue
+        ui_confirm "Move $(plural "$n" "$PICK_NOUN") to Trash?" "$(human "$tot") — press z to undo." y || continue
         keep=() FOUND_TRASHED=() UNDO_BATCH=()
         for i in "${!FOUND[@]}"; do
           IFS=$'\t' read -r b d p <<<"${FOUND[i]}"
@@ -3578,8 +3579,8 @@ pick_files() { # TITLE — FOUND holds "bytes<TAB>date<TAB>path"
             if move_to_trash "$p" >/dev/null 2>&1; then FOUND_TRASHED+=("${FOUND[i]}"); else keep+=("${FOUND[i]}"); fi
           else keep+=("${FOUND[i]}"); fi
         done
-        if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would move $(plural "$n" file) ($(human "$tot")) to Trash"
-        else FOUND=("${keep[@]}"); toast "${GREEN}✔${NC} Moved $(plural "$n" file) ($(human "$tot")) to Trash — press z to undo"; refresh_sysinfo; fi
+        if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would move $(plural "$n" "$PICK_NOUN") ($(human "$tot")) to Trash"
+        else FOUND=("${keep[@]}"); toast "${GREEN}✔${NC} Moved $(plural "$n" "$PICK_NOUN") ($(human "$tot")) to Trash — press z to undo"; refresh_sysinfo; fi
         F_SEL=() ;;
       z)
         ((${#UNDO_BATCH[@]})) || continue
@@ -3772,6 +3773,18 @@ uninstall_selected() {
 }
 
 uninstaller_menu() { apps_menu; }
+
+leftovers_menu() { # A_LEFT, none ticked: to the Trash, z puts them back
+  local e kind b p PICK_NOUN=folder
+  FOUND=()
+  for e in "${A_LEFT[@]}"; do
+    IFS=$'\t' read -r kind b p <<<"$e"
+    case $kind in flatpak) kind="Flatpak   " ;; snap) kind="Snap      " ;; *) kind="no app    " ;; esac
+    FOUND+=("$b"$'\t'"$kind"$'\t'"$p")
+  done
+  toast "${DIM}Folders no installed app uses. Nothing is ticked; the Trash keeps them until you empty it.${NC}"
+  pick_files "Leftovers of removed apps"
+}
 
 pkg_search_menu() { # every installed package, libraries and command-line tools included
   local cur scroll
@@ -3975,6 +3988,169 @@ app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<
   done
 }
 
+# ── Leftovers of removed apps ──
+#
+# Folders in your home that no installed app uses any more: ~/.var/app/ID of a
+# Flatpak app and ~/snap/NAME of a snap that are no longer installed, and folders
+# right inside ~/.config, ~/.local/share, ~/.local/state and ~/.cache whose name
+# matches nothing installed. They are never ticked and only go to the Trash.
+#
+# A folder's name (ignoring case and anything but letters and digits) belongs to
+# something installed when it equals, starts or shares its first 5 letters with
+# the name of a package, snap, Flatpak app, launcher, command (also in the PATH
+# your shell profile sets), running program, AppImage or folder in /opt,
+# /usr/share, /usr/lib or /etc. Also never offered: the names below (the
+# desktop's own folders, folders many apps share, tools CleanMate has its own
+# items for), folders with programs in them, changed in the last ORPHAN_DAYS
+# days, or with a file a program has open.
+
+ORPHAN_SHARED='^(applications|autostart|desktop-directories|menus|mime|icons|themes|fonts|sounds|backgrounds|wallpapers|templates|color|icc|keyrings|password-store|gnupg|ssh|pki|nss|certs|trash|recently-used.*|user-dirs.*|dconf|gconf|glib-2\.0|gtk.*|qt[0-9]*ct|pulse|pipewire|wireplumber|systemd|environment\.d|user-tmpfiles\.d|dbus-1|xdg-.*|fontconfig|ibus.*|fcitx.*|enchant|hunspell|aspell|thumbnails|mesa_shader_cache.*|nvidia|vulkan|radv.*|gstreamer-.*|babl|gegl-.*|webkitgtk|xorg|session|sessions|tracker.*|gvfs.*|evolution|folks|geoclue|goa-.*|gnome.*|org\.gnome\..*|org\.freedesktop\..*|org\.kde\..*|kde.*|plasma.*|ubuntu.*|canonical.*|snap|snapd|flatpak|containers|docker|google|microsoft|mozilla|jetbrains|unity3d|electron|cleanmate|clean-my-ubuntu|claude.*|codex|gemini|opencode|cursor|windsurf|codeium|kilo|mimocode|zed|zcode|cline|continue|github-copilot|copilot|lm-studio|lmstudio|huggingface|ollama|firebase|ms-playwright|puppeteer|cypress|pip|uv|go-build|yarn|npm|pnpm|node-gyp)$'
+ORPHAN_DAYS=30
+ORPHAN_SYSTEM_DIRS=(/usr/share /usr/local/share /usr/lib /usr/local/lib /usr/libexec /etc /etc/xdg)
+ORPHAN_BIN_DIRS=(.local/bin bin .cargo/bin go/bin .go/bin .npm-global/bin .bun/bin .deno/bin .volta/bin .pyenv/shims
+  .pyenv/bin .rbenv/shims .local/share/pnpm .yarn/bin .dotnet/tools .nix-profile/bin .linuxbrew/bin .juliaup/bin
+  .ghcup/bin .local/share/flatpak/exports/bin) # inside your home; nvm and SDKMAN versions are added below
+
+profile_path_dirs() { # folders in your home that your shell profile adds to PATH (read as text, never run)
+  local f line v d parts
+  for f in .profile .bash_profile .bash_login .bashrc .zshenv .zprofile .zshrc .config/fish/config.fish; do
+    [[ -f $HOME/$f && ! -L $HOME/$f ]] || continue
+    while IFS= read -r line; do
+      v=${line#*PATH}; v=${v#=}
+      v=${v%%#*}; v=${v//[\"\']/}
+      IFS=': ' read -ra parts <<<"$v"
+      for d in "${parts[@]}"; do
+        d=${d/#\~/$HOME}; d=${d/#\$\{HOME\}/$HOME}; d=${d/#\$HOME/$HOME}
+        [[ $d == "$HOME"/* && $d != *[\$\`\;\&\|\<\>\(\)\\]* && -d $d && ! -L $d ]] && printf '%s\n' "${d%/}"
+      done
+    done < <(grep -E '^[[:space:]]*((export[[:space:]]+)?PATH=|fish_add_path[[:space:]]|set[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*PATH[[:space:]])' \
+      "$HOME/$f" 2>/dev/null)
+  done
+}
+
+installed_names() { # every name that says something is installed, one per line (see above)
+  local d f
+  local -a bins=() files=()
+  if have dpkg-query; then # installed only: a package removed without --purge doesn't count
+    dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 2>/dev/null | awk '$1 !~ /^.[nc]/ && $2 != "" {print $2}'
+  fi
+  have snap && snap list 2>/dev/null | awk 'NR > 1 {print $1}'
+  have flatpak && flatpak list --app --columns=application 2>/dev/null | cut -f1
+  for d in /snap /var/lib/flatpak/app "$APPS_DIR_USER/flatpak/app" /opt "${ORPHAN_SYSTEM_DIRS[@]}"; do
+    [[ -d $d ]] && find "$d" -mindepth 1 -maxdepth "$([[ $d == /opt ]] && echo 2 || echo 1)" -printf '%f\n' 2>/dev/null
+  done
+  # launchers (hidden ones too): file name, Name, Icon, StartupWMClass and every word of Exec/TryExec
+  for d in "${APP_DESKTOP_DIRS[@]}" "${XDG_CONFIG_HOME:-$HOME/.config}/autostart" /etc/xdg/autostart; do
+    [[ -d $d ]] || continue
+    for f in "$d"/*.desktop; do [[ -f $f ]] && files+=("$f"); done
+  done
+  ((${#files[@]})) && awk '
+    FNR == 1 { f = FILENAME; sub(/.*\//, "", f); sub(/\.desktop$/, "", f); print f }
+    /^(Name|Icon|StartupWMClass)=/ { sub(/^[^=]*=/, ""); print }
+    /^(Exec|TryExec)=/ {
+      sub(/^[^=]*=/, ""); n = split($0, w, /[ \t]+/)
+      for (i = 1; i <= n; i++) if (w[i] !~ /^(-|%)/ && w[i] !~ /=/) { gsub(/["\047]/, "", w[i]); sub(/.*\//, "", w[i]); print w[i] }
+    }' "${files[@]}" 2>/dev/null
+  # commands: PATH, the folders your profile adds, the usual tool folders
+  IFS=: read -ra bins <<<"${PATH:-}"
+  mapfile -t -O "${#bins[@]}" bins < <(profile_path_dirs)
+  for d in "${ORPHAN_BIN_DIRS[@]}"; do bins+=("$HOME/$d"); done
+  for d in "$HOME"/.nvm/versions/node/*/bin "$HOME"/.sdkman/candidates/*/current/bin \
+    /usr/local/bin /usr/bin /bin /usr/sbin /sbin /usr/games /usr/local/games /snap/bin /var/lib/flatpak/exports/bin; do
+    bins+=("$d")
+  done
+  for d in "${bins[@]}"; do [[ -d $d ]] && find "$d" -mindepth 1 -maxdepth 1 -printf '%f\n' 2>/dev/null; done
+  have ps && ps -A -o comm= 2>/dev/null
+  find "$HOME" -maxdepth 3 \( -path "$HOME/.local/share/Trash" -o -path "$HOME/.cache" \) -prune -o \
+    -iname '*.appimage' -printf '%f\n' 2>/dev/null | sed 's/\.[Aa][Pp][Pp][Ii][Mm][Aa][Gg][Ee]$//'
+  return 0
+}
+
+open_under() { # LIST PATH — LIST (newline-framed paths, as from open_files) has PATH or something inside it
+  [[ $1 == *$'\n'"$2"$'\n'* || $1 == *$'\n'"$2"/* ]]
+}
+
+unclaimed_folders() { # NAMES-FILE < folder paths → the ones whose name matches nothing in NAMES-FILE
+  awk '
+    function norm(s) { s = tolower(s); gsub(/[^a-z0-9]/, "", s); return s }
+    function add(s,   i, n) { s = norm(s); n = length(s); if (n < 2) return; K[s] = 1; for (i = 1; i <= n; i++) P[substr(s, 1, i)] = 1 }
+    function claimed(s,   n, i) {
+      s = norm(s); n = length(s)
+      if (n < 3 || s in P) return 1                # too short to tell, or equal to / the start of a name
+      if (n > 5 && substr(s, 1, 5) in P) return 1  # shares its first 5 letters with a name
+      for (i = 4; i < n; i++) if (substr(s, 1, i) in K) return 1 # starts with a name
+      return 0
+    }
+    FNR == NR {
+      add($0)
+      n = split(tolower($0), w, /[-_. ]+/)
+      for (i = 1; i <= n; i++) if (i == 1 || length(w[i]) >= 3) add(w[i]) # parts of org.foo.Bar, gimp-2.10
+      if (tolower($0) ~ /^lib./) add(substr($0, 4))                       # libgegl-0.4-0 → gegl
+      next
+    }
+    {
+      name = $0; sub(/.*\//, "", name)
+      if (claimed(name)) next
+      n = split(tolower(name), w, /[-_. ]+/)
+      if (n > 1 && norm(w[1]) in K) next # go-build → go
+      hit = 0
+      for (i = 2; i <= n; i++) if (length(w[i]) >= 4 && claimed(w[i])) hit = 1
+      if (!hit) print
+    }' "$1" -
+}
+
+orphan_folders() { # → kind<TAB>bytes<TAB>path of folders no installed app uses, biggest first (kind: flatpak|snap|folder)
+  local d p n out names cand=() open fp_ok=1 snap_ok=1
+  local -A fps=() snaps=()
+  if have flatpak; then # a list we can't read means we don't know: offer nothing
+    if out=$(flatpak list --app --columns=application 2>/dev/null); then
+      while IFS=$'\t' read -r n _; do [[ -n $n ]] && fps[$n]=1; done <<<"$out"
+    else fp_ok=0; fi
+  fi
+  if have snap; then
+    if out=$(snap list 2>/dev/null); then
+      while read -r n _; do [[ -n $n ]] && snaps[$n]=1; done < <(tail -n +2 <<<"$out")
+    else snap_ok=0; fi
+  fi
+  open=$'\n'$( { open_files; find /proc/[0-9]*/cwd -maxdepth 0 -type l -printf '%l\n' 2>/dev/null; } )$'\n'
+  {
+    if ((fp_ok)); then
+      for p in "$HOME"/.var/app/*; do
+        n=${p##*/}
+        [[ -d $p && ! -L $p && $n =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || continue
+        [[ -n ${fps[$n]:-} || -d /var/lib/flatpak/app/$n || -d $APPS_DIR_USER/flatpak/app/$n ]] && continue
+        open_under "$open" "$p" || printf 'flatpak\t%s\t%s\n' "$(du_sum "$p")" "$p"
+      done
+    fi
+    if ((snap_ok)); then
+      for p in "$HOME"/snap/*; do
+        n=${p##*/}
+        [[ -d $p && ! -L $p && $n =~ ^[a-z0-9][a-z0-9_-]*$ && $n != bin ]] || continue
+        [[ -n ${snaps[$n]:-} || -e /snap/$n ]] && continue
+        open_under "$open" "$p" || printf 'snap\t%s\t%s\n' "$(du_sum "$p")" "$p"
+      done
+    fi
+    for d in "${XDG_CONFIG_HOME:-$HOME/.config}" "$APPS_DIR_USER" "${XDG_STATE_HOME:-$HOME/.local/state}" "${XDG_CACHE_HOME:-$HOME/.cache}"; do
+      [[ $d == "$HOME"/* && -d $d && ! -L $d ]] || continue
+      for p in "$d"/*; do
+        n=${p##*/}
+        [[ -d $p && ! -L $p && $n != *[[:cntrl:]]* && ! ${n,,} =~ $ORPHAN_SHARED && ! ${n,,} =~ $LEFTOVER_DENY ]] || continue
+        is_protected "$p" || cand+=("$p")
+      done
+    done
+    if ((${#cand[@]})); then
+      names=$(mktemp -p "${SESSION_TMP:-/tmp}") || return 1
+      installed_names >"$names"
+      while IFS= read -r p; do
+        # changed lately, holds programs, or open: something not on our lists still uses it
+        [[ -z $(find "$p" -maxdepth 3 \( -mtime -"$ORPHAN_DAYS" -o -type f -perm /111 \) -print -quit 2>/dev/null) ]] || continue
+        open_under "$open" "$p" || printf 'folder\t%s\t%s\n' "$(du_sum "$p")" "$p"
+      done < <(printf '%s\n' "${cand[@]}" | unclaimed_folders "$names")
+      rm -f "$names"
+    fi
+  } | sort -t$'\t' -k2,2rn
+}
+
 used_ago() { # EPOCH → "today" / "12 days ago" / "5 months ago" / "2 years ago" / "—"
   local d
   (($1 > 0)) || { printf '—'; return; }
@@ -3986,15 +4162,18 @@ used_ago() { # EPOCH → "today" / "12 days ago" / "5 months ago" / "2 years ago
 }
 
 declare -a A_SRC=() A_ID=() A_NAME=() A_PKG=() A_DATA=() A_LAST=() A_PATHS=() A_VIEW=()
+declare -a A_LEFT=() # kind<TAB>bytes<TAB>path from orphan_folders: the last row of the list
 A_HIDDEN=0 A_SORT=size A_FILTER=all
 
 load_apps() {
   local tmp line
   tmp=$(mktemp -p "$SESSION_TMP")
-  (app_inventory >"$tmp") &
+  (app_inventory >"$tmp"; orphan_folders >"$tmp.left") &
   UI_BUSY_TITLE="Uninstaller"
-  ui_busy "Finding your apps and the space each one uses…" $! || { rm -f "$tmp"; return 1; }
+  ui_busy "Finding your apps and the space each one uses…" $! || { rm -f "$tmp" "$tmp.left"; return 1; }
   A_SRC=() A_ID=() A_NAME=() A_PKG=() A_DATA=() A_LAST=() A_PATHS=() U_SEL=()
+  mapfile -t A_LEFT <"$tmp.left"
+  rm -f "$tmp.left"
   while IFS=$'\t' read -r -a line; do
     if [[ ${line[0]} == '#hidden' ]]; then A_HIDDEN=${line[1]}; continue; fi
     A_SRC+=("${line[0]}") A_ID+=("${line[1]}") A_NAME+=("${line[2]}") A_PKG+=("${line[3]}")
@@ -4020,8 +4199,17 @@ apps_view() { # A_SORT / A_FILTER → A_VIEW (indices into A_*)
 }
 
 applist_row() {
-  local i=${A_VIEW[$1]} mark="  " box src lbl sz used c
+  local i=${A_VIEW[$1]:-} mark="  " box src lbl sz used c
   (($2)) && mark="${ACCENT}▸${NC} "
+  if [[ -z $i ]]; then # the last row: leftovers of removed apps
+    local e tot=0
+    for e in "${A_LEFT[@]}"; do e=${e#*$'\t'}; tot=$((tot + ${e%%$'\t'*})); done
+    fitv lbl "Leftovers of removed apps · $(plural ${#A_LEFT[@]} folder)" $((UI_W - 28))
+    (($2)) && lbl="${BOLD}$lbl${NC}"
+    humanv sz "$tot"; printf -v sz '%9s' "$sz"
+    fl " $mark${DIM}⌂${NC} $lbl $sz  ${DIM}enter to review${NC}"
+    return
+  fi
   if [[ -n ${U_SEL[$i]:-} ]]; then box="${GREEN}●${NC}"; else box="${DIM}○${NC}"; fi
   case ${A_SRC[i]} in snap) c=$MAGENTA ;; flatpak) c=$BLUE ;; *) c=$CYAN ;; esac
   fitv src "${A_SRC[i]}" 7
@@ -4031,7 +4219,7 @@ applist_row() {
   used=$(used_ago "${A_LAST[i]}"); printf -v used '%-14s' "$used"
   fl " $mark$box $c$src$NC $lbl $sz  ${DIM}$used${NC}"
 }
-applist_text() { TEXT=${A_NAME[${A_VIEW[$1]}]}; }
+applist_text() { if [[ -n ${A_VIEW[$1]:-} ]]; then TEXT=${A_NAME[${A_VIEW[$1]}]}; else TEXT="Leftovers of removed apps"; fi; }
 applist_top() {
   local f
   case $A_FILTER in unused) f="not used for ${APP_UNUSED_DAYS}+ days" ;; large) f="${APP_LARGE_MB} MB or more" ;; *) f="all apps" ;; esac
@@ -4111,7 +4299,7 @@ apps_menu() {
   apps_view
   while :; do
     L_TITLE="Uninstaller" L_TOP=applist_top L_BOTTOM=applist_bottom L_ROW=applist_row L_FOCUSABLE="" L_TEXT=applist_text
-    L_VIEW=0 L_COUNT=${#A_VIEW[@]} L_CUR=$cur L_SCROLL=$scroll
+    L_VIEW=0 L_COUNT=$((${#A_VIEW[@]} + (${#A_LEFT[@]} > 0))) L_CUR=$cur L_SCROLL=$scroll
     ((L_COUNT)) || L_VIEW=1
     hints space select "!u" uninstall enter details s sort f filter / find p "all packages" q back
     L_HINTS=$HINTS
@@ -4121,7 +4309,9 @@ apps_menu() {
     case $KEY in
       space) [[ -n $i ]] && { if [[ -n ${U_SEL[$i]:-} ]]; then unset "U_SEL[$i]"; else U_SEL[$i]=1; fi; list_move 1; cur=$L_CUR; } ;;
       u) [[ -n $i ]] || continue; ((${#U_SEL[@]})) || U_SEL[$i]=1; uninstall_apps; cur=0 scroll=0 ;;
-      enter | right) [[ -n $i ]] && app_details "$i" ;;
+      enter | right)
+        if [[ -n $i ]]; then app_details "$i"
+        elif ((${#A_LEFT[@]})); then leftovers_menu; load_apps; apps_view; cur=0 scroll=0; fi ;;
       s) case $A_SORT in size) A_SORT=used ;; used) A_SORT=name ;; *) A_SORT=size ;; esac; apps_view; cur=0 scroll=0 ;;
       f) case $A_FILTER in all) A_FILTER=unused ;; unused) A_FILTER=large ;; *) A_FILTER=all ;; esac; apps_view; cur=0 scroll=0 ;;
       p) U_SEL=(); pkg_search_menu; load_apps; apps_view; cur=0 scroll=0 ;;
@@ -6265,7 +6455,8 @@ json_activity() { # [--limit N] — the activity log the terminal app shows, new
 # Ubuntu are never listed), and `uninstall` only removes apps on that list.
 # apt and Snap need root (the app runs this through pkexec); Flatpak apps are
 # removed as you. Leftover folders go to the Trash with `trash`, as you, after
-# the app is gone.
+# the app is gone. After the apps, `leftover` events list the folders of apps
+# that are already gone (`orphan_folders`), offered for the Trash on their own.
 
 json_apps() {
   local src id name pkgb datab last paths desk p b jp left jn jid jd hidden=0
@@ -6283,6 +6474,11 @@ json_apps() {
     printf '{"event":"app","id":%s,"kind":"%s","name":%s,"bytes":%d,"data_bytes":%d,"last_used":%d,"desktop":%s,"leftovers":[%s]}\n' \
       "$jid" "$src" "$jn" "${pkgb:-0}" "${datab:-0}" "${last:-0}" "$jd" "$left"
   done < <(app_inventory 2>/dev/null)
+  while IFS=$'\t' read -r src b p; do # folders of apps that are already gone
+    [[ -n $p ]] || continue
+    json_str jp "$p"; json_str jn "${p##*/}"
+    printf '{"event":"leftover","path":%s,"name":%s,"kind":"%s","bytes":%d}\n' "$jp" "$jn" "$src" "${b:-0}"
+  done < <(orphan_folders 2>/dev/null)
   printf '{"event":"done","hidden":%d}\n' "$hidden"
 }
 

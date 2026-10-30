@@ -1463,6 +1463,64 @@ for l in sys.stdin:
   fi
 }
 
+test_leftovers_of_removed_apps() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/leftbin h=$HOME_DIR out pid key d
+  mkdir -p "$bin" "$h/apps" "$h/tools/bin" "$h/.local/bin"
+  cat >"$bin/dpkg-query" <<'EOS'
+#!/bin/sh
+case "$*" in *Status-Abbrev*) printf 'ii  zqkeeppkg-stable\nrc  zqslack-desktop\nii  libzqfoobar-2.0-0\n' ;; esac
+EOS
+  printf '#!/bin/sh\n[ "$1" = list ] && printf "org.keep.Zqkeep\\n"\nexit 0\n' >"$bin/flatpak"
+  printf '#!/bin/sh\n[ "$1" = list ] && printf "Name  Version  Rev\\nzqkeepsnap  1.0  1\\n"\nexit 0\n' >"$bin/snap"
+  printf '#!/bin/sh\n' >"$h/tools/bin/zqmytool"; printf '#!/bin/sh\n' >"$h/.local/bin/zqrun"
+  chmod +x "$bin"/* "$h/tools/bin/zqmytool" "$h/.local/bin/zqrun"
+  printf 'export PATH="$HOME/tools/bin:$PATH" # my tools\n' >"$h/.profile"
+  printf '[Desktop Entry]\nType=Application\nName=Zq Editor\nExec=/opt/zq/bin/zq-editor-bin %%F\n' >"$h/apps/zqed.desktop"
+  # gone: a Flatpak app, a snap, an apt package removed without --purge, folders nothing claims
+  for d in .var/app/org.gone.Zqapp snap/zqgonesnap .config/Zqslack .local/share/zqobsidian .local/state/zqteams .cache/zqspotifyd \
+    .var/app/org.keep.Zqkeep .var/app/org.deployed.Zqdep snap/zqkeepsnap snap/bin .config/zqkeeppkg .config/zqfoobar \
+    .config/zqmytool .config/ZqEditor .config/zqrun-data .config/dconf .local/share/fonts .local/share/keyrings \
+    .cache/huggingface .config/zqprogs .config/zqopen .config/.zqhidden; do
+    new "$h/$d/data"
+  done
+  mkdir -p "$h/.local/share/flatpak/app/org.deployed.Zqdep" "$h/elsewhere"
+  ln -s "$h/elsewhere" "$h/.config/zqlink"
+  printf '#!/bin/sh\n' >"$h/.config/zqprogs/run"; chmod +x "$h/.config/zqprogs/run"
+  find "$h/.var" "$h/snap" "$h/.config" "$h/.local/share" "$h/.local/state" "$h/.cache" -mindepth 1 \
+    -exec touch -h -d "200 days ago" {} +
+  new "$h/.config/zqrecent/data" # in use lately
+  sh -c 'exec sleep 60' <"$h/.config/zqopen/data" >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(CLEANMATE_APP_DIRS=$h/apps BASE_PATH="$bin:$BASE_PATH" cm --json apps | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "leftover": print(e["kind"], e["path"], e["name"], e["bytes"] > 0)' | sed "s|$h/||" | sort)
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" "flatpak .var/app/org.gone.Zqapp org.gone.Zqapp True
+folder .cache/zqspotifyd zqspotifyd True
+folder .config/Zqslack Zqslack True
+folder .local/share/zqobsidian zqobsidian True
+folder .local/state/zqteams zqteams True
+snap snap/zqgonesnap zqgonesnap True" "only folders of removed apps are listed"
+  # a snap or Flatpak list that can't be read: nothing of theirs is offered
+  printf '#!/bin/sh\nexit 1\n' >"$bin/snap"; printf '#!/bin/sh\nexit 1\n' >"$bin/flatpak"
+  out=$(CLEANMATE_APP_DIRS=$h/apps BASE_PATH="$bin:$BASE_PATH" cm --json apps | grep -c '"kind":"\(snap\|flatpak\)"')
+  assert_eq "$out" "0" "no snap or Flatpak folders when their lists fail"
+  # to the Trash and back
+  out=$(user_cm --json trash --home-only "$h/.config/Zqslack" | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task": print(e["state"], e["trash"])')
+  assert_eq "${out%% *}" "ok" "leftover moved to the Trash"
+  key=${out#ok }
+  assert_missing "$h/.config/Zqslack"
+  user_cm --json restore "$key" >/dev/null
+  assert_exists "$h/.config/Zqslack/data"
+}
+
 test_gui_selftest() {
   command -v gtk4-broadwayd >/dev/null || { SKIPPED="gtk4-broadwayd not installed (package libgtk-4-bin)"; return; }
   local py="" c

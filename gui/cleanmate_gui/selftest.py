@@ -577,12 +577,14 @@ case $1 in list) printf 'com.spotify.Client\\t123.0 MB\\n' ;; uninstall) echo "f
 
 def uninstaller_test(win, report, wait, finish):
     """List apps from stub launchers and package tools, select, check, dry-run; then remove the
-    Flatpak app for real (a stub) and put its folder back, all in a throwaway home."""
+    Flatpak app for real (a stub) and put its folder back; the folder of a Flatpak app removed
+    earlier is listed unticked, goes to the Trash and comes back; all in a throwaway home."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir, apps_dir = (os.path.join(sandbox, d) for d in ("home", "bin", "applications"))
+    gone = os.path.join(home, ".var", "app", "org.example.Gone")  # a Flatpak app removed earlier
     for d in (bin_dir, apps_dir, os.path.join(home, ".config", "GIMP"),
-              os.path.join(home, ".var", "app", "com.spotify.Client")):
+              os.path.join(home, ".var", "app", "com.spotify.Client"), gone):
         os.makedirs(d)
     for name, text in STUBS.items():
         with open(os.path.join(bin_dir, name), "w") as f:
@@ -595,7 +597,7 @@ def uninstaller_test(win, report, wait, finish):
         with open(os.path.join(apps_dir, name + ".desktop"), "w") as f:
             f.write(f"[Desktop Entry]\nType=Application\nName={title}\nExec={exe}\n{extra}\n")
     for path in (os.path.join(home, ".config", "GIMP", "gimprc"),
-                 os.path.join(home, ".var", "app", "com.spotify.Client", "data")):
+                 os.path.join(home, ".var", "app", "com.spotify.Client", "data"), os.path.join(gone, "data")):
         with open(path, "w") as f:
             f.write("data\n")
     spotify_data = os.path.join(home, ".var", "app", "com.spotify.Client")
@@ -627,6 +629,10 @@ def uninstaller_test(win, report, wait, finish):
         ids = sorted(page.apps)
         report(ids == ["apt:gimp", "flatpak:com.spotify.Client"] and page.hidden == 1,
                f"apps listed, part of Ubuntu hidden: {ids}, {page.hidden} hidden")
+        orphans = [o["path"] for o in page.orphans]
+        report(orphans == [gone] and gone in page.orphan_checks and not page.orphan_checks[gone].get_active()
+               and not page.orphan_button.get_sensitive(),
+               f"the folder of a removed Flatpak app is listed on its own, not ticked: {orphans}")
         gimp_left = os.path.join(home, ".config", "GIMP")
         before = page.summary.get_text()
         page.checks["apt:gimp"].set_active(True)
@@ -690,7 +696,25 @@ def uninstaller_test(win, report, wait, finish):
 
     def restored():
         report(os.path.isdir(spotify_data), "Restore folders in the toast puts the app's folder back")
-        wait(idle, done, 30, "list after restoring")
+        wait(lambda: idle() and gone in page.orphan_checks, trash_orphan, 30, "list after restoring")
+
+    def trash_orphan():
+        page.orphan_checks[gone].set_active(True)
+        report(page.orphan_button.get_sensitive(), "ticking a leftover folder enables Move to Trash")
+        page.trash_orphans()
+        wait(lambda: idle() and not os.path.exists(gone) and page.undo_toast, orphan_trashed, 60, "leftover to the Trash")
+
+    def orphan_trashed():
+        in_trash = os.path.join(home, ".local", "share", "Trash", "files", "org.example.Gone")
+        report(os.path.isdir(in_trash) and gone not in page.orphan_checks,
+               "Move to Trash moves the leftover folder to the Trash and off the list")
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: idle() and os.path.isdir(gone) and gone in page.orphan_checks, orphan_back, 60, "undo leftover")
+
+    def orphan_back():
+        report(os.path.isdir(os.path.join(gone, ".")) and os.path.exists(os.path.join(gone, "data")),
+               "Undo puts the leftover folder back")
+        done()
 
     wait(idle, first_list, 120, "first app list")
 

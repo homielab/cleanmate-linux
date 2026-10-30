@@ -75,7 +75,8 @@ your biggest files (by minimum size, how long unused, and folder or drive); what
 Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash). **Startup Items** switches the apps and your systemd user services
 that start at login on or off (a service or timer also starts or stops right away; the system's own services are only shown); removing one of yours
 moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps and, if you tick
-them, the folders they leave in your home (to the Trash). **Maintenance** runs the terminal app's maintenance
+them, the folders they leave in your home (to the Trash); folders of apps you removed earlier are a group of their own
+at the end, not ticked, with **Undo** after moving them to the Trash. **Maintenance** runs the terminal app's maintenance
 tasks (updates, package repair, TRIM, font cache, locate…) with their output in a log window, asking for your
 password once per task, and switches the snap-versions and journal-size limits on or off; a task whose tool
 isn't installed is locked. The app opens on **System Overview**: your system and package counts, each disk
@@ -133,6 +134,13 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
   you haven't opened in 90+ days. Parts of Ubuntu itself are hidden, and a removal that would take
   something Ubuntu needs with it (GNOME Shell, the login screen, sudo, the running kernel…) is
   refused. Afterwards it offers the app's own folders for the Trash — never folders other apps share.
+  The last row, **Leftovers of removed apps**, lists folders no installed app uses any more:
+  `~/.var/app/<id>` of a Flatpak app and `~/snap/<name>` of a snap that are gone, and folders in
+  `~/.config`, `~/.local/share`, `~/.local/state` and `~/.cache` whose name matches no package, snap,
+  Flatpak app, launcher, command (also from the PATH your shell profile sets) or running program.
+  Folders the desktop or many apps share (dconf, GTK, fonts, keyrings…), folders with programs in
+  them, changed in the last 30 days or with a file open are never listed. Nothing is ticked; they go
+  to the Trash (`z` puts them back).
 - **Maintenance** — update everything (with a list of what will change first), repair packages,
   TRIM, free RAM, and lasting limits so old snap versions and system logs don't pile up again.
 - **System Overview** — storage, free-space history, space outside your folders (Timeshift
