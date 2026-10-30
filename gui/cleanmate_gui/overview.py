@@ -192,6 +192,7 @@ def protection_text(e):
         ("updates", "disabled"): _("Turned off in APT's settings. To turn it on, run in a terminal:"),
         ("updates", "timer"): _("The daily upgrade timer is off. To turn it on, run in a terminal:"),
         ("updates", "no-apt"): _("This system doesn't use APT."),
+        ("updates", "unreadable"): _("Couldn't read APT's settings."),
         ("secureboot", "on"): _("Only signed boot loaders and kernels start."),
         ("secureboot", "firmware"): _("Turn it on in your computer's firmware (UEFI) settings."),
         ("secureboot", "legacy"): _("This computer starts without UEFI, so there is no Secure Boot."),

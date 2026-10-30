@@ -5533,6 +5533,15 @@ apt_periodic() { # NAME → value of APT::Periodic::NAME as APT reads it (the la
   sed -nE "s#^[[:space:]]*APT::Periodic::$1[[:space:]]+\"([^\"]*)\".*#\\1#Ip" "${files[@]}" 2>/dev/null | tail -n1
 }
 
+apt_settings_readable() { # apt-config answers, and APT's settings folder and files can be read
+  local d=$SYSROOT/etc/apt/apt.conf.d f
+  have apt-config && timeout 5 apt-config dump >/dev/null 2>&1 || return 1
+  [[ ! -e $d || (-d $d && -r $d && -x $d) ]] || return 1
+  for f in "$d"/* "$SYSROOT/etc/apt/apt.conf"; do
+    [[ ! -f $f || -r $f ]] || return 1
+  done
+}
+
 protection_rows() { # → id<TAB>on|off|unknown|na<TAB>reason<TAB>command that turns it on (may be empty)
   local f v s
   # firewall: `ufw status` needs root, its config and service don't
@@ -5569,6 +5578,8 @@ protection_rows() { # → id<TAB>on|off|unknown|na<TAB>reason<TAB>command that t
     printf 'updates\tna\tno-apt\t\n'
   elif [[ ! -x $SYSROOT/usr/bin/unattended-upgrade ]]; then
     printf 'updates\toff\tmissing\tsudo apt install unattended-upgrades\n'
+  elif ! apt_settings_readable; then
+    printf 'updates\tunknown\tunreadable\t\n' # never "off" for settings we couldn't read
   else
     v=$(apt_periodic Unattended-Upgrade)
     if [[ -z $v || $v == 0 || $(apt_periodic Enable) == 0 ]]; then
@@ -5629,6 +5640,7 @@ protection_text() { # ID STATE REASON → PT_NAME PT_VALUE PT_HINT in English (t
     updates:disabled) PT_HINT="Turned off in APT's settings. To turn it on, run:" ;;
     updates:timer) PT_HINT="The daily upgrade timer is off. To turn it on, run:" ;;
     updates:no-apt) PT_HINT="This system doesn't use APT." ;;
+    updates:unreadable) PT_HINT="Couldn't read APT's settings." ;;
     secureboot:firmware) PT_HINT="Turn it on in your computer's firmware (UEFI) settings." ;;
     secureboot:legacy) PT_HINT="This computer starts without UEFI, so there is no Secure Boot." ;;
     secureboot:unreadable) PT_HINT="Can't read the Secure Boot state." ;;

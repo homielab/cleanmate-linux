@@ -84,7 +84,8 @@ with a usage bar (in the warning colour over 90 % full), a chart of free space o
 and swap, what CleanMate freed in the last 30 days, space in use outside your folders (Timeshift snapshots,
 the swap file, ext4's reserved space), your largest folders, which open in Space Lens, and **System
 protection**: whether the firewall (ufw), AppArmor, automatic security updates and Secure Boot are on. It
-only reads them; one that is off shows the command that turns it on, with a button to copy it.
+only reads them; one that is off shows the command that turns it on, with a button to copy it. One it
+can't read shows *Unknown*.
 
 | Large & Old Files | Uninstaller |
 | --- | --- |

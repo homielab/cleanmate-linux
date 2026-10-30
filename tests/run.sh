@@ -2856,6 +2856,7 @@ test_system_protection() {
   # systemctl answers from $bin/units (UNIT=state), mokutil prints $bin/sb-state; sudo and pkexec record a call
   printf '#!/bin/sh\ngrep -m1 "^$2=" "%s/units" 2>/dev/null | cut -d= -f2\n' "$bin" >"$bin/systemctl"
   printf '#!/bin/sh\ncat "%s/sb-state" 2>/dev/null\n' "$bin" >"$bin/mokutil"
+  printf '#!/bin/sh\n[ -e "%s/apt-broken" ] && exit 100\nexit 0\n' "$bin" >"$bin/apt-config" # fails while apt-broken exists
   printf '#!/bin/sh\necho "$0 $*" >>"%s/escalated"\nexit 1\n' "$bin" | tee "$bin/sudo" >"$bin/pkexec"
   chmod +x "$bin/"*
   local BASE_PATH="$bin:$BASE_PATH"
@@ -2899,8 +2900,25 @@ test_system_protection() {
   assert_eq "$(prot updates)" "off disabled sudo dpkg-reconfigure -plow unattended-upgrades" "a later file turns it off"
   rm "$r/etc/apt/apt.conf.d/99local"; printf 'APT::Periodic::Enable "0";\n' >"$r/etc/apt/apt.conf"
   assert_eq "$(prot updates)" "off disabled sudo dpkg-reconfigure -plow unattended-upgrades" "APT's periodic jobs off"
+  rm "$r/etc/apt/apt.conf"; sed -i 's/^apt-daily-upgrade.timer=.*/apt-daily-upgrade.timer=enabled/' "$bin/units"
+  assert_eq "$(prot updates)" "on on" "installed and turned on"
+  touch "$bin/apt-broken"
+  assert_eq "$(prot updates)" "unknown unreadable" "apt-config fails: unknown, no command"
+  rm "$bin/apt-broken"
+  if ((EUID != 0)); then # root reads anything
+    chmod 000 "$r/etc/apt/apt.conf.d"
+    assert_eq "$(prot updates)" "unknown unreadable" "APT's settings folder can't be read"
+    chmod 755 "$r/etc/apt/apt.conf.d"
+    chmod 000 "$r/etc/apt/apt.conf.d/20auto-upgrades"
+    assert_eq "$(prot updates)" "unknown unreadable" "a settings file can't be read"
+    chmod 644 "$r/etc/apt/apt.conf.d/20auto-upgrades"
+  fi
+  printf 'APT::Periodic::Enable "0";\n' >"$r/etc/apt/apt.conf"
   rm "$r/usr/bin/unattended-upgrade"
   assert_eq "$(prot updates)" "off missing sudo apt install unattended-upgrades" "package not installed"
+  touch "$bin/apt-broken"
+  assert_eq "$(prot updates)" "off missing sudo apt install unattended-upgrades" "not installed, even when APT can't be read"
+  rm "$bin/apt-broken"
   mv "$r/etc/apt" "$r/etc/apt.off"
   assert_eq "$(prot updates)" "na no-apt" "no APT: not applicable"
   mv "$r/etc/apt.off" "$r/etc/apt"
