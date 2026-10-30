@@ -11,6 +11,15 @@ msgstr ""
 msgid "Downloaded .deb installers. apt re-downloads them if ever needed."
 msgstr ""
 
+#. old_installers label
+msgid "Old installers in Downloads"
+msgstr ""
+
+#. old_installers description
+#, python-brace-format
+msgid "Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) at the top of your Downloads folder, downloaded more than {0} days ago. Moved to the Trash."
+msgstr ""
+
 #. orphans label
 msgid "Unused packages & old kernels"
 msgstr ""
@@ -118,6 +127,14 @@ msgstr ""
 
 #. trash description
 msgid "Files you already deleted. Review before emptying!"
+msgstr ""
+
+#. trash_drives label
+msgid "Trash on external drives"
+msgstr ""
+
+#. trash_drives description
+msgid "Files you deleted on USB sticks and other drives stay in that drive's own Trash and keep using its space. Emptying deletes them for good."
 msgstr ""
 
 #. app_cache label

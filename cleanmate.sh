@@ -893,6 +893,7 @@ reg() { ITEM_IDS+=("$1"); ITEM_CAT[$1]=$2; ITEM_LABEL[$1]=$3; ITEM_DEFAULT[$1]=$
 
 #   id           category label                          default  description
 reg apt_cache    system "APT package cache"                 1 "Downloaded .deb installers. apt re-downloads them if ever needed."
+reg old_installers system "Old installers in Downloads"     0 "Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) at the top of your Downloads folder, downloaded more than 30 days ago. Moved to the Trash."
 reg orphans      system "Unused packages & old kernels"     1 "Packages installed as dependencies that nothing needs any more (apt autoremove)."
 reg residual     system "Leftover package configs"          1 "System config files of packages that were removed but not purged."
 reg journal      logs   "Systemd journal logs"              1 "Archived system logs. Keeps the last 7 days and at most 100 MB."
@@ -1207,6 +1208,90 @@ clean_tmp() {
   else log "tmp_find -delete"; tmp_find -delete || true; fi # other users' folders in /tmp are unreadable: expected
 }
 details_tmp() { tmp_find -printf '%s\t%p\n' | detail_files 30; }
+
+# Old installers in your Downloads folder: .deb, AppImage, .iso… files at its top level (no subfolders,
+# no symlinks) last modified more than OLD_INSTALLER_DAYS ago. One still downloading (a .part,
+# .crdownload or .!qB next to it) or open in a program is skipped. They are your files, so cleaning
+# moves them to the Trash; the terminal app's z puts them back. The desktop app lists each file as an entry.
+OLD_INSTALLER_DAYS=30
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_old_installers='^[A-Za-z0-9._~%-]+$' # the file name, percent-encoded (urlencode_path)
+
+downloads_dir() { # → your Downloads folder (xdg-user-dir; ~/Downloads when it isn't set)
+  local d=""
+  have xdg-user-dir && d=$(xdg-user-dir DOWNLOAD 2>/dev/null)
+  d=${d%/}
+  [[ -n $d && $d != "$HOME" ]] || d=$HOME/Downloads # xdg-user-dir answers $HOME when it isn't set
+  printf '%s' "$d"
+}
+
+old_installers() { # → OI_DIR, and OI_NAME / OI_BYTES / OI_DAYS (days since modified) biggest first
+  local b m name lower open now
+  OI_DIR=$(downloads_dir) OI_NAME=() OI_BYTES=() OI_DAYS=()
+  [[ $OI_DIR == "$HOME"/* && -d $OI_DIR && ! -L $OI_DIR ]] || return 0
+  open=$(open_files)
+  printf -v now '%(%s)T' -1
+  while IFS=$'\t' read -r -d '' b m name; do
+    [[ -n $name && $name != *[[:cntrl:]]* ]] || continue
+    lower=${name,,}
+    case $lower in
+      *.deb | *.appimage | *.iso | *.img | *.run | *.snap | *.flatpakref | *.flatpak) ;;
+      *) continue ;;
+    esac
+    [[ -e $OI_DIR/$name.part || -e $OI_DIR/$name.crdownload || -e $OI_DIR/$name.!qB ]] && continue # still downloading
+    grep -qxF -- "$OI_DIR/$name" <<<"$open" && continue
+    OI_NAME+=("$name") OI_BYTES+=("$b") OI_DAYS+=($(((now - ${m%.*}) / 86400)))
+  done < <(find "$OI_DIR" -mindepth 1 -maxdepth 1 -type f -mmin +$((OLD_INSTALLER_DAYS * 1440)) \
+    -printf '%s\t%T@\t%f\0' 2>/dev/null | sort -z -t $'\t' -k1,1nr)
+}
+
+trash_installers() { # NAME… — move these files of OI_DIR to the Trash; @@undo lines let the terminal app undo it
+  local name e rc=0
+  UNDO_BATCH=()
+  for name; do move_to_trash "$OI_DIR/$name" || rc=1; done
+  for e in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$e"; done
+  return "$rc"
+}
+
+scan_old_installers() {
+  local b
+  old_installers
+  ((${#OI_NAME[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${OI_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#OI_NAME[@]} file) older than $OLD_INSTALLER_DAYS days"
+}
+clean_old_installers() {
+  old_installers
+  ((${#OI_NAME[@]})) || return 0
+  trash_installers "${OI_NAME[@]}"
+}
+details_old_installers() {
+  local i
+  old_installers
+  for i in "${!OI_NAME[@]}"; do
+    printf '  %s%10s%s  %s  %s(%s days old)%s\n' "$(size_color "${OI_BYTES[i]}")" "$(human "${OI_BYTES[i]}")" "$NC" \
+      "${OI_DIR/#$HOME/\~}/${OI_NAME[i]}" "$DIM" "${OI_DAYS[i]}" "$NC"
+  done
+}
+entries_old_installers() {
+  local i
+  old_installers
+  for i in "${!OI_NAME[@]}"; do
+    printf '%s\t%s\t0\t%s · %s days old\n' "$(urlencode_path "${OI_NAME[i]}")" "${OI_BYTES[i]}" "${OI_NAME[i]}" "${OI_DAYS[i]}"
+  done
+}
+clean_entries_old_installers() { # encoded file names (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  old_installers
+  for id; do
+    for i in "${!OI_NAME[@]}"; do
+      [[ $(urlencode_path "${OI_NAME[i]}") == "$id" ]] && pick+=("${OI_NAME[i]}")
+    done
+  done
+  ((${#pick[@]})) || return 0
+  trash_installers "${pick[@]}"
+}
 
 # ── User ──
 
@@ -3041,7 +3126,7 @@ draw_runner() { # TITLE OUTFILE
   done
   ((SPIN_I++))
   if [[ -n $2 && -s $2 ]]; then
-    last=$(grep -v '^@@scan' "$2" | grep -v '^\s*$' | tail -n 1 | tr -d '\r' | sed 's/\x1b\[[0-9;]*[A-Za-z]//g')
+    last=$(grep -v '^@@' "$2" | grep -v '^\s*$' | tail -n 1 | tr -d '\r' | sed 's/\x1b\[[0-9;]*[A-Za-z]//g')
     fitv last "$last" $((UI_W - 8))
     fl ""
     fl "   ${DIM}│ $last${NC}"
@@ -3086,7 +3171,7 @@ run_tasks() { # TITLE
     if ((!UI_ACTIVE)); then
       if ((rc == 0)); then ok "${T_INFO[i]}"; else err "${T_INFO[i]}"; tail -n 5 "$out" | sed 's/^/    /'; fi
     fi
-    { printf '━━ %s — exit %d\n' "${T_LABEL[i]}" "$rc"; grep -v '^@@scan' "$out"; printf '\n'; } >>"$RUN_LOG"
+    { printf '━━ %s — exit %d\n' "${T_LABEL[i]}" "$rc"; grep -v '^@@' "$out"; printf '\n'; } >>"$RUN_LOG"
     rm -f "$out"
   done
   [[ -n $keepalive ]] && kill_tree "$keepalive"
@@ -3172,7 +3257,8 @@ task_clean() { # clean, then re-measure so the parent can compute what was freed
 }
 
 task_clean_post() { # ID RC IDX OUTFILE
-  local id=$1 i=$3 before=${RES_BYTES[$1]} freed src bytes note
+  local id=$1 i=$3 before=${RES_BYTES[$1]} freed src bytes note line
+  while IFS= read -r line; do CLEAN_UNDO+=("${line#@@undo$'\t'}"); done < <(grep '^@@undo' "$4") # what went to the Trash
   (($2 == 0)) || return 0
   if [[ ${ITEM_CAT[$id]} == privacy ]]; then
     T_INFO[i]=$( ((DRY_RUN)) && echo "would be cleared" || echo "cleared")
@@ -3230,7 +3316,9 @@ start_cleanup() { # cleans the selected SCANNED items; returns 1 if nothing ran
   new_tasks clean
   for id in "${ids[@]}"; do add_task "${ITEM_LABEL[$id]}" task_clean "$id"; done
   RUN_AVAIL0=$(fs_avail)
+  CLEAN_UNDO=()
   run_tasks "Cleaning"
+  ((${#CLEAN_UNDO[@]})) && UNDO_BATCH=("${CLEAN_UNDO[@]}") # z on the home screen puts them back
   RUN_AVAIL1=$(fs_avail)
   save_scan_cache
   record_disk_usage
@@ -5414,7 +5502,7 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
       task_clean "$id" >"$out" 2>&1 </dev/null; rc=$?
     fi
     if ((rc != 0)); then
-      info=$(grep -v '^@@scan' "$out" | grep -v '^\s*$' | tail -n 1)
+      info=$(grep -v '^@@' "$out" | grep -v '^\s*$' | tail -n 1)
       json_task "$id" fail "${info:-failed (exit $rc)}" 0
       log "json clean $id failed: $info"
       continue

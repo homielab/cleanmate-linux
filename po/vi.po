@@ -5,8 +5,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 04:24+0000\n"
-"PO-Revision-Date: 2026-10-30 16:00+0700\n"
+"POT-Creation-Date: 2026-10-30 04:38+0000\n"
+"PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
 "Language: vi\n"
@@ -1703,6 +1703,20 @@ msgstr "Bộ nhớ đệm gói APT"
 #. apt_cache description
 msgid "Downloaded .deb installers. apt re-downloads them if ever needed."
 msgstr "Bộ cài .deb đã tải. apt tải lại nếu cần."
+
+#. old_installers label
+msgid "Old installers in Downloads"
+msgstr "Bộ cài cũ trong Tải về"
+
+#. old_installers description
+#, python-brace-format
+msgid ""
+"Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, "
+"Flatpak) at the top of your Downloads folder, downloaded more than {0} days "
+"ago. Moved to the Trash."
+msgstr ""
+"Bộ cài và ảnh đĩa (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) ngay "
+"trong thư mục Tải về, tải về hơn {0} ngày trước. Chuyển vào Thùng rác."
 
 #. orphans label
 msgid "Unused packages & old kernels"

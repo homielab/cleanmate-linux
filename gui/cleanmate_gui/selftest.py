@@ -3,8 +3,9 @@
 Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
 Files, Space Lens, Duplicates and Startup Items checks move files to the Trash for real, and the Settings
-check saves settings for real, the Docker check removes an image through a fake `docker`, and the drive Trash
-check empties a fake drive's Trash, but only in a throwaway folder they made, with the engine pointed at it.
+check saves settings for real, the Docker check removes an image through a fake `docker`, the drive Trash
+check empties a fake drive's Trash, and the old installers check moves a download to the Trash, but only in a
+throwaway folder they made, with the engine pointed at it.
 """
 import os
 import shutil
@@ -876,7 +877,7 @@ def drive_trash_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        maintenance_test(win, report, wait, finish)
+        old_installers_test(win, report, wait, finish)
 
     def scanned():
         box = page.checks.get("trash_drives")
@@ -915,6 +916,72 @@ def drive_trash_test(win, report, wait, finish):
     page.scan()
     wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,
          "User & App Junk scan")
+
+
+def old_installers_test(win, report, wait, finish):
+    """System Junk with two old installers in Downloads: one sub-row per file, none ticked; ticking one
+    half-ticks the item and Clean moves only that file to the Trash (for real, in a throwaway home)."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    downloads = os.path.join(sandbox, "Downloads")
+    os.makedirs(os.path.join(downloads, "sub"))
+    old = time.time() - 40 * 86400
+    for name, size in (("a.deb", 1000), ("b.iso", 2000), ("c.deb", 500), ("sub/d.deb", 700)):
+        path = os.path.join(downloads, name)
+        with open(path, "wb") as f:
+            f.write(b"\0" * size)
+        if name != "c.deb":  # c.deb was downloaded today
+            os.utime(path, (old, old))
+    env = {"HOME": sandbox, "XDG_CONFIG_HOME": os.path.join(sandbox, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1"}
+
+    win.show_page("system")
+    page = win.pages["system"]
+    real_engine = page.engine
+    page.engine = Engine(real_engine.path, dry_run=False, env=env)
+
+    def done():
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        maintenance_test(win, report, wait, finish)
+
+    def scanned():
+        box = page.checks.get("old_installers")
+        row = box and box.get_ancestor(Adw.ExpanderRow)
+        if not row:
+            report(False, "Old installers in Downloads has no sub-rows")
+            return done()
+        report(not box.get_active(), "Old installers in Downloads is not ticked by default")
+        row.set_expanded(True)
+        wait(lambda: "old_installers" in page.entries, listed, 30, "installer entries")
+
+    def listed():
+        boxes = page.entry_checks.get("old_installers", {})
+        report(sorted(boxes) == ["a.deb", "b.iso"] and not any(b.get_active() for b in boxes.values()),
+               "one sub-row per old installer at the top of Downloads, none ticked")
+        if "a.deb" not in boxes:
+            return done()
+        boxes["a.deb"].set_active(True)
+        box = page.checks["old_installers"]
+        report(box.get_active() and box.get_inconsistent() and page.chosen_bytes("old_installers") == 1000
+               and page.size_labels["old_installers"].get_text().count("/") == 1,
+               "ticking one file: the item box is half-ticked and the size shows selected / total")
+        if os.geteuid() == 0:
+            report(True, "real clean skipped: as root the engine refuses home items")
+            return done()
+        page.clean(["old_installers"])
+        wait(lambda: page.clean_title.get_text().startswith(lead(_("Freed {size}"))), cleaned, 60, "installer clean")
+
+    def cleaned():
+        trash = os.path.join(sandbox, ".local", "share", "Trash", "files")
+        report(not os.path.exists(os.path.join(downloads, "a.deb")) and os.path.exists(os.path.join(trash, "a.deb"))
+               and os.path.exists(os.path.join(downloads, "b.iso")),
+               "Clean moves only the ticked installer to the Trash")
+        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", done, 60,
+             "scan after cleaning")
+
+    page.scan()
+    wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,
+         "System Junk scan")
 
 
 MAINT_STUBS = {  # tools of Update everything and Rebuild font cache; each logs what it was asked to do

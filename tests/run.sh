@@ -900,6 +900,76 @@ for l in sys.stdin:
   assert_exists "$t/files/again.bin"
 }
 
+test_old_installers_in_downloads() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local dl=$HOME_DIR/Downloads out f pid hold=()
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  sized "$dl/a.deb" 1000; sized "$dl/b.iso" 2000; sized "$dl/Tool, v2.AppImage" 300
+  sized "$dl/c.deb" 50                                       # new
+  sized "$dl/d.iso.part" 70                                  # not an installer (a download in progress)
+  sized "$dl/e.iso" 0; sized "$dl/e.iso.part" 80             # still downloading
+  sized "$dl/sub/f.deb" 90                                   # in a subfolder
+  sized "$dl/notes.txt" 40                                   # not an installer
+  sized "$dl/open.run" 60                                    # open in a program
+  sized "$WORK/elsewhere.deb" 500; ln -s "$WORK/elsewhere.deb" "$dl/link.deb"
+  for f in a.deb b.iso "Tool, v2.AppImage" d.iso.part e.iso e.iso.part sub/f.deb notes.txt open.run; do
+    touch -d "40 days ago" "$dl/$f"
+  done
+  touch -h -d "40 days ago" "$dl/link.deb"
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])'
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  "${hold[@]}" sleep 60 <"$dl/open.run" >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json scan --only system | grep '"id":"old_installers"' | python3 -c "$list")
+  assert_eq "$out" "old_installers 3300 3 files older than 30 days False True False" \
+    "old installers at the top of Downloads only, not ticked"
+  out=$(user_cm --json details old_installers | python3 -c "$list")
+  assert_eq "$out" "b.iso 2000 off b.iso · 40 days old"$'\n'"a.deb 1000 off a.deb · 40 days old"$'\n'"Tool%2C%20v2.AppImage 300 off Tool, v2.AppImage · 40 days old" \
+    "one entry per file, biggest first"
+  out=$(user_cm --json --dry-run clean old_installers | python3 -c "$list")
+  assert_contains "$out" "ok 3300"
+  assert_exists "$dl/a.deb"
+  out=$(user_cm --json clean old_installers --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of old_installers: ../etc"
+  out=$(user_cm --json clean old_installers --entries "Tool%2C%20v2.AppImage,c.deb" | python3 -c "$list")
+  assert_eq "$out" "ok 300 300 B freed" "only the chosen file"
+  assert_missing "$dl/Tool, v2.AppImage"; assert_exists "$dl/a.deb"; assert_exists "$dl/c.deb"
+  out=$(user_cm --json clean old_installers | python3 -c "$list")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  touch "$dl/open.run" # new now, so the next cleanups leave it alone
+  assert_eq "$out" "ok 3000 2.9 KB freed" "the rest"
+  assert_missing "$dl/a.deb"; assert_missing "$dl/b.iso"
+  assert_exists "$HOME_DIR/.local/share/Trash/files/a.deb"; assert_exists "$HOME_DIR/.local/share/Trash/info/b.iso.trashinfo"
+  for f in c.deb d.iso.part e.iso e.iso.part sub/f.deb notes.txt open.run link.deb; do assert_exists "$dl/$f"; done
+  assert_exists "$WORK/elsewhere.deb"
+  out=$(user_cm --json restore a.deb b.iso | python3 -c "$list")
+  assert_eq "$out" "ok 0 put back"$'\n'"ok 0 put back" "restore puts them back"
+  assert_exists "$dl/a.deb"; assert_exists "$dl/b.iso"
+  # the terminal app: what a cleanup moved to the Trash is the batch z puts back
+  out=$(in_app 'SESSION_TMP=$(mktemp -d) UI_ACTIVE=0 DRY_RUN=0
+    new_tasks clean; add_task "Old installers" task_clean old_installers; CLEAN_UNDO=()
+    run_tasks Cleaning >/dev/null
+    echo "batch=${#CLEAN_UNDO[@]}"; UNDO_BATCH=("${CLEAN_UNDO[@]}")
+    [[ -e $HOME/Downloads/a.deb ]] && echo "not trashed"
+    undo_trash; echo "restored=$UNDO_OK"; rm -r "$SESSION_TMP"')
+  assert_eq "$out" "batch=2"$'\n'"restored=2" "z puts back what the cleanup trashed"
+  assert_exists "$dl/a.deb"; assert_exists "$dl/b.iso"
+  # xdg-user-dir decides where Downloads is
+  mkdir -p "$HOME_DIR/.local/bin" "$HOME_DIR/Tải về"
+  printf '#!/bin/sh\necho "%s"\n' "$HOME_DIR/Tải về" >"$HOME_DIR/.local/bin/xdg-user-dir"; chmod +x "$HOME_DIR/.local/bin/xdg-user-dir"
+  sized "$HOME_DIR/Tải về/g.flatpakref" 10; touch -d "40 days ago" "$HOME_DIR/Tải về/g.flatpakref"
+  out=$(user_cm --json details old_installers | python3 -c "$list")
+  assert_eq "$out" "g.flatpakref 10 off g.flatpakref · 40 days old" "the folder xdg-user-dir names"
+}
+
 lens_entries() { # reads `--json lens` → "kind count movable name" lines (sizes checked apart), then "done …"
   python3 -c 'import sys, json
 for l in sys.stdin:
