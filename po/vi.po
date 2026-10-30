@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 22:14+0000\n"
+"POT-Creation-Date: 2026-10-30 22:32+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -3134,6 +3134,20 @@ msgstr ""
 "Ảnh hệ thống của trình giả lập Android mà không thiết bị ảo (AVD) nào dùng, "
 "thường vài GB mỗi ảnh. Xoá hẳn; tải lại bằng SDK Manager của Android Studio. "
 "Hãy đóng Android Studio và trình giả lập trước."
+
+#. jetbrains_old_versions label
+msgid "Old IDE versions"
+msgstr "Phiên bản IDE cũ"
+
+#. jetbrains_old_versions description
+msgid ""
+"Settings, plugins, caches and logs of JetBrains IDE (IntelliJ IDEA, PyCharm, "
+"WebStorm…) and Android Studio versions that a newer version of the same IDE "
+"replaced. Moved to the Trash; skipped while that IDE runs."
+msgstr ""
+"Cài đặt, plugin, cache và log của các phiên bản IDE JetBrains (IntelliJ "
+"IDEA, PyCharm, WebStorm…) và Android Studio đã được phiên bản mới hơn của "
+"cùng IDE thay thế. Chuyển vào Thùng rác; bỏ qua khi IDE đó đang chạy."
 
 #. ollama_partial label
 msgid "Ollama — unfinished downloads"

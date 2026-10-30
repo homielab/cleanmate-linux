@@ -937,7 +937,7 @@ reg podman       dev    "Podman: stopped containers & dangling images" 0 "podman
 for _id in apt_cache orphans residual journal old_logs big_logs crash coredump snap_old old_kernels; do ITEM_ROOT[$_id]=1; done
 unset _id
 # items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
-declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1)
+declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1 [jetbrains_old_versions]=1)
 
 # ── detail helpers ──
 
@@ -2499,7 +2499,7 @@ clean_entries_vscode_stale_workspaces() { # encoded folders (json_clean_entries 
 app_cache_find() {
   # Exclude with -path tests, not -prune: -delete implies -depth, which disables -prune.
   local ex=(thumbnails pip go-build yarn pnpm mozilla google-chrome chromium BraveSoftware
-    microsoft-edge vivaldi opera huggingface lm-studio firebase) skip=() e # AI models are items of their own
+    microsoft-edge vivaldi opera huggingface lm-studio firebase JetBrains 'Google/AndroidStudio*') skip=() e # AI models and old IDE versions are items of their own
   for e in "${ex[@]}"; do skip+=(-path "$HOME/.cache/$e/*" -o); done
   unset 'skip[-1]'
   find "$HOME/.cache" -type f -not \( "${skip[@]}" \) -mtime +"$CACHE_DAYS" -atime +"$CACHE_DAYS" "$@" 2>/dev/null
@@ -3321,6 +3321,151 @@ clean_entries_android_images() { # encoded image folders (json_clean_entries onl
   delete_android_images "${pick[@]}"
 }
 
+# Old JetBrains IDE and Android Studio versions. Each version keeps its settings, plugins, caches,
+# indexes and logs in <vendor>/<Product><year>.<n> under ~/.config, ~/.local/share and ~/.cache
+# (JetBrains/IntelliJIdea2023.1, Google/AndroidStudio2023.3), also inside Flatpak
+# (~/.var/app/<id>/{config,data,cache}) and Snap (~/snap/<name>/<revision>/{.config,.local/share},
+# ~/snap/<name>/common/.cache) sandboxes; an upgrade copies the settings to the new version's
+# folders and leaves the old ones. A version is listed when a newer version of the same product is
+# found in the same place (the three folders together), its folders as one entry. Never the newest,
+# nor a name without a <year>.<n> version (consentOptions, IntelliJServer, Daemon, Toolbox); in
+# Google only AndroidStudio… counts. Skipped while that IDE runs (its launcher by name, or java with
+# idea.paths.selector=<Product>) or a program has a file open in it, and the scan says which. Moved
+# to the Trash (z puts it back). Not ticked; automatic cleaning leaves them alone. User caches
+# leaves ~/.cache/JetBrains and ~/.cache/Google/AndroidStudio… to this item.
+reg jetbrains_old_versions dev "Old IDE versions" 0 "Settings, plugins, caches and logs of JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm…) and Android Studio versions that a newer version of the same IDE replaced. Moved to the Trash; skipped while that IDE runs."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_jetbrains_old_versions='^/[A-Za-z0-9/._~%-]+$' # the version's first folder, full path percent-encoded
+
+IDE_VERSION_RE='^([A-Za-z]+)([0-9]{4}(\.[0-9]+)+)$' # PyCharm2024.2, AndroidStudio2023.3.1
+declare -A IDE_NAMES=([IntelliJIdea]="IntelliJ IDEA" [IdeaIC]="IntelliJ IDEA Community" [PyCharmCE]="PyCharm Community"
+  [PyCharmEdu]="PyCharm Edu" [AndroidStudio]="Android Studio" [AndroidStudioPreview]="Android Studio Preview"
+  [JetBrainsGateway]="Gateway" [JetBrainsClient]="JetBrains Client")
+declare -A IDE_PROCS=([IntelliJIdea]=idea [IdeaIC]=idea [PyCharmCE]=pycharm [PyCharmEdu]=pycharm
+  [AndroidStudio]='studio|android-studio' [AndroidStudioPreview]='studio|android-studio'
+  [JetBrainsGateway]=gateway [JetBrainsClient]=jetbrains_client) # others: the product's name in lower case
+
+ide_roots() { # → lines "where<TAB>config<TAB>data<TAB>cache" (where: - for your own folders, Flatpak, Snap)
+  local a r
+  printf -- '-\t%s\t%s\t%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}" "${XDG_DATA_HOME:-$HOME/.local/share}" "${XDG_CACHE_HOME:-$HOME/.cache}"
+  for a in "$HOME"/.var/app/*/; do
+    [[ -d $a && ! -L ${a%/} ]] && printf 'Flatpak\t%s\t%s\t%s\n' "${a}config" "${a}data" "${a}cache"
+  done
+  for a in "$HOME"/snap/*/; do
+    r=$(readlink -- "${a}current" 2>/dev/null) || continue # current → the revision folder
+    [[ $r =~ ^x?[0-9]+$ && ! -L ${a%/} ]] && printf 'Snap\t%s\t%s\t%s\n' "$a$r/.config" "$a$r/.local/share" "${a}common/.cache"
+  done
+  return 0
+}
+
+ide_running() { # PRODUCT → the running program of that IDE (its launcher, or java started by <ide>.sh); fails when none
+  running_proc -x "(${IDE_PROCS[$1]:-${1,,}})(\.sh)?" && return
+  running_proc -f "idea\.paths\.selector=$1[0-9]" >/dev/null && printf '%s\n' "${IDE_NAMES[$1]:-$1}"
+}
+
+version_newer() { [[ $1 != "$2" && $(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1) == "$1" ]]; } # A B → A is newer
+
+ide_old_versions() { # → IV_ID / IV_DIRS (newline-separated) / IV_BYTES / IV_LABEL to offer, biggest first; IV_BUSY, IV_FOUND
+  local where conf data cache vendor root vd d name prod ver key pk i=0 n b used lines=() all=()
+  local -A vdirs=() kprod=() kver=() kwhere=() newest=() prodrun=()
+  IV_ID=() IV_DIRS=() IV_BYTES=() IV_LABEL=() IV_BUSY=() IV_FOUND=0
+  while IFS=$'\t' read -r where conf data cache; do
+    i=$((i + 1))
+    for vendor in JetBrains Google; do
+      for root in "$conf" "$data" "$cache"; do
+        vd=$(runtime_dir "$root/$vendor") || continue
+        [[ $vendor == Google ]] && ! compgen -G "$vd/AndroidStudio*" >/dev/null && continue
+        IV_FOUND=1
+        for d in "$vd"/*/; do
+          d=${d%/} name=${d##*/}
+          [[ -d $d && ! -L $d && $d != *[[:cntrl:]]* && $name =~ $IDE_VERSION_RE ]] || continue
+          prod=${BASH_REMATCH[1]} ver=${BASH_REMATCH[2]}
+          [[ $vendor == JetBrains || $prod == AndroidStudio* ]] || continue
+          key=$i/$vendor/$name pk=$i/$vendor/$prod
+          vdirs[$key]+=$d$'\n' kprod[$key]=$prod kver[$key]=$ver kwhere[$key]=$where
+          [[ -z ${newest[$pk]:-} ]] || version_newer "$ver" "${newest[$pk]}" && newest[$pk]=$ver
+        done
+      done
+    done
+  done < <(ide_roots)
+  ((${#vdirs[@]})) || return 0
+  used=$'\n'$(open_files)$'\n'
+  for key in "${!vdirs[@]}"; do
+    prod=${kprod[$key]} ver=${kver[$key]}
+    [[ $ver != "${newest[${key%/*}/$prod]}" ]] || continue
+    name="${IDE_NAMES[$prod]:-$prod} $ver"
+    [[ ${kwhere[$key]} == - ]] || name+=" · ${kwhere[$key]}"
+    n=0
+    while IFS= read -r d; do touches_exclusion "$d" && n=1; done <<<"${vdirs[$key]%$'\n'}"
+    ((n)) && continue
+    [[ -n ${prodrun[$prod]:-} ]] || { ide_running "$prod" >/dev/null && prodrun[$prod]=1 || prodrun[$prod]=0; }
+    n=${prodrun[$prod]}
+    while IFS= read -r d; do open_under "$used" "$d" && n=1; done <<<"${vdirs[$key]%$'\n'}"
+    if ((n)); then IV_BUSY+=("$name"); continue; fi
+    mapfile -t all <<<"${vdirs[$key]%$'\n'}"
+    b=$(du -sbcx -- "${all[@]}" 2>/dev/null | tail -n1 | cut -f1)
+    lines+=("${b:-0}"$'\t'"$key"$'\t'"$name")
+  done
+  ((${#IV_BUSY[@]})) && mapfile -t IV_BUSY < <(printf '%s\n' "${IV_BUSY[@]}" | LC_ALL=C sort)
+  ((${#lines[@]})) || return 0
+  while IFS=$'\t' read -r b key name; do
+    d=${vdirs[$key]%$'\n'}
+    IV_BYTES+=("$b") IV_DIRS+=("$d") IV_LABEL+=("$name") IV_ID+=("$(urlencode_path "${d%%$'\n'*}")")
+  done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr -k3,3)
+}
+
+trash_ide_versions() { # INDEX… of IV_ID — move their folders to the Trash; @@undo lines let the terminal app undo it
+  local i d rc=0
+  UNDO_BATCH=()
+  for i; do
+    while IFS= read -r d; do move_to_trash "$d" || rc=1; done <<<"${IV_DIRS[i]}"
+  done
+  for d in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$d"; done
+  return "$rc"
+}
+
+scan_jetbrains_old_versions() {
+  local b busy=""
+  ide_old_versions
+  ((IV_FOUND)) || return 1
+  ((${#IV_BUSY[@]})) && busy="skipped while running: $(printf '%s, ' "${IV_BUSY[@]}")" busy=${busy%, }
+  if ((${#IV_ID[@]} == 0)); then
+    SCAN_NOTE=$busy
+    return 2
+  fi
+  SCAN_BYTES=0
+  for b in "${IV_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#IV_ID[@]} version) replaced by a newer one${busy:+; $busy}"
+}
+clean_jetbrains_old_versions() {
+  ide_old_versions
+  ((${#IV_ID[@]})) || return 0
+  trash_ide_versions "${!IV_ID[@]}"
+}
+details_jetbrains_old_versions() {
+  local i d
+  ide_old_versions
+  for i in "${!IV_ID[@]}"; do
+    d=${IV_DIRS[i]/#$HOME/\~} d=${d//$'\n'"$HOME"/  \~}
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${IV_BYTES[i]}")" "$(human "${IV_BYTES[i]}")" "$NC" "${IV_LABEL[i]}" "$d"
+  done
+  for i in "${IV_BUSY[@]}"; do printf '  %s%10s  %s  (running, skipped)%s\n' "$DIM" "" "$i" "$NC"; done
+}
+entries_jetbrains_old_versions() {
+  local i
+  ide_old_versions
+  for i in "${!IV_ID[@]}"; do printf '%s\t%s\t0\t%s\n' "${IV_ID[i]}" "${IV_BYTES[i]}" "${IV_LABEL[i]}"; done
+}
+clean_entries_jetbrains_old_versions() { # encoded first folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  ide_old_versions
+  for id; do
+    for i in "${!IV_ID[@]}"; do [[ ${IV_ID[i]} == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  trash_ide_versions "${pick[@]}"
+}
+
 si_to_bytes() { local v=${1%B}; v=${v/k/K}; numfmt --from=si "$v" 2>/dev/null || echo 0; }
 # Docker: one item per kind of leftover, sized from `docker system df`.
 docker_ok() { have docker && timeout 5 docker info >/dev/null 2>&1; }
@@ -4054,7 +4199,7 @@ plain_results() {
     ((++i))
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == jetbrains_old_versions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -7061,7 +7206,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 # never empty a Trash behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[old_runtimes]=0 # the user picks which projects to rebuild and images or runtimes to download again
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 # the user picks which projects to rebuild, images or runtimes to download again and IDE versions to let go
   plain_results
   printf '\n'
   start_cleanup

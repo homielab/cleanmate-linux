@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 22:14+0000\n"
+"POT-Creation-Date: 2026-10-30 22:32+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2988,6 +2988,17 @@ msgid ""
 "Android emulator system images no virtual device (AVD) uses, often several "
 "GB each. Deleted; download one again with Android Studio's SDK Manager. "
 "Close Android Studio and the emulator first."
+msgstr ""
+
+#. jetbrains_old_versions label
+msgid "Old IDE versions"
+msgstr ""
+
+#. jetbrains_old_versions description
+msgid ""
+"Settings, plugins, caches and logs of JetBrains IDE (IntelliJ IDEA, PyCharm, "
+"WebStorm…) and Android Studio versions that a newer version of the same IDE "
+"replaced. Moved to the Trash; skipped while that IDE runs."
 msgstr ""
 
 #. ollama_partial label

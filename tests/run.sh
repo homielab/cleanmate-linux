@@ -2566,6 +2566,88 @@ $enc33 $b33 off Android 33 · google_apis_playstore · x86_64" "one entry per im
   assert_eq "$out" "" "an AVD folder that can't be worked out lists nothing"
 }
 
+test_old_jetbrains_and_android_studio_versions() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/idebin f keys=() bi bp bw bs bf enci encp encs
+  local c=$h/.config/JetBrains d=$h/.local/share/JetBrains k=$h/.cache/JetBrains g=$h/.config/Google kg=$h/.cache/Google
+  local fp=$h/.var/app/com.jetbrains.PyCharm-Community/config/JetBrains
+  assert_eq "$(user_cm --json scan --only dev | grep -c '"id":"jetbrains_old_versions"')" "0" "no IDE folders: not shown"
+  sized "$c/IntelliJIdea2023.1/options/ide.general.xml" 1000; sized "$d/IntelliJIdea2023.1/plugins/p.jar" 4000
+  sized "$k/IntelliJIdea2023.1/index/x" 90000                                       # the old one, in all three places
+  sized "$c/IntelliJIdea2024.2/options/ide.general.xml" 10; sized "$k/IntelliJIdea2024.2/index/x" 10 # the newest
+  sized "$d/PyCharm2023.3/plugins/p.jar" 20000; sized "$c/PyCharm2024.1/options/x.xml" 10
+  sized "$c/PyCharmCE2022.1/options/x.xml" 10                                      # the only Community one
+  sized "$c/WebStorm2023.9/options/x.xml" 5000; sized "$c/WebStorm2023.10/options/x.xml" 10 # 2023.10 is newer
+  for f in "$c/consentOptions/accepted" "$c/IntelliJServer/x" "$k/Daemon/x" "$d/Toolbox/apps/x" "$c/IntelliJIdea/x"; do new "$f"; done
+  sized "$g/AndroidStudio2023.3/options/x.xml" 7000; sized "$kg/AndroidStudio2023.3/caches/x" 20000
+  sized "$g/AndroidStudio2024.1/options/x.xml" 10
+  sized "$g/Chrome2020.1/x" 10; sized "$g/Chrome2021.1/x" 10                      # not Android Studio: never
+  sized "$fp/PyCharmCE2023.1/options/x.xml" 6000; sized "$fp/PyCharmCE2023.2/options/x.xml" 10 # each sandbox on its own
+  old "$k/IntelliJIdea2024.2/index/old"
+  bi=$(du -sbc "$c/IntelliJIdea2023.1" "$d/IntelliJIdea2023.1" "$k/IntelliJIdea2023.1" | tail -n1 | cut -f1)
+  bs=$(du -sbc "$g/AndroidStudio2023.3" "$kg/AndroidStudio2023.3" | tail -n1 | cut -f1)
+  bp=$(du -sb "$d/PyCharm2023.3" | cut -f1) bw=$(du -sb "$c/WebStorm2023.9" | cut -f1) bf=$(du -sb "$fp/PyCharmCE2023.1" | cut -f1)
+  enci=$(in_app "urlencode_path '$c/IntelliJIdea2023.1'") encp=$(in_app "urlencode_path '$d/PyCharm2023.3'")
+  encs=$(in_app "urlencode_path '$g/AndroidStudio2023.3'")
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["status"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"])
+    elif e["event"] == "done" and e.get("trash"): print("trash", " ".join(sorted(e["trash"]["jetbrains_old_versions"])))
+    elif e["event"] == "error": print("error", e["message"])'
+  out=$(user_cm --json scan --only dev | grep '"id":"jetbrains_old_versions"' | python3 -c "$list")
+  assert_eq "$out" "jetbrains_old_versions found $((bi + bs + bp + bf + bw)) 5 versions replaced by a newer one False True False" \
+    "old versions, not ticked"
+  out=$(user_cm --json details jetbrains_old_versions | python3 -c "$list")
+  assert_eq "$out" "$enci $bi off IntelliJ IDEA 2023.1
+$encs $bs off Android Studio 2023.3
+$encp $bp off PyCharm 2023.3
+$(in_app "urlencode_path '$fp/PyCharmCE2023.1'") $bf off PyCharm Community 2023.1 · Flatpak
+$(in_app "urlencode_path '$c/WebStorm2023.9'") $bw off WebStorm 2023.9" "one entry per version (its three folders together), biggest first"
+  assert_eq "$(in_app 'app_cache_find' | grep -c -e JetBrains -e AndroidStudio)" "0" "user caches leave IDE caches alone"
+  out=$(cm --scan --only dev 2>&1)
+  assert_contains "$out" "Old IDE versions"
+  # automatic cleaning leaves them alone even when ticked
+  select_only jetbrains_old_versions
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$c/IntelliJIdea2023.1"
+  # that IDE running: its old versions are skipped, the others are not
+  running_stub "$bin" pycharm
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json scan --only dev | grep '"id":"jetbrains_old_versions"' | python3 -c "$list" | cut -d' ' -f4-)
+  assert_eq "$out" "3 versions replaced by a newer one; skipped while running: PyCharm 2023.3, PyCharm Community 2023.1 · Flatpak True True False" \
+    "a running IDE's versions are skipped and named (ticked: select_only above)"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean jetbrains_old_versions --entries "$encp,$enci" | python3 -c "$list")
+  assert_contains "$out" "ok $bi"
+  assert_exists "$d/PyCharm2023.3/plugins/p.jar"
+  for f in "$c/IntelliJIdea2023.1" "$d/IntelliJIdea2023.1" "$k/IntelliJIdea2023.1"; do assert_missing "$f"; done
+  assert_exists "$h/.local/share/Trash/files/IntelliJIdea2023.1"
+  out=$(user_cm --json clean jetbrains_old_versions --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of jetbrains_old_versions: ../etc"
+  # Undo puts all three folders back
+  mapfile -t keys < <(ls "$h/.local/share/Trash/files")
+  assert_eq "${#keys[@]}" "3" "three folders in the Trash"
+  user_cm --json restore "${keys[@]}" >/dev/null
+  assert_exists "$c/IntelliJIdea2023.1/options/ide.general.xml"; assert_exists "$d/IntelliJIdea2023.1/plugins/p.jar"
+  assert_exists "$k/IntelliJIdea2023.1/index/x"
+  out=$(user_cm --json clean jetbrains_old_versions | python3 -c "$list")
+  assert_contains "$out" "ok $((bi + bs + bp + bf + bw))"
+  assert_eq "$(grep -o '^trash .*' <<<"$out" | wc -w)" "9" "every folder moved to the Trash has an undo key"
+  for f in "$c/IntelliJIdea2023.1" "$d/IntelliJIdea2023.1" "$k/IntelliJIdea2023.1" "$d/PyCharm2023.3" "$c/WebStorm2023.9" \
+    "$g/AndroidStudio2023.3" "$kg/AndroidStudio2023.3" "$fp/PyCharmCE2023.1"; do
+    assert_missing "$f"
+  done
+  for f in IntelliJIdea2024.2 PyCharm2024.1 PyCharmCE2022.1 WebStorm2023.10 consentOptions IntelliJServer IntelliJIdea; do assert_exists "$c/$f"; done
+  for f in "$k/IntelliJIdea2024.2/index/old" "$k/Daemon/x" "$d/Toolbox/apps/x" "$g/AndroidStudio2024.1" "$g/Chrome2020.1" \
+    "$fp/PyCharmCE2023.2"; do
+    assert_exists "$f"
+  done
+  out=$(user_cm --json scan --only dev | grep '"id":"jetbrains_old_versions"' | python3 -c "$list" | cut -d' ' -f1-3)
+  assert_eq "$out" "jetbrains_old_versions clean 0" "nothing left"
+}
+
 test_old_runtime_versions() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home

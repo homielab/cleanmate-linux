@@ -694,6 +694,14 @@ msgstr ""
 msgid "Android emulator system images no virtual device (AVD) uses, often several GB each. Deleted; download one again with Android Studio's SDK Manager. Close Android Studio and the emulator first."
 msgstr ""
 
+#. jetbrains_old_versions label
+msgid "Old IDE versions"
+msgstr ""
+
+#. jetbrains_old_versions description
+msgid "Settings, plugins, caches and logs of JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm…) and Android Studio versions that a newer version of the same IDE replaced. Moved to the Trash; skipped while that IDE runs."
+msgstr ""
+
 #. ollama_partial label
 msgid "Ollama — unfinished downloads"
 msgstr ""
