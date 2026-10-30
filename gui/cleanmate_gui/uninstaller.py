@@ -17,14 +17,26 @@ from .largefiles import short_path
 from .scanpage import size_widgets
 
 SORTS = [(_("Size"), "size"), (_("Last used"), "used"), (_("Name"), "name")]
+UNUSED = [(_("All apps"), 0), (_("Unused for 1+ month"), 1), (_("Unused for 3+ months"), 3),
+          (_("Unused for 6+ months"), 6), (_("Unused for 12+ months"), 12)]
 KIND_LABELS = {"apt": "apt", "snap": "Snap", "flatpak": "Flatpak"}
 LEFTOVER_REASONS = {"flatpak": _("This Flatpak app is no longer installed"),
                     "snap": _("This snap is no longer installed")}
 
 
+def unused_visible(app, months, show_undated, now=None):
+    """Whether an app passes the "unused for N months" filter (0 = all apps).
+    Apps without a last-used date are unknown, not unused: only shown when asked."""
+    if not months:
+        return True
+    if not app["last_used"]:
+        return show_undated
+    return (now or time.time()) - app["last_used"] >= months * 30 * 86400
+
+
 def used_ago(epoch):
     if not epoch:
-        return ""  # unknown
+        return _("last use unknown")
     days = int((time.time() - epoch) // 86400)
     if days < 1:
         return _("used today")
@@ -67,6 +79,7 @@ class UninstallerPage(Gtk.Box):
         self.running = None
         self.busy = False  # listing, checking or uninstalling: nothing else starts
         self.undo_toast = None
+        self.show_undated = False  # reveal apps without a date under an "unused" filter
 
         self.search_entry = Gtk.SearchEntry(placeholder_text=_("Search apps"), hexpand=True)
         self.search_entry.connect("search-changed", lambda *_: self.apply_filter())
@@ -74,7 +87,11 @@ class UninstallerPage(Gtk.Box):
         self.sort_drop.set_tooltip_text(_("Sort by"))
         self.sort_drop.connect("notify::selected", lambda *_: self.apps and self.show_results())
         top = Gtk.Box(spacing=12, margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
+        self.unused_drop = Gtk.DropDown.new_from_strings([label for label, _ in UNUSED])
+        self.unused_drop.set_tooltip_text(_("Filter by last use"))
+        self.unused_drop.connect("notify::selected", self.on_unused_changed)
         top.append(self.search_entry)
+        top.append(self.unused_drop)
         top.append(self.sort_drop)
         self.append(top)
         self.append(Gtk.Separator())
@@ -184,6 +201,9 @@ class UninstallerPage(Gtk.Box):
                 self.rows[a["id"]] = row
                 group.add(row)
             self.results.append(group)
+            self.undated_button = Gtk.Button(halign=Gtk.Align.START, css_classes=["flat"])
+            self.undated_button.connect("clicked", self.on_show_undated)
+            self.results.append(self.undated_button)
         if self.orphans:
             self.results.append(self.orphan_group())
         self.stack.set_visible_child_name("results")
@@ -322,11 +342,31 @@ class UninstallerPage(Gtk.Box):
 
     def apply_filter(self):
         q = self.search_entry.get_text().strip().lower()
+        months = UNUSED[self.unused_drop.get_selected()][1]
+        now = time.time()
+        undated = 0
         for app_id, row in self.rows.items():
             a = self.apps[app_id]
-            row.set_visible(not q or q in a["name"].lower() or q in app_id.lower())
+            match = not q or q in a["name"].lower() or q in app_id.lower()
+            if months and not a["last_used"] and match:
+                undated += 1
+            row.set_visible(match and unused_visible(a, months, self.show_undated, now))
+        hide = bool(months and undated and not self.show_undated)
+        if self.rows:
+            self.undated_button.set_visible(hide)
+            self.undated_button.set_label(ngettext(
+                "{n} app has no last-used date — Show", "{n} apps have no last-used date — Show", undated))
         for path, row in self.orphan_rows.items():
             row.set_visible(not q or q in os.path.basename(path).lower())
+
+    def on_unused_changed(self, *_args):
+        self.show_undated = False
+        if self.apps:
+            self.apply_filter()
+
+    def on_show_undated(self, *_args):
+        self.show_undated = True
+        self.apply_filter()
 
     def on_app_toggled(self, check, app_id):
         on = check.get_active()

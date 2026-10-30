@@ -131,7 +131,7 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
 
 - **Uninstaller** — every app you can open (apt, Snap, Flatpak), with its real size (the app *plus*
   its folders in your home) and when you last used it. Sort by size or last use, or show only apps
-  you haven't opened in 90+ days. Parts of Ubuntu itself are hidden, and a removal that would take
+  you haven't opened in 90+ days (desktop app: unused for 1, 3, 6 or 12+ months). Parts of Ubuntu itself are hidden, and a removal that would take
   something Ubuntu needs with it (GNOME Shell, the login screen, sudo, the running kernel…) is
   refused. Afterwards it offers the app's own folders for the Trash — never folders other apps share.
   The last row, **Leftovers of removed apps**, lists folders no installed app uses any more:
@@ -218,6 +218,12 @@ release available"* check forward. You can turn that prompt off in *Software & U
 **Why is my `syslog` so big?**
 Usually one service logs far too much. *Logs → Oversized active logs* empties it safely;
 `sudo tail -n 1000 /var/log/syslog` shows who's flooding it.
+
+**How does the Uninstaller know when I last used an app?**
+From GNOME Shell's own record of opened apps (`~/.local/share/gnome-shell/application_state`),
+or else the newest change in the app's own folders (config, cache, data) in your home. Apps with
+neither show *Unknown*: they are not counted as unused, so the *Unused for 1/3/6/12+ months*
+filter hides them until you press *Show* under the list.
 
 **Does it work over SSH?** Yes — use the terminal app; colours and the mouse work in any modern terminal.
 

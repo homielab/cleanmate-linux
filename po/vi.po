@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 10:19+0000\n"
+"POT-Creation-Date: 2026-10-30 10:51+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -55,7 +55,7 @@ msgstr "Hãy thử kích thước nhỏ hơn hoặc thư mục khác."
 #: gui/cleanmate_gui/duplicates.py:103 gui/cleanmate_gui/duplicates.py:320
 #: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:274
 #: gui/cleanmate_gui/spacelens.py:88 gui/cleanmate_gui/spacelens.py:345
-#: gui/cleanmate_gui/uninstaller.py:248 gui/cleanmate_gui/uninstaller.py:284
+#: gui/cleanmate_gui/uninstaller.py:268 gui/cleanmate_gui/uninstaller.py:304
 msgid "Move to Trash"
 msgstr "Chuyển vào Thùng rác"
 
@@ -150,7 +150,7 @@ msgstr[0] "Đã chọn mọi bản của {n} tệp: sẽ không giữ lại bả
 
 #: gui/cleanmate_gui/duplicates.py:313 gui/cleanmate_gui/largefiles.py:267
 #: gui/cleanmate_gui/scanpage.py:406 gui/cleanmate_gui/spacelens.py:338
-#: gui/cleanmate_gui/uninstaller.py:402
+#: gui/cleanmate_gui/uninstaller.py:442
 #, python-brace-format
 msgid "… and {n} more"
 msgstr "… và {n} mục khác"
@@ -173,7 +173,7 @@ msgstr ""
 #: gui/cleanmate_gui/duplicates.py:319 gui/cleanmate_gui/largefiles.py:273
 #: gui/cleanmate_gui/maintenance.py:234 gui/cleanmate_gui/scanpage.py:417
 #: gui/cleanmate_gui/settings.py:374 gui/cleanmate_gui/spacelens.py:344
-#: gui/cleanmate_gui/startup.py:221 gui/cleanmate_gui/uninstaller.py:417
+#: gui/cleanmate_gui/startup.py:221 gui/cleanmate_gui/uninstaller.py:457
 msgid "Cancel"
 msgstr "Huỷ"
 
@@ -203,12 +203,12 @@ msgstr[0] "{n} tệp không chuyển được: {reason}"
 
 #: gui/cleanmate_gui/duplicates.py:371 gui/cleanmate_gui/largefiles.py:324
 #: gui/cleanmate_gui/spacelens.py:397 gui/cleanmate_gui/startup.py:240
-#: gui/cleanmate_gui/uninstaller.py:317
+#: gui/cleanmate_gui/uninstaller.py:337
 msgid "Undo"
 msgstr "Hoàn tác"
 
 #: gui/cleanmate_gui/duplicates.py:407 gui/cleanmate_gui/largefiles.py:360
-#: gui/cleanmate_gui/spacelens.py:430 gui/cleanmate_gui/uninstaller.py:552
+#: gui/cleanmate_gui/spacelens.py:430 gui/cleanmate_gui/uninstaller.py:592
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
 msgstr "Đã trả lại {back}, {failed} không khôi phục được: {reason}"
@@ -485,8 +485,8 @@ msgstr ""
 "journal)"
 
 #: gui/cleanmate_gui/maintenance.py:193 gui/cleanmate_gui/scanpage.py:210
-#: gui/cleanmate_gui/scanpage.py:227 gui/cleanmate_gui/uninstaller.py:201
-#: gui/cleanmate_gui/uninstaller.py:398
+#: gui/cleanmate_gui/scanpage.py:227 gui/cleanmate_gui/uninstaller.py:221
+#: gui/cleanmate_gui/uninstaller.py:438
 msgid "Needs your password"
 msgstr "Cần mật khẩu của bạn"
 
@@ -973,7 +973,7 @@ msgid "Items with a lock need your password."
 msgstr "Mục có ổ khoá cần mật khẩu của bạn."
 
 #: gui/cleanmate_gui/scanpage.py:437 gui/cleanmate_gui/scanpage.py:475
-#: gui/cleanmate_gui/uninstaller.py:440 gui/cleanmate_gui/uninstaller.py:479
+#: gui/cleanmate_gui/uninstaller.py:480 gui/cleanmate_gui/uninstaller.py:519
 msgid "waiting"
 msgstr "đang chờ"
 
@@ -989,20 +989,20 @@ msgstr "đang xử lý…"
 msgid "done"
 msgstr "xong"
 
-#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:465
+#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:505
 msgid "skipped"
 msgstr "bỏ qua"
 
-#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:465
+#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:505
 msgid "failed"
 msgstr "thất bại"
 
 #: gui/cleanmate_gui/scanpage.py:468 gui/cleanmate_gui/scanpage.py:475
-#: gui/cleanmate_gui/uninstaller.py:473 gui/cleanmate_gui/uninstaller.py:479
+#: gui/cleanmate_gui/uninstaller.py:513 gui/cleanmate_gui/uninstaller.py:519
 msgid "waiting for your password…"
 msgstr "đang chờ mật khẩu của bạn…"
 
-#: gui/cleanmate_gui/scanpage.py:478 gui/cleanmate_gui/uninstaller.py:481
+#: gui/cleanmate_gui/scanpage.py:478 gui/cleanmate_gui/uninstaller.py:521
 msgid "Skipped — no password was entered"
 msgstr "Đã bỏ qua — chưa nhập mật khẩu"
 
@@ -1215,7 +1215,9 @@ msgstr "Không bao giờ dọn"
 msgid ""
 "Large & Old Files, Duplicates, Space Lens, project build folders and old "
 "installers skip these folders, and nothing in them is moved to the Trash."
-msgstr "Tệp lớn & cũ, Tệp trùng lặp, Space Lens, thư mục build của dự án và bộ cài cũ bỏ qua các thư mục này; không gì trong đó bị chuyển vào Thùng rác."
+msgstr ""
+"Tệp lớn & cũ, Tệp trùng lặp, Space Lens, thư mục build của dự án và bộ cài "
+"cũ bỏ qua các thư mục này; không gì trong đó bị chuyển vào Thùng rác."
 
 #: gui/cleanmate_gui/settings.py:170
 msgid "Add Folder…"
@@ -1383,7 +1385,9 @@ msgstr[0] "{n} mục, lớn nhất trước"
 
 #: gui/cleanmate_gui/spacelens.py:239
 msgid "View only: you never clean this folder (Settings › Never clean)."
-msgstr "Chỉ xem: thư mục này nằm trong danh sách Không bao giờ dọn (Cài đặt › Không bao giờ dọn)."
+msgstr ""
+"Chỉ xem: thư mục này nằm trong danh sách Không bao giờ dọn (Cài đặt › Không "
+"bao giờ dọn)."
 
 #: gui/cleanmate_gui/spacelens.py:242
 msgid ""
@@ -1406,7 +1410,9 @@ msgstr[0] "{n} mục · {percent}"
 msgid ""
 "Can't be moved to the Trash: you never clean it, or a folder in it (Settings "
 "› Never clean)"
-msgstr "Không chuyển vào Thùng rác được: mục này hoặc một thư mục bên trong nằm trong danh sách Không bao giờ dọn (Cài đặt)"
+msgstr ""
+"Không chuyển vào Thùng rác được: mục này hoặc một thư mục bên trong nằm "
+"trong danh sách Không bao giờ dọn (Cài đặt)"
 
 #: gui/cleanmate_gui/spacelens.py:276
 msgid ""
@@ -1563,79 +1569,108 @@ msgstr "Lần dùng cuối"
 msgid "Name"
 msgstr "Tên"
 
+#
+#: gui/cleanmate_gui/uninstaller.py:20
+msgid "All apps"
+msgstr "Tất cả ứng dụng"
+
+#: gui/cleanmate_gui/uninstaller.py:20
+msgid "Unused for 1+ month"
+msgstr "Chưa dùng ≥ 1 tháng"
+
+#: gui/cleanmate_gui/uninstaller.py:20
+msgid "Unused for 3+ months"
+msgstr "Chưa dùng ≥ 3 tháng"
+
 #: gui/cleanmate_gui/uninstaller.py:21
+msgid "Unused for 6+ months"
+msgstr "Chưa dùng ≥ 6 tháng"
+
+#: gui/cleanmate_gui/uninstaller.py:21
+msgid "Unused for 12+ months"
+msgstr "Chưa dùng ≥ 12 tháng"
+
+#: gui/cleanmate_gui/uninstaller.py:23
 msgid "This Flatpak app is no longer installed"
 msgstr "Ứng dụng Flatpak này không còn được cài"
 
-#: gui/cleanmate_gui/uninstaller.py:22
+#: gui/cleanmate_gui/uninstaller.py:24
 msgid "This snap is no longer installed"
 msgstr "Snap này không còn được cài"
 
-#: gui/cleanmate_gui/uninstaller.py:30
+#: gui/cleanmate_gui/uninstaller.py:39
+msgid "last use unknown"
+msgstr "Không rõ"
+
+#: gui/cleanmate_gui/uninstaller.py:42
 msgid "used today"
 msgstr "dùng hôm nay"
 
-#: gui/cleanmate_gui/uninstaller.py:32
+#: gui/cleanmate_gui/uninstaller.py:44
 #, python-brace-format
 msgid "used {n} day ago"
 msgid_plural "used {n} days ago"
 msgstr[0] "dùng {n} ngày trước"
 
-#: gui/cleanmate_gui/uninstaller.py:34
+#: gui/cleanmate_gui/uninstaller.py:46
 #, python-brace-format
 msgid "used {n} month ago"
 msgid_plural "used {n} months ago"
 msgstr[0] "dùng {n} tháng trước"
 
-#: gui/cleanmate_gui/uninstaller.py:35
+#: gui/cleanmate_gui/uninstaller.py:47
 #, python-brace-format
 msgid "used {n} year ago"
 msgid_plural "used {n} years ago"
 msgstr[0] "dùng {n} năm trước"
 
-#: gui/cleanmate_gui/uninstaller.py:71
+#: gui/cleanmate_gui/uninstaller.py:84
 msgid "Search apps"
 msgstr "Tìm ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:74
+#: gui/cleanmate_gui/uninstaller.py:87
 msgid "Sort by"
 msgstr "Sắp xếp theo"
 
-#: gui/cleanmate_gui/uninstaller.py:85
+#: gui/cleanmate_gui/uninstaller.py:91
+msgid "Filter by last use"
+msgstr "Lọc theo lần dùng cuối"
+
+#: gui/cleanmate_gui/uninstaller.py:102
 msgid "Finding your apps…"
 msgstr "Đang tìm ứng dụng của bạn…"
 
-#: gui/cleanmate_gui/uninstaller.py:86
+#: gui/cleanmate_gui/uninstaller.py:103
 msgid "And the space each one uses."
 msgstr "Và dung lượng mỗi ứng dụng chiếm."
 
-#: gui/cleanmate_gui/uninstaller.py:87
+#: gui/cleanmate_gui/uninstaller.py:104
 msgid "No apps found"
 msgstr "Không tìm thấy ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:88
+#: gui/cleanmate_gui/uninstaller.py:105
 msgid "Only apps with a launcher are listed."
 msgstr "Chỉ liệt kê ứng dụng có biểu tượng khởi chạy."
 
-#: gui/cleanmate_gui/uninstaller.py:106 gui/cleanmate_gui/uninstaller.py:418
+#: gui/cleanmate_gui/uninstaller.py:123 gui/cleanmate_gui/uninstaller.py:458
 msgid "Uninstall"
 msgstr "Gỡ cài đặt"
 
-#: gui/cleanmate_gui/uninstaller.py:109
+#: gui/cleanmate_gui/uninstaller.py:126
 msgid "List apps again"
 msgstr "Liệt kê lại ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:170
+#: gui/cleanmate_gui/uninstaller.py:187
 #, python-brace-format
 msgid "{n} app · {size}"
 msgid_plural "{n} apps · {size}"
 msgstr[0] "{n} ứng dụng · {size}"
 
-#: gui/cleanmate_gui/uninstaller.py:173
+#: gui/cleanmate_gui/uninstaller.py:190
 msgid "Size = the app + its folders in your home."
 msgstr "Kích thước = ứng dụng + các thư mục của nó trong thư mục nhà."
 
-#: gui/cleanmate_gui/uninstaller.py:175
+#: gui/cleanmate_gui/uninstaller.py:192
 #, python-brace-format
 msgid "{n} part of Ubuntu itself can't be removed safely and isn't listed."
 msgid_plural ""
@@ -1643,7 +1678,7 @@ msgid_plural ""
 msgstr[0] ""
 "{n} thành phần của chính Ubuntu không thể gỡ an toàn nên không được liệt kê."
 
-#: gui/cleanmate_gui/uninstaller.py:198
+#: gui/cleanmate_gui/uninstaller.py:218
 #, python-brace-format
 msgid ""
 "{kind} package {package}\n"
@@ -1652,19 +1687,19 @@ msgstr ""
 "Gói {kind} {package}\n"
 "Ứng dụng {size} · dữ liệu của bạn {data}"
 
-#: gui/cleanmate_gui/uninstaller.py:228
+#: gui/cleanmate_gui/uninstaller.py:248
 msgid "Moved to the Trash after uninstalling"
 msgstr "Chuyển vào Thùng rác sau khi gỡ"
 
-#: gui/cleanmate_gui/uninstaller.py:232
+#: gui/cleanmate_gui/uninstaller.py:252
 msgid "Also move this folder to the Trash"
 msgstr "Chuyển cả thư mục này vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:245
+#: gui/cleanmate_gui/uninstaller.py:265
 msgid "Leftovers of removed apps"
 msgstr "Dữ liệu còn sót của ứng dụng đã gỡ"
 
-#: gui/cleanmate_gui/uninstaller.py:246
+#: gui/cleanmate_gui/uninstaller.py:266
 msgid ""
 "Folders in your home that no installed app uses. Nothing is ticked; they go "
 "to the Trash, so you can put them back."
@@ -1673,119 +1708,125 @@ msgstr ""
 "Không mục nào được chọn sẵn; chúng được chuyển vào Thùng rác nên bạn có thể "
 "khôi phục."
 
-#: gui/cleanmate_gui/uninstaller.py:256
+#: gui/cleanmate_gui/uninstaller.py:276
 msgid "No app with this name is installed"
 msgstr "Không có ứng dụng nào tên này đang được cài"
 
-#: gui/cleanmate_gui/uninstaller.py:284
+#: gui/cleanmate_gui/uninstaller.py:304
 #, python-brace-format
 msgid "Move {size} to Trash"
 msgstr "Chuyển {size} vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:313
+#: gui/cleanmate_gui/uninstaller.py:333
 #, python-brace-format
 msgid "Dry run: {n} folder would be moved to the Trash"
 msgid_plural "Dry run: {n} folders would be moved to the Trash"
 msgstr[0] "Chạy thử: {n} thư mục sẽ được chuyển vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:316
+#: gui/cleanmate_gui/uninstaller.py:336
 #, python-brace-format
 msgid "Moved {n} folder to the Trash"
 msgid_plural "Moved {n} folders to the Trash"
 msgstr[0] "Đã chuyển {n} thư mục vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:359
+#: gui/cleanmate_gui/uninstaller.py:358
+#, python-brace-format
+msgid "{n} app has no last-used date — Show"
+msgid_plural "{n} apps have no last-used date — Show"
+msgstr[0] "{n} ứng dụng không có ngày mở — Hiện"
+
+#: gui/cleanmate_gui/uninstaller.py:399
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} app"
 msgid_plural "Selected <b>{size}</b> in {n} apps"
 msgstr[0] "Đã chọn <b>{size}</b> trong {n} ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:362
+#: gui/cleanmate_gui/uninstaller.py:402
 #, python-brace-format
 msgid "{n} folder"
 msgid_plural "{n} folders"
 msgstr[0] "{n} thư mục"
 
-#: gui/cleanmate_gui/uninstaller.py:387
+#: gui/cleanmate_gui/uninstaller.py:427
 msgid "Couldn't check what removing these apps does."
 msgstr "Không kiểm tra được việc gỡ các ứng dụng này sẽ ảnh hưởng gì."
 
-#: gui/cleanmate_gui/uninstaller.py:403
+#: gui/cleanmate_gui/uninstaller.py:443
 #, python-brace-format
 msgid "Uninstall {n} app?"
 msgid_plural "Uninstall {n} apps?"
 msgstr[0] "Gỡ {n} ứng dụng?"
 
-#: gui/cleanmate_gui/uninstaller.py:406
+#: gui/cleanmate_gui/uninstaller.py:446
 #, python-brace-format
 msgid "Also removes {n} other package!"
 msgid_plural "Also removes {n} other packages!"
 msgstr[0] "Sẽ gỡ thêm {n} gói khác!"
 
-#: gui/cleanmate_gui/uninstaller.py:407
+#: gui/cleanmate_gui/uninstaller.py:447
 #, python-brace-format
 msgid "apt will also remove: {packages}."
 msgstr "apt sẽ gỡ thêm: {packages}."
 
-#: gui/cleanmate_gui/uninstaller.py:409
+#: gui/cleanmate_gui/uninstaller.py:449
 #, python-brace-format
 msgid "{n} folder ({size}) will go to the Trash — you can undo that."
 msgid_plural "{n} folders ({size}) will go to the Trash — you can undo that."
 msgstr[0] "{n} thư mục ({size}) sẽ vào Thùng rác — bạn có thể hoàn tác."
 
-#: gui/cleanmate_gui/uninstaller.py:413
+#: gui/cleanmate_gui/uninstaller.py:453
 msgid "Your folders in your home are kept."
 msgstr "Các thư mục của bạn trong thư mục nhà được giữ lại."
 
-#: gui/cleanmate_gui/uninstaller.py:415
+#: gui/cleanmate_gui/uninstaller.py:455
 msgid "Apps with a lock need your password."
 msgstr "Ứng dụng có ổ khoá cần mật khẩu của bạn."
 
-#: gui/cleanmate_gui/uninstaller.py:445
+#: gui/cleanmate_gui/uninstaller.py:485
 msgid "Uninstalling…"
 msgstr "Đang gỡ cài đặt…"
 
-#: gui/cleanmate_gui/uninstaller.py:462 gui/cleanmate_gui/uninstaller.py:479
+#: gui/cleanmate_gui/uninstaller.py:502 gui/cleanmate_gui/uninstaller.py:519
 msgid "removing…"
 msgstr "đang gỡ…"
 
-#: gui/cleanmate_gui/uninstaller.py:465
+#: gui/cleanmate_gui/uninstaller.py:505
 msgid "removed"
 msgstr "đã gỡ"
 
-#: gui/cleanmate_gui/uninstaller.py:483
+#: gui/cleanmate_gui/uninstaller.py:523
 msgid "Not removed"
 msgstr "Chưa gỡ được"
 
-#: gui/cleanmate_gui/uninstaller.py:510
+#: gui/cleanmate_gui/uninstaller.py:550
 #, python-brace-format
 msgid "Dry run: {n} app would be uninstalled"
 msgid_plural "Dry run: {n} apps would be uninstalled"
 msgstr[0] "Chạy thử: {n} ứng dụng sẽ được gỡ"
 
-#: gui/cleanmate_gui/uninstaller.py:512
+#: gui/cleanmate_gui/uninstaller.py:552
 #, python-brace-format
 msgid ", {n} folder would be moved to the Trash"
 msgid_plural ", {n} folders would be moved to the Trash"
 msgstr[0] ", {n} thư mục sẽ được chuyển vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:515
+#: gui/cleanmate_gui/uninstaller.py:555
 #, python-brace-format
 msgid "Uninstalled {n} app"
 msgid_plural "Uninstalled {n} apps"
 msgstr[0] "Đã gỡ {n} ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:517
+#: gui/cleanmate_gui/uninstaller.py:557
 #, python-brace-format
 msgid "; moved {n} folder to the Trash"
 msgid_plural "; moved {n} folders to the Trash"
 msgstr[0] "; đã chuyển {n} thư mục vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:521
+#: gui/cleanmate_gui/uninstaller.py:561
 msgid "Restore folders"
 msgstr "Khôi phục thư mục"
 
-#: gui/cleanmate_gui/uninstaller.py:555
+#: gui/cleanmate_gui/uninstaller.py:595
 #, python-brace-format
 msgid "Put back {n} folder from the Trash"
 msgid_plural "Put back {n} folders from the Trash"
@@ -2181,20 +2222,6 @@ msgid ""
 msgstr ""
 "node_modules của dự án không đụng tới từ {0} ngày trở lên. Khôi phục bằng "
 "npm/yarn/pnpm install."
-
-#. vscode_stale_workspaces label
-msgid "VS Code & forks — data of deleted projects"
-msgstr "VS Code & bản phái sinh — dữ liệu của dự án đã xoá"
-
-#. vscode_stale_workspaces description
-msgid ""
-"Per-project storage (extension state, search index) of VS Code, Cursor, "
-"Windsurf and VSCodium for projects that no longer exist. Each is moved to "
-"the Trash; close the editor first."
-msgstr ""
-"Dữ liệu theo dự án (trạng thái extension, chỉ mục tìm kiếm) của VS Code, "
-"Cursor, Windsurf và VSCodium cho các dự án không còn tồn tại. Mỗi mục chuyển "
-"vào Thùng rác; hãy đóng trình soạn thảo trước."
 
 #. stale_build_dirs label
 msgid "Stale project build folders"
@@ -2761,6 +2788,20 @@ msgstr "Copilot & Continue — phiên"
 msgid "Copilot CLI and Continue sessions older than {0} days."
 msgstr "Phiên Copilot CLI và Continue cũ hơn {0} ngày."
 
+#. vscode_stale_workspaces label
+msgid "VS Code & forks — data of deleted projects"
+msgstr "VS Code & bản phái sinh — dữ liệu của dự án đã xoá"
+
+#. vscode_stale_workspaces description
+msgid ""
+"Per-project storage (extension state, search index) of VS Code, Cursor, "
+"Windsurf and VSCodium for projects that no longer exist. Each is moved to "
+"the Trash; close the editor first."
+msgstr ""
+"Dữ liệu theo dự án (trạng thái extension, chỉ mục tìm kiếm) của VS Code, "
+"Cursor, Windsurf và VSCodium cho các dự án không còn tồn tại. Mỗi mục chuyển "
+"vào Thùng rác; hãy đóng trình soạn thảo trước."
+
 #
 #. uv_cache label
 msgid "uv cache"
@@ -2819,21 +2860,29 @@ msgstr ""
 "Emulator mà Firebase CLI đã tải (Firestore, Database, Pub/Sub, UI…). Tải lại "
 "khi bạn khởi động chúng."
 
-#. ollama_partial label
-msgid "Ollama — unfinished downloads"
-msgstr "Bản tải dở của Ollama"
-
-#. ollama_partial description
-msgid "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again."
-msgstr "Các phần tải dở của Ollama do bị gián đoạn (sha256-…-partial). Model đã tải xong được giữ; lệnh pull sẽ tải lại từ đầu."
-
 #. pub_cache label
 msgid "Dart & Flutter pub cache"
 msgstr "Cache pub của Dart & Flutter"
 
 #. pub_cache description
-msgid "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept."
-msgstr "Các gói Dart và Flutter đã tải (~/.pub-cache/hosted, git/cache). 'pub get' tải lại; công cụ đã kích hoạt và đăng nhập pub được giữ."
+msgid ""
+"Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). "
+"Fetched again by 'pub get'; activated tools and your pub login are kept."
+msgstr ""
+"Các gói Dart và Flutter đã tải (~/.pub-cache/hosted, git/cache). 'pub get' "
+"tải lại; công cụ đã kích hoạt và đăng nhập pub được giữ."
+
+#. ollama_partial label
+msgid "Ollama — unfinished downloads"
+msgstr "Bản tải dở của Ollama"
+
+#. ollama_partial description
+msgid ""
+"Pieces of Ollama downloads that were interrupted (sha256-…-partial). "
+"Complete models are kept; a pull starts them again."
+msgstr ""
+"Các phần tải dở của Ollama do bị gián đoạn (sha256-…-partial). Model đã tải "
+"xong được giữ; lệnh pull sẽ tải lại từ đầu."
 
 #~ msgid "System Overview and more in the terminal app"
 #~ msgstr "Tổng quan hệ thống và công cụ khác trong app terminal"

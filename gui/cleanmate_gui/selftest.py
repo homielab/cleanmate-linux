@@ -16,6 +16,7 @@ import time
 from gi.repository import Adw, GLib
 
 from . import i18n
+from . import uninstaller as U
 from .i18n import _, ngettext
 
 
@@ -650,6 +651,24 @@ def uninstaller_test(win, report, wait, finish):
     def searched():
         report(page.rows["flatpak:com.spotify.Client"].get_visible(), "search filters the list")
         page.search_entry.set_text("")
+        now = 1_000_000_000
+        day = 86400
+        old, recent = {"last_used": now - 100 * day}, {"last_used": now - 10 * day}
+        report(U.unused_visible(old, 3, False, now) and not U.unused_visible(recent, 3, False, now)
+               and not U.unused_visible(old, 6, False, now) and U.unused_visible(recent, 0, False, now),
+               "unused filter compares the last-used date with N months")
+        report(not U.unused_visible({"last_used": 0}, 1, False, now) and U.unused_visible({"last_used": 0}, 1, True, now)
+               and U.unused_visible({"last_used": 0}, 0, False, now), "apps without a date only show when asked")
+        undated = [i for i, a in page.apps.items() if not a["last_used"]]
+        if undated:
+            page.unused_drop.set_selected(1)
+            report(not page.rows[undated[0]].get_visible() and page.undated_button.get_visible(),
+                   "unused filter hides apps with no date and offers to show them")
+            page.undated_button.emit("clicked")
+            report(page.rows[undated[0]].get_visible() and not page.undated_button.get_visible(),
+                   "Show reveals apps with no date")
+            page.unused_drop.set_selected(0)
+            report(not page.show_undated and page.rows[undated[0]].get_visible(), "all apps again after the filter resets")
         for i in page.apps:
             page.checks[i].set_active(True)
         page.check()
