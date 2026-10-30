@@ -130,6 +130,12 @@ class Engine:
     def restore(self, names, on_event, on_done):
         return self.run(["restore", *names], on_event, on_done)
 
+    def startup(self, on_event, on_done):
+        return self.run(["startup"], on_event, on_done)
+
+    def startup_set(self, unit_id, action, on_event, on_done):
+        return self.run(["startup-set", unit_id, action], on_event, on_done)
+
     def apps(self, on_event, on_done):
         return self.run(["apps"], on_event, on_done)
 

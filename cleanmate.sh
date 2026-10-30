@@ -3656,12 +3656,13 @@ is_disabled() {
 }
 
 AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+SYSTEM_AUTOSTART_DIR=${CLEANMATE_SYSTEM_AUTOSTART:-/etc/xdg/autostart} # tests: other system entries
 
 load_startup() { # SHOW_ALL → S_FILE S_NAME S_ON S_HIDDEN
   declare -A eff=()
   local f b
   S_FILE=() S_NAME=() S_ON=() S_HIDDEN=0
-  for f in /etc/xdg/autostart/*.desktop "$AUTOSTART_DIR"/*.desktop; do
+  for f in "$SYSTEM_AUTOSTART_DIR"/*.desktop "$AUTOSTART_DIR"/*.desktop; do
     [[ -f $f ]] && eff[$(basename "$f")]=$f # a user entry overrides the system one
   done
   while read -r b; do
@@ -4903,7 +4904,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|apps|uninstall …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|apps|uninstall …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -4973,9 +4974,11 @@ json_main() { # SUBCOMMAND ARGS…
     dupes) json_dupes "$@" ;;
     trash) json_trash "$@" ;;
     restore) json_restore "$@" ;;
+    startup) json_startup "$@" ;;
+    startup-set) json_startup_set "$@" ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore NAME…|apps|uninstall [--check] ID…"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore NAME…|startup|startup-set ID enable|disable|remove|apps|uninstall [--check] ID…"; return 2 ;;
   esac
 }
 
@@ -5275,6 +5278,153 @@ json_restore() { # NAME… — put these back from the Trash (names from the "tr
   printf '{"event":"done","restored":%d,"failed":%d}\n' "$ok" "$failed"
 }
 
+# ── Startup Items for the desktop app ──
+#
+# Login apps (your ~/.config/autostart, and the system's entries, which are turned off for
+# you by a copy in your folder like the terminal app does) and systemd user services and
+# timers. Units that come with the system are only shown. Nothing runs as root; a removed
+# entry goes to the Trash.
+
+SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+UNIT_RE='^[A-Za-z0-9_][A-Za-z0-9@._:-]*\.(service|timer)$'
+
+systemd_user_units() { # → "UNIT\tSTATE\tPATH" for services and timers that are enabled or disabled; 1 = no systemd
+  local out unit state rest d p
+  have systemctl || return 1
+  out=$(systemctl --user list-unit-files --type=service --type=timer --no-legend --no-pager 2>/dev/null) || return 1
+  while read -r unit state rest; do
+    [[ $state == enabled || $state == disabled ]] || continue
+    [[ $unit =~ $UNIT_RE && $unit != *@.* ]] || continue # templates have no instance to start
+    p=""
+    for d in "$SYSTEMD_USER_DIR" "${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user" /etc/systemd/user \
+      /usr/local/lib/systemd/user /usr/lib/systemd/user /usr/share/systemd/user; do
+      [[ -f $d/$unit ]] && { p=$d/$unit; break; }
+    done
+    printf '%s\t%s\t%s\n' "$unit" "$state" "$p"
+  done <<<"$out"
+}
+
+unit_is_yours() { # PATH — a unit file in your own systemd folders
+  [[ $1 == "$SYSTEMD_USER_DIR"/* || $1 == "${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user"/* ]]
+}
+
+json_bool() { if "$@"; then echo true; else echo false; fi; }
+
+json_unit() { # ID KIND NAME ENABLED PATH SYSTEM HIDDEN TOGGLE REMOVABLE DESCRIPTION COMMAND
+  local jid jn jp jd jc
+  json_str jid "$1"; json_str jn "$3"; json_str jp "$5"; json_str jd "${10}"; json_str jc "${11}"
+  printf '{"event":"unit","id":%s,"kind":"%s","name":%s,"enabled":%s,"path":%s,"system":%s,"hidden":%s,"toggle":%s,"removable":%s,"description":%s,"command":%s}\n' \
+    "$jid" "$2" "$jn" "$4" "$jp" "$6" "$7" "$8" "$9" "$jd" "$jc"
+}
+
+json_startup() {
+  ((EUID != 0)) || { json_error "Startup items are per user: run this as yourself, not as root"; return 2; }
+  local f b name n=0 units systemd=true unit state p desc
+  local -A eff=()
+  for f in "$SYSTEM_AUTOSTART_DIR"/*.desktop "$AUTOSTART_DIR"/*.desktop; do
+    [[ -f $f ]] && eff[${f##*/}]=$f # your entry overrides the system one
+  done
+  while IFS= read -r b; do
+    [[ -n $b ]] || continue
+    f=${eff[$b]} name=$(desktop_get "${eff[$b]}" Name)
+    json_unit "autostart:$b" autostart "${name:-${b%.desktop}}" "$(is_disabled "$f" && echo false || echo true)" "$f" \
+      "$(json_bool test -f "$SYSTEM_AUTOSTART_DIR/$b")" "$(json_bool test "$(desktop_get "$f" NoDisplay)" = true)" true \
+      "$(json_bool test ! -f "$SYSTEM_AUTOSTART_DIR/$b" -a "$f" = "$AUTOSTART_DIR/$b")" \
+      "$(desktop_get "$f" Comment)" "$(desktop_get "$f" Exec)"
+    n=$((n + 1))
+  done < <(((${#eff[@]})) && printf '%s\n' "${!eff[@]}" | sort)
+  if units=$(systemd_user_units); then
+    while IFS=$'\t' read -r unit state p; do
+      [[ -n $unit ]] || continue
+      if unit_is_yours "$p"; then
+        desc=$(desktop_get "$p" Description)
+        json_unit "systemd:$unit" systemd-user "${desc:-$unit}" "$(json_bool test "$state" = enabled)" "$p" false false \
+          true "$(json_bool test "$p" != "${p#"$SYSTEMD_USER_DIR"/}")" "$desc" "$(desktop_get "$p" ExecStart)"
+      elif [[ $state == enabled ]]; then # the system's own: shown, never changed here
+        desc=$( [[ -n $p ]] && desktop_get "$p" Description)
+        json_unit "systemd:$unit" systemd-user "${desc:-$unit}" true "$p" true true false false "$desc" \
+          "$( [[ -n $p ]] && desktop_get "$p" ExecStart)"
+      else continue; fi
+      n=$((n + 1))
+    done <<<"$units"
+  else systemd=false; fi
+  printf '{"event":"done","count":%d,"systemd":%s}\n' "$n" "$systemd"
+}
+
+json_startup_task() { # ID STATE INFO [TRASH-NAME]
+  local id info name
+  json_str id "$1"; json_str info "$3"; json_str name "${4:-}"
+  printf '{"event":"task","id":%s,"state":"%s","info":%s,"trash":%s}\n' "$id" "$2" "$info" "$name"
+}
+
+startup_set_autostart() { # ID FILE-NAME ACTION
+  local id=$1 b=$2 act=$3 user sys name
+  user=$AUTOSTART_DIR/$b sys=$SYSTEM_AUTOSTART_DIR/$b
+  [[ -f $user || -f $sys ]] || { json_startup_task "$id" fail "Not found"; return; }
+  if [[ $act == remove ]]; then
+    if [[ -f $sys || ! -f $user ]]; then json_startup_task "$id" fail "It comes with the system: turn it off instead"; return; fi
+    if ((DRY_RUN)); then json_startup_task "$id" ok "would be moved to the Trash"; return; fi
+    UNDO_BATCH=()
+    move_to_trash "$user" >/dev/null 2>&1 || { json_startup_task "$id" fail "Could not move it to the Trash"; return; }
+    name=""; ((${#UNDO_BATCH[@]})) && name=${UNDO_BATCH[0]%%$'\t'*}
+    json_startup_task "$id" ok "moved to the Trash" "$name"; return
+  fi
+  if ((DRY_RUN)); then json_startup_task "$id" ok "would be turned $( [[ $act == enable ]] && echo on || echo off)"; return; fi
+  if [[ ! -f $user ]]; then # a system entry: your own copy overrides it
+    mkdir -p -- "$AUTOSTART_DIR" && cp -- "$sys" "$user" || { json_startup_task "$id" fail "Could not write $user"; return; }
+  fi
+  if [[ $act == disable ]]; then desktop_set "$user" Hidden true >/dev/null
+  else run sed -i -e '/^Hidden=/d' -e '/^X-GNOME-Autostart-enabled=false/d' "$user"; fi
+  if { [[ $act == disable ]] && is_disabled "$user"; } || { [[ $act == enable ]] && ! is_disabled "$user"; }; then
+    json_startup_task "$id" ok "turned $( [[ $act == enable ]] && echo on || echo off)"
+  else json_startup_task "$id" fail "Could not change $user"; fi
+}
+
+startup_set_systemd() { # ID UNIT ACTION
+  local id=$1 unit=$2 act=$3 u state p found="" name err
+  [[ $unit =~ $UNIT_RE ]] || { json_startup_task "$id" fail "Not a service or timer"; return; }
+  while IFS=$'\t' read -r u state p; do [[ $u == "$unit" ]] && { found=1; break; }; done < <(systemd_user_units)
+  [[ -n $found ]] || { json_startup_task "$id" fail "Not found"; return; }
+  unit_is_yours "$p" || { json_startup_task "$id" fail "It comes with the system: only shown here"; return; }
+  if [[ $act == remove && $p != "$SYSTEMD_USER_DIR"/* ]]; then
+    json_startup_task "$id" fail "Only units in ${SYSTEMD_USER_DIR/#$HOME/\~} can be removed"; return
+  fi
+  if ((DRY_RUN)); then
+    if [[ $act == remove ]]; then json_startup_task "$id" ok "would be moved to the Trash"
+    else json_startup_task "$id" ok "would be turned $( [[ $act == enable ]] && echo on || echo off)"; fi
+    return
+  fi
+  if [[ $act == remove ]]; then
+    [[ $state == enabled ]] && systemctl --user disable "$unit" >/dev/null 2>&1
+    UNDO_BATCH=()
+    move_to_trash "$p" >/dev/null 2>&1 || { json_startup_task "$id" fail "Could not move it to the Trash"; return; }
+    name=""; ((${#UNDO_BATCH[@]})) && name=${UNDO_BATCH[0]%%$'\t'*}
+    systemctl --user daemon-reload >/dev/null 2>&1
+    log "startup: removed $unit"
+    json_startup_task "$id" ok "moved to the Trash" "$name"; return
+  fi
+  if err=$(systemctl --user "$act" "$unit" 2>&1 >/dev/null); then
+    log "startup: $act $unit"
+    json_startup_task "$id" ok "turned $( [[ $act == enable ]] && echo on || echo off)"
+  else json_startup_task "$id" fail "${err:-systemctl --user $act failed}"; fi
+}
+
+json_startup_set() { # ID enable|disable|remove
+  ((EUID != 0)) || { json_error "Startup items are per user: run this as yourself, not as root"; return 2; }
+  (($# == 2)) || { json_error "Usage: --json startup-set ID enable|disable|remove"; return 2; }
+  local id=$1 act=$2
+  case $act in enable | disable | remove) ;; *) json_error "Unknown action: $act"; return 2 ;; esac
+  case $id in
+    autostart:*.desktop)
+      local b=${id#autostart:}
+      [[ $b != */* && $b != .* ]] || { json_error "Unknown startup item: $id"; return 2; }
+      startup_set_autostart "$id" "$b" "$act" ;;
+    systemd:*) startup_set_systemd "$id" "${id#systemd:}" "$act" ;;
+    *) json_error "Unknown startup item: $id"; return 2 ;;
+  esac
+  printf '{"event":"done"}\n'
+}
+
 # ── Uninstaller for the desktop app ──
 #
 # `apps` lists exactly what the terminal app's Uninstaller offers (parts of
@@ -5418,7 +5568,7 @@ Install & update
 For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
                     large [--min BYTES] [--days N] [--path DIR], lens [--path DIR],
-                    dupes [--min BYTES] [--path DIR],
+                    dupes [--min BYTES] [--path DIR], startup, startup-set ID enable|disable|remove,
                     trash [--home-only] PATH…, restore NAME…, apps, uninstall [--check] KIND:ID…
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help

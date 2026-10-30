@@ -5,8 +5,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: contact@homielab.com\n"
-"POT-Creation-Date: 2026-10-30 15:00+0700\n"
-"PO-Revision-Date: 2026-10-30 15:00+0700\n"
+"POT-Creation-Date: 2026-10-30 16:00+0700\n"
+"PO-Revision-Date: 2026-10-30 16:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
 "Language: vi\n"
@@ -171,7 +171,7 @@ msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:307 gui/cleanmate_gui/largefiles.py:273
 #: gui/cleanmate_gui/scanpage.py:306 gui/cleanmate_gui/spacelens.py:327
-#: gui/cleanmate_gui/uninstaller.py:318
+#: gui/cleanmate_gui/startup.py:221 gui/cleanmate_gui/uninstaller.py:318
 msgid "Cancel"
 msgstr "Huỷ"
 
@@ -200,7 +200,7 @@ msgid_plural "{n} could not be moved: {reason}"
 msgstr[0] "{n} tệp không chuyển được: {reason}"
 
 #: gui/cleanmate_gui/duplicates.py:359 gui/cleanmate_gui/largefiles.py:324
-#: gui/cleanmate_gui/spacelens.py:380
+#: gui/cleanmate_gui/spacelens.py:380 gui/cleanmate_gui/startup.py:240
 msgid "Undo"
 msgstr "Hoàn tác"
 
@@ -216,11 +216,11 @@ msgid "Put back {n} file from the Trash"
 msgid_plural "Put back {n} files from the Trash"
 msgstr[0] "Đã trả lại {n} tệp từ Thùng rác"
 
-#: gui/cleanmate_gui/engine.py:16 gui/cleanmate_gui/window.py:24
+#: gui/cleanmate_gui/engine.py:16 gui/cleanmate_gui/window.py:25
 msgid "System Junk"
 msgstr "Rác hệ thống"
 
-#: gui/cleanmate_gui/engine.py:17 gui/cleanmate_gui/window.py:26
+#: gui/cleanmate_gui/engine.py:17 gui/cleanmate_gui/window.py:27
 msgid "Logs"
 msgstr "Nhật ký"
 
@@ -236,7 +236,7 @@ msgstr "Trình duyệt"
 msgid "App Caches"
 msgstr "Bộ nhớ đệm ứng dụng"
 
-#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/window.py:30
+#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/window.py:31
 msgid "AI Tools"
 msgstr "Công cụ AI"
 
@@ -244,11 +244,11 @@ msgstr "Công cụ AI"
 msgid "AI Models"
 msgstr "Mô hình AI"
 
-#: gui/cleanmate_gui/engine.py:23 gui/cleanmate_gui/window.py:33
+#: gui/cleanmate_gui/engine.py:23 gui/cleanmate_gui/window.py:34
 msgid "Developer Junk"
 msgstr "Rác developer"
 
-#: gui/cleanmate_gui/engine.py:24 gui/cleanmate_gui/window.py:35
+#: gui/cleanmate_gui/engine.py:24 gui/cleanmate_gui/window.py:36
 msgid "Privacy"
 msgstr "Quyền riêng tư"
 
@@ -613,6 +613,121 @@ msgid "Put back {n} item from the Trash"
 msgid_plural "Put back {n} items from the Trash"
 msgstr[0] "Đã trả lại {n} mục từ Thùng rác"
 
+#: gui/cleanmate_gui/startup.py:48
+msgid "Can't read your startup items"
+msgstr "Không đọc được các mục khởi động"
+
+#: gui/cleanmate_gui/startup.py:54
+msgid "Show system services"
+msgstr "Hiện dịch vụ hệ thống"
+
+#: gui/cleanmate_gui/startup.py:55
+msgid "Parts of Ubuntu that start for every user"
+msgstr "Các phần của Ubuntu khởi động cho mọi người dùng"
+
+#: gui/cleanmate_gui/startup.py:110
+msgid ""
+"Fewer apps at login means a faster start. Turning one off doesn't uninstall "
+"it."
+msgstr ""
+"Càng ít app khi đăng nhập thì máy khởi động càng nhanh. Tắt một app không gỡ "
+"cài đặt nó."
+
+#: gui/cleanmate_gui/startup.py:115
+msgid "Apps"
+msgstr "Ứng dụng"
+
+#: gui/cleanmate_gui/startup.py:115
+msgid "No app starts when you log in."
+msgstr "Không có app nào khởi động khi bạn đăng nhập."
+
+#: gui/cleanmate_gui/startup.py:116
+msgid "Services and timers"
+msgstr "Dịch vụ và hẹn giờ"
+
+#: gui/cleanmate_gui/startup.py:116
+msgid "No service or timer of yours starts when you log in."
+msgstr "Không có dịch vụ hay hẹn giờ nào của bạn khởi động khi bạn đăng nhập."
+
+#: gui/cleanmate_gui/startup.py:120
+msgid "systemd user services aren't available here."
+msgstr "Dịch vụ người dùng của systemd không có ở đây."
+
+#: gui/cleanmate_gui/startup.py:129
+#, python-brace-format
+msgid "{n} part of Ubuntu that starts for every user"
+msgid_plural "{n} parts of Ubuntu that start for every user"
+msgstr[0] "{n} phần của Ubuntu khởi động cho mọi người dùng"
+
+#: gui/cleanmate_gui/startup.py:141
+msgid "System"
+msgstr "Hệ thống"
+
+#: gui/cleanmate_gui/startup.py:144
+msgid "Remove (to the Trash)"
+msgstr "Gỡ (vào Thùng rác)"
+
+#: gui/cleanmate_gui/startup.py:149
+msgid "Comes with the system: only shown here"
+msgstr "Đi kèm hệ thống: chỉ hiển thị ở đây"
+
+#: gui/cleanmate_gui/startup.py:161
+#, python-brace-format
+msgid "{on} of {n} starts when you log in"
+msgid_plural "{on} of {n} start when you log in"
+msgstr[0] "{on}/{n} mục khởi động khi bạn đăng nhập"
+
+#: gui/cleanmate_gui/startup.py:194
+msgid "Could not change it"
+msgstr "Không thay đổi được"
+
+#: gui/cleanmate_gui/startup.py:198
+#, python-brace-format
+msgid "Dry run: {name} would be changed"
+msgstr "Chạy thử: {name} sẽ được thay đổi"
+
+#: gui/cleanmate_gui/startup.py:203
+#, python-brace-format
+msgid "{name} will start when you log in"
+msgstr "{name} sẽ khởi động khi bạn đăng nhập"
+
+#: gui/cleanmate_gui/startup.py:204
+#, python-brace-format
+msgid "{name} won't start when you log in"
+msgstr "{name} sẽ không khởi động khi bạn đăng nhập"
+
+#: gui/cleanmate_gui/startup.py:218
+#, python-brace-format
+msgid "Remove {name}?"
+msgstr "Gỡ {name}?"
+
+#: gui/cleanmate_gui/startup.py:219
+msgid ""
+"It won't start when you log in any more, and its startup file goes to the "
+"Trash. The app itself stays installed. You can undo this right away."
+msgstr ""
+"Nó sẽ không khởi động khi bạn đăng nhập nữa, và tệp khởi động của nó được "
+"chuyển vào Thùng rác. App vẫn được cài. Bạn có thể hoàn tác ngay."
+
+#: gui/cleanmate_gui/startup.py:222
+msgid "Remove"
+msgstr "Gỡ"
+
+#: gui/cleanmate_gui/startup.py:240 gui/cleanmate_gui/startup.py:243
+#, python-brace-format
+msgid "Removed {name}"
+msgstr "Đã gỡ {name}"
+
+#: gui/cleanmate_gui/startup.py:262
+#, python-brace-format
+msgid "Could not restore {name}: {reason}"
+msgstr "Không trả lại được {name}: {reason}"
+
+#: gui/cleanmate_gui/startup.py:267 gui/cleanmate_gui/startup.py:269
+#, python-brace-format
+msgid "{name} is back"
+msgstr "Đã trả lại {name}"
+
 #: gui/cleanmate_gui/uninstaller.py:18
 msgid "Size"
 msgstr "Kích thước"
@@ -811,11 +926,11 @@ msgid "Put back {n} folder from the Trash"
 msgid_plural "Put back {n} folders from the Trash"
 msgstr[0] "Đã trả lại {n} thư mục từ Thùng rác"
 
-#: gui/cleanmate_gui/window.py:21 gui/cleanmate_gui/window.py:114
+#: gui/cleanmate_gui/window.py:22 gui/cleanmate_gui/window.py:117
 msgid "Smart Scan"
 msgstr "Quét thông minh"
 
-#: gui/cleanmate_gui/window.py:22
+#: gui/cleanmate_gui/window.py:23
 msgid ""
 "Scan everything in one go and clean what you don't need. Nothing is removed "
 "until you confirm."
@@ -823,7 +938,7 @@ msgstr ""
 "Quét mọi thứ một lần và dọn những gì bạn không cần. Không có gì bị xoá cho "
 "đến khi bạn xác nhận."
 
-#: gui/cleanmate_gui/window.py:25
+#: gui/cleanmate_gui/window.py:26
 msgid ""
 "Package cache, unused packages and kernels, leftover configs, old Snap "
 "revisions, temp files."
@@ -831,25 +946,25 @@ msgstr ""
 "Bộ nhớ đệm gói, gói và kernel không dùng, cấu hình còn sót, bản Snap cũ, tệp "
 "tạm."
 
-#: gui/cleanmate_gui/window.py:27
+#: gui/cleanmate_gui/window.py:28
 msgid ""
 "Systemd journal, oversized and rotated logs, crash reports, old app logs."
 msgstr ""
 "Systemd journal, nhật ký quá lớn và đã xoay vòng, báo cáo lỗi, nhật ký ứng "
 "dụng cũ."
 
-#: gui/cleanmate_gui/window.py:28
+#: gui/cleanmate_gui/window.py:29
 msgid "User & App Junk"
 msgstr "Rác người dùng & ứng dụng"
 
-#: gui/cleanmate_gui/window.py:29
+#: gui/cleanmate_gui/window.py:30
 msgid ""
 "Trash, thumbnails, stale caches — and every browser and app cache on its own."
 msgstr ""
 "Thùng rác, ảnh thu nhỏ, bộ nhớ đệm cũ — và bộ nhớ đệm của từng trình duyệt, "
 "từng ứng dụng."
 
-#: gui/cleanmate_gui/window.py:31
+#: gui/cleanmate_gui/window.py:32
 msgid ""
 "Caches, logs and old chat sessions of Claude, Codex, Gemini/Antigravity, "
 "opencode, ZCode, Zed and more — and downloaded Ollama, Hugging Face and LM "
@@ -859,7 +974,7 @@ msgstr ""
 "opencode, ZCode, Zed và nhiều công cụ khác — cùng các mô hình Ollama, "
 "Hugging Face và LM Studio đã tải, từng mô hình riêng."
 
-#: gui/cleanmate_gui/window.py:34
+#: gui/cleanmate_gui/window.py:35
 msgid ""
 "Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, "
 "Firebase CLI logs."
@@ -867,15 +982,15 @@ msgstr ""
 "node_modules cũ, phần còn sót của npm, pip, Go, Cargo, Conda, Docker và "
 "Podman, nhật ký Firebase CLI."
 
-#: gui/cleanmate_gui/window.py:36
+#: gui/cleanmate_gui/window.py:37
 msgid "Terminal history, recent files, run dialog and emoji history."
 msgstr "Lịch sử terminal, tệp gần đây, hộp thoại chạy lệnh và lịch sử emoji."
 
-#: gui/cleanmate_gui/window.py:38
+#: gui/cleanmate_gui/window.py:39
 msgid "Space Lens"
 msgstr "Space Lens"
 
-#: gui/cleanmate_gui/window.py:39
+#: gui/cleanmate_gui/window.py:40
 msgid ""
 "See what takes up the space, folder by folder, and move what you don't need "
 "to the Trash. You can undo it."
@@ -883,11 +998,11 @@ msgstr ""
 "Xem thứ gì chiếm chỗ, từng thư mục một, và chuyển những gì không cần vào "
 "Thùng rác. Bạn có thể hoàn tác."
 
-#: gui/cleanmate_gui/window.py:41
+#: gui/cleanmate_gui/window.py:42
 msgid "Large & Old Files"
 msgstr "Tệp lớn & cũ"
 
-#: gui/cleanmate_gui/window.py:42
+#: gui/cleanmate_gui/window.py:43
 msgid ""
 "Find the biggest files, or the ones you haven't opened in months, and move "
 "what you don't need to the Trash. You can undo it."
@@ -895,11 +1010,11 @@ msgstr ""
 "Tìm các tệp lớn nhất, hoặc tệp bạn nhiều tháng chưa mở, và chuyển những gì "
 "không cần vào Thùng rác. Bạn có thể hoàn tác."
 
-#: gui/cleanmate_gui/window.py:44
+#: gui/cleanmate_gui/window.py:45
 msgid "Duplicates"
 msgstr "Tệp trùng lặp"
 
-#: gui/cleanmate_gui/window.py:45
+#: gui/cleanmate_gui/window.py:46
 msgid ""
 "Find identical files, keep one copy of each and move the others to the "
 "Trash. You can undo it."
@@ -907,11 +1022,11 @@ msgstr ""
 "Tìm các tệp giống hệt nhau, giữ một bản mỗi tệp và chuyển các bản còn lại "
 "vào Thùng rác. Bạn có thể hoàn tác."
 
-#: gui/cleanmate_gui/window.py:46
+#: gui/cleanmate_gui/window.py:47
 msgid "Uninstaller"
 msgstr "Gỡ ứng dụng"
 
-#: gui/cleanmate_gui/window.py:47
+#: gui/cleanmate_gui/window.py:48
 msgid ""
 "Remove apps from apt, Snap and Flatpak, and the folders they leave in your "
 "home."
@@ -919,64 +1034,72 @@ msgstr ""
 "Gỡ ứng dụng apt, Snap và Flatpak, cùng các thư mục chúng để lại trong thư "
 "mục nhà."
 
-#: gui/cleanmate_gui/window.py:76
+#: gui/cleanmate_gui/window.py:49
+msgid "Startup Items"
+msgstr "Mục khởi động"
+
+#: gui/cleanmate_gui/window.py:50
+msgid "Choose which apps and services start when you log in."
+msgstr "Chọn app và dịch vụ nào khởi động khi bạn đăng nhập."
+
+#: gui/cleanmate_gui/window.py:79
 msgid "All tools (terminal)"
 msgstr "Mọi công cụ (terminal)"
 
-#: gui/cleanmate_gui/window.py:77
-msgid "Startup Items, Maintenance, Settings… in the terminal app"
-msgstr "Mục khởi động, Bảo trì, Cài đặt… trong app terminal"
+#: gui/cleanmate_gui/window.py:80
+msgid "Maintenance, System Overview, Settings… in the terminal app"
+msgstr "Bảo trì, Tổng quan hệ thống, Cài đặt… trong app terminal"
 
-#: gui/cleanmate_gui/window.py:91
+#: gui/cleanmate_gui/window.py:94
 msgid "Open the terminal app"
 msgstr "Mở app terminal"
 
-#: gui/cleanmate_gui/window.py:92
+#: gui/cleanmate_gui/window.py:95
 msgid "Source code"
 msgstr "Mã nguồn"
 
-#: gui/cleanmate_gui/window.py:93
+#: gui/cleanmate_gui/window.py:96
 msgid "Report a problem"
 msgstr "Báo lỗi"
 
-#: gui/cleanmate_gui/window.py:95
+#: gui/cleanmate_gui/window.py:98
 msgid "About CleanMate"
 msgstr "Giới thiệu CleanMate"
 
-#: gui/cleanmate_gui/window.py:98
+#: gui/cleanmate_gui/window.py:101
 msgid "Main menu"
 msgstr "Menu chính"
 
-#: gui/cleanmate_gui/window.py:112
+#: gui/cleanmate_gui/window.py:115
 msgid "Dry run — nothing will be deleted"
 msgstr "Chạy thử — không có gì bị xoá"
 
-#: gui/cleanmate_gui/window.py:139
+#: gui/cleanmate_gui/window.py:142
 msgid "Cleanup"
 msgstr "Dọn dẹp"
 
-#: gui/cleanmate_gui/window.py:139
+#: gui/cleanmate_gui/window.py:142
 msgid "Tools"
 msgstr "Công cụ"
 
-#: gui/cleanmate_gui/window.py:139
+#: gui/cleanmate_gui/window.py:142
 msgid "More"
 msgstr "Thêm"
 
-#: gui/cleanmate_gui/window.py:186
+#: gui/cleanmate_gui/window.py:189
 #, python-brace-format
 msgid "{free} free of {total}"
 msgstr "Còn trống {free} / {total}"
 
-#: gui/cleanmate_gui/window.py:197
+#: gui/cleanmate_gui/window.py:200
 msgid "No terminal app found — run cm in a terminal."
 msgstr "Không tìm thấy app terminal — hãy chạy cm trong terminal."
 
-#: gui/cleanmate_gui/window.py:208
+#: gui/cleanmate_gui/window.py:211
 msgid "translator-credits"
 msgstr "HomieLab https://homielab.com"
 
-#: gui/cleanmate_gui/window.py:209
+#: gui/cleanmate_gui/window.py:212
 msgid ""
 "A friendly system cleaner for Ubuntu, inspired by CleanMyMac. Not affiliated "
 "with MacPaw."

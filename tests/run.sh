@@ -40,7 +40,8 @@ fresh_home() { HOME_DIR=$(mktemp -d -p "$WORK" home.XXXX); mkdir -p "$HOME_DIR/.
 cm() { # run the app non-interactively inside the fake home
   "${AS_USER[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb \
     CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} \
-    ${CLEANMATE_APP_DIRS:+CLEANMATE_APP_DIRS=$CLEANMATE_APP_DIRS} bash "$SCRIPT" "$@"
+    ${CLEANMATE_APP_DIRS:+CLEANMATE_APP_DIRS=$CLEANMATE_APP_DIRS} \
+    ${CLEANMATE_SYSTEM_AUTOSTART:+CLEANMATE_SYSTEM_AUTOSTART=$CLEANMATE_SYSTEM_AUTOSTART} bash "$SCRIPT" "$@"
 }
 
 # As root, `--json clean` refuses home items (the desktop app elevates only for
@@ -768,6 +769,87 @@ done 2 2 5 5200000' "groups biggest first, newest copy first; hard links, hidden
   out=$(cm --json dupes --path "$d/nope" 2>&1); assert_contains "$out" "Not a folder"
 }
 
+startup_list() { # reads `--json startup` / `startup-set` → one line per event
+  python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "unit":
+        flags = "".join(c for c, k in (("s", "system"), ("h", "hidden"), ("t", "toggle"), ("r", "removable")) if e[k]) or "-"
+        print(e["id"], "on" if e["enabled"] else "off", flags, e["name"])
+    elif e["event"] == "task": print(e["state"], e["trash"] or "-", e["info"])
+    elif e["event"] == "done": print("done", e.get("count", ""), str(e.get("systemd", "")).lower())
+    else: print(e["event"], e.get("message", ""))'
+}
+
+test_json_startup_items() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out a=$HOME_DIR/.config/autostart u=$HOME_DIR/.config/systemd/user sys=$WORK/xdg-autostart.$RANDOM
+  local CLEANMATE_SYSTEM_AUTOSTART=$sys
+  mkdir -p "$a" "$u" "$HOME_DIR/.local/share/systemd/user" "$sys" "$HOME_DIR/.local/bin"
+  printf '[Desktop Entry]\nType=Application\nName=Chat\nExec=chat --tray\nComment=Chat app\n' >"$a/chat.desktop"
+  printf '[Desktop Entry]\nType=Application\nName=Old Tool\nExec=old\nX-GNOME-Autostart-enabled=false\n' >"$a/old.desktop"
+  printf '[Desktop Entry]\nType=Application\nName=Backup Agent\nExec=backup-agent\n' >"$sys/backup.desktop"
+  printf '[Desktop Entry]\nType=Application\nName=Keyring\nExec=keyring\nNoDisplay=true\n' >"$sys/keyring.desktop"
+  printf '[Unit]\nDescription=Sync my files\n[Service]\nExecStart=%%h/bin/sync\n' >"$u/sync.service"
+  printf '[Unit]\nDescription=Take notes\n' >"$HOME_DIR/.local/share/systemd/user/notes.timer"
+  # a fake `systemctl --user`: unit states in ~/units, every call logged — the real one is never run
+  printf '%s\n' 'sync.service enabled enabled' 'notes.timer disabled enabled' 'pipewire.service enabled enabled' \
+    'muted.service disabled enabled' 'tpl@.service disabled enabled' 'static.service static -' >"$HOME_DIR/units"
+  printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift' \
+    'case $1 in list-unit-files) cat "$HOME/units" ;; enable | disable) sed -i "s/^$2 [a-z]*/$2 ${1}d/" "$HOME/units" ;; esac' \
+    >"$HOME_DIR/.local/bin/systemctl"
+  chmod +x "$HOME_DIR/.local/bin/systemctl"
+  if ((EUID == 0)); then
+    out=$(cm --json startup 2>&1); assert_contains "$out" "run this as yourself, not as root"
+  fi
+  out=$(user_cm --json startup | startup_list)
+  assert_eq "$out" "autostart:backup.desktop on st Backup Agent
+autostart:chat.desktop on tr Chat
+autostart:keyring.desktop on sht Keyring
+autostart:old.desktop off tr Old Tool
+systemd:sync.service on tr Sync my files
+systemd:notes.timer off t Take notes
+systemd:pipewire.service on sh pipewire.service
+done 7 true" "autostart entries and systemd user units; the system's are view only"
+  out=$(user_cm --json startup-set autostart:chat.desktop disable | startup_list)
+  assert_eq "$out" $'ok - turned off\ndone  ' "turn an autostart entry off"
+  assert_eq "$(grep -c '^Hidden=true$' "$a/chat.desktop")" 1 "Hidden=true written"
+  user_cm --json startup-set autostart:chat.desktop enable >/dev/null
+  assert_eq "$(grep -c '^Hidden=' "$a/chat.desktop")" 0 "turning it on removes the line"
+  user_cm --json startup-set autostart:old.desktop enable >/dev/null
+  assert_eq "$(grep -c 'Autostart-enabled' "$a/old.desktop")" 0 "X-GNOME-Autostart-enabled=false removed too"
+  user_cm --json startup-set autostart:backup.desktop disable >/dev/null # a system entry: your copy overrides it
+  assert_contains "$(cat "$a/backup.desktop")" "Hidden=true"
+  assert_eq "$(grep -c Hidden "$sys/backup.desktop")" 0 "the system entry itself is untouched"
+  out=$(user_cm --json startup-set autostart:backup.desktop remove | startup_list)
+  assert_contains "$out" "fail - It comes with the system: turn it off instead"
+  out=$(user_cm --json --dry-run startup-set autostart:chat.desktop remove | startup_list)
+  assert_contains "$out" "ok - would be moved to the Trash"; assert_exists "$a/chat.desktop"
+  out=$(user_cm --json startup-set autostart:chat.desktop remove | startup_list)
+  assert_contains "$out" "ok chat.desktop moved to the Trash"; assert_missing "$a/chat.desktop"
+  out=$(user_cm --json restore chat.desktop | startup_list)
+  assert_contains "$out" "ok chat.desktop put back"; assert_exists "$a/chat.desktop"
+  # systemd user units: only through (fake) systemctl --user, and only your own
+  out=$(user_cm --json startup-set systemd:notes.timer enable | startup_list)
+  assert_contains "$out" "ok - turned on"
+  assert_contains "$(cat "$HOME_DIR/units")" "notes.timer enabled"
+  out=$(user_cm --json startup-set systemd:pipewire.service disable | startup_list)
+  assert_contains "$out" "fail - It comes with the system: only shown here"
+  out=$(user_cm --json startup-set systemd:notes.timer remove | startup_list)
+  assert_contains "$out" "fail - Only units in ~/.config/systemd/user can be removed"
+  out=$(user_cm --json startup-set systemd:sync.service remove | startup_list)
+  assert_contains "$out" "ok sync.service moved to the Trash"; assert_missing "$u/sync.service"
+  assert_contains "$(cat "$HOME_DIR/systemctl.log")" $'--user disable sync.service\n--user daemon-reload'
+  assert_eq "$(grep -c pipewire "$HOME_DIR/systemctl.log")" 0 "a system unit is never changed"
+  out=$(user_cm --json startup-set 'systemd:-x.service' enable 2>&1); assert_contains "$out" "Not a service or timer"
+  out=$(user_cm --json startup-set 'autostart:../x.desktop' enable 2>&1); assert_contains "$out" "Unknown startup item"
+  out=$(user_cm --json startup-set autostart:chat.desktop delete 2>&1); assert_contains "$out" "Unknown action: delete"
+  printf '#!/bin/sh\nexit 1\n' >"$HOME_DIR/.local/bin/systemctl" # no systemd user session: autostart entries only
+  out=$(user_cm --json startup | startup_list | tail -n 1)
+  assert_eq "$out" "done 4 false" "without systemctl --user"
+}
+
 app_fixtures() { # BIN — launchers, package stubs and home folders for gimp (apt), foo (apt) and Spotify (flatpak)
   local bin=$1 sys=$HOME_DIR/sys
   mkdir -p "$bin" "$sys"
@@ -902,6 +984,8 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "the older copies are ticked, the newest is kept"
     assert_contains "$out" "ticking every copy shows a warning"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the copies back in their group"
+    ((EUID == 0)) || assert_contains "$out" "switching an app off writes Hidden=true"
+    ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the startup entry back"
     assert_contains "$out" "apps listed, part of Ubuntu hidden"
     assert_contains "$out" "ticking an app ticks its leftover folder"
     assert_contains "$out" "dry run removes nothing"

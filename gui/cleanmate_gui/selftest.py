@@ -2,7 +2,7 @@
 
 Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
-Files, Space Lens and Duplicates checks move files to the Trash for real, but only files they
+Files, Space Lens, Duplicates and Startup Items checks move files to the Trash for real, but only files they
 made themselves in a throwaway home folder, with the engine pointed at that folder.
 """
 import os
@@ -389,7 +389,7 @@ def duplicates_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        uninstaller_test(win, report, wait, finish)
+        startup_test(win, report, wait, finish)
 
     def searched():
         report(files() == [[newest] + older[::-1]], f"one group of three copies, newest first: {files()}")
@@ -432,6 +432,101 @@ def duplicates_test(win, report, wait, finish):
 
     page.search()
     wait(idle, searched, 60, "duplicates search")
+
+
+def startup_test(win, report, wait, finish):
+    """Login apps of a throwaway home and a fake `systemctl --user`: list, switch off and on,
+    remove to the Trash and undo."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir, system = (os.path.join(sandbox, d) for d in ("home", "bin", "xdg-autostart"))
+    autostart, units = os.path.join(home, ".config", "autostart"), os.path.join(home, ".config", "systemd", "user")
+    for d in (autostart, units, bin_dir, system):
+        os.makedirs(d)
+    chat = os.path.join(autostart, "chat.desktop")
+    for path, text in ((chat, "[Desktop Entry]\nType=Application\nName=Chat\nExec=chat --tray\n"),
+                       (os.path.join(system, "backup.desktop"), "[Desktop Entry]\nType=Application\nName=Backup\nExec=backup\n"),
+                       (os.path.join(units, "sync.service"), "[Unit]\nDescription=Sync my files\n"),
+                       (os.path.join(home, "units"), "sync.service enabled enabled\npipewire.service enabled enabled\n"),
+                       (os.path.join(bin_dir, "systemctl"),
+                        '#!/bin/sh\nshift\ncase $1 in list-unit-files) cat "$HOME/units" ;; '
+                        'enable|disable) sed -i "s/^$2 [a-z]*/$2 ${1}d/" "$HOME/units" ;; esac\n')):
+        with open(path, "w") as f:
+            f.write(text)
+    os.chmod(os.path.join(bin_dir, "systemctl"), 0o755)
+    env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
+           "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_SYSTEM_AUTOSTART": system,
+           "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+
+    win.show_page("startup")
+    page = win.pages["startup"]
+    real_engine = page.engine
+
+    def idle():
+        return page.running is None and not page.changing
+
+    def text():
+        with open(chat) as f:
+            return f.read()
+
+    def done():
+        page.engine = real_engine
+        page.load()
+        shutil.rmtree(sandbox, ignore_errors=True)
+        uninstaller_test(win, report, wait, finish)
+
+    def first():
+        page.engine = Engine(real_engine.path, dry_run=True, env=env)
+        page.load()
+        wait(idle, listed, 60, "startup list")
+
+    def listed():
+        if os.geteuid() == 0:
+            report(page.stack.get_visible_child_name() == "failed", "as root the engine refuses startup items")
+            return done()
+        ids = sorted(page.switches)
+        report(ids == ["autostart:backup.desktop", "autostart:chat.desktop", "systemd:sync.service"],
+               f"startup items listed, system services hidden: {ids}")
+        page.show_system.set_active(True)
+        sw = page.switches.get("systemd:pipewire.service")
+        report(sw is not None and not sw.get_sensitive(), "a system service is shown but can't be switched")
+        page.show_system.set_active(False)
+        page.switches["autostart:chat.desktop"].set_active(False)
+        wait(idle, dry_switched, 60, "dry-run switch")
+
+    def dry_switched():
+        report("Hidden" not in text() and page.switches["autostart:chat.desktop"].get_active(),
+               "dry run: the entry stays on")
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.switches["autostart:chat.desktop"].set_active(False)
+        wait(idle, switched_off, 60, "switch off")
+
+    def switched_off():
+        report("Hidden=true" in text() and not page.switches["autostart:chat.desktop"].get_active(),
+               "switching an app off writes Hidden=true")
+        page.rows["autostart:chat.desktop"].activate()  # a click on the row; the switch animates first
+        wait(lambda: idle() and "Hidden" not in text(), switched_on, 60, "switch on")
+
+    def switched_on():
+        report("Hidden" not in text() and page.switches["autostart:chat.desktop"].get_active(),
+               "switching it on again removes the line")
+        unit = next(u for u in page.units if u["id"] == "autostart:chat.desktop")
+        page.undo_toast = None
+        page.remove(unit)
+        wait(lambda: idle() and page.undo_toast is not None, removed, 60, "remove")
+
+    def removed():
+        in_trash = os.path.join(home, ".local", "share", "Trash", "files", "chat.desktop")
+        report(not os.path.exists(chat) and os.path.exists(in_trash) and "autostart:chat.desktop" not in page.switches,
+               "Remove moves the entry to the Trash")
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: idle() and "autostart:chat.desktop" in page.switches, undone, 60, "undo")
+
+    def undone():
+        report(os.path.exists(chat), "Undo from the toast puts the startup entry back")
+        done()
+
+    wait(idle, first, 60, "first startup list")
 
 
 STUBS = {  # package tools for the Uninstaller check: gimp (apt), Spotify (Flatpak), BusyBox (part of Ubuntu)
