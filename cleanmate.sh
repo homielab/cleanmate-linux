@@ -2722,6 +2722,172 @@ reg_cache_item pub_cache dev "Dart & Flutter pub cache" 0 \
   "$(env_home_paths PUB_CACHE hosted "$HOME/.pub-cache/hosted")
 $(env_home_paths PUB_CACHE git/cache "$HOME/.pub-cache/git/cache")" "dart|dartaotruntime|flutter"
 
+# Old runtime versions: Node.js versions nvm installed ($NVM_DIR/versions/node/vX.Y.Z), SDKMAN
+# candidates ($SDKMAN_DIR/candidates/<java, gradle…>/<version>) and Flutter versions fvm installed
+# (~/fvm/versions/<version>, $FVM_CACHE_PATH/versions) that aren't your default: nvm's alias/default
+# (followed through alias/lts/… and other aliases; node/stable = the newest), SDKMAN's current, fvm's
+# default (the default link next to versions/), plus the node on PATH and whatever another nvm alias names. A tool whose default can't be
+# told keeps every version. Versions a program runs from (/proc/*/exe, open files) are skipped and
+# the scan says which. Deleted for good (nvm, sdk and fvm install them again); alias/, current,
+# default and .nvmrc are never touched. Not ticked; the desktop app lists each version.
+reg old_runtimes dev "Old Node, SDKMAN & Flutter versions" 0 "Node.js versions nvm installed, SDKMAN candidates (Java, Gradle, Maven…) and Flutter versions fvm installed that aren't your default. Deleted; install one again with nvm, sdk or fvm. A version that is running is skipped."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_old_runtimes='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
+
+runtime_dir() { # PATH → PATH when it is a folder inside your home with no symlinks on the way
+  [[ $1 == "$HOME"/* && -d $1 && ! -L $1 && $(realpath -e -- "$1" 2>/dev/null) == "$1" ]] && printf '%s\n' "$1"
+}
+
+nvm_version() { # NVM_DIR NAME → the installed version folder name (vX.Y.Z) NAME means, following aliases
+  local d=$1 v=$2 n f best=""
+  for n in 1 2 3 4 5 6 7 8; do
+    v=${v//[[:space:]]/}
+    [[ -n $v && $v != *..* ]] || return 1
+    case $v in node | stable) v=v ;; esac # the newest installed
+    f=$d/alias/$v
+    [[ $v != v && -f $f && ! -L $f ]] || break
+    v=$(head -c 200 -- "$f" 2>/dev/null)
+  done
+  [[ $v == v* || $v == [0-9]* ]] || return 1
+  v=v${v#v}
+  for f in "$d"/versions/node/v*/; do
+    [[ -d $f ]] || continue
+    f=${f%/} f=${f##*/}
+    [[ $v == v || $f == "$v" || $f == "$v".* ]] && best+=$f$'\n'
+  done
+  [[ -n $best ]] || return 1
+  printf '%s' "$best" | sort -V | tail -n 1
+}
+
+runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN and fvm that isn't kept
+  local d f c v t keep node
+  # nvm: keep the default, the node on PATH and what any of your own aliases names
+  d=$(runtime_dir "$(env_home_dir NVM_DIR)") || d=""
+  [[ -n $d ]] || d=$(runtime_dir "$HOME/.nvm")
+  if [[ -n $d && -d $d/versions/node && ! -L $d/versions/node ]] && [[ -f $d/alias/default ]] &&
+    keep=$(nvm_version "$d" "$(head -c 200 -- "$d/alias/default" 2>/dev/null)"); then
+    keep=$'\n'$keep$'\n'
+    node=$(command -v node 2>/dev/null) && node=$(realpath -e -- "$node" 2>/dev/null) &&
+      [[ $node == "$d"/versions/node/v*/* ]] && { node=${node#"$d"/versions/node/}; keep+=${node%%/*}$'\n'; }
+    for f in "$d"/alias/*; do
+      [[ -f $f && ! -L $f && ${f##*/} != default ]] || continue
+      v=$(nvm_version "$d" "${f##*/}") && keep+=$v$'\n'
+    done
+    for f in "$d"/versions/node/v*/; do
+      f=${f%/} v=${f##*/}
+      [[ -d $f && ! -L $f && $keep != *$'\n'"$v"$'\n'* ]] && printf 'node\tNode %s\t%s\n' "$v" "$f"
+    done
+  fi
+  # SDKMAN: keep each candidate's current; a candidate without one keeps everything
+  d=$(runtime_dir "$(env_home_dir SDKMAN_DIR)") || d=""
+  [[ -n $d ]] || d=$(runtime_dir "$HOME/.sdkman")
+  if [[ -n $d && -d $d/candidates && ! -L $d/candidates ]]; then
+    for c in "$d"/candidates/*/; do
+      c=${c%/}
+      [[ -d $c && ! -L $c && -L $c/current ]] || continue
+      t=$(readlink -- "$c/current") || continue
+      t=${t%/} t=${t##*/}
+      [[ -n $t && -d $c/$t ]] || continue
+      for f in "$c"/*/; do
+        f=${f%/} v=${f##*/}
+        [[ -d $f && ! -L $f && $v != current && $v != "$t" ]] && printf 'sdkman\t%s %s\t%s\n' "${c##*/}" "$v" "$f"
+      done
+    done
+  fi
+  # fvm: keep the global default; none set keeps everything
+  for d in "$HOME/fvm" "$(env_home_dir FVM_CACHE_PATH)"; do
+    d=$(runtime_dir "$d") || continue
+    [[ -d $d/versions && ! -L $d/versions && -L $d/default ]] || continue
+    t=$(readlink -- "$d/default") || continue
+    t=${t%/} t=${t##*/}
+    [[ -n $t ]] || continue
+    for f in "$d"/versions/*/; do
+      f=${f%/} v=${f##*/}
+      [[ -d $f && ! -L $f && $v != "$t" ]] && printf 'fvm\tFlutter %s\t%s\n' "$v" "$f"
+    done
+  done | awk -F '\t' '!seen[$3]++'
+  return 0
+}
+
+old_runtimes() { # → OR_DIR / OR_BYTES / OR_LABEL of versions to offer, biggest first; OR_BUSY = labels of running ones
+  local kind label d b used lines=()
+  OR_DIR=() OR_BYTES=() OR_LABEL=() OR_BUSY=()
+  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$'\n'$(open_files)$'\n'
+  while IFS=$'\t' read -r kind label d; do
+    [[ -n $d && $d != *[[:cntrl:]]* && $label != *[[:cntrl:]]* ]] || continue
+    touches_exclusion "$d" && continue
+    if open_under "$used" "$d"; then OR_BUSY+=("$label"); continue; fi
+    b=$(du -sbx -- "$d" 2>/dev/null | cut -f1)
+    lines+=("${b:-0}"$'\t'"$d"$'\t'"$label")
+  done < <(runtime_versions)
+  ((${#lines[@]})) || return 0
+  while IFS=$'\t' read -r b d label; do
+    OR_BYTES+=("$b") OR_DIR+=("$d") OR_LABEL+=("$label")
+  done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
+}
+
+runtimes_found() { # nvm, SDKMAN or fvm is there
+  local d
+  for d in "$(env_home_dir NVM_DIR)" "$HOME/.nvm" "$(env_home_dir SDKMAN_DIR)" "$HOME/.sdkman" "$HOME/fvm" \
+    "$(env_home_dir FVM_CACHE_PATH)"; do
+    [[ -n $d && -d $d ]] && return 0
+  done
+  return 1
+}
+
+delete_runtimes() { # INDEX… of OR_DIR
+  local i d rc=0
+  for i; do
+    d=${OR_DIR[i]}
+    is_protected "$d" && { err "Refusing to touch protected path: $d"; rc=1; continue; }
+    run rm -rf -- "$d" || rc=1
+  done
+  return "$rc"
+}
+
+scan_old_runtimes() {
+  local b busy=""
+  runtimes_found || return 1
+  old_runtimes
+  ((${#OR_BUSY[@]})) && busy="skipped while running: $(printf '%s, ' "${OR_BUSY[@]}")" busy=${busy%, }
+  if ((${#OR_DIR[@]} == 0)); then
+    SCAN_NOTE=$busy
+    return 2
+  fi
+  SCAN_BYTES=0
+  for b in "${OR_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#OR_DIR[@]} version) not your default${busy:+; $busy}"
+}
+clean_old_runtimes() {
+  old_runtimes
+  ((${#OR_DIR[@]})) || return 0
+  delete_runtimes "${!OR_DIR[@]}"
+}
+details_old_runtimes() {
+  local i
+  old_runtimes
+  for i in "${!OR_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${OR_BYTES[i]}")" "$(human "${OR_BYTES[i]}")" "$NC" "${OR_LABEL[i]}" "${OR_DIR[i]/#$HOME/\~}"
+  done
+  for i in "${OR_BUSY[@]}"; do printf '  %s%10s  %s  (running, skipped)%s\n' "$DIM" "" "$i" "$NC"; done
+}
+entries_old_runtimes() {
+  local i
+  old_runtimes
+  for i in "${!OR_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${OR_DIR[i]}")" "${OR_BYTES[i]}" "${OR_LABEL[i]}"
+  done
+}
+clean_entries_old_runtimes() { # encoded version folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  old_runtimes
+  for id; do
+    for i in "${!OR_DIR[@]}"; do [[ $(urlencode_path "${OR_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_runtimes "${pick[@]}"
+}
+
 # Android emulator system images no virtual device (AVD) uses: 1–8 GB each, and they stay when
 # the AVD is deleted. SDKs: ~/Android/Sdk, ANDROID_HOME and ANDROID_SDK_ROOT (inside your home, no
 # symlinks on the way). An image is system-images/<android-N>/<tag>/<abi> with a source.properties
@@ -3624,7 +3790,7 @@ plain_results() {
     ((++i))
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -6619,7 +6785,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 # never empty a Trash behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 # the user picks which projects to rebuild and images to download again
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[old_runtimes]=0 # the user picks which projects to rebuild and images or runtimes to download again
   plain_results
   printf '\n'
   start_cleanup

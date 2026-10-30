@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 19:40+0000\n"
+"POT-Creation-Date: 2026-10-30 19:59+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2949,6 +2949,17 @@ msgstr ""
 msgid ""
 "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). "
 "Fetched again by 'pub get'; activated tools and your pub login are kept."
+msgstr ""
+
+#. old_runtimes label
+msgid "Old Node, SDKMAN & Flutter versions"
+msgstr ""
+
+#. old_runtimes description
+msgid ""
+"Node.js versions nvm installed, SDKMAN candidates (Java, Gradle, Maven…) and "
+"Flutter versions fvm installed that aren't your default. Deleted; install "
+"one again with nvm, sdk or fvm. A version that is running is skipped."
 msgstr ""
 
 #. android_images label

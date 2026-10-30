@@ -2468,6 +2468,81 @@ $enc33 $b33 off Android 33 · google_apis_playstore · x86_64" "one entry per im
   assert_eq "$out" "" "an AVD folder that can't be worked out lists nothing"
 }
 
+test_old_runtime_versions() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out pid hold=() f b18 b22 b17 b319 enc18 enc22
+  local n=$h/.nvm/versions/node j=$h/.sdkman/candidates/java g=$h/.sdkman/candidates/gradle fv=$h/fvm/versions
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  assert_eq "$(user_cm --json scan --only dev | grep -c '"id":"old_runtimes"')" "0" "no nvm, SDKMAN or fvm: not shown"
+  sized "$n/v18.20.4/bin/node" 3000; sized "$n/v20.11.0/bin/node" 2000; sized "$n/v22.1.0/bin/node" 4000
+  mkdir -p "$h/.nvm/alias/lts"
+  echo "lts/iron" >"$h/.nvm/alias/default"; echo "v20.11.0" >"$h/.nvm/alias/lts/iron"; echo "lts/iron" >"$h/.nvm/alias/lts/*"
+  new "$h/project/.nvmrc"
+  sized "$j/17.0.2-tem/bin/java" 5000; sized "$j/21.0.1-tem/bin/java" 6000; ln -s 21.0.1-tem "$j/current"
+  sized "$g/8.5/bin/gradle" 700; sized "$g/8.7/bin/gradle" 800                  # no current: both kept
+  mkdir -p "$WORK/jdk-local"; ln -s "$WORK/jdk-local" "$j/11-local"              # sdk install java 11-local /path
+  sized "$fv/3.24.0/bin/flutter" 900; sized "$fv/3.19.0/bin/flutter" 1000; ln -s "$fv/3.24.0" "$h/fvm/default"
+  b18=$(du -sb "$n/v18.20.4" | cut -f1) b22=$(du -sb "$n/v22.1.0" | cut -f1) b17=$(du -sb "$j/17.0.2-tem" | cut -f1)
+  b319=$(du -sb "$fv/3.19.0" | cut -f1)
+  enc18=$(in_app "urlencode_path '$n/v18.20.4'") enc22=$(in_app "urlencode_path '$n/v22.1.0'")
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["status"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"])
+    elif e["event"] == "error": print("error", e["message"])'
+  out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes"' | python3 -c "$list")
+  assert_eq "$out" "old_runtimes found $((b18 + b22 + b17 + b319)) 4 versions not your default False True False" \
+    "versions that aren't the default, not ticked"
+  out=$(user_cm --json details old_runtimes | python3 -c "$list")
+  assert_eq "$out" "$(in_app "urlencode_path '$j/17.0.2-tem'") $b17 off java 17.0.2-tem
+$enc22 $b22 off Node v22.1.0
+$enc18 $b18 off Node v18.20.4
+$(in_app "urlencode_path '$fv/3.19.0'") $b319 off Flutter 3.19.0" "one entry per version, biggest first"
+  # a version a program runs from is skipped, and the scan says so
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  rm "$n/v18.20.4/bin/node"; cp "$(command -v sleep)" "$n/v18.20.4/bin/node"
+  "${hold[@]}" "$n/v18.20.4/bin/node" 60 >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes"' | python3 -c "$list" | cut -d' ' -f4-)
+  assert_eq "$out" "3 versions not your default; skipped while running: Node v18.20.4 False True False" "a running version is skipped"
+  assert_eq "$(user_cm --json details old_runtimes | python3 -c "$list" | grep -c v18)" "0" "no entry for a running version"
+  # automatic cleaning leaves them alone even when ticked
+  select_only old_runtimes
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$n/v22.1.0/bin/node"; assert_exists "$j/17.0.2-tem/bin/java"
+  out=$(user_cm --json clean old_runtimes --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of old_runtimes: ../etc"
+  out=$(user_cm --json clean old_runtimes --entries "$enc22,$enc18" | python3 -c "$list")
+  assert_eq "$out" "ok $b22" "only the chosen version, never a running one"
+  assert_missing "$n/v22.1.0"; assert_exists "$n/v18.20.4/bin/node"
+  out=$(user_cm --json clean old_runtimes | python3 -c "$list")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" "ok $((b17 + b319))" "the rest"
+  assert_missing "$j/17.0.2-tem"; assert_missing "$fv/3.19.0"; assert_exists "$n/v18.20.4/bin/node"
+  for f in .nvm/versions/node/v20.11.0/bin/node .nvm/alias/default ".nvm/alias/lts/*" .nvm/alias/lts/iron project/.nvmrc \
+    .sdkman/candidates/java/21.0.1-tem/bin/java .sdkman/candidates/java/current .sdkman/candidates/java/11-local \
+    .sdkman/candidates/gradle/8.5/bin/gradle .sdkman/candidates/gradle/8.7/bin/gradle fvm/versions/3.24.0/bin/flutter fvm/default; do
+    assert_exists "$h/$f"
+  done
+  assert_exists "$WORK/jdk-local"
+  # nvm: node/stable mean the newest; another alias and the node on PATH keep theirs; NVM_DIR from your profile
+  sized "$n/v22.1.0/bin/node" 10; sized "$n/v16.0.0/bin/node" 10; sized "$n/v14.0.0/bin/node" 10
+  echo "node" >"$h/.nvm/alias/default"; echo "16" >"$h/.nvm/alias/work"
+  mkdir -p "$h/.local/bin"; ln -s "$n/v14.0.0/bin/node" "$h/.local/bin/node"
+  assert_eq "$(user_cm --json details old_runtimes | python3 -c "$list" | cut -d' ' -f4- | sort | paste -sd' ' -)" \
+    "Node v18.20.4 Node v20.11.0" "keeps the newest, an alias's and the one on PATH"
+  echo "system" >"$h/.nvm/alias/default"
+  assert_eq "$(user_cm --json details old_runtimes | python3 -c "$list")" "" "a default that can't be told keeps every version"
+  mv "$h/.nvm" "$h/nvm2"; printf 'export NVM_DIR="$HOME/nvm2"\n' >"$h/.profile"; echo "v20.11.0" >"$h/nvm2/alias/default"
+  rm "$h/.local/bin/node"
+  assert_eq "$(user_cm --json details old_runtimes | python3 -c "$list" | cut -d' ' -f4- | sort | paste -sd' ' -)" \
+    "Node v14.0.0 Node v18.20.4 Node v22.1.0" "NVM_DIR from the profile"
+}
+
 test_firebase_zcode_mimocode_keep_logins_and_sessions() {
   fresh_home
   local h=$HOME_DIR fb=$HOME_DIR/.cache/firebase out holder

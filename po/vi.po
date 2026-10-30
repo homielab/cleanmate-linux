@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 19:40+0000\n"
+"POT-Creation-Date: 2026-10-30 19:59+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -2274,8 +2274,8 @@ msgid ""
 "Screenshots folder that you haven't opened or changed for more than {0} "
 "days. Moved to the Trash."
 msgstr ""
-"Ảnh chụp và video quay màn hình trong thư mục Ảnh và thư mục Screenshots "
-"của nó mà bạn không mở hay sửa hơn {0} ngày. Chuyển vào Thùng rác."
+"Ảnh chụp và video quay màn hình trong thư mục Ảnh và thư mục Screenshots của "
+"nó mà bạn không mở hay sửa hơn {0} ngày. Chuyển vào Thùng rác."
 
 #. orphans label
 msgid "Unused packages & old kernels"
@@ -3086,6 +3086,20 @@ msgid ""
 msgstr ""
 "Các gói Dart và Flutter đã tải (~/.pub-cache/hosted, git/cache). 'pub get' "
 "tải lại; công cụ đã kích hoạt và đăng nhập pub được giữ."
+
+#. old_runtimes label
+msgid "Old Node, SDKMAN & Flutter versions"
+msgstr "Phiên bản Node, SDKMAN & Flutter cũ"
+
+#. old_runtimes description
+msgid ""
+"Node.js versions nvm installed, SDKMAN candidates (Java, Gradle, Maven…) and "
+"Flutter versions fvm installed that aren't your default. Deleted; install "
+"one again with nvm, sdk or fvm. A version that is running is skipped."
+msgstr ""
+"Phiên bản Node.js do nvm cài, candidate SDKMAN (Java, Gradle, Maven…) và "
+"phiên bản Flutter do fvm cài mà không phải mặc định của bạn. Xoá hẳn; cài lại "
+"bằng nvm, sdk hay fvm. Bỏ qua phiên bản đang chạy."
 
 #. android_images label
 msgid "Android system images (unused)"

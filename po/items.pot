@@ -669,6 +669,14 @@ msgstr ""
 msgid "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept."
 msgstr ""
 
+#. old_runtimes label
+msgid "Old Node, SDKMAN & Flutter versions"
+msgstr ""
+
+#. old_runtimes description
+msgid "Node.js versions nvm installed, SDKMAN candidates (Java, Gradle, Maven…) and Flutter versions fvm installed that aren't your default. Deleted; install one again with nvm, sdk or fvm. A version that is running is skipped."
+msgstr ""
+
 #. android_images label
 msgid "Android system images (unused)"
 msgstr ""
