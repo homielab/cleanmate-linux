@@ -546,9 +546,11 @@ EOF
   [[ $out == *"image prune -a"* ]] && fail "unused images must not be pruned unless selected" || ok_ "unused images untouched"
 }
 
-docker_entries_stub() { # DIR LOG — a docker with two dangling images and three build-cache records; calls logged
-  local a b
-  a=sha256:$(printf 'a%.0s' {1..64}) b=sha256:$(printf 'b%.0s' {1..64})
+docker_entries_stub() { # DIR LOG — a docker with dangling, unused and used images, three build-cache records
+  # and five volumes (three unused, one in use, one on a network driver); calls logged
+  local a b c d e f
+  a=sha256:$(printf 'a%.0s' {1..64}) b=sha256:$(printf 'b%.0s' {1..64}) c=sha256:$(printf 'c%.0s' {1..64})
+  d=sha256:$(printf 'd%.0s' {1..64}) e=sha256:$(printf 'e%.0s' {1..64}) f=$(printf 'f%.0s' {1..64})
   mkdir -p "$1"
   cat >"$1/docker" <<EOF
 #!/bin/sh
@@ -556,13 +558,28 @@ echo "\$*" >>"$2"
 case "\$*" in
   info*) exit 0 ;;
   "context inspect"*) echo unix:///var/run/docker.sock ;;
-  "system df --format"*) printf 'Images\t200MB (10%%)\nBuild Cache\t3.5GB\n' ;;
-  "system df -v --format"*) printf '%s\n' \\
+  "system df --format"*) printf 'Images\t200MB (10%%)\nLocal Volumes\t1.6GB (80%%)\nBuild Cache\t3.5GB\n' ;;
+  "system df -v --format {{range .BuildCache}}"*) printf '%s\n' \\
     'k4v2r7x9q0w3e5t8y1u6i2o4p|3GB|false|false|regular|2 days ago|mount / from exec /bin/sh -c npm ci' \\
     'z9y8x7w6v5u4t3s2r1q0p9o8n|500MB|false|true|source.local|3 hours ago|local source for context' \\
     'inuse0000000000000000000x|1GB|true|false|regular|1 minute ago|being built' ;;
+  "system df -v --format {{range .Images}}"*) printf '%s\n' \\
+    '$c|0|1.2GB|900MB|3 weeks ago|postgres|16' \\
+    '$c|0|1.2GB|900MB|3 weeks ago|postgres|latest' \\
+    '$d|2|500MB|500MB|1 day ago|nginx|latest' \\
+    '$a|0|120MB|120MB|3 days ago|<none>|<none>' \\
+    '$e|0|300MB|N/A|2 months ago|myapp|<none>' \\
+    'sha256:short|0|1GB|1GB|1 day ago|odd|1' ;;
+  "system df -v --format {{range .Volumes}}"*) printf '%s\n' \\
+    'pgdata|0|1.5GB|local|com.example.app=db' \\
+    '$f|0|20MB|local|com.docker.volume.anonymous=' \\
+    'nfs-share|0|N/A|nfs|' \\
+    'scratch|0|5MB|local|com.docker.volume.anonymous=,note=a|b' \\
+    'live|1|2GB|local|' ;;
+  "images --no-trunc --format"*) printf '%s\t%s\n' $c postgres:16 $c postgres:latest $d nginx:latest $e 'myapp:<none>' ;;
   "images -f dangling=true --format {{.Size}}") printf '120MB\n80MB\n' ;;
   "images -f dangling=true --no-trunc"*) printf '$a\t120MB\t3 days ago\n$b\t80MB\t2 weeks ago\n' ;;
+  "volume ls -qf dangling=true") printf 'pgdata\n$f\nnfs-share\nscratch\n' ;;
 esac
 EOF
   chmod +x "$1/docker"
@@ -595,7 +612,7 @@ docker_build z9y8x7w6v5u4t3s2 0 off local source for context · used 3 hours ago
     "build cache: not in use only, biggest first, shared = 0 bytes, not ticked"
   out=$(cm --json scan --only dev | grep '"id":"docker_build"')
   assert_contains "$out" '"entries":true'
-  assert_contains "$(cm --json scan --only dev | grep '"id":"docker_volumes"')" '"entries":false'
+  assert_contains "$(cm --json scan --only dev | grep '"id":"docker_containers"')" '"entries":false'
   # untick one of two dangling images → only the other is removed
   : >"$log"
   out=$(user_cm --json clean docker_dangling --entries "$a" | entry_list)
@@ -619,8 +636,8 @@ docker_build z9y8x7w6v5u4t3s2 0 off local source for context · used 3 hours ago
   assert_contains "$out" "error Not an entry ID"
   out=$(user_cm --json clean docker_build --entries "-f,abc" 2>&1 | entry_list)
   assert_contains "$out" "error Not an entry ID of docker_build: -f"
-  out=$(user_cm --json clean docker_volumes --entries abc 2>&1 | entry_list)
-  assert_contains "$out" "error docker_volumes can't be cleaned entry by entry"
+  out=$(user_cm --json clean docker_containers --entries abc 2>&1 | entry_list)
+  assert_contains "$out" "error docker_containers can't be cleaned entry by entry"
   out=$(user_cm --json clean docker_dangling docker_build --entries "$a" 2>&1 | entry_list)
   assert_contains "$out" "error --entries works with one item at a time"
   assert_eq "$(<"$log")" "" "docker never called for a refused request"
@@ -632,6 +649,80 @@ docker_build z9y8x7w6v5u4t3s2 0 off local source for context · used 3 hours ago
   [[ $(<"$log") == *"rmi"* || $(<"$log") == *"builder prune"* ]] && fail "unlisted entries must not be removed" || ok_ "unlisted entries untouched"
   # a Docker that isn't on this computer: no entries
   out=$(in_app 'DOCKER_HOST=tcp://10.0.0.5:2375 json_entries docker_dangling')
+  assert_eq "$out" "" "no entries for a remote Docker"
+}
+
+entry_notes() { # reads `--json details` → id (16 chars), bytes, note and label of each entry
+  python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"][:16], e["bytes"], e["note"] or "-", e["label"])'
+}
+
+test_docker_volumes_and_images_one_by_one() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local log=$WORK/docker-volumes.log out c e f
+  c=sha256:$(printf 'c%.0s' {1..64}) e=sha256:$(printf 'e%.0s' {1..64}) f=$(printf 'f%.0s' {1..64})
+  : >"$log"
+  chmod 666 "$log" # root runs write it as nobody
+  docker_entries_stub "$WORK/dockervolumes" "$log"
+  local BASE_PATH="$WORK/dockervolumes:$BASE_PATH"
+  out=$(cm --json scan --only dev)
+  assert_contains "$(grep '"id":"docker_volumes"' <<<"$out")" '"entries":true'
+  assert_contains "$(grep '"id":"docker_images"' <<<"$out")" '"entries":true'
+  out=$(cm --json details docker_volumes | entry_notes)
+  assert_eq "$out" "pgdata 1500000000 data pgdata · local
+ffffffffffffffff 20000000 anonymous ffffffffffff · local
+scratch 5000000 anonymous scratch · local
+nfs-share 0 data nfs-share · nfs" "unused volumes: biggest first, anonymous or may hold data, the one in use left out"
+  [[ $(cm --json details docker_volumes) == *'"selected":true'* ]] && fail "volumes must not be ticked" || ok_ "volumes not ticked"
+  out=$(cm --json details docker_images | entry_notes)
+  assert_eq "$out" "sha256:ccccccccc 900000000 - postgres:16 · created 3 weeks ago
+sha256:eeeeeeeee 300000000 - myapp · created 2 months ago" \
+    "unused images once each, sized by what only they hold; dangling, used and odd IDs left out"
+  # only the chosen volume goes, by name; nothing is pruned
+  : >"$log"
+  out=$(user_cm --json clean docker_volumes --entries pgdata | entry_list)
+  assert_contains "$out" "ok docker_volumes"
+  assert_eq "$(grep -E '^volume (rm|prune)' "$log")" "volume rm pgdata" "one docker volume rm"
+  : >"$log"
+  user_cm --json clean docker_volumes --entries "scratch,$f" >/dev/null
+  assert_eq "$(grep -E '^volume (rm|prune)' "$log" | sort)" "volume rm $f
+volume rm scratch" "two volumes, one rm each"
+  # an image goes with all its tags (no -f); one without a tag by its ID
+  : >"$log"
+  out=$(user_cm --json clean docker_images --entries "$c" | entry_list)
+  assert_contains "$out" "ok docker_images"
+  assert_eq "$(grep -E '^(rmi|image (rm|prune))' "$log")" "rmi postgres:16 postgres:latest" "rmi by every tag"
+  : >"$log"
+  user_cm --json clean docker_images --entries "$e" >/dev/null
+  assert_eq "$(grep -E '^(rmi|image (rm|prune))' "$log")" "rmi $e" "untagged image by its ID"
+  # dry run removes nothing
+  : >"$log"
+  out=$(user_cm --json --dry-run clean docker_volumes --entries pgdata | entry_list)
+  assert_contains "$out" "ok docker_volumes 1500000000"
+  [[ $(<"$log") == *"volume rm"* ]] && fail "dry run must not remove" || ok_ "dry run removes nothing"
+  # odd IDs are refused before docker is asked anything
+  : >"$log"
+  out=$(user_cm --json clean docker_volumes --entries '-f' 2>&1 | entry_list)
+  assert_contains "$out" "error Not an entry ID of docker_volumes: -f"
+  out=$(user_cm --json clean docker_volumes --entries 'pg data' 2>&1 | entry_list)
+  assert_contains "$out" "error Not an entry ID of docker_volumes"
+  out=$(user_cm --json clean docker_volumes --entries '../x' 2>&1 | entry_list)
+  assert_contains "$out" "error Not an entry ID of docker_volumes"
+  out=$(user_cm --json clean docker_images --entries 'postgres:16' 2>&1 | entry_list)
+  assert_contains "$out" "error Not an entry ID of docker_images: postgres:16"
+  assert_eq "$(<"$log")" "" "docker never called for a refused request"
+  # well-formed but not listed: a volume in use, an image a container uses, a dangling image
+  out=$(user_cm --json clean docker_volumes --entries live | entry_list)
+  assert_contains "$out" "fail docker_volumes 0 None of the chosen entries is there any more"
+  out=$(user_cm --json clean docker_images --entries "sha256:$(printf 'd%.0s' {1..64})" | entry_list)
+  assert_contains "$out" "fail docker_images 0"
+  out=$(user_cm --json clean docker_images --entries "sha256:$(printf 'a%.0s' {1..64})" | entry_list)
+  assert_contains "$out" "fail docker_images 0"
+  [[ $(<"$log") == *"volume rm"* || $(<"$log") == *"rmi"* ]] && fail "unlisted entries must not be removed" || ok_ "in-use volume and images untouched"
+  out=$(in_app 'DOCKER_HOST=tcp://10.0.0.5:2375 json_entries docker_volumes')
   assert_eq "$out" "" "no entries for a remote Docker"
 }
 

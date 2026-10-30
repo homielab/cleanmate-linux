@@ -2819,13 +2819,22 @@ scan_docker_build() { docker_ok || return 1; docker_scan "$(docker_reclaimable "
 clean_docker_build() { run docker builder prune -f; }
 details_docker_build() { docker system df 2>/dev/null | sed 's/^/  /'; return 0; }
 
-# Entries: the desktop app can clean single dangling images and build-cache records
-# (`--json details` lists them, `--json clean ID --entries …` removes those).
-# entries_ID prints id<TAB>bytes<TAB>selected<TAB>label; clean_entries_ID removes the given IDs.
+# Entries: the desktop app can clean single dangling images, build-cache records, unused images
+# and unused volumes (`--json details` lists them, `--json clean ID --entries …` removes those).
+# entries_ID prints id<TAB>bytes<TAB>selected<TAB>label[<TAB>note]; clean_entries_ID removes the given IDs.
 # Only for a Docker on this computer (a unix socket), never a remote one.
-ENTRY_RE_docker_dangling='^sha256:[0-9a-f]{64}$'
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
-ENTRY_RE_docker_build='^[a-z0-9]{20,32}$' # BuildKit record IDs are base-32
+{
+  ENTRY_RE_docker_dangling='^sha256:[0-9a-f]{64}$'
+  ENTRY_RE_docker_images='^sha256:[0-9a-f]{64}$'
+  ENTRY_RE_docker_build='^[a-z0-9]{20,32}$'                 # BuildKit record IDs are base-32
+  ENTRY_RE_docker_volumes='^[A-Za-z0-9][A-Za-z0-9_.-]+$' # Docker's own rule for volume names
+}
+# awk: bytes("1.09MB") — the SI units `docker system df` prints (like si_to_bytes); N/A → 0
+DOCKER_AWK_BYTES='function bytes(s,  n, u) {
+  n = s + 0; u = toupper(substr(s, match(s, /[^0-9.]/), 1))
+  return int(n * (u == "K" ? 1e3 : u == "M" ? 1e6 : u == "G" ? 1e9 : u == "T" ? 1e12 : 1) + 0.5)
+}'
 docker_local() {
   local h=${DOCKER_HOST:-}
   [[ -n $h ]] || h=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null)
@@ -2843,11 +2852,7 @@ entries_docker_build() { # records not in use, biggest first; a shared one frees
   docker_ok && docker_local || return 1
   docker system df -v --format \
     '{{range .BuildCache}}{{.ID}}|{{.Size}}|{{.InUse}}|{{.Shared}}|{{.CacheType}}|{{.LastUsedSince}}|{{.Description}}{{println}}{{end}}' \
-    2>/dev/null | awk -F'|' '
-      function bytes(s,  n, u) { # 1.09MB, 512kB, 0B (SI units, like si_to_bytes)
-        n = s + 0; u = toupper(substr(s, match(s, /[^0-9.]/), 1))
-        return int(n * (u == "K" ? 1e3 : u == "M" ? 1e6 : u == "G" ? 1e9 : u == "T" ? 1e12 : 1) + 0.5)
-      }
+    2>/dev/null | awk -F'|' "$DOCKER_AWK_BYTES"'
       $1 ~ /^[a-z0-9]+$/ && length($1) >= 20 && length($1) <= 32 && $3 != "true" { # see ENTRY_RE_docker_build
         d = $7; for (i = 8; i <= NF; i++) d = d "|" $i
         if (d == "") d = $5
@@ -2861,6 +2866,44 @@ clean_entries_docker_build() {
   for id; do run docker builder prune --force --filter "id=$id" || rc=1; done
   return "$rc"
 }
+entries_docker_images() { # images no container uses, biggest first; dangling ones are docker_dangling's
+  docker_ok && docker_local || return 1
+  local dangling
+  dangling=$(docker images -f dangling=true --no-trunc --format '{{.ID}}' 2>/dev/null | cut -f1 | paste -sd' ' -)
+  docker system df -v --format \
+    '{{range .Images}}{{.ID}}|{{.Containers}}|{{.Size}}|{{.UniqueSize}}|{{.CreatedSince}}|{{.Repository}}|{{.Tag}}{{println}}{{end}}' \
+    2>/dev/null | awk -F'|' -v dangling="$dangling" "$DOCKER_AWK_BYTES"'
+      BEGIN { n = split(dangling, d, " "); for (i = 1; i <= n; i++) skip[d[i]] = 1 }
+      $2 == "0" && !($1 in skip) && !seen[$1]++ && $1 ~ /^sha256:[0-9a-f]+$/ && length($1) == 71 { # see ENTRY_RE_docker_images
+        name = ($6 == "<none>") ? substr($1, 8, 12) : ($7 == "<none>" || $7 == "") ? $6 : ($6 ":" $7)
+        # removing it frees what no other image shares; N/A (containerd store) → its whole size
+        b = $4 ~ /^[0-9.]+[kKMGT]?B$/ ? bytes($4) : bytes($3)
+        printf "%s\t%.0f\t0\t%s · created %s\n", $1, b, name, $5
+      }' | sort -t $'\t' -k2,2nr
+}
+clean_entries_docker_images() { # by all of its tags: an image with two tags needs no -f
+  local id rc=0 refs
+  for id; do
+    mapfile -t refs < <(docker images --no-trunc --format '{{.ID}}\t{{.Repository}}:{{.Tag}}' 2>/dev/null |
+      awk -F'\t' -v id="$id" '$1 == id && $2 !~ /<none>/ { print $2 }')
+    ((${#refs[@]})) || refs=("$id")
+    run docker rmi "${refs[@]}" || rc=1
+  done
+  return "$rc"
+}
+entries_docker_volumes() { # volumes no container uses, biggest first; note: anonymous, or data (a named one)
+  docker_ok && docker_local || return 1
+  docker system df -v --format \
+    '{{range .Volumes}}{{.Name}}|{{.Links}}|{{.Size}}|{{.Driver}}|{{.Labels}}{{println}}{{end}}' \
+    2>/dev/null | awk -F'|' "$DOCKER_AWK_BYTES"'
+      $2 == "0" && $1 ~ /^[A-Za-z0-9][A-Za-z0-9_.-]+$/ { # see ENTRY_RE_docker_volumes
+        labels = $5; for (i = 6; i <= NF; i++) labels = labels "|" $i
+        hex = length($1) == 64 && $1 ~ /^[0-9a-f]+$/
+        anon = hex || labels ~ /(^|,)com\.docker\.volume\.anonymous=/
+        printf "%s\t%.0f\t0\t%s · %s\t%s\n", $1, bytes($3), (hex ? substr($1, 1, 12) : $1), $4, (anon ? "anonymous" : "data")
+      }' | sort -t $'\t' -k2,2nr
+}
+clean_entries_docker_volumes() { local v rc=0; for v; do run docker volume rm "$v" || rc=1; done; return "$rc"; }
 
 scan_docker_containers() {
   docker_ok || return 1
@@ -6542,12 +6585,13 @@ json_error() { local m; json_str m "$1"; printf '{"event":"error","message":%s}\
 has_entries() { declare -F "entries_$1" >/dev/null; }
 
 json_entries() { # ID → one "entry" event per part of the item that can be cleaned on its own
-  local eid b sel label
+  local eid b sel label note
   has_entries "$1" || return 0
-  while IFS=$'\t' read -r eid b sel label; do
+  while IFS=$'\t' read -r eid b sel label note; do
     json_str label "$label"
-    printf '{"event":"entry","item":"%s","id":"%s","bytes":%d,"label":%s,"selected":%s}\n' \
-      "$1" "$eid" "$b" "$label" "$( ((sel)) && echo true || echo false)"
+    json_str note "$note"
+    printf '{"event":"entry","item":"%s","id":"%s","bytes":%d,"label":%s,"note":%s,"selected":%s}\n' \
+      "$1" "$eid" "$b" "$label" "$note" "$( ((sel)) && echo true || echo false)"
   done < <("entries_$1" 2>/dev/null)
 }
 

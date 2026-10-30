@@ -3,7 +3,7 @@
 Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
 Files, Space Lens, Duplicates and Startup Items checks move files to the Trash for real, and the Settings
-check saves settings for real, the Docker check removes an image through a fake `docker`, the drive Trash
+check saves settings for real, the Docker check removes an image and a volume through a fake `docker`, the drive Trash
 check empties a fake drive's Trash, and the old installers check moves a download to the Trash, but only in a
 throwaway folder they made, with the engine pointed at it.
 """
@@ -936,8 +936,12 @@ echo "$*" >>"$HOME/docker.log"
 case "$*" in
   info*) exit 0 ;;
   "context inspect"*) echo unix:///var/run/docker.sock ;;
-  "system df --format"*) printf 'Images\\t200MB (10%%)\\n' ;;
+  "system df --format"*) printf 'Images\\t200MB (10%%)\\nLocal Volumes\\t1.52GB (90%%)\\n' ;;
+  "system df -v --format {{range .Volumes}}"*) [ -e "$HOME/volume-gone" ] || echo 'pgdata|0|1.5GB|local|'
+    printf '%s|0|20MB|local|com.docker.volume.anonymous=\\n' "$(printf 'f%.0s' $(seq 64))" ;;
   "system df -v --format"*) ;;
+  "volume ls -qf dangling=true") [ -e "$HOME/volume-gone" ] || echo pgdata; printf 'f%.0s' $(seq 64); echo ;;
+  "volume rm"*) touch "$HOME/volume-gone" ;;
   "images -f dangling=true --format {{.Size}}") [ -e "$HOME/gone" ] && echo 80MB || printf '120MB\\n80MB\\n' ;;
   "images -f dangling=true --no-trunc"*) [ -e "$HOME/gone" ] || printf 'sha256:%s\\t120MB\\t3 days ago\\n' "$(printf 'a%.0s' $(seq 64))"
     printf 'sha256:%s\\t80MB\\t2 weeks ago\\n' "$(printf 'b%.0s' $(seq 64))" ;;
@@ -948,7 +952,8 @@ esac
 
 def docker_entries_test(win, report, wait, finish):
     """Developer Junk with a fake docker: two dangling images as sub-rows; untick one, Clean removes only
-    the other (for real, through the stub)."""
+    the other (for real, through the stub). Then two unused volumes, none ticked; tick one, Clean removes
+    only that one with `docker volume rm`."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
@@ -961,6 +966,7 @@ def docker_entries_test(win, report, wait, finish):
     env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
            "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
     keep, drop = "sha256:" + "b" * 64, "sha256:" + "a" * 64
+    anon = "f" * 64
 
     win.show_page("dev")
     page = win.pages["dev"]
@@ -992,7 +998,7 @@ def docker_entries_test(win, report, wait, finish):
                "unticking one: the item box is half-ticked and the size shows selected / total")
         if os.geteuid() == 0:
             report(True, "real clean skipped: as root the engine refuses home items")
-            return done()
+            return volumes()
         for i in list(page.selected):
             page.selected[i] = i == "docker_dangling"
         report(page.undo_note(["docker_dangling"]) == _("This can't be undone."),
@@ -1006,8 +1012,52 @@ def docker_entries_test(win, report, wait, finish):
         report(removed == [f"rmi {drop}"] and "image prune" not in text, "Clean removes only the ticked image")
         report(page.undo_toast is None and not page.trashed, "a clean that deleted everything for good offers no Undo")
         report(" → " in page.clean_title.get_text(), f"a real clean shows free space before → after: {page.clean_title.get_text()}")
-        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", done, 60,
+        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", volumes, 60,
              "scan after cleaning")
+
+    def volumes():
+        row = page.checks.get("docker_volumes")
+        row = row and row.get_ancestor(Adw.ExpanderRow)
+        if not row:
+            report(False, "Docker volumes have no sub-rows")
+            return done()
+        row.set_expanded(True)
+        wait(lambda: "docker_volumes" in page.entries, volumes_listed, 30, "Docker volumes")
+
+    def volumes_listed():
+        boxes = page.entry_checks.get("docker_volumes", {})
+        report(sorted(boxes) == [anon, "pgdata"] and not any(b.get_active() for b in boxes.values()),
+               "two unused volumes listed under the item, none ticked")
+        if sorted(boxes) != [anon, "pgdata"]:
+            return done()
+        notes = {i: b.get_ancestor(Adw.ActionRow).get_subtitle() for i, b in boxes.items()}
+        report(notes == {"pgdata": _("Named volume — may hold data"), anon: _("Anonymous volume")},
+               f"a named volume may hold data, the other is anonymous: {notes}")
+        boxes["pgdata"].set_active(True)
+        box = page.checks["docker_volumes"]
+        report(box.get_active() and box.get_inconsistent() and page.chosen_bytes("docker_volumes") == 1500000000
+               and page.size_labels["docker_volumes"].get_text().count("/") == 1,
+               "ticking one volume: the item box is half-ticked and the size shows selected / total")
+        boxes[anon].set_active(True)
+        report(not box.get_inconsistent() and page.by_entries("docker_volumes")
+               and page.chosen_bytes("docker_volumes") == 1520000000,
+               "both volumes ticked: Clean still removes them by name, not with docker volume prune")
+        boxes[anon].set_active(False)
+        if os.geteuid() == 0:
+            return done()
+        for i in list(page.selected):
+            page.selected[i] = i == "docker_volumes"
+        open(log, "w").close()
+        page.clean(["docker_volumes"])
+        wait(lambda: page.clean_title.get_text().startswith(lead(_("Freed {size}"))), volumes_cleaned, 60,
+             "Docker volume clean")
+
+    def volumes_cleaned():
+        text = open(log).read() if os.path.exists(log) else ""
+        removed = [line for line in text.splitlines() if line.startswith("volume rm") or "prune" in line]
+        report(removed == ["volume rm pgdata"], f"Clean removes only the ticked volume: {removed}")
+        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", done, 60,
+             "scan after cleaning volumes")
 
     page.scan()
     wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,

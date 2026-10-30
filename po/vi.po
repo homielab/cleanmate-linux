@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 14:55+0000\n"
+"POT-Creation-Date: 2026-10-30 19:24+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -149,7 +149,7 @@ msgid_plural ""
 msgstr[0] "Đã chọn mọi bản của {n} tệp: sẽ không giữ lại bản nào của chúng."
 
 #: gui/cleanmate_gui/duplicates.py:318 gui/cleanmate_gui/largefiles.py:272
-#: gui/cleanmate_gui/scanpage.py:418 gui/cleanmate_gui/spacelens.py:343
+#: gui/cleanmate_gui/scanpage.py:432 gui/cleanmate_gui/spacelens.py:343
 #: gui/cleanmate_gui/uninstaller.py:445
 #, python-brace-format
 msgid "… and {n} more"
@@ -171,7 +171,7 @@ msgstr ""
 "{size}. Bạn có thể hoàn tác ngay, hoặc khôi phục các tệp từ Thùng rác sau."
 
 #: gui/cleanmate_gui/duplicates.py:324 gui/cleanmate_gui/largefiles.py:278
-#: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:429
+#: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:443
 #: gui/cleanmate_gui/settings.py:376 gui/cleanmate_gui/spacelens.py:349
 #: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:460
 msgid "Cancel"
@@ -202,13 +202,13 @@ msgid_plural "{n} could not be moved: {reason}"
 msgstr[0] "{n} tệp không chuyển được: {reason}"
 
 #: gui/cleanmate_gui/duplicates.py:376 gui/cleanmate_gui/largefiles.py:329
-#: gui/cleanmate_gui/scanpage.py:523 gui/cleanmate_gui/spacelens.py:402
+#: gui/cleanmate_gui/scanpage.py:537 gui/cleanmate_gui/spacelens.py:402
 #: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/uninstaller.py:340
 msgid "Undo"
 msgstr "Hoàn tác"
 
 #: gui/cleanmate_gui/duplicates.py:412 gui/cleanmate_gui/largefiles.py:365
-#: gui/cleanmate_gui/scanpage.py:559 gui/cleanmate_gui/spacelens.py:435
+#: gui/cleanmate_gui/scanpage.py:573 gui/cleanmate_gui/spacelens.py:435
 #: gui/cleanmate_gui/uninstaller.py:595
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
@@ -321,7 +321,7 @@ msgstr[0] "{n} tệp · {size}"
 msgid "Biggest first, in {folder}"
 msgstr "Lớn nhất trước, trong {folder}"
 
-#: gui/cleanmate_gui/largefiles.py:198 gui/cleanmate_gui/scanpage.py:193
+#: gui/cleanmate_gui/largefiles.py:198 gui/cleanmate_gui/scanpage.py:203
 #: gui/cleanmate_gui/spacelens.py:253
 msgid "All"
 msgstr "Tất cả"
@@ -485,8 +485,8 @@ msgstr ""
 "Không để nhật ký hệ thống vượt quá {mb} MB (Cài đặt → Giới hạn dung lượng "
 "journal)"
 
-#: gui/cleanmate_gui/maintenance.py:197 gui/cleanmate_gui/scanpage.py:222
-#: gui/cleanmate_gui/scanpage.py:239 gui/cleanmate_gui/uninstaller.py:224
+#: gui/cleanmate_gui/maintenance.py:197 gui/cleanmate_gui/scanpage.py:232
+#: gui/cleanmate_gui/scanpage.py:249 gui/cleanmate_gui/uninstaller.py:224
 #: gui/cleanmate_gui/uninstaller.py:441
 msgid "Needs your password"
 msgstr "Cần mật khẩu của bạn"
@@ -674,7 +674,8 @@ msgstr "ufw đang tắt. Để bật, chạy trong terminal:"
 
 #: gui/cleanmate_gui/overview.py:182
 msgid "ufw is set to start but isn't running. To start it, run in a terminal:"
-msgstr "ufw được đặt để chạy nhưng đang không chạy. Để chạy, gõ trong terminal:"
+msgstr ""
+"ufw được đặt để chạy nhưng đang không chạy. Để chạy, gõ trong terminal:"
 
 #: gui/cleanmate_gui/overview.py:183
 msgid ""
@@ -697,7 +698,9 @@ msgstr "Các hồ sơ AppArmor chưa được nạp. Để nạp, chạy trong t
 msgid ""
 "Turned off when the computer starts: remove apparmor=0 from the kernel "
 "options in /etc/default/grub, then run sudo update-grub."
-msgstr "Bị tắt khi máy khởi động: xoá apparmor=0 khỏi tuỳ chọn kernel trong /etc/default/grub, rồi chạy sudo update-grub."
+msgstr ""
+"Bị tắt khi máy khởi động: xoá apparmor=0 khỏi tuỳ chọn kernel trong /etc/"
+"default/grub, rồi chạy sudo update-grub."
 
 #: gui/cleanmate_gui/overview.py:189
 msgid "Can't read AppArmor's state from the kernel."
@@ -912,7 +915,9 @@ msgstr "Bảo vệ hệ thống"
 msgid ""
 "Read only: CleanMate doesn't change these. To turn one on, run the command "
 "shown in a terminal."
-msgstr "Chỉ xem: CleanMate không thay đổi các mục này. Để bật một mục, chạy lệnh hiện bên dưới trong terminal."
+msgstr ""
+"Chỉ xem: CleanMate không thay đổi các mục này. Để bật một mục, chạy lệnh "
+"hiện bên dưới trong terminal."
 
 #: gui/cleanmate_gui/overview.py:396
 msgid "Couldn't read the system's protection."
@@ -958,220 +963,228 @@ msgstr "Sao chép lệnh"
 msgid "Command copied. Paste it in a terminal to run it."
 msgstr "Đã sao chép lệnh. Dán vào terminal để chạy."
 
-#: gui/cleanmate_gui/scanpage.py:57
+#: gui/cleanmate_gui/scanpage.py:15
+msgid "Anonymous volume"
+msgstr "Volume ẩn danh"
+
+#: gui/cleanmate_gui/scanpage.py:15
+msgid "Named volume — may hold data"
+msgstr "Volume có tên — có thể chứa dữ liệu"
+
+#: gui/cleanmate_gui/scanpage.py:67
 msgid "Scan"
 msgstr "Quét"
 
-#: gui/cleanmate_gui/scanpage.py:70
+#: gui/cleanmate_gui/scanpage.py:80
 msgid "Scanning…"
 msgstr "Đang quét…"
 
-#: gui/cleanmate_gui/scanpage.py:96 gui/cleanmate_gui/scanpage.py:430
+#: gui/cleanmate_gui/scanpage.py:106 gui/cleanmate_gui/scanpage.py:444
 msgid "Clear"
 msgstr "Xoá"
 
-#: gui/cleanmate_gui/scanpage.py:96 gui/cleanmate_gui/scanpage.py:430
+#: gui/cleanmate_gui/scanpage.py:106 gui/cleanmate_gui/scanpage.py:444
 msgid "Clean"
 msgstr "Dọn dẹp"
 
-#: gui/cleanmate_gui/scanpage.py:100
+#: gui/cleanmate_gui/scanpage.py:110
 msgid "Scan again"
 msgstr "Quét lại"
 
-#: gui/cleanmate_gui/scanpage.py:116
+#: gui/cleanmate_gui/scanpage.py:126
 msgid "Starting…"
 msgstr "Đang bắt đầu…"
 
-#: gui/cleanmate_gui/scanpage.py:124
+#: gui/cleanmate_gui/scanpage.py:134
 #, python-brace-format
 msgid "Checking {name}…"
 msgstr "Đang kiểm tra {name}…"
 
-#: gui/cleanmate_gui/scanpage.py:134
+#: gui/cleanmate_gui/scanpage.py:144
 msgid "The scan failed — try the terminal app (cm) for details."
 msgstr "Quét thất bại — mở app terminal (cm) để xem chi tiết."
 
-#: gui/cleanmate_gui/scanpage.py:163
+#: gui/cleanmate_gui/scanpage.py:173
 #, python-brace-format
 msgid "{n} history list with entries"
 msgid_plural "{n} history lists with entries"
 msgstr[0] "{n} danh sách lịch sử có mục"
 
-#: gui/cleanmate_gui/scanpage.py:164
+#: gui/cleanmate_gui/scanpage.py:174
 msgid "Nothing to clear"
 msgstr "Không có gì để xoá"
 
-#: gui/cleanmate_gui/scanpage.py:165
+#: gui/cleanmate_gui/scanpage.py:175
 msgid "Pick what to clear — nothing happens until you confirm."
 msgstr "Chọn mục cần xoá — không có gì thay đổi cho đến khi bạn xác nhận."
 
-#: gui/cleanmate_gui/scanpage.py:168
+#: gui/cleanmate_gui/scanpage.py:178
 #, python-brace-format
 msgid "{size} of junk found in {n} item"
 msgid_plural "{size} of junk found in {n} items"
 msgstr[0] "Tìm thấy {size} rác trong {n} mục"
 
-#: gui/cleanmate_gui/scanpage.py:170
+#: gui/cleanmate_gui/scanpage.py:180
 #, python-brace-format
 msgid "{n} location scanned in {secs}s"
 msgid_plural "{n} locations scanned in {secs}s"
 msgstr[0] "Đã quét {n} vị trí trong {secs} giây"
 
-#: gui/cleanmate_gui/scanpage.py:173
+#: gui/cleanmate_gui/scanpage.py:183
 msgid "Your system is clean"
 msgstr "Hệ thống của bạn đã sạch"
 
-#: gui/cleanmate_gui/scanpage.py:173
+#: gui/cleanmate_gui/scanpage.py:183
 msgid "Nothing worth removing was found."
 msgstr "Không tìm thấy gì đáng xoá."
 
-#: gui/cleanmate_gui/scanpage.py:194
+#: gui/cleanmate_gui/scanpage.py:204
 msgid "Select or deselect the whole group"
 msgstr "Chọn hoặc bỏ chọn cả nhóm"
 
-#: gui/cleanmate_gui/scanpage.py:201
+#: gui/cleanmate_gui/scanpage.py:211
 #, python-brace-format
 msgid "{n} more item is clean"
 msgid_plural "{n} more items are clean"
 msgstr[0] "{n} mục khác đã sạch"
 
-#: gui/cleanmate_gui/scanpage.py:205
+#: gui/cleanmate_gui/scanpage.py:215
 msgid "clean"
 msgstr "sạch"
 
-#: gui/cleanmate_gui/scanpage.py:220
+#: gui/cleanmate_gui/scanpage.py:230
 #, python-brace-format
 msgid "Close {program} and scan again"
 msgstr "Đóng {program} rồi quét lại"
 
-#: gui/cleanmate_gui/scanpage.py:235
+#: gui/cleanmate_gui/scanpage.py:245
 #, python-brace-format
 msgid "{program} is running — close it, then scan again"
 msgstr "{program} đang chạy — hãy đóng nó rồi quét lại"
 
-#: gui/cleanmate_gui/scanpage.py:245
+#: gui/cleanmate_gui/scanpage.py:255
 msgid "Show what's inside"
 msgstr "Xem bên trong có gì"
 
-#: gui/cleanmate_gui/scanpage.py:259
+#: gui/cleanmate_gui/scanpage.py:269
 msgid "Loading…"
 msgstr "Đang tải…"
 
-#: gui/cleanmate_gui/scanpage.py:275
+#: gui/cleanmate_gui/scanpage.py:285
 msgid "Nothing to choose one by one — Clean removes it all"
 msgstr "Không có mục nào để chọn riêng — Dọn dẹp sẽ xoá tất cả"
 
-#: gui/cleanmate_gui/scanpage.py:362
+#: gui/cleanmate_gui/scanpage.py:376
 #, python-brace-format
 msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] "Đã chọn {n}"
 
-#: gui/cleanmate_gui/scanpage.py:364 gui/cleanmate_gui/spacelens.py:320
+#: gui/cleanmate_gui/scanpage.py:378 gui/cleanmate_gui/spacelens.py:320
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
 msgstr[0] "Đã chọn <b>{size}</b> trong {n} mục"
 
-#: gui/cleanmate_gui/scanpage.py:378
+#: gui/cleanmate_gui/scanpage.py:392
 msgid "Collecting details…"
 msgstr "Đang thu thập chi tiết…"
 
-#: gui/cleanmate_gui/scanpage.py:396
+#: gui/cleanmate_gui/scanpage.py:410
 msgid "Nothing more to show."
 msgstr "Không còn gì để hiển thị."
 
-#: gui/cleanmate_gui/scanpage.py:421
+#: gui/cleanmate_gui/scanpage.py:435
 #, python-brace-format
 msgid "Clear {n} history list?"
 msgid_plural "Clear {n} history lists?"
 msgstr[0] "Xoá {n} danh sách lịch sử?"
 
-#: gui/cleanmate_gui/scanpage.py:422 gui/cleanmate_gui/scanpage.py:441
+#: gui/cleanmate_gui/scanpage.py:436 gui/cleanmate_gui/scanpage.py:455
 msgid "This can't be undone."
 msgstr "Không thể hoàn tác."
 
-#: gui/cleanmate_gui/scanpage.py:424
+#: gui/cleanmate_gui/scanpage.py:438
 #, python-brace-format
 msgid "Clean {n} item?"
 msgid_plural "Clean {n} items?"
 msgstr[0] "Dọn {n} mục?"
 
-#: gui/cleanmate_gui/scanpage.py:425
+#: gui/cleanmate_gui/scanpage.py:439
 #, python-brace-format
 msgid "About {size} will be removed."
 msgstr "Khoảng {size} sẽ bị xoá."
 
-#: gui/cleanmate_gui/scanpage.py:427
+#: gui/cleanmate_gui/scanpage.py:441
 msgid "Items with a lock need your password."
 msgstr "Mục có ổ khoá cần mật khẩu của bạn."
 
-#: gui/cleanmate_gui/scanpage.py:440
+#: gui/cleanmate_gui/scanpage.py:454
 msgid ""
 "Items moved to the Trash can be undone for 10 seconds; the rest is deleted "
 "for good."
 msgstr "Mục vào Thùng rác hoàn tác được trong 10 giây; mục khác bị xoá hẳn."
 
-#: gui/cleanmate_gui/scanpage.py:457 gui/cleanmate_gui/scanpage.py:501
+#: gui/cleanmate_gui/scanpage.py:471 gui/cleanmate_gui/scanpage.py:515
 #: gui/cleanmate_gui/uninstaller.py:483 gui/cleanmate_gui/uninstaller.py:522
 msgid "waiting"
 msgstr "đang chờ"
 
-#: gui/cleanmate_gui/scanpage.py:463
+#: gui/cleanmate_gui/scanpage.py:477
 msgid "Cleaning…"
 msgstr "Đang dọn dẹp…"
 
-#: gui/cleanmate_gui/scanpage.py:480
+#: gui/cleanmate_gui/scanpage.py:494
 msgid "working…"
 msgstr "đang xử lý…"
 
-#: gui/cleanmate_gui/scanpage.py:485
+#: gui/cleanmate_gui/scanpage.py:499
 msgid "done"
 msgstr "xong"
 
-#: gui/cleanmate_gui/scanpage.py:485 gui/cleanmate_gui/uninstaller.py:508
+#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:508
 msgid "skipped"
 msgstr "bỏ qua"
 
-#: gui/cleanmate_gui/scanpage.py:485 gui/cleanmate_gui/uninstaller.py:508
+#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:508
 msgid "failed"
 msgstr "thất bại"
 
-#: gui/cleanmate_gui/scanpage.py:494 gui/cleanmate_gui/scanpage.py:501
+#: gui/cleanmate_gui/scanpage.py:508 gui/cleanmate_gui/scanpage.py:515
 #: gui/cleanmate_gui/uninstaller.py:516 gui/cleanmate_gui/uninstaller.py:522
 msgid "waiting for your password…"
 msgstr "đang chờ mật khẩu của bạn…"
 
-#: gui/cleanmate_gui/scanpage.py:504 gui/cleanmate_gui/uninstaller.py:524
+#: gui/cleanmate_gui/scanpage.py:518 gui/cleanmate_gui/uninstaller.py:524
 msgid "Skipped — no password was entered"
 msgstr "Đã bỏ qua — chưa nhập mật khẩu"
 
-#: gui/cleanmate_gui/scanpage.py:510
+#: gui/cleanmate_gui/scanpage.py:524
 #, python-brace-format
 msgid "Dry run: {size} would be freed"
 msgstr "Chạy thử: sẽ giải phóng {size}"
 
-#: gui/cleanmate_gui/scanpage.py:512
+#: gui/cleanmate_gui/scanpage.py:526
 msgid "History cleared"
 msgstr "Đã xoá lịch sử"
 
-#: gui/cleanmate_gui/scanpage.py:514
+#: gui/cleanmate_gui/scanpage.py:528
 #, python-brace-format
 msgid "Freed {size}"
 msgstr "Đã giải phóng {size}"
 
-#: gui/cleanmate_gui/scanpage.py:516
+#: gui/cleanmate_gui/scanpage.py:530
 #, python-brace-format
 msgid "Free space: {before} → {after}"
 msgstr "Ổ trống: {before} → {after}"
 
-#: gui/cleanmate_gui/scanpage.py:521
+#: gui/cleanmate_gui/scanpage.py:535
 #, python-brace-format
 msgid "Freed {size} · {n} item moved to the Trash"
 msgid_plural "Freed {size} · {n} items moved to the Trash"
 msgstr[0] "Đã giải phóng {size} · {n} mục đã vào Thùng rác"
 
-#: gui/cleanmate_gui/scanpage.py:562 gui/cleanmate_gui/spacelens.py:438
+#: gui/cleanmate_gui/scanpage.py:576 gui/cleanmate_gui/spacelens.py:438
 #, python-brace-format
 msgid "Put back {n} item from the Trash"
 msgid_plural "Put back {n} items from the Trash"

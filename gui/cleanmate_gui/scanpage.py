@@ -5,6 +5,16 @@ from .engine import CATEGORY_TITLES, human
 from .i18n import _, item_text, ngettext
 
 
+# Items whose clean-all removes something else than the parts listed (`docker volume prune` keeps named
+# volumes, `docker image prune -a` also takes dangling images): once listed, Clean removes just the ticked parts.
+BY_ENTRY = {"docker_volumes", "docker_images"}
+
+
+def entry_note(note):
+    """The subtitle of a part, from the engine's note."""
+    return {"anonymous": _("Anonymous volume"), "data": _("Named volume — may hold data")}.get(note, "")
+
+
 def size_class(n):
     if n >= 1 << 30:
         return "size-large"
@@ -38,7 +48,7 @@ class ScanPage(Gtk.Box):
         self.selected = {}  # id → bool
         self.checks = {}  # id → Gtk.CheckButton
         self.group_buttons = []  # (tri-state check, ids)
-        self.entries = {}  # item id → its "entry" events (Docker images, build-cache records), once loaded
+        self.entries = {}  # item id → its "entry" events (Docker images, volumes, build-cache records), once loaded
         self.entry_selected = {}  # item id → set of ticked entry ids
         self.entry_checks = {}  # item id → {entry id → Gtk.CheckButton}
         self.size_labels = {}  # item id → its size label ("selected / total" when only some entries are ticked)
@@ -252,7 +262,7 @@ class ScanPage(Gtk.Box):
             row.add_suffix(widget)
         return row
 
-    # ── entries: single parts of an item (Docker images, build-cache records) ──
+    # ── entries: single parts of an item (Docker images, volumes, build-cache records) ──
     def load_entries(self, item_id, row):
         if item_id in self.entries or getattr(row, "loading", None):
             return
@@ -287,8 +297,8 @@ class ScanPage(Gtk.Box):
         self.engine.details(item_id, on_event, on_done)
 
     def entry_row(self, item_id, x):
-        row = Adw.ActionRow(title=x["label"], use_markup=False, title_lines=1, css_classes=["item-row"],
-                            tooltip_text=x["id"])
+        row = Adw.ActionRow(title=x["label"], subtitle=entry_note(x.get("note")), use_markup=False, title_lines=1,
+                            css_classes=["item-row"], tooltip_text=x["id"])
         check = Gtk.CheckButton(active=x["id"] in self.entry_selected[item_id], valign=Gtk.Align.CENTER,
                                 css_classes=["big-check"])
         check.connect("toggled", self.on_entry_toggled, item_id, x["id"])
@@ -323,15 +333,19 @@ class ScanPage(Gtk.Box):
         if size:
             total = self.items[item_id]["bytes"]
             size.set_text(f"{human(self.chosen_bytes(item_id))} / {human(total)}" if self.partial(item_id)
-                          else human(total))
+                          else human(self.chosen_bytes(item_id) if chosen else total))
 
     def partial(self, item_id):
         """Only some entries of the item are ticked: clean just those."""
         chosen = self.entry_selected.get(item_id)
         return bool(chosen) and len(chosen) < len(self.entries.get(item_id, []))
 
+    def by_entries(self, item_id):
+        """Clean the ticked entries one by one instead of the whole item."""
+        return self.partial(item_id) or (item_id in BY_ENTRY and bool(self.entry_selected.get(item_id)))
+
     def chosen_bytes(self, item_id):
-        if self.partial(item_id):
+        if self.by_entries(item_id):
             return sum(x["bytes"] for x in self.entries[item_id] if x["id"] in self.entry_selected[item_id])
         return self.items[item_id]["bytes"]
 
@@ -526,8 +540,8 @@ class ScanPage(Gtk.Box):
             self.window.refresh_disk()
             GLib.timeout_add(1200, lambda: (self.scan(), False)[1])
 
-        # items with only some entries ticked run one by one with those entries, the rest together
-        some = {i: sorted(self.entry_selected[i]) for i in user_ids if self.partial(i)}
+        # items with only some entries ticked (or a BY_ENTRY item) run one by one with those entries, the rest together
+        some = {i: sorted(self.entry_selected[i]) for i in user_ids if self.by_entries(i)}
         whole = [i for i in user_ids if i not in some]
         runs = ([(whole, None)] if whole else []) + [([i], entries) for i, entries in some.items()]
 
