@@ -3161,5 +3161,19 @@ msgstr ""
 "Các phần tải dở của Ollama do bị gián đoạn (sha256-…-partial). Model đã tải "
 "xong được giữ; lệnh pull sẽ tải lại từ đầu."
 
+#. ai_model_caches label
+msgid "PyTorch, Whisper & Keras — models"
+msgstr "Model đã tải của PyTorch, Whisper & Keras"
+
+#. ai_model_caches description
+msgid ""
+"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded "
+"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when "
+"a program needs one. A model in use is skipped."
+msgstr ""
+"Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải "
+"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi "
+"chương trình cần. Model đang dùng được bỏ qua."
+
 #~ msgid "System Overview and more in the terminal app"
 #~ msgstr "Tổng quan hệ thống và công cụ khác trong app terminal"

@@ -3792,6 +3792,108 @@ LIST_CAT=models reg_list_item ollama_partial "Ollama — unfinished downloads" 0
   "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again." \
   ollama_partial "$(ollama_blob_dirs)" "ollama"
 
+# Models Python libraries downloaded and fetch again when a program needs them: PyTorch Hub weights (each
+# file in <torch>/hub/checkpoints), Whisper models (each *.pt in <cache>/whisper), sentence-transformers
+# models (each folder with modules.json or config_sentence_transformers.json in <torch>/sentence_transformers
+# and SENTENCE_TRANSFORMERS_HOME) and Keras' downloads (models/ and datasets/ of ~/.keras, and of KERAS_HOME
+# when it holds keras.json). <cache> = ~/.cache and XDG_CACHE_HOME, <torch> = <cache>/torch and TORCH_HOME;
+# variables only inside your home (env_home_dir), no symlinks. A folder two libraries would claim, and a
+# model folder holding another library's folder, are left out. Each model is an entry; one a program has
+# a file open in is skipped (no lock by name: python runs plenty of other things). Deleted for good; never
+# torch/kernels, Hub repos (hub/<owner>_<repo>_<ref>), keras.json or the Hugging Face cache (its own
+# items). Not ticked, not remembered; automatic cleaning leaves AI models alone.
+model_cache_roots() { # → kind<TAB>folder for each place a library keeps its downloads; a folder two claim: none
+  local x t s k c
+  x=$(env_home_dir XDG_CACHE_HOME) t=$(env_home_dir TORCH_HOME)
+  s=$(env_home_dir SENTENCE_TRANSFORMERS_HOME) k=$(env_home_dir KERAS_HOME)
+  {
+    for c in "$HOME/.cache" ${x:+"$x"}; do
+      printf 'torch\t%s\nwhisper\t%s\nst\t%s\n' "$c/torch/hub/checkpoints" "$c/whisper" "$c/torch/sentence_transformers"
+    done
+    [[ -n $t ]] && printf 'torch\t%s\nst\t%s\n' "$t/hub/checkpoints" "$t/sentence_transformers"
+    [[ -n $s ]] && printf 'st\t%s\n' "$s"
+    printf 'keras\t%s\n' "$HOME/.keras"
+    [[ -n $k && -f $k/keras.json && ! -L $k/keras.json ]] && printf 'keras\t%s\n' "$k"
+  } | awk -F'\t' '{ kind[$2] = (kind[$2] == "" || kind[$2] == $1) ? $1 : "-"; if (!seen[$2]++) order[++n] = $2 }
+    END { for (i = 1; i <= n; i++) if (kind[order[i]] != "-") print kind[order[i]] "\t" order[i] }'
+}
+
+model_caches() { # → path<TAB>label of each downloaded model to offer
+  local roots open kind root p r _k name label cands
+  roots=$(model_cache_roots)
+  open=$'\n'$(open_files)$'\n'
+  while IFS=$'\t' read -r kind root; do
+    [[ -n $root && -d $root && ! -L $root ]] || continue
+    cands=()
+    case $kind in
+      torch) for p in "$root"/*; do [[ -f $p ]] && cands+=("$p"); done ;;
+      whisper) for p in "$root"/*.pt; do [[ -f $p ]] && cands+=("$p"); done ;;
+      st) for p in "$root"/*/; do
+            p=${p%/}
+            [[ -f $p/modules.json || -f $p/config_sentence_transformers.json ]] && cands+=("$p")
+          done ;;
+      keras) for p in "$root/models" "$root/datasets"; do [[ -d $p ]] && cands+=("$p"); done ;;
+    esac
+    for p in "${cands[@]}"; do
+      [[ ! -L $p && $p != *[[:cntrl:]]* ]] || continue
+      while IFS=$'\t' read -r _k r; do # holds another library's folder
+        [[ $r != "$root" && ($r == "$p" || $r == "$p"/*) ]] && continue 2
+      done <<<"$roots"
+      touches_exclusion "$p" && continue
+      open_under "$open" "$p" && continue
+      name=${p##*/}
+      case $kind in
+        torch) label="$name — PyTorch Hub" ;;
+        whisper) label="${name%.pt} — Whisper" ;;
+        st) label="$name — sentence-transformers" ;;
+        keras) label="$name — Keras" ;;
+      esac
+      printf '%s\t%s\n' "$p" "$label"
+    done
+  done <<<"$roots"
+}
+ai_model_caches() { model_caches | cut -f1; }
+
+model_cache_list() { # → MC_PATH / MC_BYTES / MC_LABEL of the models to offer, biggest first
+  local p label b lines=()
+  MC_PATH=() MC_BYTES=() MC_LABEL=()
+  while IFS=$'\t' read -r p label; do
+    ai_safe_path "$p" || continue
+    b=$(du -sb -- "$p" 2>/dev/null | cut -f1)
+    lines+=("${b:-0}"$'\t'"$p"$'\t'"$label")
+  done < <(model_caches)
+  ((${#lines[@]})) || return 0
+  while IFS=$'\t' read -r b p label; do
+    MC_BYTES+=("$b") MC_PATH+=("$p") MC_LABEL+=("$label")
+  done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
+}
+
+LIST_CAT=models reg_list_item ai_model_caches "PyTorch, Whisper & Keras — models" 0 model \
+  "Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a program needs one. A model in use is skipped." \
+  ai_model_caches "$(model_cache_roots | cut -f2)"
+ITEM_ONCE[ai_model_caches]=1
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_ai_model_caches='^/[A-Za-z0-9/._~%-]+$' # the model's full path, percent-encoded (urlencode_path)
+entries_ai_model_caches() {
+  local i
+  model_cache_list
+  for i in "${!MC_PATH[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${MC_PATH[i]}")" "${MC_BYTES[i]}" "${MC_LABEL[i]}"
+  done
+}
+clean_entries_ai_model_caches() { # encoded paths (json_clean_entries only passes ones listed now)
+  local i id rc=0
+  model_cache_list
+  for id; do
+    for i in "${!MC_PATH[@]}"; do
+      [[ $(urlencode_path "${MC_PATH[i]}") == "$id" ]] || continue
+      ai_safe_path "${MC_PATH[i]}" || continue
+      run rm -rf -- "${MC_PATH[i]}" || rc=1
+    done
+  done
+  return "$rc"
+}
+
 discover_models() {
   local n _b d m name
   while IFS=$'\t' read -r n _b; do

@@ -3010,3 +3010,14 @@ msgid ""
 "Pieces of Ollama downloads that were interrupted (sha256-…-partial). "
 "Complete models are kept; a pull starts them again."
 msgstr ""
+
+#. ai_model_caches label
+msgid "PyTorch, Whisper & Keras — models"
+msgstr ""
+
+#. ai_model_caches description
+msgid ""
+"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded "
+"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when "
+"a program needs one. A model in use is skipped."
+msgstr ""

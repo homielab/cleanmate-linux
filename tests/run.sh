@@ -2488,6 +2488,73 @@ test_ollama_partial_downloads_and_pub_cache() {
   assert_exists "$h/.pub-cache/global_packages/g/p"; assert_exists "$h/.pub-cache/git/repo-abc/src"; assert_exists "$h/pc/credentials.json"
 }
 
+# Models of PyTorch Hub, Whisper, sentence-transformers and Keras: one entry each, from the default
+# folders and the ones the variables name; never ticked, an open one skipped, the rest of the cache kept.
+test_python_ai_model_caches() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out pid enc f hold=()
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  sized "$h/.cache/torch/hub/checkpoints/resnet50.pth" 3000; new "$h/.cache/torch/hub/pytorch_vision_main/hubconf.py"
+  new "$h/.cache/torch/kernels/k.bin"; sized "$WORK/elsewhere.pth" 10
+  ln -s "$WORK/elsewhere.pth" "$h/.cache/torch/hub/checkpoints/link.pth"
+  sized "$h/.cache/whisper/base.en.pt" 2000; sized "$h/.cache/whisper/open.pt" 100; new "$h/.cache/whisper/notes.txt"
+  new "$h/.cache/torch/sentence_transformers/all-MiniLM/modules.json"; new "$h/.cache/torch/sentence_transformers/other/x"
+  new "$h/.keras/models/m.h5"; new "$h/.keras/datasets/mnist.npz"; new "$h/.keras/keras.json"
+  new "$h/.cache/huggingface/hub/models--a--b/blobs/x"
+  sized "$h/th/hub/checkpoints/vit.pth" 500; new "$h/st/mpnet/config_sentence_transformers.json"
+  new "$h/kh/keras.json"; new "$h/kh/models/k.keras"; sized "$h/xc/whisper/small.pt" 400
+  printf 'export TORCH_HOME=$HOME/th\nexport SENTENCE_TRANSFORMERS_HOME="$HOME/st"\nexport KERAS_HOME=$HOME/kh\nexport XDG_CACHE_HOME=$HOME/xc\n' >"$h/.bashrc"
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["selected"], e["label"])
+    elif e["event"] == "item": print(e["id"], e["category"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"])
+    elif e["event"] == "error": print("error", e["message"])'
+  ((EUID == 0)) && chown -R 65534:65534 "$h"
+  "${hold[@]}" sleep 60 <"$h/.cache/whisper/open.pt" >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json scan --only models | grep '"id":"ai_model_caches"' | python3 -c "$list")
+  assert_eq "$out" "ai_model_caches models False True False" "one AI models item, not ticked, with entries"
+  out=$(user_cm --json details ai_model_caches | python3 -c "$list" | sed "s|$h|~|" | sort)
+  assert_eq "$out" "~/.cache/torch/hub/checkpoints/resnet50.pth False resnet50.pth — PyTorch Hub
+~/.cache/torch/sentence_transformers/all-MiniLM False all-MiniLM — sentence-transformers
+~/.cache/whisper/base.en.pt False base.en — Whisper
+~/.keras/datasets False datasets — Keras
+~/.keras/models False models — Keras
+~/kh/models False models — Keras
+~/st/mpnet False mpnet — sentence-transformers
+~/th/hub/checkpoints/vit.pth False vit.pth — PyTorch Hub
+~/xc/whisper/small.pt False small — Whisper" "each model of the four libraries, default and variable folders; the open one skipped"
+  # automatic cleaning leaves them alone even when ticked
+  select_only ai_model_caches
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.cache/whisper/base.en.pt"; assert_exists "$h/.keras/models/m.h5"
+  out=$(user_cm --json clean ai_model_caches --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of ai_model_caches"
+  enc=$(in_app "urlencode_path '$h/th/hub/checkpoints/vit.pth'")
+  out=$(user_cm --json clean ai_model_caches --entries "$enc" | python3 -c "$list")
+  assert_eq "$out" "ok" "one chosen model"
+  assert_missing "$h/th/hub/checkpoints/vit.pth"; assert_exists "$h/.cache/torch/hub/checkpoints/resnet50.pth"
+  user_cm --json clean ai_model_caches >/dev/null
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  for f in .cache/torch/hub/checkpoints/resnet50.pth .cache/whisper/base.en.pt .cache/torch/sentence_transformers/all-MiniLM \
+    .keras/models .keras/datasets kh/models st/mpnet xc/whisper/small.pt; do assert_missing "$h/$f"; done
+  for f in .cache/whisper/open.pt .cache/whisper/notes.txt .cache/torch/hub/checkpoints/link.pth .cache/torch/hub/pytorch_vision_main/hubconf.py \
+    .cache/torch/kernels/k.bin .cache/torch/sentence_transformers/other/x .keras/keras.json kh/keras.json \
+    .cache/huggingface/hub/models--a--b/blobs/x; do assert_exists "$h/$f"; done
+  assert_exists "$WORK/elsewhere.pth"
+  # KERAS_HOME without keras.json (not Keras' folder) and a folder two libraries would claim list nothing
+  new "$h/Documents/datasets/mine.csv"; sized "$h/x2/whisper/w.pt" 10; new "$h/x2/whisper/m/modules.json"
+  printf 'export KERAS_HOME=$HOME/Documents\nexport SENTENCE_TRANSFORMERS_HOME=$HOME/x2/whisper\nexport XDG_CACHE_HOME=$HOME/x2\n' >"$h/.bashrc"
+  new "$h/.cache/whisper/base.en.pt"
+  out=$(user_cm --json details ai_model_caches | python3 -c "$list" | sed "s|$h|~|")
+  assert_eq "$out" "~/.cache/whisper/open.pt False open — Whisper
+~/.cache/whisper/base.en.pt False base.en — Whisper" "only Keras' and unclaimed folders, biggest first"
+}
+
 # Android system images: only those no AVD uses are listed, each as an entry, never ticked;
 # an AVD that can't be read keeps all of them, and Android Studio or the emulator locks the item.
 test_unused_android_system_images() {
