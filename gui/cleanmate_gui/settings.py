@@ -5,6 +5,7 @@ These are the terminal app's settings. The engine reads them (`--json settings`)
 this page only shows them. A change is saved at once (numbers a moment after you stop typing).
 "Remember recent files" is GNOME's own setting (gsettings), as in the terminal app; the activity log is
 the engine's (`--json activity`). The language is the desktop app's own (the terminal app stays English); it shows after a restart.
+Never clean lists the folders of `~/.config/cleanmate/exclude` (`settings-set exclusions add|remove PATH`).
 """
 import datetime
 import os
@@ -39,6 +40,20 @@ NUMBERS = {
 KEEP_FOR = ["journal_days", "journal_mb", "log_max_mb", "app_log_days", "tmp_days", "cache_days",
             "node_modules_days", "installer_days", "ai_history_days"]
 DELAY_MS = 700  # a number is saved this long after its last change
+
+# why the engine refuses a folder for Never clean (the other reasons name the folder and stay as they are)
+EXCLUSION_REASONS = {
+    "Your home folder or a folder above it is too broad to exclude":
+        _("Your home folder or a folder above it is too broad to exclude"),
+    "Only folders inside your home folder can be excluded": _("Only folders inside your home folder can be excluded"),
+    "Folders reached through a symbolic link can't be excluded":
+        _("Folders reached through a symbolic link can't be excluded"),
+}
+
+
+def short_path(path):
+    home = GLib.get_home_dir()
+    return "~" + path[len(home):] if path.startswith(home + "/") else path
 
 
 class SettingsPage(Adw.PreferencesPage):
@@ -149,6 +164,17 @@ class SettingsPage(Adw.PreferencesPage):
         for key in KEEP_FOR:
             keep.add(self.number_row(key))
 
+        never = self.group(_("Never clean"), _("Large & Old Files, Duplicates, Space Lens, project build folders and "
+                                               "old installers skip these folders, and nothing in them is moved to "
+                                               "the Trash."))
+        add = Gtk.Button(child=Adw.ButtonContent(icon_name="list-add-symbolic", label=_("Add Folder…")),
+                         valign=Gtk.Align.CENTER, css_classes=["flat"])
+        add.connect("clicked", lambda *_a: self.choose_exclusion())
+        never.set_header_suffix(add)
+        never.add_button = add
+        never.folder_rows = []
+        self.rows["exclusions"] = never
+
         data = self.group(_("Your data"))
         selections = Adw.ActionRow(title=_("Remembered selections"))
         reset = Gtk.Button(label=_("Reset"), valign=Gtk.Align.CENTER)
@@ -212,6 +238,13 @@ class SettingsPage(Adw.PreferencesPage):
                              if pending else "")
         elif key in ("update_check", "recent_files"):
             row.set_active(bool(s["value"]))
+        elif key == "exclusions":
+            for old in row.folder_rows:
+                row.remove(old)
+            row.folder_rows = [self.exclusion_row(path) for path in s["value"]] or [
+                Adw.ActionRow(title=_("No folders yet"), css_classes=["dim-label"])]
+            for new in row.folder_rows:
+                row.add(new)
         elif key == "selections":
             row.set_subtitle(ngettext("{n} remembered choice for Smart Scan", "{n} remembered choices for Smart Scan",
                                       s["value"]))
@@ -266,6 +299,36 @@ class SettingsPage(Adw.PreferencesPage):
             del self.waiting[key]
             self.change(key, str(int(self.rows[key].get_value())))
 
+    def exclusion_row(self, path):
+        row = Adw.ActionRow(title=os.path.basename(path), subtitle=short_path(path), use_markup=False,
+                            tooltip_text=path)
+        row.add_prefix(Gtk.Image(icon_name="folder-symbolic"))
+        remove = Gtk.Button(icon_name="list-remove-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                            tooltip_text=_("Remove from the list"))
+        remove.connect("clicked", lambda *_a: self.change_exclusion("remove", path))
+        row.add_suffix(remove)
+        row.path, row.remove_button = path, remove
+        return row
+
+    def choose_exclusion(self):
+        dialog = Gtk.FileDialog(title=_("Folder to never clean"),
+                                initial_folder=Gio.File.new_for_path(GLib.get_home_dir()))
+
+        def chosen(d, result):
+            try:
+                folder = d.select_folder_finish(result)
+            except GLib.Error:
+                return  # cancelled
+            if folder and folder.get_path():
+                self.change_exclusion("add", folder.get_path())
+
+        dialog.select_folder(self.get_root(), None, chosen)
+
+    def change_exclusion(self, action, path):
+        """Add or remove a Never clean folder; each change is its own engine run, in order."""
+        self.queue.append(("exclusions", [action, path]))
+        self.next_change()
+
     def change(self, key, value):
         self.queue = [(k, v) for k, v in self.queue if k != key] + [(key, value)]
         self.next_change()
@@ -286,8 +349,8 @@ class SettingsPage(Adw.PreferencesPage):
             self.running = None
             self.window.set_busy(False)
             if result.get("state") != "ok":
-                self.toast(_("Could not change it: {reason}").format(
-                    reason=result.get("info") or result.get("message", "")))
+                reason = result.get("info") or result.get("message", "")
+                self.toast(_("Could not change it: {reason}").format(reason=EXCLUSION_REASONS.get(reason, reason)))
             elif self.engine.dry_run:
                 self.toast(_("Dry run: nothing was saved"))
             elif key == "schedule":
@@ -295,6 +358,10 @@ class SettingsPage(Adw.PreferencesPage):
                            if value != "off" else _("Automatic cleaning is off"))
             elif key == "selections":
                 self.toast(_("Smart Scan is back to its default choices"))
+            elif key == "exclusions":
+                folder = short_path(value[1])
+                self.toast(_("{folder} is never cleaned now").format(folder=folder) if value[0] == "add"
+                           else _("{folder} can be cleaned again").format(folder=folder))
             self.show_value(key)
             self.next_change()
 

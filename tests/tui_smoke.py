@@ -95,6 +95,10 @@ checks = start + [
     ("7", r"history list|Nothing to clear"),        # privacy
     ("q", r"CLEANUP"),
     ("s", r"Settings[\s\S]*ABOUT"),                 # settings with sections
+    ("x", r"Never clean[\s\S]*Add a folder[\s\S]*None yet"),
+    ("a", r"Folder to never clean"),
+    ("\n", r"too broad to exclude"),                # your home folder (the suggested path) is refused
+    ("q", r"ABOUT"),
     ("q", r"CLEANUP"),
     ("i", r"Largest folders"),                      # system overview
     ("q", r"CLEANUP"),

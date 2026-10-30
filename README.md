@@ -161,6 +161,10 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
   removed; apps that are running are asked about (and skipped when unattended).
 - **System paths are hard-blocked** (`/`, `/usr`, `/etc`, your home folder itself, …), and when it
   runs as root it refuses anything inside a home folder.
+- **Folders you never want touched:** add them in *Settings → Never clean* (both apps). Large & Old
+  Files, Duplicates, Space Lens, stale `node_modules` and project build folders and old installers
+  skip them, and nothing in them is moved to the Trash. Only folders inside your home folder, not
+  the home folder itself. Smart Scan's caches and logs ignore the list: their apps rebuild them.
 - **Everything is logged** to `~/.local/state/cleanmate/clean.log` (*Settings → Activity log* in both apps).
 
 ## Automatic cleaning
@@ -217,7 +221,7 @@ Usually one service logs far too much. *Logs → Oversized active logs* empties 
 
 **Does it work over SSH?** Yes — use the terminal app; colours and the mouse work in any modern terminal.
 
-**Where does it keep its data?** `~/.config/cleanmate` (choices, settings) and
+**Where does it keep its data?** `~/.config/cleanmate` (choices, settings, Never clean folders) and
 `~/.local/state/cleanmate` (activity log, last scan, stats). Nothing is sent anywhere —
 see the [privacy policy](docs/PRIVACY.md).
 

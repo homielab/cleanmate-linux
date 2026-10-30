@@ -235,7 +235,10 @@ class SpaceLensPage(Gtk.Box):
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         header.append(title)
         header.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
-        if not any(e["movable"] for e in self.entries):
+        if self.info.get("excluded"):
+            header.append(Gtk.Label(label=_("View only: you never clean this folder (Settings › Never clean)."),
+                                    xalign=0, wrap=True, css_classes=["dim-label"]))
+        elif not any(e["movable"] for e in self.entries):
             header.append(Gtk.Label(label=_("View only: things outside your home folder can't be moved to the "
                                              "Trash here."), xalign=0, wrap=True, css_classes=["dim-label"]))
         self.results.append(header)
@@ -266,7 +269,10 @@ class SpaceLensPage(Gtk.Box):
                             css_classes=["item-row"], tooltip_text=path)
         check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"],
                                 sensitive=e["movable"])
-        if not e["movable"]:
+        if e.get("excluded"):
+            check.set_tooltip_text(_("Can't be moved to the Trash: you never clean it, or a folder in it "
+                                     "(Settings › Never clean)"))
+        elif not e["movable"]:
             check.set_tooltip_text(_("Can't be moved to the Trash here: it's outside your home folder, "
                                      "or your system needs it"))
         check.connect("toggled", self.on_toggled, path)

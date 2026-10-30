@@ -15,6 +15,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- Settings › **Never clean** (both apps): list folders in your home that CleanMate must never touch, such as a project you work on now and then or installers you keep. Large & Old Files, Duplicates, Space Lens, stale `node_modules` and project build folders and old installers skip them, and nothing in them is moved to the Trash. The desktop app adds them with a folder picker; your home folder itself, folders above it and symbolic links are refused.
 - **Uninstaller**: *Leftovers of removed apps* lists folders no installed app uses any more — `~/.var/app` of removed Flatpak apps, `~/snap` of removed snaps, and folders in `~/.config`, `~/.local/share`, `~/.local/state` and `~/.cache` whose name matches nothing installed. Nothing is ticked; they go to the Trash, with Undo (`z` in the terminal app). In the terminal app it's the last row of the Uninstaller, in the desktop app a group at the end of the list.
 - Desktop app, Settings › Your data: **Remember recent files** turns GNOME's recent-files list on or off (as in the terminal app), and **Activity log** shows what was cleaned and when, newest first, with a button to open the log folder.
 - Desktop app, Settings › **Language**: run CleanMate in English or Tiếng Việt whatever your system's language is, or keep *Same as system*. A **Restart** button next to it reopens the app in the new language; the terminal app stays in English.

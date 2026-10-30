@@ -1281,6 +1281,7 @@ node_modules_days 90 7-3650/90
 installer_days 30 7-3650/30
 ai_history_days 30 1-3650/30
 selections 2
+exclusions []
 done true false" "every setting with its range and default; bad values fall back to the default"
   # the desktop app changes a number → the terminal app (same file) uses it
   out=$(user_cm --json settings-set journal_days 30 | settings_list)
@@ -1339,6 +1340,95 @@ done true false" "every setting with its range and default; bad values fall back
   assert_contains "$out" "schedule off"
 }
 
+test_never_clean_exclusions() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out f p d=$HOME_DIR keep=$HOME_DIR/Projects/keep x=$HOME_DIR/.config/cleanmate/exclude
+  local tasks='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task": print(e["state"], e["info"])
+    elif e["event"] == "setting" and e["key"] == "exclusions": print("exclusions", " ".join(p.rsplit("/", 1)[1] for p in e["value"]) or "-")
+    elif e["event"] == "item": print(e["id"], e["bytes"], e["note"])
+    elif e["event"] == "entry": print(e["path"].rsplit("/", 1)[1], e["movable"], e["excluded"])
+    elif e["event"] == "done" and "excluded" in e: print("done", e["excluded"])
+    elif e["event"] == "error": print("error", e["message"])'
+  # a project you work on now and then: big files, a copy, node_modules and a target/ left alone for long
+  sized "$keep/data.bin" 3000000; sized "$d/Videos/film.mkv" 2000000
+  head -c 1200000 /dev/urandom >"$keep/photo.jpg"; cp "$keep/photo.jpg" "$d/Videos/photo.jpg"
+  new "$keep/web/package.json"; new "$keep/web/package-lock.json"; new "$keep/web/node_modules/x/i.js"
+  new "$keep/rs/Cargo.toml"; sized "$keep/rs/target/x" 10
+  new "$d/code/rs/Cargo.toml"; sized "$d/code/rs/target/keep/x" 10 # an excluded folder inside target/
+  sized "$d/Downloads/old.deb" 100; mkdir -p "$d/notes" "$d/Projects/a*b"
+  ln -s "$d/Projects" "$d/linked"
+  while IFS= read -r -d '' f; do touch -h -d "200 days ago" "$f"; done < <(find "$d" -print0)
+  # add and remove, in the file both apps read; refused paths change nothing
+  out=$(user_cm --json settings-set exclusions add "$keep/./" | python3 -c "$tasks")
+  assert_eq "$out" $'ok added\nexclusions keep' "add a folder"
+  user_cm --json settings-set exclusions add "$d/Downloads" >/dev/null
+  user_cm --json settings-set exclusions add "$d/code/rs/target/keep" >/dev/null
+  user_cm --json settings-set exclusions add "$d/Projects/a*b" >/dev/null
+  out=$(user_cm --json settings-set exclusions add "$keep" | python3 -c "$tasks")
+  assert_eq "$out" $'ok already in the list\nexclusions keep Downloads keep a*b' "added once"
+  for p in "$d" "$d/" "$d/.." / "$WORK/stubs" "$d/linked" "$d/linked/keep" "$d/nope" "Projects" "$d/Videos/film.mkv"; do
+    user_cm --json settings-set exclusions add "$p"
+  done | python3 -c "$tasks" >"$WORK/refused"
+  assert_eq "$(grep -c '^fail' "$WORK/refused")" 10 "ten paths refused"
+  out=$(cat "$WORK/refused")
+  assert_contains "$out" "fail Your home folder or a folder above it is too broad to exclude"
+  assert_contains "$out" "fail Only folders inside your home folder can be excluded"
+  assert_contains "$out" "fail Folders reached through a symbolic link can't be excluded"
+  assert_contains "$out" "fail Not a folder: $d/nope"
+  assert_contains "$out" "fail Not a full path: Projects"
+  assert_eq "$(cat "$x")" "$keep"$'\n'"$d/Downloads"$'\n'"$d/code/rs/target/keep"$'\n'"$d/Projects/a*b" "the exclude file"
+  out=$(user_cm --json --dry-run settings-set exclusions add "$d/notes" | python3 -c "$tasks")
+  assert_contains "$out" "ok would be added"
+  out=$(user_cm --json settings-set exclusions remove "$d/notes" 2>&1 | python3 -c "$tasks")
+  assert_contains "$out" "fail Not in the list: $d/notes"
+  out=$(user_cm --json settings-set exclusions drop "$d/notes" 2>&1)
+  assert_contains "$out" "Usage: --json settings-set exclusions add|remove PATH"
+  assert_contains "$(user_cm --json settings | python3 -c "$tasks")" "exclusions keep Downloads keep a*b"
+  # the terminal app's Settings: same file
+  in_app 'load_settings; exclusion_add "$HOME/notes"; exclusion_remove "$HOME/Projects/a*b"; echo "$EX_WHY"' >/dev/null
+  assert_eq "$(cat "$x")" "$keep"$'\n'"$d/Downloads"$'\n'"$d/code/rs/target/keep"$'\n'"$d/notes" "terminal app adds and removes"
+  printf '%s\n' "$d" / "$WORK" "relative" "$d/notes" >>"$x" # written by hand: what can't be excluded is ignored
+  assert_eq "$(user_cm --json settings | python3 -c "$tasks" | grep '^exclusions')" "exclusions keep Downloads keep notes" \
+    "what can't be excluded is ignored"
+  # Large & Old Files, Duplicates: nothing from inside
+  out=$(cm --json large --min 1000000 | large_names)
+  assert_eq "$out" $'video 2000000 film.mkv\nimage 1200000 photo.jpg\ndone 2' "large files skip excluded folders"
+  assert_eq "$(cm --json large --min 0 --path "$keep/web" | large_names)" "done 0" "a folder inside one: nothing"
+  assert_eq "$(cm --json dupes | dupe_groups)" "done 0 0 0 0" "a copy inside an excluded folder isn't offered"
+  assert_eq "$(cm --json dupes --path "$keep" | dupe_groups)" "done 0 0 0 0" "dupes inside one: nothing"
+  # Space Lens: view only, the folder and the ones holding it
+  out=$(cm --json lens --path "$d/Projects" | python3 -c "$tasks")
+  assert_eq "$out" $'keep False True\na*b True False\ndone False' "an excluded folder is view only"
+  out=$(cm --json lens | python3 -c "$tasks")
+  assert_contains "$out" "Projects False True"; assert_contains "$out" "Videos True False"
+  assert_contains "$(cm --json lens --path "$keep" | python3 -c "$tasks")" $'data.bin False True'
+  assert_contains "$(cm --json lens --path "$keep" | python3 -c "$tasks")" "done True"
+  out=$(user_cm --json trash --home-only "$keep/data.bin" "$d/Projects" | python3 -c "$tasks")
+  assert_eq "$out" $'fail Excluded in Settings (Never clean)\nfail Excluded in Settings (Never clean)' "trash --home-only refuses"
+  out=$(user_cm --json trash "$keep/data.bin" | python3 -c "$tasks")
+  assert_eq "$out" "fail Excluded in Settings (Never clean): $keep/data.bin" "nothing moves it to the Trash"
+  assert_exists "$keep/data.bin"; assert_exists "$d/Projects/keep"
+  # stale node_modules, project build folders, old installers
+  mkdir -p "$WORK/nodebin" && printf '#!/bin/sh\n' >"$WORK/nodebin/node" && chmod 755 "$WORK/nodebin" "$WORK/nodebin/node"
+  out=$(BASE_PATH="$WORK/nodebin:$BASE_PATH" user_cm --json scan --only dev,system | python3 -c "$tasks" |
+    grep -E '^(node_modules|stale_build_dirs|old_installers) ')
+  assert_eq "$out" $'node_modules 0 0 projects idle for 90+ days\nstale_build_dirs 0 \nold_installers 0 ' \
+    "stale node_modules, build folders and old installers skip excluded folders"
+  user_cm --json settings-set exclusions remove "$keep" >/dev/null
+  user_cm --json settings-set exclusions remove "$d/Downloads" >/dev/null
+  out=$(BASE_PATH="$WORK/nodebin:$BASE_PATH" user_cm --json scan --only dev,system | python3 -c "$tasks" |
+    grep -E '^(node_modules|stale_build_dirs|old_installers) ')
+  assert_contains "$out" "node_modules"; assert_contains "$out" "1 project idle for 90+ days"
+  assert_contains "$out" "old_installers 100 1 file older than 30 days"
+  if ((EUID == 0)); then
+    out=$(cm --json settings-set exclusions add "$d/notes" 2>&1); assert_contains "$out" "run this as yourself, not as root"
+  fi
+}
+
 test_json_recent_files_and_activity() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -1348,7 +1438,7 @@ test_json_recent_files_and_activity() {
   printf '%s\n' '#!/bin/sh' 'f=$HOME/recent; [ -e "$f" ] || echo true >"$f"' \
     'case $1 in get) cat "$f" ;; set) echo "$4" >"$f" ;; esac' >"$g"
   chmod +x "$g"
-  assert_contains "$(user_cm --json settings | settings_list)" $'selections 0\nrecent_files 1\ndone'
+  assert_contains "$(user_cm --json settings | settings_list)" $'selections 0\nrecent_files 1\nexclusions []\ndone'
   out=$(user_cm --json settings-set recent_files 0 | settings_list)
   assert_eq "$out" $'ok recent_files set to 0\nrecent_files 0\ndone  ' "stop remembering recent files"
   assert_eq "$(cat "$HOME_DIR/recent")" false "gsettings changed"

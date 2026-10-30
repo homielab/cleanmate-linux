@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 09:22+0000\n"
+"POT-Creation-Date: 2026-10-30 10:19+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -54,7 +54,7 @@ msgstr "Hãy thử kích thước nhỏ hơn hoặc thư mục khác."
 
 #: gui/cleanmate_gui/duplicates.py:103 gui/cleanmate_gui/duplicates.py:320
 #: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:274
-#: gui/cleanmate_gui/spacelens.py:88 gui/cleanmate_gui/spacelens.py:339
+#: gui/cleanmate_gui/spacelens.py:88 gui/cleanmate_gui/spacelens.py:345
 #: gui/cleanmate_gui/uninstaller.py:248 gui/cleanmate_gui/uninstaller.py:284
 msgid "Move to Trash"
 msgstr "Chuyển vào Thùng rác"
@@ -125,7 +125,7 @@ msgid "Move this copy to the Trash"
 msgstr "Chuyển bản này vào Thùng rác"
 
 #: gui/cleanmate_gui/duplicates.py:256 gui/cleanmate_gui/largefiles.py:223
-#: gui/cleanmate_gui/spacelens.py:280
+#: gui/cleanmate_gui/spacelens.py:286
 msgid "Show in Files"
 msgstr "Hiện trong Tệp"
 
@@ -149,7 +149,7 @@ msgid_plural ""
 msgstr[0] "Đã chọn mọi bản của {n} tệp: sẽ không giữ lại bản nào của chúng."
 
 #: gui/cleanmate_gui/duplicates.py:313 gui/cleanmate_gui/largefiles.py:267
-#: gui/cleanmate_gui/scanpage.py:406 gui/cleanmate_gui/spacelens.py:332
+#: gui/cleanmate_gui/scanpage.py:406 gui/cleanmate_gui/spacelens.py:338
 #: gui/cleanmate_gui/uninstaller.py:402
 #, python-brace-format
 msgid "… and {n} more"
@@ -162,7 +162,7 @@ msgid_plural "Move {n} files to the Trash?"
 msgstr[0] "Chuyển {n} tệp vào Thùng rác?"
 
 #: gui/cleanmate_gui/duplicates.py:316 gui/cleanmate_gui/largefiles.py:270
-#: gui/cleanmate_gui/spacelens.py:335
+#: gui/cleanmate_gui/spacelens.py:341
 #, python-brace-format
 msgid ""
 "{size}. You can undo this right away, or restore the files from the Trash "
@@ -172,7 +172,7 @@ msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:319 gui/cleanmate_gui/largefiles.py:273
 #: gui/cleanmate_gui/maintenance.py:234 gui/cleanmate_gui/scanpage.py:417
-#: gui/cleanmate_gui/settings.py:307 gui/cleanmate_gui/spacelens.py:338
+#: gui/cleanmate_gui/settings.py:374 gui/cleanmate_gui/spacelens.py:344
 #: gui/cleanmate_gui/startup.py:221 gui/cleanmate_gui/uninstaller.py:417
 msgid "Cancel"
 msgstr "Huỷ"
@@ -190,25 +190,25 @@ msgid_plural "Moved {n} files ({size}) to the Trash"
 msgstr[0] "Đã chuyển {n} tệp ({size}) vào Thùng rác"
 
 #: gui/cleanmate_gui/duplicates.py:365 gui/cleanmate_gui/largefiles.py:318
-#: gui/cleanmate_gui/spacelens.py:385
+#: gui/cleanmate_gui/spacelens.py:391
 msgid "Nothing was moved"
 msgstr "Không có gì được chuyển"
 
 #: gui/cleanmate_gui/duplicates.py:367 gui/cleanmate_gui/largefiles.py:320
-#: gui/cleanmate_gui/spacelens.py:387
+#: gui/cleanmate_gui/spacelens.py:393
 #, python-brace-format
 msgid "{n} could not be moved: {reason}"
 msgid_plural "{n} could not be moved: {reason}"
 msgstr[0] "{n} tệp không chuyển được: {reason}"
 
 #: gui/cleanmate_gui/duplicates.py:371 gui/cleanmate_gui/largefiles.py:324
-#: gui/cleanmate_gui/spacelens.py:391 gui/cleanmate_gui/startup.py:240
+#: gui/cleanmate_gui/spacelens.py:397 gui/cleanmate_gui/startup.py:240
 #: gui/cleanmate_gui/uninstaller.py:317
 msgid "Undo"
 msgstr "Hoàn tác"
 
 #: gui/cleanmate_gui/duplicates.py:407 gui/cleanmate_gui/largefiles.py:360
-#: gui/cleanmate_gui/spacelens.py:424 gui/cleanmate_gui/uninstaller.py:552
+#: gui/cleanmate_gui/spacelens.py:430 gui/cleanmate_gui/uninstaller.py:552
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
 msgstr "Đã trả lại {back}, {failed} không khôi phục được: {reason}"
@@ -321,7 +321,7 @@ msgid "Biggest first, in {folder}"
 msgstr "Lớn nhất trước, trong {folder}"
 
 #: gui/cleanmate_gui/largefiles.py:193 gui/cleanmate_gui/scanpage.py:181
-#: gui/cleanmate_gui/spacelens.py:245
+#: gui/cleanmate_gui/spacelens.py:248
 msgid "All"
 msgstr "Tất cả"
 
@@ -933,7 +933,7 @@ msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] "Đã chọn {n}"
 
-#: gui/cleanmate_gui/scanpage.py:352 gui/cleanmate_gui/spacelens.py:309
+#: gui/cleanmate_gui/scanpage.py:352 gui/cleanmate_gui/spacelens.py:315
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
@@ -1020,31 +1020,31 @@ msgstr "Đã xoá lịch sử"
 msgid "Freed {size}"
 msgstr "Đã giải phóng {size}"
 
-#: gui/cleanmate_gui/settings.py:18
+#: gui/cleanmate_gui/settings.py:19
 msgid "Same as system"
 msgstr "Theo hệ thống"
 
-#: gui/cleanmate_gui/settings.py:21
+#: gui/cleanmate_gui/settings.py:22
 msgid "Off"
 msgstr "Tắt"
 
-#: gui/cleanmate_gui/settings.py:21
+#: gui/cleanmate_gui/settings.py:22
 msgid "Daily"
 msgstr "Hằng ngày"
 
-#: gui/cleanmate_gui/settings.py:21
+#: gui/cleanmate_gui/settings.py:22
 msgid "Weekly"
 msgstr "Hằng tuần"
 
-#: gui/cleanmate_gui/settings.py:21
+#: gui/cleanmate_gui/settings.py:22
 msgid "Monthly"
 msgstr "Hằng tháng"
 
-#: gui/cleanmate_gui/settings.py:25
+#: gui/cleanmate_gui/settings.py:26
 msgid "Low disk alert"
 msgstr "Cảnh báo sắp đầy ổ đĩa"
 
-#: gui/cleanmate_gui/settings.py:25
+#: gui/cleanmate_gui/settings.py:26
 msgid ""
 "Notify when free space drops below this percentage, checked with automatic "
 "cleaning. 0 turns it off."
@@ -1052,59 +1052,59 @@ msgstr ""
 "Báo khi dung lượng trống dưới tỉ lệ phần trăm này, kiểm tra cùng lúc dọn tự "
 "động. 0 là tắt."
 
-#: gui/cleanmate_gui/settings.py:27
+#: gui/cleanmate_gui/settings.py:28
 msgid "Journal logs"
 msgstr "Nhật ký journal"
 
-#: gui/cleanmate_gui/settings.py:27
+#: gui/cleanmate_gui/settings.py:28
 msgid "Days of system logs to keep"
 msgstr "Số ngày giữ nhật ký hệ thống"
 
-#: gui/cleanmate_gui/settings.py:28
+#: gui/cleanmate_gui/settings.py:29
 msgid "Journal size limit"
 msgstr "Giới hạn dung lượng journal"
 
-#: gui/cleanmate_gui/settings.py:28
+#: gui/cleanmate_gui/settings.py:29
 msgid "Megabytes of system logs to keep at most"
 msgstr "Số MB nhật ký hệ thống giữ tối đa"
 
-#: gui/cleanmate_gui/settings.py:29
+#: gui/cleanmate_gui/settings.py:30
 msgid "Oversized logs"
 msgstr "Nhật ký quá lớn"
 
-#: gui/cleanmate_gui/settings.py:29
+#: gui/cleanmate_gui/settings.py:30
 msgid "Empty live logs larger than this many megabytes"
 msgstr "Làm rỗng nhật ký đang ghi lớn hơn số MB này"
 
-#: gui/cleanmate_gui/settings.py:30
+#: gui/cleanmate_gui/settings.py:31
 msgid "App logs"
 msgstr "Nhật ký ứng dụng"
 
-#: gui/cleanmate_gui/settings.py:30
+#: gui/cleanmate_gui/settings.py:31
 msgid "Clean when not written for this many days"
 msgstr "Dọn khi không được ghi trong số ngày này"
 
-#: gui/cleanmate_gui/settings.py:31
+#: gui/cleanmate_gui/settings.py:32
 msgid "Temporary files"
 msgstr "Tệp tạm"
 
-#: gui/cleanmate_gui/settings.py:31
+#: gui/cleanmate_gui/settings.py:32
 msgid "Clean when older than this many days"
 msgstr "Dọn khi cũ hơn số ngày này"
 
-#: gui/cleanmate_gui/settings.py:32
+#: gui/cleanmate_gui/settings.py:33
 msgid "App caches"
 msgstr "Bộ nhớ đệm ứng dụng"
 
-#: gui/cleanmate_gui/settings.py:32
+#: gui/cleanmate_gui/settings.py:33
 msgid "Clean when not used for this many days"
 msgstr "Dọn khi không được dùng trong số ngày này"
 
-#: gui/cleanmate_gui/settings.py:33
+#: gui/cleanmate_gui/settings.py:34
 msgid "Project build folders"
 msgstr "Thư mục build của dự án"
 
-#: gui/cleanmate_gui/settings.py:34
+#: gui/cleanmate_gui/settings.py:35
 msgid ""
 "node_modules, Cargo target/, Python .venv/ and Pods/ of projects idle for "
 "this many days"
@@ -1112,128 +1112,154 @@ msgstr ""
 "node_modules, target/ của Cargo, .venv/ của Python và Pods/ của dự án không "
 "được đụng tới trong số ngày này"
 
-#: gui/cleanmate_gui/settings.py:36
+#: gui/cleanmate_gui/settings.py:37
 msgid "Old installers"
 msgstr "Bộ cài cũ"
 
-#: gui/cleanmate_gui/settings.py:36
+#: gui/cleanmate_gui/settings.py:37
 msgid "Offer installers in Downloads older than this many days"
 msgstr "Gợi ý dọn bộ cài trong Tải về cũ hơn số ngày này"
 
-#: gui/cleanmate_gui/settings.py:37
+#: gui/cleanmate_gui/settings.py:38
 msgid "AI chat history"
 msgstr "Lịch sử chat AI"
 
-#: gui/cleanmate_gui/settings.py:37
+#: gui/cleanmate_gui/settings.py:38
 msgid "Clean AI sessions older than this many days"
 msgstr "Dọn phiên chat AI cũ hơn số ngày này"
 
-#: gui/cleanmate_gui/settings.py:48 gui/cleanmate_gui/window.py:104
+#: gui/cleanmate_gui/settings.py:47
+msgid "Your home folder or a folder above it is too broad to exclude"
+msgstr "Thư mục nhà hoặc thư mục chứa nó quá rộng để loại trừ"
+
+#: gui/cleanmate_gui/settings.py:48
+msgid "Only folders inside your home folder can be excluded"
+msgstr "Chỉ loại trừ được thư mục nằm trong thư mục nhà"
+
+#: gui/cleanmate_gui/settings.py:50
+msgid "Folders reached through a symbolic link can't be excluded"
+msgstr "Không loại trừ được thư mục đi qua liên kết tượng trưng (symlink)"
+
+#: gui/cleanmate_gui/settings.py:63 gui/cleanmate_gui/window.py:104
 #: gui/cleanmate_gui/window.py:236
 msgid "Settings"
 msgstr "Cài đặt"
 
-#: gui/cleanmate_gui/settings.py:108
+#: gui/cleanmate_gui/settings.py:123
 msgid "Can't read your settings"
 msgstr "Không đọc được cài đặt"
 
-#: gui/cleanmate_gui/settings.py:109
+#: gui/cleanmate_gui/settings.py:124
 msgid "The cleaning engine didn't answer."
 msgstr "Bộ dọn dẹp không trả lời."
 
-#: gui/cleanmate_gui/settings.py:113
+#: gui/cleanmate_gui/settings.py:128
 msgid "General"
 msgstr "Chung"
 
-#: gui/cleanmate_gui/settings.py:114
+#: gui/cleanmate_gui/settings.py:129
 msgid "Language"
 msgstr "Ngôn ngữ"
 
-#: gui/cleanmate_gui/settings.py:116
+#: gui/cleanmate_gui/settings.py:131
 msgid "Restart"
 msgstr "Khởi động lại"
 
-#: gui/cleanmate_gui/settings.py:125 gui/cleanmate_gui/settings.py:126
+#: gui/cleanmate_gui/settings.py:140 gui/cleanmate_gui/settings.py:141
 msgid "Automatic cleaning"
 msgstr "Dọn tự động"
 
-#: gui/cleanmate_gui/settings.py:127
+#: gui/cleanmate_gui/settings.py:142
 msgid ""
 "Runs a Smart Clean of user and developer junk and tells you what it freed"
 msgstr ""
 "Chạy Dọn thông minh rác người dùng và rác developer, rồi báo cho bạn đã giải "
 "phóng bao nhiêu"
 
-#: gui/cleanmate_gui/settings.py:131
+#: gui/cleanmate_gui/settings.py:146
 msgid "Needs systemd, which isn't available here"
 msgstr "Cần systemd, nhưng ở đây không có"
 
-#: gui/cleanmate_gui/settings.py:137
+#: gui/cleanmate_gui/settings.py:152
 msgid "Updates"
 msgstr "Cập nhật"
 
-#: gui/cleanmate_gui/settings.py:138
+#: gui/cleanmate_gui/settings.py:153
 msgid "Daily update check"
 msgstr "Kiểm tra cập nhật hằng ngày"
 
-#: gui/cleanmate_gui/settings.py:139
+#: gui/cleanmate_gui/settings.py:154
 msgid "A quiet check for a new version once a day"
 msgstr "Lặng lẽ kiểm tra phiên bản mới mỗi ngày một lần"
 
-#: gui/cleanmate_gui/settings.py:142
+#: gui/cleanmate_gui/settings.py:157
 msgid "Your package manager keeps CleanMate up to date"
 msgstr "Trình quản lý gói giữ CleanMate luôn mới"
 
-#: gui/cleanmate_gui/settings.py:147
+#: gui/cleanmate_gui/settings.py:162
 msgid "Keep for"
 msgstr "Thời gian giữ"
 
-#: gui/cleanmate_gui/settings.py:147
+#: gui/cleanmate_gui/settings.py:162
 msgid ""
 "What cleaning leaves alone. Smart Scan uses the new values on its next scan."
 msgstr ""
 "Những gì việc dọn dẹp chừa lại. Quét thông minh dùng giá trị mới ở lần quét "
 "sau."
 
-#: gui/cleanmate_gui/settings.py:152
+#: gui/cleanmate_gui/settings.py:167
+msgid "Never clean"
+msgstr "Không bao giờ dọn"
+
+#: gui/cleanmate_gui/settings.py:167
+msgid ""
+"Large & Old Files, Duplicates, Space Lens, project build folders and old "
+"installers skip these folders, and nothing in them is moved to the Trash."
+msgstr "Tệp lớn & cũ, Tệp trùng lặp, Space Lens, thư mục build của dự án và bộ cài cũ bỏ qua các thư mục này; không gì trong đó bị chuyển vào Thùng rác."
+
+#: gui/cleanmate_gui/settings.py:170
+msgid "Add Folder…"
+msgstr "Thêm thư mục…"
+
+#: gui/cleanmate_gui/settings.py:178
 msgid "Your data"
 msgstr "Dữ liệu của bạn"
 
-#: gui/cleanmate_gui/settings.py:153
+#: gui/cleanmate_gui/settings.py:179
 msgid "Remembered selections"
 msgstr "Lựa chọn đã nhớ"
 
-#: gui/cleanmate_gui/settings.py:154 gui/cleanmate_gui/settings.py:308
+#: gui/cleanmate_gui/settings.py:180 gui/cleanmate_gui/settings.py:375
 msgid "Reset"
 msgstr "Đặt lại"
 
 #
-#: gui/cleanmate_gui/settings.py:161
+#: gui/cleanmate_gui/settings.py:187
 msgid "Remember recent files"
 msgstr "Ghi nhớ tệp gần đây"
 
-#: gui/cleanmate_gui/settings.py:162
+#: gui/cleanmate_gui/settings.py:188
 msgid "Files and Open dialogs list the files you used lately"
 msgstr "Tệp và hộp thoại Mở liệt kê các tệp bạn mới dùng"
 
-#: gui/cleanmate_gui/settings.py:165
+#: gui/cleanmate_gui/settings.py:191
 msgid "Needs GNOME's gsettings, which isn't available here"
 msgstr "Cần gsettings của GNOME, máy này không có"
 
-#: gui/cleanmate_gui/settings.py:170 gui/cleanmate_gui/settings.py:336
+#: gui/cleanmate_gui/settings.py:196 gui/cleanmate_gui/settings.py:403
 msgid "Activity log"
 msgstr "Nhật ký hoạt động"
 
-#: gui/cleanmate_gui/settings.py:170
+#: gui/cleanmate_gui/settings.py:196
 msgid "What was cleaned and when"
 msgstr "Đã dọn gì và khi nào"
 
-#: gui/cleanmate_gui/settings.py:192
+#: gui/cleanmate_gui/settings.py:218
 #, python-brace-format
 msgid "From {min} to {max}, default {default}"
 msgstr "Từ {min} đến {max}, mặc định {default}"
 
-#: gui/cleanmate_gui/settings.py:211
+#: gui/cleanmate_gui/settings.py:237
 msgid ""
 "Restart CleanMate to use the new language. The system's language does not "
 "change."
@@ -1241,55 +1267,77 @@ msgstr ""
 "Khởi động lại CleanMate để dùng ngôn ngữ mới. Ngôn ngữ của hệ thống không "
 "đổi."
 
-#: gui/cleanmate_gui/settings.py:216
+#: gui/cleanmate_gui/settings.py:245
+msgid "No folders yet"
+msgstr "Chưa có thư mục nào"
+
+#: gui/cleanmate_gui/settings.py:249
 #, python-brace-format
 msgid "{n} remembered choice for Smart Scan"
 msgid_plural "{n} remembered choices for Smart Scan"
 msgstr[0] "{n} lựa chọn đã nhớ cho Quét thông minh"
 
-#: gui/cleanmate_gui/settings.py:289
+#: gui/cleanmate_gui/settings.py:307
+msgid "Remove from the list"
+msgstr "Xoá khỏi danh sách"
+
+#: gui/cleanmate_gui/settings.py:314
+msgid "Folder to never clean"
+msgstr "Thư mục không bao giờ dọn"
+
+#: gui/cleanmate_gui/settings.py:353
 #, python-brace-format
 msgid "Could not change it: {reason}"
 msgstr "Không thay đổi được: {reason}"
 
-#: gui/cleanmate_gui/settings.py:292
+#: gui/cleanmate_gui/settings.py:355
 msgid "Dry run: nothing was saved"
 msgstr "Chạy thử: không có gì được lưu"
 
-#: gui/cleanmate_gui/settings.py:294
+#: gui/cleanmate_gui/settings.py:357
 #, python-brace-format
 msgid "Automatic cleaning: {when}"
 msgstr "Dọn tự động: {when}"
 
-#: gui/cleanmate_gui/settings.py:295
+#: gui/cleanmate_gui/settings.py:358
 msgid "Automatic cleaning is off"
 msgstr "Đã tắt dọn tự động"
 
-#: gui/cleanmate_gui/settings.py:297
+#: gui/cleanmate_gui/settings.py:360
 msgid "Smart Scan is back to its default choices"
 msgstr "Quét thông minh đã về lựa chọn mặc định"
 
-#: gui/cleanmate_gui/settings.py:305
+#: gui/cleanmate_gui/settings.py:363
+#, python-brace-format
+msgid "{folder} is never cleaned now"
+msgstr "Từ nay không bao giờ dọn {folder}"
+
+#: gui/cleanmate_gui/settings.py:364
+#, python-brace-format
+msgid "{folder} can be cleaned again"
+msgstr "{folder} lại có thể được dọn"
+
+#: gui/cleanmate_gui/settings.py:372
 msgid "Forget remembered selections?"
 msgstr "Quên các lựa chọn đã nhớ?"
 
-#: gui/cleanmate_gui/settings.py:306
+#: gui/cleanmate_gui/settings.py:373
 msgid "Smart Scan goes back to its default choices."
 msgstr "Quét thông minh quay về lựa chọn mặc định."
 
-#: gui/cleanmate_gui/settings.py:342
+#: gui/cleanmate_gui/settings.py:409
 msgid "Reading the log…"
 msgstr "Đang đọc nhật ký…"
 
-#: gui/cleanmate_gui/settings.py:345
+#: gui/cleanmate_gui/settings.py:412
 msgid "Nothing yet"
 msgstr "Chưa có gì"
 
-#: gui/cleanmate_gui/settings.py:346
+#: gui/cleanmate_gui/settings.py:413
 msgid "Nothing has been cleaned yet."
 msgstr "Chưa dọn gì cả."
 
-#: gui/cleanmate_gui/settings.py:352
+#: gui/cleanmate_gui/settings.py:419
 msgid "Open the log folder"
 msgstr "Mở thư mục nhật ký"
 
@@ -1334,23 +1382,33 @@ msgid_plural "{n} items, biggest first"
 msgstr[0] "{n} mục, lớn nhất trước"
 
 #: gui/cleanmate_gui/spacelens.py:239
+msgid "View only: you never clean this folder (Settings › Never clean)."
+msgstr "Chỉ xem: thư mục này nằm trong danh sách Không bao giờ dọn (Cài đặt › Không bao giờ dọn)."
+
+#: gui/cleanmate_gui/spacelens.py:242
 msgid ""
 "View only: things outside your home folder can't be moved to the Trash here."
 msgstr ""
 "Chỉ xem: không thể chuyển những gì nằm ngoài thư mục riêng vào Thùng rác ở "
 "đây."
 
-#: gui/cleanmate_gui/spacelens.py:246
+#: gui/cleanmate_gui/spacelens.py:249
 msgid "Select or deselect every item"
 msgstr "Chọn hoặc bỏ chọn mọi mục"
 
-#: gui/cleanmate_gui/spacelens.py:262
+#: gui/cleanmate_gui/spacelens.py:265
 #, python-brace-format
 msgid "{n} item · {percent}"
 msgid_plural "{n} items · {percent}"
 msgstr[0] "{n} mục · {percent}"
 
-#: gui/cleanmate_gui/spacelens.py:270
+#: gui/cleanmate_gui/spacelens.py:273
+msgid ""
+"Can't be moved to the Trash: you never clean it, or a folder in it (Settings "
+"› Never clean)"
+msgstr "Không chuyển vào Thùng rác được: mục này hoặc một thư mục bên trong nằm trong danh sách Không bao giờ dọn (Cài đặt)"
+
+#: gui/cleanmate_gui/spacelens.py:276
 msgid ""
 "Can't be moved to the Trash here: it's outside your home folder, or your "
 "system needs it"
@@ -1358,25 +1416,25 @@ msgstr ""
 "Không thể chuyển vào Thùng rác ở đây: nằm ngoài thư mục riêng của bạn, hoặc "
 "hệ thống cần nó"
 
-#: gui/cleanmate_gui/spacelens.py:334
+#: gui/cleanmate_gui/spacelens.py:340
 #, python-brace-format
 msgid "Move {n} item to the Trash?"
 msgid_plural "Move {n} items to the Trash?"
 msgstr[0] "Chuyển {n} mục vào Thùng rác?"
 
-#: gui/cleanmate_gui/spacelens.py:379
+#: gui/cleanmate_gui/spacelens.py:385
 #, python-brace-format
 msgid "Dry run: {n} item ({size}) would be moved to the Trash"
 msgid_plural "Dry run: {n} items ({size}) would be moved to the Trash"
 msgstr[0] "Chạy thử: {n} mục ({size}) sẽ được chuyển vào Thùng rác"
 
-#: gui/cleanmate_gui/spacelens.py:384
+#: gui/cleanmate_gui/spacelens.py:390
 #, python-brace-format
 msgid "Moved {n} item ({size}) to the Trash"
 msgid_plural "Moved {n} items ({size}) to the Trash"
 msgstr[0] "Đã chuyển {n} mục ({size}) vào Thùng rác"
 
-#: gui/cleanmate_gui/spacelens.py:427
+#: gui/cleanmate_gui/spacelens.py:433
 #, python-brace-format
 msgid "Put back {n} item from the Trash"
 msgid_plural "Put back {n} items from the Trash"
@@ -1610,7 +1668,10 @@ msgstr "Dữ liệu còn sót của ứng dụng đã gỡ"
 msgid ""
 "Folders in your home that no installed app uses. Nothing is ticked; they go "
 "to the Trash, so you can put them back."
-msgstr "Các thư mục trong thư mục home mà không ứng dụng nào đang cài dùng đến. Không mục nào được chọn sẵn; chúng được chuyển vào Thùng rác nên bạn có thể khôi phục."
+msgstr ""
+"Các thư mục trong thư mục home mà không ứng dụng nào đang cài dùng đến. "
+"Không mục nào được chọn sẵn; chúng được chuyển vào Thùng rác nên bạn có thể "
+"khôi phục."
 
 #: gui/cleanmate_gui/uninstaller.py:256
 msgid "No app with this name is installed"

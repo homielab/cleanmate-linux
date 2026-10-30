@@ -143,7 +143,9 @@ class Engine:
         return self.run(["settings"], on_event, on_done)
 
     def settings_set(self, key, value, on_event, on_done):
-        return self.run(["settings-set", key, value], on_event, on_done)
+        """VALUE is a string, or a list for settings that take more (exclusions add|remove PATH)."""
+        values = value if isinstance(value, list) else [value]
+        return self.run(["settings-set", key, *values], on_event, on_done)
 
     def activity(self, on_event, on_done, limit=1000):
         return self.run(["activity", "--limit", str(limit)], on_event, on_done)

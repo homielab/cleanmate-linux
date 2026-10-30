@@ -722,7 +722,7 @@ def uninstaller_test(win, report, wait, finish):
 def settings_test(win, report, wait, finish):
     """Settings of a throwaway home with a fake `systemctl --user`: show the saved values, change a
     number, turn automatic cleaning on (the timer is enabled), pick a language (Restart starts the app
-    again, here through a stub) and forget remembered selections."""
+    again, here through a stub), forget remembered selections and add and remove a Never clean folder."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
@@ -861,6 +861,27 @@ def settings_test(win, report, wait, finish):
 
     def activity_empty():
         report(page.activity.stack.get_visible_child_name() == "empty", "an empty activity log says so")
+        os.makedirs(project)
+        page.change_exclusion("add", home)  # too broad: refused
+        page.change_exclusion("add", project)
+        wait(idle, excluded, 30, "Never clean")
+
+    project = os.path.join(home, "Projects", "keep")
+    exclude_file = os.path.join(conf, "exclude")
+
+    def never_rows():
+        return [r.path for r in page.rows["exclusions"].folder_rows if hasattr(r, "path")]
+
+    def excluded():
+        with open(exclude_file) as f:
+            report(f.read() == project + "\n" and never_rows() == [project],
+                   "Never clean: Add Folder saves it for both apps and lists it; your home folder is refused")
+        page.rows["exclusions"].folder_rows[0].remove_button.emit("clicked")
+        wait(idle, unexcluded, 30, "Never clean remove")
+
+    def unexcluded():
+        with open(exclude_file) as f:
+            report(f.read() == "" and never_rows() == [], "Never clean: the remove button takes it off the list")
         done()
 
     wait(idle, first, 30, "first settings")

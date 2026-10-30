@@ -838,6 +838,9 @@ move_to_trash() { # PATH — never deletes permanently
   local p=$1 np top
   [[ $p == /* ]] || p=$PWD/$p
   if is_protected "$p"; then err "Refusing to touch protected path: $p"; return 1; fi
+  if ((${#EXCLUDES[@]})) && touches_exclusion "$(realpath -m -s -- "$p")"; then
+    err "Excluded in Settings (Never clean): $p"; return 1
+  fi
   if [[ $p == "$HOME"/* ]]; then trash_put "$p"; return; fi
   np=$(realpath -m -s -- "$p")
   if volume_top top "$np" && volume_trash_put "$np" "$top"; then return 0; fi
@@ -1246,6 +1249,7 @@ old_installers() { # → OI_DIR, and OI_NAME / OI_BYTES / OI_DAYS (days since mo
     esac
     [[ -e $OI_DIR/$name.part || -e $OI_DIR/$name.crdownload || -e $OI_DIR/$name.!qB ]] && continue # still downloading
     grep -qxF -- "$OI_DIR/$name" <<<"$open" && continue
+    in_exclusion "$OI_DIR/$name" && continue
     OI_NAME+=("$name") OI_BYTES+=("$b") OI_DAYS+=($(((now - ${m%.*}) / 86400)))
   done < <(find "$OI_DIR" -mindepth 1 -maxdepth 1 -type f -mmin +$((OLD_INSTALLER_DAYS * 1440)) \
     -printf '%s\t%T@\t%f\0' 2>/dev/null | sort -z -t $'\t' -k1,1nr)
@@ -2067,11 +2071,13 @@ nm_is_stale() { # NODE_MODULES_DIR
   ((has_lock)) || return 1
   [[ -z $(find "$p" -mindepth 1 -maxdepth 1 -not -name node_modules -mtime -"$NM_DAYS" -print -quit 2>/dev/null) ]]
 }
-find_stale_node_modules() { # bytes<TAB>path of stale node_modules
+find_stale_node_modules() { # bytes<TAB>path of stale node_modules, outside your excluded folders
   local d
-  find "$HOME" -xdev \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
+  exclusion_prune
+  find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
     -o -path '*/resources/app' -o -name .git \) -prune -o -type d -name node_modules -prune -print 2>/dev/null |
     while IFS= read -r d; do
+      touches_exclusion "$d" && continue
       nm_is_stale "$d" && printf '%s\t%s\n' "$(du -sb -- "$d" 2>/dev/null | cut -f1)" "$d"
     done
   return 0 # unreadable folders make find fail; the list is still valid
@@ -2091,6 +2097,7 @@ clean_node_modules() {
   while IFS=$'\t' read -r b d; do
     nm_is_stale "$d" || continue # re-check: the project may have been used since the scan
     is_protected "$d" && continue
+    touches_exclusion "$(realpath -m -s -- "$d")" && continue # excluded since the scan
     run rm -rf -- "$d"
   done <"$NM_LIST"
 }
@@ -2144,15 +2151,16 @@ busy_paths() { # files your processes have open, and the folders cargo, rustc, p
 }
 
 stale_build_dirs() { # → SB_DIR (project) / SB_WHAT (its build folders, space-separated) / SB_BYTES / SB_DAYS, biggest first
-  local d p busy now changed b
+  local d p busy now changed b i
   local -A seen=()
   SB_DIR=() SB_WHAT=() SB_BYTES=() SB_DAYS=()
   busy=$(busy_paths)
+  exclusion_prune
   printf -v now '%(%s)T' -1
   while IFS=$'\t' read -r b changed d p; do
     SB_BYTES+=("$b") SB_DAYS+=($(((now - changed) / 86400))) SB_WHAT+=("$d") SB_DIR+=("$p")
   done < <(
-    find "$HOME" -xdev \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
+    find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
       -o -path '*/resources/app' -o -name .git -o -name node_modules \) -prune -o \
       -type d \( -name target -o -name .venv -o -name venv -o -name Pods \) -prune -print 2>/dev/null |
       while IFS= read -r d; do
@@ -2160,6 +2168,7 @@ stale_build_dirs() { # → SB_DIR (project) / SB_WHAT (its build folders, space-
         [[ $p == "$HOME"/* && $p != *[[:cntrl:]]* && -z ${seen[$p]:-} ]] || continue
         seen[$p]=1
         build_dirs_of "$p"
+        for i in "${!BD_DIRS[@]}"; do touches_exclusion "$p/${BD_DIRS[i]}" && unset "BD_DIRS[i]"; done
         ((${#BD_DIRS[@]})) || continue
         changed=$(project_changed "$p")
         ((now - changed >= NM_DAYS * 86400)) || continue
@@ -3593,12 +3602,17 @@ pick_files() { # TITLE — FOUND holds "bytes<TAB>date<TAB>path"
   done
 }
 
-find_files_bg() { # MESSAGE FIND-ARGS... — run find in the background with a spinner
-  local msg=$1 tmp
+find_files_bg() { # MESSAGE START... FIND-ARGS... — run find in the background with a spinner; skips excluded folders
+  local msg=$1 tmp starts=()
   shift
-  tmp=$(mktemp -p "$SESSION_TMP")
+  while (($#)) && [[ $1 != -* ]]; do starts+=("$1"); shift; done
+  outside_exclusions starts "${starts[@]}"
+  exclusion_prune
   FOUND=()
-  (find "$@" -printf '%s\t%TY-%Tm-%Td\t%p\n' 2>/dev/null >"$tmp") &
+  ((${#starts[@]})) || return 0 # every folder is excluded: nothing to show
+  tmp=$(mktemp -p "$SESSION_TMP")
+  [[ ${1:-} == -xdev ]] && { XPRUNE=(-xdev "${XPRUNE[@]}"); shift; } # an option goes before the tests
+  (find "${starts[@]}" "${XPRUNE[@]}" "$@" -printf '%s\t%TY-%Tm-%Td\t%p\n' 2>/dev/null >"$tmp") &
   UI_BUSY_TITLE="Large & Old Files"
   ui_busy "$msg" $! "$tmp" file || { rm -f "$tmp"; return 1; }
   mapfile -t FOUND < <(sort -t$'\t' -k1,1rn "$tmp" | head -n 200)
@@ -4827,15 +4841,15 @@ sl_trash() { # CURSOR
   ((${#SL_SEL[@]})) || SL_SEL[$1]=1
   for i in "${!SL_SEL[@]}"; do
     p=${SL_PATH[i]}
-    if [[ $p != "$HOME"/* ]] || is_protected "$p"; then ((++bad)); continue; fi
+    if [[ $p != "$HOME"/* ]] || is_protected "$p" || touches_exclusion "$p"; then ((++bad)); continue; fi
     paths+=("$p"); tot=$((tot + SL_SIZE[i])); ((++n))
   done
   if ((n == 0)); then
     SL_SEL=()
-    toast "${YELLOW}!${NC} Only items inside your home folder can be moved to Trash here."
+    toast "${YELLOW}!${NC} Only items inside your home folder and not excluded in Settings can be moved to Trash here."
     return
   fi
-  ui_confirm "Move $(plural "$n" item) to Trash?" "$(human "$tot")$( ((bad)) && echo " · $bad item(s) outside home skipped") — press z to undo." y || return
+  ui_confirm "Move $(plural "$n" item) to Trash?" "$(human "$tot")$( ((bad)) && echo " · $bad item(s) outside home or excluded skipped") — press z to undo." y || return
   UNDO_BATCH=()
   for p in "${paths[@]}"; do move_to_trash "$p" >/dev/null 2>&1 || ((++fail)); done
   if ((DRY_RUN)); then
@@ -4923,11 +4937,14 @@ dedupe_on() { # FIELDS — keep only lines whose key (first N tab fields) occurs
                         END {for (i = 1; i <= NR; i++) if (n[kk[i]] > 1) print line[i]}'
 }
 
-dup_scan() { # MIN_KB OUT STATUS DIR... — background worker
-  local min=$1 out=$2 st=$3 size mt p h i=0 n
+dup_scan() { # MIN_KB OUT STATUS DIR... — background worker; skips excluded folders
+  local min=$1 out=$2 st=$3 size mt p h i=0 n dirs=()
   shift 3
   echo "Listing files…" >"$st"
-  find "$@" -xdev -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o \
+  outside_exclusions dirs "$@"
+  exclusion_prune
+  ((${#dirs[@]})) || { : >"$out"; return 0; }
+  find "${dirs[@]}" -xdev -mindepth 1 "${XPRUNE[@]}" \( -name '.*' -o -name node_modules \) -prune -o \
     -type f -size +"${min}"k -printf '%s\t%T@\t%p\n' 2>/dev/null | dedupe_on 1 >"$out.cand"
   n=$(wc -l <"$out.cand")
   while IFS=$'\t' read -r size mt p; do
@@ -5239,6 +5256,112 @@ load_settings() { # the settings file and remembered selections, as saved (by ei
   load_kv "$PREF_FILE" PREF '^[01]$'
   load_kv "$SETTINGS_FILE" CFG "$SETTING_VALUE_RE"
   apply_settings
+  load_exclusions
+}
+
+# Never clean: folders in your home that Large & Old Files, Duplicates, Space Lens, stale
+# node_modules and project build folders and old installers leave alone, and that nothing moves to
+# the Trash. Smart Scan's caches and logs are rebuilt by their apps, so those items don't look here.
+# One absolute path per line; your home folder, a folder above it, anything outside it and folders
+# reached through a symbolic link are refused (and ignored when the file has them).
+EXCLUDE_FILE="${SETTINGS_FILE%/*}/exclude"
+EXCLUDES=()
+EX_WHY="" EX_PATH=""
+EX_HOME_REAL=""
+
+exclusion_check() { # VAR PATH → VAR = PATH tidied; returns 1 with EX_WHY when it can't be excluded
+  local -n __ex=$1
+  local __p=$2
+  EX_WHY="" __ex=""
+  [[ $__p == /* ]] || { EX_WHY="Not a full path: $__p"; return 1; }
+  [[ $__p != *[[:cntrl:]]* ]] || { EX_WHY="The folder's name has control characters"; return 1; }
+  __p=$(realpath -m -s -- "$__p")
+  __ex=$__p
+  if [[ $__p == / || $__p == "$HOME" || $HOME == "$__p"/* ]]; then
+    EX_WHY="Your home folder or a folder above it is too broad to exclude"; return 1
+  fi
+  [[ $__p == "$HOME"/* ]] || { EX_WHY="Only folders inside your home folder can be excluded"; return 1; }
+  [[ -n $EX_HOME_REAL ]] || EX_HOME_REAL=$(realpath -m -- "$HOME")
+  if [[ -L $__p || $(realpath -m -- "$__p") != "$EX_HOME_REAL${__p#"$HOME"}" ]]; then
+    EX_WHY="Folders reached through a symbolic link can't be excluded"; return 1
+  fi
+}
+
+load_exclusions() { # → EXCLUDES: the valid lines of EXCLUDE_FILE, each once
+  local line p
+  local -A seen=()
+  EXCLUDES=()
+  [[ -f $EXCLUDE_FILE ]] || return 0
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -n $line ]] && exclusion_check p "$line" && [[ -z ${seen[$p]:-} ]] || continue
+    seen[$p]=1 EXCLUDES+=("$p")
+  done <"$EXCLUDE_FILE"
+}
+
+save_exclusions() { # EXCLUDES → EXCLUDE_FILE (written next to it, then renamed)
+  local tmp
+  mkdir -p "${EXCLUDE_FILE%/*}" && tmp=$(mktemp -p "${EXCLUDE_FILE%/*}" .exclude.XXXXXX) || return
+  { ((${#EXCLUDES[@]} == 0)) || printf '%s\n' "${EXCLUDES[@]}"; } >"$tmp" && mv -f -- "$tmp" "$EXCLUDE_FILE" ||
+    { rm -f -- "$tmp"; return 1; }
+}
+
+exclusion_add() { # PATH — EX_WHY says what happened, EX_PATH is PATH tidied; 1 when refused or not saved
+  local p e
+  load_exclusions # the other app may have changed the list
+  exclusion_check p "$1"
+  EX_PATH=$p
+  [[ -z $EX_WHY ]] || return 1
+  [[ -d $p ]] || { EX_WHY="Not a folder: $p"; return 1; }
+  for e in "${EXCLUDES[@]}"; do [[ $e == "$p" ]] && { EX_WHY="already in the list"; return 0; }; done
+  ((DRY_RUN)) && { EX_WHY="would be added"; return 0; }
+  EXCLUDES+=("$p")
+  save_exclusions || { load_exclusions; EX_WHY="Could not save ${EXCLUDE_FILE/#$HOME/\~}"; return 1; }
+  EX_WHY="added"
+}
+
+exclusion_remove() { # PATH — EX_WHY says what happened; 1 when it isn't in the list or not saved
+  local p=$1 e listed=0 kept=()
+  load_exclusions
+  [[ $p == /* ]] && p=$(realpath -m -s -- "$p")
+  for e in "${EXCLUDES[@]}"; do if [[ $e == "$p" ]]; then listed=1; else kept+=("$e"); fi; done
+  ((listed)) || { EX_WHY="Not in the list: $p"; return 1; }
+  ((DRY_RUN)) && { EX_WHY="would be removed"; return 0; }
+  EXCLUDES=("${kept[@]}")
+  save_exclusions || { load_exclusions; EX_WHY="Could not save ${EXCLUDE_FILE/#$HOME/\~}"; return 1; }
+  EX_WHY="removed"
+}
+
+in_exclusion() { # PATH (absolute, tidied) — one of your excluded folders or inside one
+  local e
+  for e in "${EXCLUDES[@]}"; do [[ $1 == "$e" || $1 == "$e"/* ]] && return 0; done
+  return 1
+}
+
+touches_exclusion() { # PATH (absolute, tidied) — in an excluded folder, or holding one (moving it takes that along)
+  local e
+  for e in "${EXCLUDES[@]}"; do [[ $1 == "$e" || $1 == "$e"/* || $e == "$1"/* ]] && return 0; done
+  return 1
+}
+
+exclusion_prune() { # → XPRUNE: find tests that skip your excluded folders, "( -path A -o … ) -prune -o"; empty without any
+  local e g
+  XPRUNE=()
+  for e in "${EXCLUDES[@]}"; do
+    g=${e//\\/\\\\} g=${g//\*/\\*} g=${g//\?/\\?} g=${g//\[/\\[} # the path itself, not a pattern
+    XPRUNE+=(-o -path "$g")
+  done
+  ((${#XPRUNE[@]} == 0)) || XPRUNE=(\( "${XPRUNE[@]:1}" \) -prune -o)
+}
+
+outside_exclusions() { # VAR START… → VAR = the starting folders (tidied) that aren't in an excluded folder
+  local -n __out=$1
+  local __d
+  shift
+  __out=()
+  for __d; do
+    __d=$(realpath -m -s -- "$__d")
+    in_exclusion "$__d" || __out+=("$__d")
+  done
 }
 
 notify() { # TITLE BODY [ICON] [URGENCY]
@@ -5507,6 +5630,7 @@ settings_menu() {
     mi i "Old installers" "Offer installers in Downloads older than ${OLD_INSTALLER_DAYS} days"
     mi d "AI chat history" "Clean AI sessions older than ${AI_HISTORY_DAYS} days"
     mh "Your data"
+    mi x "Never clean" "$( ((${#EXCLUDES[@]})) && plural ${#EXCLUDES[@]} folder || echo "No folders") that Large & Old Files, Duplicates, Space Lens, build folders and old installers skip"
     mi e "Reset selections" "$(plural ${#PREF[@]} "remembered choice") for Smart Scan"
     mi f "Activity log" "What was cleaned and when"
     mh "About"
@@ -5536,6 +5660,7 @@ settings_menu() {
       "Project build folders") edit_number node_modules_days "Clean build folders of projects idle for how many days?" ;;
       "Old installers") edit_number installer_days "Offer installers in Downloads older than how many days?" ;;
       "AI chat history") edit_number ai_history_days "Clean AI chat sessions older than how many days?" ;;
+      "Never clean") exclusions_menu ;;
       "Reset selections")
         ui_confirm "Forget remembered selections?" "Smart Scan goes back to its default choices." n || continue
         PREF=()
@@ -5548,6 +5673,30 @@ settings_menu() {
       "Source code") open_url "$REPO_URL" ;;
       "Report a problem") open_url "$REPO_URL/issues" ;;
     esac
+  done
+}
+
+exclusions_menu() { # Settings › Never clean: add a folder by its path, Enter on one removes it
+  local i p first
+  while :; do
+    ((DRY_RUN)) || load_exclusions # changes made in the desktop app meanwhile
+    M_KEY=(a) M_LABEL=("Add a folder…") M_DESC=("A folder inside your home that CleanMate never offers to clean")
+    mh "Folders"
+    first=${#M_KEY[@]}
+    ((${#EXCLUDES[@]})) || mi "" "None yet" ""
+    for i in "${!EXCLUDES[@]}"; do mi "" "${EXCLUDES[i]##*/}" "${EXCLUDES[i]/#$HOME/\~} — Enter removes it from the list"; done
+    ui_menu "Never clean" || return
+    if ((MENU_IDX == 0)); then
+      ui_input "Folder to never clean:" "$HOME/" || continue
+      p=${REPLY_TEXT/#\~/$HOME}
+      if exclusion_add "$p"; then toast "${GREEN}✔${NC} ${EX_PATH/#$HOME/\~}: $EX_WHY."
+      else toast "${RED}✘${NC} $EX_WHY."; fi
+    elif ((MENU_IDX >= first && ${#EXCLUDES[@]})); then
+      p=${EXCLUDES[MENU_IDX - first]}
+      ui_confirm "Remove ${p/#$HOME/\~} from the list?" "CleanMate may offer what is in it again." n || continue
+      if exclusion_remove "$p"; then toast "${GREEN}✔${NC} ${p/#$HOME/\~}: $EX_WHY."
+      else toast "${RED}✘${NC} $EX_WHY."; fi
+    fi
   done
 }
 
@@ -5988,13 +6137,15 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] — the biggest files fir
   [[ $days =~ ^[0-9]+$ ]] || { json_error "Invalid number of days: $days"; return 2; }
   [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
   dir=$(realpath -- "$dir")
+  if in_exclusion "$dir"; then printf '{"event":"done","count":0,"found":0,"total_bytes":0}\n'; return 0; fi
+  exclusion_prune
   local filt=(-type f)
   ((min > 0)) && filt+=(-size +$((min - 1))c)
   # old = neither changed nor opened for that long
   ((days > 0)) && filt+=(-mmin +$((days * 1440)) -amin +$((days * 1440)))
   tmp=$(mktemp -p "$SESSION_TMP") || return 1
   # skip caches (Smart Scan's job), Trash folders and git internals; stay on one file system
-  find "$dir" -xdev \( -type d \( -name .cache -o -name .git -o -name Trash -o -name .Trash -o -name '.Trash-*' \) \
+  find "$dir" -xdev "${XPRUNE[@]}" \( -type d \( -name .cache -o -name .git -o -name Trash -o -name .Trash -o -name '.Trash-*' \) \
     -not -path "$dir" -prune \) -o \( "${filt[@]}" -printf '%s\t%T@\t%A@\t%p\0' \) 2>/dev/null >"$tmp"
   found=$(tr -cd '\0' <"$tmp" | wc -c)
   # only names that are valid UTF-8 without control characters can round-trip through JSON
@@ -6012,12 +6163,12 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] — the biggest files fir
 
 LENS_LIMIT=500 # the biggest entries listed by `--json lens`, like the terminal's Space Lens
 
-lens_movable() { # PATH (normalised) — Space Lens may only move what is in your home folder and not protected
-  [[ $1 == "$HOME"/* ]] && ! is_protected "$1"
+lens_movable() { # PATH (normalised) — Space Lens may only move what is in your home folder, not protected or excluded
+  [[ $1 == "$HOME"/* ]] && ! is_protected "$1" && ! touches_exclusion "$1"
 }
 
 json_lens() { # [--path DIR] — DIR's files and folders with their size (du -x), biggest first
-  local dir=$HOME tmp b p n kind jp movable listed=0 found=0 total=0 items=0
+  local dir=$HOME tmp b p n kind jp movable excluded listed=0 found=0 total=0 items=0
   local -A count=()
   while (($#)); do
     case $1 in
@@ -6041,13 +6192,17 @@ json_lens() { # [--path DIR] — DIR's files and folders with their size (du -x)
     [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
     if [[ -d $p && ! -L $p ]]; then kind=dir n=$((${count[$p]:-1} - 1)); else kind=file n=1; fi
     if lens_movable "$p"; then movable=true; else movable=false; fi
+    if touches_exclusion "$p"; then excluded=true; else excluded=false; fi
     json_str jp "$p"
-    printf '{"event":"entry","path":%s,"bytes":%d,"kind":"%s","count":%d,"movable":%s}\n' "$jp" "$b" "$kind" "$n" "$movable"
+    printf '{"event":"entry","path":%s,"bytes":%d,"kind":"%s","count":%d,"movable":%s,"excluded":%s}\n' \
+      "$jp" "$b" "$kind" "$n" "$movable" "$excluded"
     listed=$((listed + 1))
   done < <(LC_ALL=C.UTF-8 grep -zax '.*' "$tmp" | sort -z -t$'\t' -k1,1rn)
   rm -f "$tmp"
   json_str jp "$dir"
-  printf '{"event":"done","path":%s,"bytes":%d,"items":%d,"count":%d,"found":%d}\n' "$jp" "$total" "$items" "$listed" "$found"
+  if in_exclusion "$dir"; then excluded=true; else excluded=false; fi
+  printf '{"event":"done","path":%s,"bytes":%d,"items":%d,"count":%d,"found":%d,"excluded":%s}\n' \
+    "$jp" "$total" "$items" "$listed" "$found" "$excluded"
 }
 
 DUPES_LIMIT=500 # the biggest groups listed by `--json dupes`
@@ -6073,6 +6228,8 @@ json_dupes() { # [--min BYTES] [--path DIR] — groups of identical files, bigge
   [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
   ((min > 0)) || min=1 # empty files are all alike, never duplicates
   dir=$(realpath -m -s -- "$dir")
+  if in_exclusion "$dir"; then printf '{"event":"done","groups":0,"found":0,"files":0,"total_bytes":0}\n'; return 0; fi
+  exclusion_prune
   local -a S=() M=() P=() cand=() keys=()
   local -A seen=() nsize=() nhead=() hh=() group=()
   json_dupes_progress list 0 0
@@ -6082,7 +6239,7 @@ json_dupes() { # [--min BYTES] [--path DIR] — groups of identical files, bigge
     [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
     S+=("$s") M+=("${m%.*}") P+=("$p")
     nsize[$s]=$((${nsize[$s]:-0} + 1))
-  done < <(find "$dir" -xdev -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o \
+  done < <(find "$dir" -xdev -mindepth 1 "${XPRUNE[@]}" \( -name '.*' -o -name node_modules \) -prune -o \
     -type f -size +$((min - 1))c -printf '%s\t%D:%i\t%T@\t%p\0' 2>/dev/null | LC_ALL=C.UTF-8 grep -zax '.*')
   for i in "${!P[@]}"; do ((${nsize[${S[i]}]} > 1)) && cand+=("$i"); done
   n=${#cand[@]} k=0
@@ -6139,7 +6296,9 @@ json_trash() { # [--home-only] PATH… — move these to the Trash; "trash" name
   for p in "$@"; do
     if [[ $p != /* ]]; then json_file_task "$p" fail "Not an absolute path" 0; ((++failed)); continue; fi
     if ((home_only)) && ! lens_movable "$(realpath -m -s -- "$p")"; then
-      json_file_task "$p" fail "Only items inside your home folder can be moved to the Trash here" 0; ((++failed)); continue
+      if touches_exclusion "$(realpath -m -s -- "$p")"; then why="Excluded in Settings (Never clean)"
+      else why="Only items inside your home folder can be moved to the Trash here"; fi
+      json_file_task "$p" fail "$why" 0; ((++failed)); continue
     fi
     if [[ ! -e $p && ! -L $p ]]; then json_file_task "$p" fail "Not found" 0; ((++failed)); continue; fi
     if [[ -d $p && ! -L $p ]]; then b=$(du -sb -- "$p" 2>/dev/null | cut -f1)
@@ -6360,6 +6519,10 @@ json_setting() { # KEY → one "setting" event with what is in effect now
     language)
       setting_choice v language
       printf '{"event":"setting","key":"language","value":"%s","choices":["system","en","vi"],"default":"system"}\n' "$v" ;;
+    exclusions)
+      local e xjson=""
+      for e in "${EXCLUDES[@]}"; do json_str v "$e"; xjson+=${xjson:+,}$v; done
+      printf '{"event":"setting","key":"exclusions","value":[%s]}\n' "$xjson" ;;
     *)
       read -ra r <<<"${SETTING_RANGE[$1]}"
       setting v "$1"
@@ -6370,16 +6533,25 @@ json_setting() { # KEY → one "setting" event with what is in effect now
 json_settings() {
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   local k
-  for k in language schedule "${SETTING_KEYS[@]}" selections recent_files; do json_setting "$k"; done
+  for k in language schedule "${SETTING_KEYS[@]}" selections recent_files exclusions; do json_setting "$k"; done
   printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool have systemctl)" "$(json_bool packaged)"
 }
 
-json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, selections reset, recent_files 0|1, or a number in range
+json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, selections reset, recent_files 0|1,
+  # exclusions add|remove PATH, or a number in range
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
-  (($# == 2)) || { json_error "Usage: --json settings-set KEY VALUE"; return 2; }
+  if [[ ${1:-} == exclusions ]]; then
+    (($# == 3)) && [[ $2 == add || $2 == remove ]] ||
+      { json_error "Usage: --json settings-set exclusions add|remove PATH"; return 2; }
+  else
+    (($# == 2)) || { json_error "Usage: --json settings-set KEY VALUE"; return 2; }
+  fi
   local key=$1 val=$2 state=ok info
   local -a r
   case $key in
+    exclusions)
+      "exclusion_$val" "$3" || state=fail
+      info=$EX_WHY ;;
     schedule)
       [[ " ${SCHEDULES[*]} " == *" $val "* ]] || { json_error "schedule must be one of: ${SCHEDULES[*]}"; return 2; }
       UI_TOAST=""
