@@ -85,6 +85,10 @@ last 30 days.
 | Large & Old Files | Uninstaller |
 | --- | --- |
 | ![Large & Old Files](docs/screenshots/desktop-7-large.png) | ![Uninstaller](docs/screenshots/desktop-8-uninstall.png) |
+| Space Lens | Duplicates |
+| ![Space Lens](docs/screenshots/desktop-9-lens.png) | ![Duplicates](docs/screenshots/desktop-10-duplicates.png) |
+| Startup Items | Settings |
+| ![Startup Items](docs/screenshots/desktop-11-startup.png) | ![Settings](docs/screenshots/desktop-12-settings.png) |
 
 **Terminal app** — run `cm`. Press `1` for a Smart Scan, `c` to clean.
 

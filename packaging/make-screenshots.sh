@@ -19,9 +19,11 @@ OUT=${OUT:-$ROOT/docs/screenshots}
 # The demo home lives inside the project (git-ignored), not in /tmp: the app's
 # "Old temporary files" cleaner looks at /tmp and must never see demo files.
 mkdir -p "$ROOT/.demo"
-DEMO=$(mktemp -d -p "$ROOT/.demo" home.XXXXXX)
+BASE=$(mktemp -d -p "$ROOT/.demo" home.XXXXXX)
+DEMO=$BASE/alex # Space Lens shows the home folder's name
+mkdir "$DEMO"
 STUBS=$DEMO/.stubs
-trap 'case $DEMO in "$ROOT"/.demo/home.*) rm -rf "$DEMO" ;; esac; rmdir "$ROOT/.demo" 2>/dev/null || true' EXIT
+trap 'case $BASE in "$ROOT"/.demo/home.*) rm -rf "$BASE" ;; esac; rmdir "$ROOT/.demo" 2>/dev/null || true' EXIT
 mkdir -p "$OUT" "$STUBS"
 
 # ── a demo home folder ──
@@ -68,6 +70,25 @@ blob .claude/cache/models 40
 blob .codex/.tmp/plugins/catalog 95
 blob .gemini/antigravity-ide/conversations/old-chat.pb 30 60
 lines .bash_history 1800 "ls -la"
+# Duplicates: the same photos and a PDF copied into other folders, the original oldest
+dup() { # SIZE-KB SOURCE COPY…
+  mkdir -p "$(dirname "$DEMO/$2")"; head -c "$(($1 * 1024))" /dev/urandom >"$DEMO/$2"
+  touch -d "400 days ago" "$DEMO/$2"; local src=$2 d=300; shift 2
+  for c; do mkdir -p "$(dirname "$DEMO/$c")"; cp "$DEMO/$src" "$DEMO/$c"; touch -d "$d days ago" "$DEMO/$c"; d=$((d - 120)); done
+}
+dup 6200 Pictures/2025/beach-sunset.jpg "Pictures/Phone backup/IMG_2041.jpg" Downloads/beach-sunset.jpg
+dup 4800 Pictures/2025/family-dinner.jpg "Pictures/Phone backup/IMG_2107.jpg"
+dup 2300 Documents/tax-return-2025.pdf Downloads/tax-return-2025.pdf Desktop/tax-return-2025.pdf
+# Startup Items: login apps of your own and units for a fake systemd user session
+mkdir -p "$DEMO/.config/autostart" "$DEMO/.config/systemd/user"
+for app in "slack|Slack|slack --startup|" "discord|Discord|discord --start-minimized|" \
+  "dropbox|Dropbox|dropbox start -i|" "steam|Steam|steam -silent|Hidden=true"; do
+  IFS='|' read -r id name exe extra <<<"$app"
+  printf '[Desktop Entry]\nType=Application\nName=%s\nExec=%s\n%s\n' "$name" "$exe" "$extra" >"$DEMO/.config/autostart/$id.desktop"
+done
+printf '[Unit]\nDescription=Back up my documents\n' >"$DEMO/.config/systemd/user/backup.timer"
+printf '[Unit]\nDescription=Sync notes with my server\n' >"$DEMO/.config/systemd/user/notes-sync.service"
+printf 'backup.timer enabled enabled\nnotes-sync.service disabled enabled\n' >"$DEMO/.units"
 lines .zsh_history 3400 ": 1700000000:0;git status"
 lines .python_history 120 "print"
 mkdir -p "$DEMO/.local/share"
@@ -116,6 +137,12 @@ for app in "gimp|GNU Image Manipulation Program|gimp-2.10 %U|" "inkscape|Inkscap
   IFS='|' read -r id name exe extra <<<"$app"
   printf '[Desktop Entry]\nType=Application\nName=%s\nExec=%s\n%s\n' "$name" "$exe" "$extra" >"$DEMO/.apps/$id.desktop"
 done
+cat >"$STUBS/systemctl" <<'EOF'
+#!/bin/sh
+shift
+[ "$1" = list-unit-files ] && cat "$HOME/.units"
+exit 0
+EOF
 chmod +x "$STUBS"/* "$STUBS"/apps/*
 DEMO_PATH="$STUBS:/usr/local/bin:/usr/bin:/bin"
 
@@ -127,14 +154,15 @@ if command -v gtk4-broadwayd >/dev/null; then
   srv=$!
   sleep 1
   # "done" really cleans the demo caches, so it runs last; the number keeps the file order
-  for scene in 1:results 2:details 3:confirm 5:ai 6:privacy 7:large 8:uninstall 4:done; do
+  for scene in 1:results 2:details 3:confirm 5:ai 6:privacy 7:large 8:uninstall 9:lens 10:duplicates \
+    11:startup 12:settings 4:done; do
     n=${scene%%:*} scene=${scene#*:}
     path=$DEMO_PATH
     [[ $scene == uninstall ]] && path=$STUBS/apps:$DEMO_PATH
     env -i HOME="$DEMO" PATH="$path" CLEANMATE_APP_DIRS="$DEMO/.apps" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" GDK_BACKEND=broadway \
       BROADWAY_DISPLAY=:77 CLEANMATE_NO_UPDATE_CHECK=1 timeout 180 /usr/bin/python3 "$ROOT/gui/cleanmate-gui" \
       --engine "$ROOT/cleanmate.sh" --screenshot "$OUT/desktop-$n-$scene.png" --scene "$scene" \
-      --window-size 1280x800 2>/dev/null | grep -q "screenshot saved" &&
+      --window-size 1280x800 2>/dev/null | grep "screenshot saved" >/dev/null &&
       echo "  desktop-$n-$scene.png" || echo "  ✘ desktop scene '$scene' failed"
   done
   kill "$srv"

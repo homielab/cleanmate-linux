@@ -64,7 +64,7 @@ def main(argv=None):
     parser.add_argument("--dry-run", action="store_true", help="show what would happen, delete nothing")
     parser.add_argument("--selftest", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--screenshot", metavar="PNG", help=argparse.SUPPRESS)
-    parser.add_argument("--scene", default="results", help=argparse.SUPPRESS)  # results details confirm done privacy ai
+    parser.add_argument("--scene", default="results", help=argparse.SUPPRESS)  # results details confirm done privacy ai large uninstall lens duplicates startup settings
     parser.add_argument("--window-size", default="", help=argparse.SUPPRESS)  # e.g. 1280x800
     args = parser.parse_args(argv)
     engine_path = args.engine or os.path.join(os.path.dirname(__file__), "..", "..", "cleanmate.sh")

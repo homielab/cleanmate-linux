@@ -1151,12 +1151,39 @@ def show_scene_page(win, page_id):
 
 
 def tool_scene(win, scene, path, wait, finish):
-    """Large & Old Files with the two biggest files ticked; the Uninstaller with a Flatpak app ticked."""
-    show_scene_page(win, scene)
-    page = win.pages[scene]
+    """Large & Old Files with the two biggest files ticked; the Uninstaller with a Flatpak app ticked;
+    Space Lens of the home folder with its biggest folder ticked; Duplicates of the home folder after
+    Select automatically; Startup Items; the Settings dialog."""
+    def shoot(delay_ms=1200):
+        GLib.timeout_add(delay_ms, lambda: (screenshot(win, path, finish), False)[1])
 
-    def shoot():
-        GLib.timeout_add(1200, lambda: (screenshot(win, path, finish), False)[1])
+    if scene == "settings":
+        show_scene_page(win, "lens")
+        win.show_settings().set_content_height(640)
+        return shoot(3000)
+    page_id = {"duplicates": "dupes"}.get(scene, scene)
+    show_scene_page(win, page_id)
+    page = win.pages[page_id]
+
+    if scene == "lens":
+        def measured():
+            dirs = [e for e in page.entries if e["kind"] == "dir" and e["path"] in page.checks]
+            if dirs:
+                page.checks[max(dirs, key=lambda e: e["bytes"])["path"]].set_active(True)
+            shoot()
+
+        return wait(lambda: page.running is None and page.entries, measured, 120, "measure")
+    if scene == "duplicates":
+        def searched():
+            page.select_automatically()
+            shoot()
+
+        page.set_folder(os.path.expanduser("~"))
+        page.search()
+        return wait(lambda: page.running is None and page.stack.get_visible_child_name() != "searching",
+                    searched, 120, "search")
+    if scene == "startup":
+        return wait(lambda: page.running is None and page.units, shoot, 60, "startup list")
 
     if scene == "large":
         def found():
@@ -1182,7 +1209,7 @@ def tool_scene(win, scene, path, wait, finish):
 
 def run_scene(app, win, scene, path, report, wait, finish):
     """Screenshot scenes for docs and app stores (packaging/make-screenshots.sh)."""
-    if scene in ("large", "uninstall"):
+    if scene in ("large", "uninstall", "lens", "duplicates", "startup", "settings"):
         return tool_scene(win, scene, path, wait, finish)
     page_id = {"privacy": "privacy", "ai": "ai", "user": "user"}.get(scene, "smart")
     show_scene_page(win, page_id)
