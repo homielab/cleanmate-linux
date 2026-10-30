@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 11:01+0700\n"
+"POT-Creation-Date: 2026-10-30 04:24+0000\n"
 "PO-Revision-Date: 2026-10-30 16:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -1822,6 +1822,18 @@ msgstr "Thùng rác"
 #. trash description
 msgid "Files you already deleted. Review before emptying!"
 msgstr "Tệp bạn đã xoá. Xem lại trước khi dọn sạch!"
+
+#. trash_drives label
+msgid "Trash on external drives"
+msgstr "Thùng rác trên ổ gắn ngoài"
+
+#. trash_drives description
+msgid ""
+"Files you deleted on USB sticks and other drives stay in that drive's own "
+"Trash and keep using its space. Emptying deletes them for good."
+msgstr ""
+"Tệp bạn đã xoá trên USB và ổ khác nằm trong Thùng rác riêng của ổ đó và vẫn "
+"chiếm dung lượng. Dọn sạch sẽ xoá vĩnh viễn."
 
 #. app_cache label
 #, python-brace-format

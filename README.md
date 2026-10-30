@@ -112,7 +112,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 |---|---|---|
 | **System Junk** | Package and system leftovers | APT cache, unused packages, extra old kernels (a fallback always stays), leftover configs, old Snap revisions, old temp files |
 | **Logs** | Logs nobody reads | systemd journal (keeps 7 days), rotated logs, oversized live logs (e.g. a 300 MB `syslog`), crash reports, core dumps, old app logs |
-| **User & App Junk** | Your caches | Trash, thumbnails, stale caches, and **each browser** and **each app** (VS Code, Slack, Discord, Steam's shader cache, Snap and Flatpak apps) as its own choice |
+| **User & App Junk** | Your caches | Trash, the Trash on USB and other drives (not pre-selected; each drive on its own in the desktop app), thumbnails, stale caches, and **each browser** and **each app** (VS Code, Slack, Discord, Steam's shader cache, Snap and Flatpak apps) as its own choice |
 | **AI Tools** | AI assistant clutter | caches, logs and *old* sessions of Claude Code, Claude Desktop, Codex, Gemini/Antigravity, Cursor, Windsurf, opencode, Cline, Kilo Code, MiMoCode, ZCode, Zed, Copilot CLI, Continue |
 | **AI Models** | Downloaded models | **each** Ollama, Hugging Face and LM Studio model on its own — never pre-selected, never cleaned automatically |
 | **Developer Junk** | Build and package caches | npm, Yarn, pnpm, Bun, pip, uv, Go, Cargo, rustup downloads, Gradle, Maven, Conda; Docker images, build cache, containers and volumes (each separately; in the desktop app single dangling images and build-cache records too); Podman; Playwright, Puppeteer and Cypress browsers (never pre-selected); Firebase CLI logs and downloaded emulators (not pre-selected); `node_modules` of projects idle for 90 days |

@@ -3,8 +3,8 @@
 Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
 Files, Space Lens, Duplicates and Startup Items checks move files to the Trash for real, and the Settings
-check saves settings for real, and the Docker check removes an image through a fake `docker`, but only in a
-throwaway home folder they made, with the engine pointed at it.
+check saves settings for real, the Docker check removes an image through a fake `docker`, and the drive Trash
+check empties a fake drive's Trash, but only in a throwaway folder they made, with the engine pointed at it.
 """
 import os
 import shutil
@@ -810,7 +810,7 @@ def docker_entries_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        maintenance_test(win, report, wait, finish)
+        drive_trash_test(win, report, wait, finish)
 
     def scanned():
         row = page.checks.get("docker_dangling")
@@ -848,6 +848,73 @@ def docker_entries_test(win, report, wait, finish):
     page.scan()
     wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,
          "Developer Junk scan")
+
+
+def drive_trash_test(win, report, wait, finish):
+    """User & App Junk with two fake drives, each with something in your Trash on it: one sub-row per drive,
+    none ticked; ticking one half-ticks the item and Clean empties only that drive's Trash (for real)."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, media = os.path.join(sandbox, "home"), os.path.join(sandbox, "media")
+    trash = {name: os.path.join(media, name, f".Trash-{os.geteuid()}") for name in ("Backup", "USB")}
+    files = {name: os.path.join(t, "files", "old.bin") for name, t in trash.items()}
+    os.makedirs(home)
+    for name, size in (("Backup", 1000), ("USB", 2000)):
+        os.makedirs(os.path.dirname(files[name]), mode=0o700)
+        os.chmod(trash[name], 0o700)
+        with open(files[name], "wb") as f:
+            f.write(b"\0" * size)
+    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+           "CLEANMATE_VOLUME_ROOTS": media}  # every folder in it counts as a mounted drive
+    usb = os.path.join(media, "USB")
+
+    win.show_page("user")
+    page = win.pages["user"]
+    real_engine = page.engine
+    page.engine = Engine(real_engine.path, dry_run=False, env=env)
+
+    def done():
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        maintenance_test(win, report, wait, finish)
+
+    def scanned():
+        box = page.checks.get("trash_drives")
+        row = box and box.get_ancestor(Adw.ExpanderRow)
+        if not row:
+            report(False, "Trash on external drives has no sub-rows")
+            return done()
+        report(not box.get_active(), "Trash on external drives is not ticked by default")
+        row.set_expanded(True)
+        wait(lambda: "trash_drives" in page.entries, listed, 30, "drive entries")
+
+    def listed():
+        boxes = page.entry_checks.get("trash_drives", {})
+        report(sorted(boxes) == [os.path.join(media, "Backup"), usb] and not any(b.get_active() for b in boxes.values()),
+               "one sub-row per drive, none ticked")
+        if usb not in boxes:
+            return done()
+        boxes[usb].set_active(True)
+        box = page.checks["trash_drives"]
+        report(box.get_active() and box.get_inconsistent() and page.chosen_bytes("trash_drives") == 2000
+               and page.size_labels["trash_drives"].get_text().count("/") == 1,
+               "ticking one drive: the item box is half-ticked and the size shows selected / total")
+        if os.geteuid() == 0:
+            report(True, "real clean skipped: as root the engine refuses home items")
+            return done()
+        page.clean(["trash_drives"])
+        wait(lambda: page.clean_title.get_text().startswith(lead(_("Freed {size}"))), cleaned, 60, "drive Trash clean")
+
+    def cleaned():
+        report(not os.path.exists(files["USB"]) and os.path.exists(files["Backup"])
+               and os.path.isdir(os.path.join(trash["USB"], "files")),
+               "Clean empties only the ticked drive's Trash and keeps the folder")
+        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", done, 60,
+             "scan after cleaning")
+
+    page.scan()
+    wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,
+         "User & App Junk scan")
 
 
 MAINT_STUBS = {  # tools of Update everything and Rebuild font cache; each logs what it was asked to do

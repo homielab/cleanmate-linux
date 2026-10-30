@@ -42,7 +42,8 @@ cm() { # run the app non-interactively inside the fake home
     CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} \
     ${CLEANMATE_APP_DIRS:+CLEANMATE_APP_DIRS=$CLEANMATE_APP_DIRS} \
     ${CLEANMATE_SYSTEM_AUTOSTART:+CLEANMATE_SYSTEM_AUTOSTART=$CLEANMATE_SYSTEM_AUTOSTART} \
-    ${CLEANMATE_VOLUME_ROOTS:+CLEANMATE_VOLUME_ROOTS=$CLEANMATE_VOLUME_ROOTS} bash "$SCRIPT" "$@"
+    ${CLEANMATE_VOLUME_ROOTS:+CLEANMATE_VOLUME_ROOTS=$CLEANMATE_VOLUME_ROOTS} \
+    ${CLEANMATE_MOUNTS:+CLEANMATE_MOUNTS=$CLEANMATE_MOUNTS} bash "$SCRIPT" "$@"
 }
 
 # As root, `--json clean` refuses home items (the desktop app elevates only for
@@ -828,6 +829,75 @@ print(*[e["path"].rsplit("/", 1)[1] for e in map(json.loads, sys.stdin) if e["ev
   assert_eq "$out" $'fail\nfail\nfail\ndone' "forged keys are refused"
   assert_exists "$WORK/.Trash-$uid/files/x"; assert_exists "$usb/.Trash-$uid/files/evil"; assert_missing "$vol/escaped"
   chmod 755 "$vol/RO" # so the clean-up can remove it
+}
+
+sized() { mkdir -p "$(dirname "$1")"; head -c "$2" /dev/zero >"$1"; } # FILE BYTES
+
+test_trash_on_external_drives() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out uid=$EUID vol usb disk hold=() pid t
+  ((EUID == 0)) && uid=65534 hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  vol=$(mktemp -d -p "$WORK" media.XXXX) # every folder in it counts as a mounted drive
+  usb=$vol/USB disk="$vol/My Disk" t=$vol/USB/.Trash-$uid
+  sized "$t/files/a.bin" 1000; sized "$t/files/b.bin" 2000; sized "$t/files/open.log" 100
+  mkdir -p "$t/info"
+  local f
+  for f in a.bin b.bin open.log gone; do printf '[Trash Info]\nPath=%s\n' "$f" >"$t/info/$f.trashinfo"; done
+  sized "$usb/.Trash-4242/files/other.bin" 7000 # another user's Trash
+  mkdir -p "$disk/.Trash" && chmod 1777 "$disk/.Trash" # an admin's shared Trash (sticky)
+  sized "$disk/.Trash/$uid/files/c.bin" 500
+  sized "$WORK/elsewhere-drive/files/y.bin" 900; ln -s "$WORK/elsewhere-drive" "$vol/LINK" # a drive that is a symlink
+  mkdir -p "$vol/LINKED"; ln -s "$WORK/elsewhere-drive" "$vol/LINKED/.Trash-$uid"  # a Trash that is a symlink
+  sized "$vol/NAS/.Trash-$uid/files/n.bin" 800; sized "$vol/RO/.Trash-$uid/files/r.bin" 600
+  printf 'server:/export %s/NAS nfs4 rw,relatime 0 0\n/dev/sdz1 %s/RO vfat ro,nosuid 0 0\n/dev/sdy1 %s/My\\040Disk ext4 rw,nosuid 0 0\n' \
+    "$vol" "$vol" "$vol" >"$WORK/mounts"
+  if ((EUID == 0)); then
+    chown -R 65534:65534 "$vol" "$WORK/elsewhere-drive"; chown -R 4242:4242 "$usb/.Trash-4242"; chown 0:0 "$disk/.Trash"
+  fi
+  local CLEANMATE_VOLUME_ROOTS=$vol CLEANMATE_MOUNTS=$WORK/mounts
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])'
+  out=$(user_cm --json scan --only user | grep '"id":"trash_drives"' | python3 -c "$list")
+  assert_eq "$out" "trash_drives 3600 4 items on 2 drives False True False" \
+    "counts your Trash on writable local drives only, not ticked"
+  out=$(user_cm --json details trash_drives | python3 -c "$list")
+  assert_eq "$out" "$vol/My%20Disk 500 off My Disk · 1 item"$'\n'"$vol/USB 3100 off USB · 3 items" "one entry per drive"
+  out=$(user_cm --json --dry-run clean trash_drives | python3 -c "$list")
+  assert_contains "$out" "ok 3600"
+  assert_exists "$t/files/a.bin"; assert_exists "$disk/.Trash/$uid/files/c.bin"
+  # one drive
+  out=$(user_cm --json clean trash_drives --entries "$vol/My%20Disk" | python3 -c "$list")
+  assert_eq "$out" "ok 500 500 B freed" "only the chosen drive"
+  assert_missing "$disk/.Trash/$uid/files/c.bin"; assert_exists "$disk/.Trash/$uid/files"; assert_exists "$t/files/a.bin"
+  out=$(user_cm --json clean trash_drives --entries "$vol/NAS" | python3 -c "$list")
+  assert_contains "$out" "None of the chosen entries is there any more"
+  out=$(user_cm --json clean trash_drives --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of trash_drives: ../etc"
+  # everything, while a program keeps a file in the Trash open
+  "${hold[@]}" sleep 60 <"$t/files/open.log" >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json clean trash_drives | python3 -c "$list")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" "ok 3000 2.9 KB freed" "empties the drive's Trash, an open file stays"
+  assert_missing "$t/files/a.bin"; assert_missing "$t/files/b.bin"
+  assert_missing "$t/info/a.bin.trashinfo"; assert_missing "$t/info/gone.trashinfo"
+  assert_exists "$t/files/open.log"; assert_exists "$t/info/open.log.trashinfo"
+  assert_exists "$t/info"
+  assert_exists "$usb/.Trash-4242/files/other.bin"; assert_exists "$WORK/elsewhere-drive/files/y.bin"
+  assert_exists "$vol/NAS/.Trash-$uid/files/n.bin"; assert_exists "$vol/RO/.Trash-$uid/files/r.bin"
+  # automatic cleaning never empties it, even when you ticked it
+  select_only trash_drives
+  sized "$t/files/again.bin" 10
+  ((EUID == 0)) && chown -R 65534:65534 "$t"
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$t/files/again.bin"
 }
 
 lens_entries() { # reads `--json lens` → "kind count movable name" lines (sizes checked apart), then "done …"
