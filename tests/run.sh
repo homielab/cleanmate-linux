@@ -1064,6 +1064,82 @@ $(in_app "urlencode_path '$pods'") $b_pods off ~/code/app/ios — Pods/ · 100 d
   assert_exists "$HOME_DIR/work/repo/sub/target"; assert_exists "$WORK/elsewhere/x"
 }
 
+test_editor_data_of_deleted_projects() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local u=$HOME_DIR/.config/Code/User/workspaceStorage out gone bin=$WORK/edbin p
+  export CLEANMATE_VOLUME_ROOTS=$WORK/nodrive # a drive that isn't plugged in: its projects are kept
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"].rsplit("/", 1)[1], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["bytes"], e["note"], e["selected"], e["entries"], repr(e["locked"]))
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])'
+  mkdir -p "$HOME_DIR/code/alive" "$HOME_DIR/code/with space"
+  rmdir "$HOME_DIR/code/with space"
+  ws() { # STORAGE-ROOT HASH JSON BYTES
+    mkdir -p "$1/$2"; printf '%s\n' "$3" >"$1/$2/workspace.json"; sized "$1/$2/state.vscdb" "$4"
+  }
+  ws "$u" gone1 "{\"folder\": \"file://$HOME_DIR/code/old%20project\"}" 5000
+  ws "$u" gone2 "{\"workspace\":\"file://$HOME_DIR/code/team.code-workspace\"}" 3000
+  ws "$u" alive "{\"folder\":\"file://$HOME_DIR/code/alive\"}" 2000
+  ws "$u" remote '{"folder":"vscode-remote://ssh-remote%2Bbox/home/me/x"}' 2000
+  ws "$u" relative '{"folder":"file://relative/path"}' 2000
+  ws "$u" openfile "{\"folder\":\"file://$HOME_DIR/code/open\"}" 2000
+  ws "$u" nodrive "{\"folder\":\"file://$WORK/nodrive/usb/proj\"}" 2000
+  mkdir -p "$u/nojson"; sized "$u/nojson/state.vscdb" 2000
+  ws "$u" corrupt '{"folder":' 2000
+  ws "$HOME_DIR/.config/Cursor/User/workspaceStorage" cur1 "{\"folder\":\"file://$HOME_DIR/code/cursor-app\"}" 4000
+  ws "$HOME_DIR/.var/app/com.visualstudio.code/config/Code/User/workspaceStorage" fp1 "{\"folder\":\"file://$HOME_DIR/code/flat\"}" 1000
+  mkdir -p "$HOME_DIR/.config/Code/User/globalStorage"; sized "$HOME_DIR/.config/Code/User/globalStorage/x" 1000
+  gone=$(in_app "urlencode_path '$u/gone1'")
+  local b1 b2 bc bf
+  b1=$(du -sb "$u/gone1" | cut -f1) b2=$(du -sb "$u/gone2" | cut -f1)
+  bc=$(du -sb "$HOME_DIR/.config/Cursor/User/workspaceStorage/cur1" | cut -f1)
+  bf=$(du -sb "$HOME_DIR/.var/app/com.visualstudio.code/config/Code/User/workspaceStorage/fp1" | cut -f1)
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  local hold=(); ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups)
+  "${hold[@]}" sleep 60 <"$u/openfile/state.vscdb" >/dev/null 2>&1 &
+  local pid=$!
+  sleep 0.3
+  out=$(user_cm --json details vscode_stale_workspaces | python3 -c "$list")
+  assert_contains "$out" "gone1 $b1 off old project · Code · 0 days"
+  assert_contains "$out" "gone2 $b2 off team · Code · 0 days"
+  assert_contains "$out" "cur1 $bc off cursor-app · Cursor · 0 days"
+  assert_contains "$out" "fp1 $bf off flat · Code · 0 days"
+  assert_eq "$(grep -c '^[a-z0-9]* [0-9]* o' <<<"$out")" 4 "only the folders of deleted projects"
+  out=$(user_cm --json clean vscode_stale_workspaces --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of vscode_stale_workspaces: ../etc"
+  # locked while an editor runs
+  running_stub "$bin" cursor
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json scan --only ai | grep '"id":"vscode_stale_workspaces"' | python3 -c "$list")
+  assert_contains "$out" "False True 'cursor'"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean vscode_stale_workspaces --entries "$gone" | python3 -c "$list")
+  assert_contains "$out" "skip"
+  assert_exists "$u/gone1"
+  # automatic cleaning leaves them alone even when ticked
+  select_only vscode_stale_workspaces
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$u/gone1"
+  out=$(user_cm --json clean vscode_stale_workspaces --entries "$gone" | python3 -c "$list")
+  assert_contains "$out" "ok $b1"
+  assert_missing "$u/gone1"; assert_exists "$u/gone2"; assert_exists "$u/alive"
+  assert_exists "$HOME_DIR/.local/share/Trash/files/gone1/state.vscdb"
+  out=$(user_cm --json restore gone1 | python3 -c "$list")
+  assert_eq "$out" "ok 0 put back" "restore puts it back"
+  assert_exists "$u/gone1/workspace.json"
+  out=$(user_cm --json clean vscode_stale_workspaces | python3 -c "$list")
+  assert_contains "$out" "ok"
+  for p in gone1 gone2; do assert_missing "$u/$p"; done
+  assert_missing "$HOME_DIR/.config/Cursor/User/workspaceStorage/cur1"
+  assert_missing "$HOME_DIR/.var/app/com.visualstudio.code/config/Code/User/workspaceStorage/fp1"
+  for p in alive remote relative openfile nodrive nojson corrupt; do assert_exists "$u/$p"; done
+  assert_exists "$HOME_DIR/.config/Code/User/globalStorage/x"
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  unset CLEANMATE_VOLUME_ROOTS
+}
+
 lens_entries() { # reads `--json lens` → "kind count movable name" lines (sizes checked apart), then "done …"
   python3 -c 'import sys, json
 for l in sys.stdin:

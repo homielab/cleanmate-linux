@@ -6,6 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **AI Tools**: data VS Code, VS Code Insiders, VSCodium, Cursor and Windsurf keep for projects you deleted (`workspaceStorage`, also the Snap and Flatpak builds). Each project is listed on its own, not pre-selected, moved to the Trash, and skipped while the editor runs.
+
 ### Changed
 
 - **AI Models**: LM Studio models in the folder you chose in LM Studio's My Models are listed too, and LM Studio models stay locked while its headless daemon (`llmster`) or the `lms` CLI runs.

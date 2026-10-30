@@ -156,6 +156,17 @@ msgstr ""
 msgid "node_modules of projects untouched for {0}+ days. Restore with npm/yarn/pnpm install."
 msgstr ""
 
+#. vscode_stale_workspaces label
+msgid "VS Code & forks — data of deleted projects"
+msgstr ""
+
+#. vscode_stale_workspaces description
+msgid ""
+"Per-project storage (extension state, search index) of VS Code, Cursor, "
+"Windsurf and VSCodium for projects that no longer exist. Each is moved to "
+"the Trash; close the editor first."
+msgstr ""
+
 #. stale_build_dirs label
 msgid "Stale project build folders"
 msgstr ""

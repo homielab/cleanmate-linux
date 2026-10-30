@@ -2182,6 +2182,20 @@ msgstr ""
 "node_modules của dự án không đụng tới từ {0} ngày trở lên. Khôi phục bằng "
 "npm/yarn/pnpm install."
 
+#. vscode_stale_workspaces label
+msgid "VS Code & forks — data of deleted projects"
+msgstr "VS Code & bản phái sinh — dữ liệu của dự án đã xoá"
+
+#. vscode_stale_workspaces description
+msgid ""
+"Per-project storage (extension state, search index) of VS Code, Cursor, "
+"Windsurf and VSCodium for projects that no longer exist. Each is moved to "
+"the Trash; close the editor first."
+msgstr ""
+"Dữ liệu theo dự án (trạng thái extension, chỉ mục tìm kiếm) của VS Code, "
+"Cursor, Windsurf và VSCodium cho các dự án không còn tồn tại. Mỗi mục chuyển "
+"vào Thùng rác; hãy đóng trình soạn thảo trước."
+
 #. stale_build_dirs label
 msgid "Stale project build folders"
 msgstr "Thư mục build cũ của dự án"

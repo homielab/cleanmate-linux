@@ -2027,7 +2027,135 @@ reg_list_item ai_misc_history "Copilot & Continue — sessions" 0 session \
   "Copilot CLI and Continue sessions older than 30 days." \
   ai_misc_history "$HOME/.copilot
 $HOME/.continue"
+reg vscode_stale_workspaces ai "VS Code & forks — data of deleted projects" 0 "Per-project storage (extension state, search index) of VS Code, Cursor, Windsurf and VSCodium for projects that no longer exist. Each is moved to the Trash; close the editor first."
 unset _c _d
+
+# Editor data of projects that no longer exist. VS Code and its forks keep a folder per workspace in
+# User/workspaceStorage (extension state, search index); it stays after the project is deleted.
+# Orphan = workspace.json names a file:// folder or .code-workspace file that is gone (its nearest
+# existing parent must be readable; drives that aren't mounted, remote and unreadable ones are kept).
+# Each folder is its own entry, moved to the Trash (z puts it back), skipped while the editor runs
+# or has a file in it open. globalStorage and History are never touched. Not ticked.
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_vscode_stale_workspaces='^/[A-Za-z0-9/._~%-]+$' # the folder's full path, percent-encoded (urlencode_path)
+
+editor_workspace_roots() { # → lines "editor<TAB>…/User/workspaceStorage"
+  local e
+  for e in "Code" "Code - Insiders" "VSCodium" "Cursor" "Windsurf"; do
+    printf '%s\t%s\n' "$e" "${XDG_CONFIG_HOME:-$HOME/.config}/$e/User/workspaceStorage"
+  done
+  printf '%s\t%s\n' "Code" "$HOME/snap/code/common/.config/Code/User/workspaceStorage" \
+    "VSCodium" "$HOME/snap/codium/common/.config/VSCodium/User/workspaceStorage" \
+    "Code" "$HOME/.var/app/com.visualstudio.code/config/Code/User/workspaceStorage" \
+    "VSCodium" "$HOME/.var/app/com.vscodium.codium/config/VSCodium/User/workspaceStorage"
+}
+
+workspace_target() { # DIR → WT_PATH: the local path DIR/workspace.json points to; fails for anything else
+  local f=$1/workspace.json json v
+  WT_PATH=""
+  [[ -f $f && ! -L $f ]] || return 1
+  [[ $(stat -c %s -- "$f" 2>/dev/null) -le 65536 ]] || return 1
+  json=$(<"$f") || return 1
+  [[ $json =~ \"(folder|workspace)\"[[:space:]]*:[[:space:]]*\"(file:///[^\"]*)\" ]] || return 1
+  v=${BASH_REMATCH[2]#file://}
+  [[ $v != *\\* ]] || return 1
+  urldecode_path v "$v"
+  [[ $v == /* && $v != *[[:cntrl:]]* && $v != */../* && $v != */.. && $v != */./* ]] || return 1
+  WT_PATH=${v%/}
+  [[ -n $WT_PATH ]]
+}
+
+path_gone() { # PATH → true only when PATH is certainly missing: the nearest existing parent can be searched
+  local p=$1 v
+  [[ -e $p || -L $p ]] && return 1
+  for v in "${VOLUME_ROOTS[@]}"; do # a drive that isn't plugged in
+    [[ $p == "$v"/* ]] || continue
+    v=${p#"$v"/}
+    [[ -d ${p%"$v"}${v%%/*} ]] || return 1
+    break
+  done
+  while [[ $p != / && ! -e $p && ! -L $p ]]; do p=${p%/*}; [[ -n $p ]] || p=/; done
+  [[ -d $p && -x $p ]]
+}
+
+stale_workspaces() { # → EW_DIR (storage folder) / EW_BYTES / EW_LABEL, biggest first
+  local editor root d name b m now open lines=()
+  EW_DIR=() EW_BYTES=() EW_LABEL=()
+  open=$'\n'$(open_files)$'\n'
+  exclusion_prune
+  printf -v now '%(%s)T' -1
+  while IFS=$'\t' read -r editor root; do
+    [[ -d $root && ! -L $root ]] || continue
+    for d in "$root"/*/; do
+      d=${d%/}
+      [[ -d $d && ! -L $d ]] || continue
+      touches_exclusion "$d" && continue
+      workspace_target "$d" || continue
+      path_gone "$WT_PATH" || continue
+      open_under "$open" "$d" && continue
+      name=${WT_PATH##*/}; name=${name%.code-workspace}
+      b=$(du -sbx -- "$d" 2>/dev/null | cut -f1)
+      m=$(stat -c %Y -- "$d/state.vscdb" "$d" 2>/dev/null | head -n1)
+      lines+=("${b:-0}"$'\t'"$d"$'\t'"$name · $editor · $(((now - ${m:-$now}) / 86400)) days")
+    done
+  done < <(editor_workspace_roots)
+  ((${#lines[@]})) || return 0
+  while IFS=$'\t' read -r b d name; do
+    EW_BYTES+=("$b") EW_DIR+=("$d") EW_LABEL+=("$name")
+  done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
+}
+
+lockedby_vscode_stale_workspaces() { running_proc -x 'code|code-insiders|codium|vscodium|cursor|windsurf'; }
+precheck_vscode_stale_workspaces() { # an editor is running: skip when unattended, otherwise ask
+  lockedby_vscode_stale_workspaces >/dev/null || return 0
+  if ((ASSUME_YES)); then warn "Skipping ${ITEM_LABEL[vscode_stale_workspaces]}: an editor is running."; return 1; fi
+  ui_confirm "An editor is running" "Close VS Code, Cursor and the others first. Clean anyway?" n
+}
+
+trash_workspaces() { # INDEX… of EW_DIR — move them to the Trash; @@undo lines let the terminal app undo it
+  local i d rc=0
+  UNDO_BATCH=()
+  for i; do move_to_trash "${EW_DIR[i]}" || rc=1; done
+  for d in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$d"; done
+  return "$rc"
+}
+
+scan_vscode_stale_workspaces() {
+  local b
+  stale_workspaces
+  ((${#EW_DIR[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${EW_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#EW_DIR[@]} project) that no longer exist"
+}
+clean_vscode_stale_workspaces() {
+  stale_workspaces
+  ((${#EW_DIR[@]})) || return 0
+  trash_workspaces "${!EW_DIR[@]}"
+}
+details_vscode_stale_workspaces() {
+  local i
+  stale_workspaces
+  for i in "${!EW_DIR[@]}"; do
+    printf '  %s%10s%s  %s\n' "$(size_color "${EW_BYTES[i]}")" "$(human "${EW_BYTES[i]}")" "$NC" "${EW_LABEL[i]}"
+  done
+}
+entries_vscode_stale_workspaces() {
+  local i
+  stale_workspaces
+  for i in "${!EW_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${EW_DIR[i]}")" "${EW_BYTES[i]}" "${EW_LABEL[i]}"
+  done
+}
+clean_entries_vscode_stale_workspaces() { # encoded folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  stale_workspaces
+  for id; do
+    for i in "${!EW_DIR[@]}"; do [[ $(urlencode_path "${EW_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  trash_workspaces "${pick[@]}"
+}
 
 # Files under ~/.cache untouched for 30+ days, excluding caches handled elsewhere.
 app_cache_find() {
