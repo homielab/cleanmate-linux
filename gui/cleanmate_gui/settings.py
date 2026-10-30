@@ -1,12 +1,17 @@
-"""Settings: automatic cleaning, updates and how long things are kept.
+"""Settings: language, automatic cleaning, updates and how long things are kept.
 
 These are the terminal app's settings. The engine reads them (`--json settings`) and changes them
 (`--json settings-set KEY VALUE`) in the same file and systemd user timer, with the same ranges;
 this page only shows them. A change is saved at once (numbers a moment after you stop typing).
+The language is the desktop app's own (the terminal app stays English); it shows after a restart.
 """
 from gi.repository import Adw, GLib, Gtk
 
+from . import i18n
 from .i18n import _, ngettext
+
+# each language by its own name, so you can find yours whatever the app is in now
+LANGUAGE_TITLES = {"system": _("Same as system"), "en": "English", "vi": "Tiếng Việt"}
 
 SCHEDULES = ["off", "daily", "weekly", "monthly"]
 SCHEDULE_TITLES = {"off": _("Off"), "daily": _("Daily"), "weekly": _("Weekly"), "monthly": _("Monthly")}
@@ -101,6 +106,18 @@ class SettingsPage(Adw.PreferencesPage):
             self.add(self.status)
             return
 
+        general = self.group(_("General"))
+        language = Adw.ComboRow(title=_("Language"),
+                                model=Gtk.StringList.new([LANGUAGE_TITLES[c] for c in i18n.LANGUAGES]))
+        restart = Gtk.Button(label=_("Restart"), valign=Gtk.Align.CENTER, visible=False)
+        restart.add_css_class("suggested-action")
+        restart.connect("clicked", lambda *_a: self.restart())
+        language.add_suffix(restart)
+        language.restart_button = restart
+        language.connect("notify::selected", self.on_language)
+        self.rows["language"] = language
+        general.add(language)
+
         general = self.group(_("Automatic cleaning"))
         combo = Adw.ComboRow(title=_("Automatic cleaning"),
                              subtitle=_("Runs a Smart Clean of user and developer junk and tells you what it freed"),
@@ -166,6 +183,13 @@ class SettingsPage(Adw.PreferencesPage):
         self.syncing = True
         if key == "schedule":
             row.set_selected(SCHEDULES.index(s["value"]) if s["value"] in SCHEDULES else 0)
+        elif key == "language":
+            value = s["value"] if s["value"] in i18n.LANGUAGES else "system"
+            row.set_selected(i18n.LANGUAGES.index(value))
+            pending = value != i18n.AT_LAUNCH  # saved, not shown yet
+            row.restart_button.set_visible(pending)
+            row.set_subtitle(_("Restart CleanMate to use the new language. The system's language does not change.")
+                             if pending else "")
         elif key == "update_check":
             row.set_active(bool(s["value"]))
         elif key == "selections":
@@ -180,6 +204,23 @@ class SettingsPage(Adw.PreferencesPage):
     def on_schedule(self, row, _pspec):
         if not self.syncing:
             self.change("schedule", SCHEDULES[row.get_selected()])
+
+    def on_language(self, row, _pspec):
+        if not self.syncing:
+            self.change("language", i18n.LANGUAGES[row.get_selected()])
+
+    def restart(self):
+        """Open CleanMate again in the saved language, once every change is saved."""
+        self.flush()
+        self.rows["language"].restart_button.set_sensitive(False)
+
+        def when_saved():
+            if self.busy():
+                return True
+            self.window.get_application().restart()
+            return False
+
+        GLib.timeout_add(100, when_saved)
 
     def on_switch(self, row, _pspec, key):
         if not self.syncing:

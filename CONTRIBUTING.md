@@ -121,6 +121,9 @@ stay in English.
   ```
 - New language: `msginit -i po/cleanmate.pot -l <lang> -o po/<lang>.po`, translate, done — packaging
   compiles every `po/*.po`.
+- The app follows the system's language unless Settings › Language saved `language=en|vi` in
+  `~/.config/cleanmate/settings` (`chosen_language` in `i18n.py`); a new language also goes in
+  `LANGUAGES` there, `LANGUAGE_TITLES` in `settings.py` and `SETTING_CHOICES` in `cleanmate.sh`.
 - Check: `msgfmt --check po/vi.po`, then `po/compile.sh gui/locale` and
   `LANG=vi_VN.UTF-8 bash cleanmate.sh --gui --dry-run`. `tests/run.sh gui_selftest` runs the self-test
   in English and Vietnamese; `tests/run.sh -v gui_selftest` lists item texts without a translation

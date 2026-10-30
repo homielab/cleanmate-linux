@@ -1263,7 +1263,8 @@ test_json_settings() {
     out=$(cm --json settings 2>&1); assert_contains "$out" "run this as yourself, not as root"
   fi
   out=$(user_cm --json settings | settings_list)
-  assert_eq "$out" "schedule off
+  assert_eq "$out" "language system
+schedule off
 update_check 1 0-1/1
 low_disk_pct 10 0-50/10
 journal_days 14 1-365/7
@@ -1286,8 +1287,21 @@ done true false" "every setting with its range and default; bad values fall back
   in_app 'load_settings; save_setting journal_mb 250'
   assert_contains "$(user_cm --json settings | settings_list)" "journal_mb 250 16-10000/100"
   assert_contains "$(cat "$f")" "journal_days=30"
+  # the desktop app's language: kept when either app saves a number, a wrong value reads as "system"
+  out=$(user_cm --json settings-set language vi | settings_list)
+  assert_eq "$out" $'ok language set to vi\nlanguage vi\ndone  ' "set the language"
+  user_cm --json settings-set journal_days 30 >/dev/null
+  in_app 'load_settings; save_setting journal_mb 250'
+  assert_contains "$(cat "$f")" "language=vi"
+  assert_contains "$(user_cm --json settings | settings_list)" "language vi"
+  sed -i 's/^language=.*/language=fr/' "$f"
+  assert_contains "$(user_cm --json settings | settings_list)" "language system"
   # wrong values are refused and change nothing
   cp "$f" "$WORK/settings.before"
+  out=$(user_cm --json settings-set language xx 2>&1); assert_contains "$out" "language must be one of: system en vi"
+  user_cm --json settings-set language xx >/dev/null; assert_eq "$?" 2 "exit status of a refused language"
+  out=$(user_cm --json --dry-run settings-set language en | settings_list)
+  assert_eq "$out" $'ok language would be set to en\nlanguage system\ndone  ' "dry run of a language"
   out=$(user_cm --json settings-set journal_days 0 2>&1); assert_contains "$out" "journal_days must be a number from 1 to 365"
   out=$(user_cm --json settings-set journal_days 12abc 2>&1); assert_contains "$out" "must be a number"
   out=$(user_cm --json settings-set update_check 2 2>&1); assert_contains "$out" "update_check must be a number from 0 to 1"
@@ -1463,6 +1477,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the app's folder back"
     ((EUID == 0)) || assert_contains "$out" "a changed number and switch are saved for the terminal app"
     ((EUID == 0)) || assert_contains "$out" "turning automatic cleaning on enables the weekly timer"
+    ((EUID == 0)) || assert_contains "$out" "picking Tiếng Việt saves it and offers a restart"
+    ((EUID == 0)) || assert_contains "$out" "Restart starts CleanMate again with the same arguments, then quits"
+    ((EUID == 0)) || assert_contains "$out" "back to the language in use: no restart needed"
     assert_contains "$out" "unticking one: the item box is half-ticked and the size shows selected / total"
     ((EUID == 0)) || assert_contains "$out" "Clean removes only the ticked image"
     assert_contains "$out" "a missing tool locks the row with why"
@@ -2016,6 +2033,29 @@ $(date -d "$(date +%F)" +%s) 5000000000 100000000000" "history points: epoch of 
   assert_contains "$out" $'\t2048'
   out=$(cm --json overview | python3 -c "$ev" | grep freed)
   assert_eq "$out" "freed 3048 2 8048 3 2048 True" "a cleanup is added to the history"
+}
+
+test_gui_language_setting() {
+  command -v msgfmt >/dev/null && command -v python3 >/dev/null || { SKIPPED="needs gettext and python3"; return; }
+  fresh_home
+  bash "$ROOT/po/compile.sh" "$WORK/locale" >/dev/null || { fail "po/compile.sh failed"; return; }
+  local f=$HOME_DIR/.config/cleanmate/settings
+  mkdir -p "${f%/*}"
+  gui_text() { # LANG LANGUAGE — "Settings" as the desktop app shows it, and the language it read
+    env -i HOME="$HOME_DIR" LANG="$1" ${2:+LANGUAGE=$2} CLEANMATE_LOCALEDIR="$WORK/locale" PYTHONPATH="$ROOT/gui" \
+      python3 -c 'from cleanmate_gui import i18n; print(i18n._("Settings"), i18n.AT_LAUNCH)'
+  }
+  printf 'journal_days=14\n' >"$f"
+  assert_eq "$(gui_text C.UTF-8)" "Settings system" "no language saved, English system"
+  assert_eq "$(gui_text vi_VN.UTF-8)" "Cài đặt system" "no language saved, Vietnamese system"
+  printf 'journal_days=14\nlanguage=vi\n' >"$f"
+  assert_eq "$(gui_text C.UTF-8)" "Cài đặt vi" "Tiếng Việt on an English system"
+  printf 'language=en\n' >"$f"
+  assert_eq "$(gui_text vi_VN.UTF-8 vi)" "Settings en" "English on a Vietnamese system"
+  printf 'language=system\n' >"$f"
+  assert_eq "$(gui_text vi_VN.UTF-8)" "Cài đặt system" "same as system"
+  printf 'language=fr\n' >"$f"
+  assert_eq "$(gui_text C.UTF-8)" "Settings system" "a value it doesn't know: same as system"
 }
 
 test_extract_items_for_translation() {

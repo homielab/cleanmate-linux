@@ -1026,6 +1026,28 @@ msgstr ""
 msgid "Freed {size}"
 msgstr ""
 
+#: gui/cleanmate_gui/settings.py:14
+msgid "Same as system"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:109
+msgid "General"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:110
+msgid "Language"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:112
+msgid "Restart"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:191
+msgid ""
+"Restart CleanMate to use the new language. The system's language does not "
+"change."
+msgstr ""
+
 #: gui/cleanmate_gui/settings.py:12
 msgid "Off"
 msgstr ""

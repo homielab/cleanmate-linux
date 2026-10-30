@@ -7,7 +7,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from .engine import Engine  # noqa: E402
 from .i18n import _  # noqa: E402
@@ -45,6 +45,19 @@ class App(Adw.Application):
         quit_action.connect("activate", lambda *_: self.quit())
         self.add_action(quit_action)
         self.set_accels_for_action("app.quit", ["<Control>q"])
+
+    @staticmethod
+    def relaunch_argv():
+        """The command that started this app (`cm --gui` runs `python3 …/cleanmate-gui --engine …`)."""
+        return [sys.executable or "/usr/bin/python3", os.path.abspath(sys.argv[0]), *sys.argv[1:]]
+
+    def spawn(self, argv):
+        GLib.spawn_async(argv)
+
+    def restart(self):
+        """Start a new CleanMate with the same arguments and quit this one (a new language shows)."""
+        self.spawn(self.relaunch_argv())
+        self.quit()
 
     def do_activate(self):
         from .window import Window

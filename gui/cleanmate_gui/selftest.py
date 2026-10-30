@@ -9,6 +9,7 @@ throwaway folder they made, with the engine pointed at it.
 """
 import os
 import shutil
+import sys
 import tempfile
 import time
 
@@ -696,7 +697,8 @@ def uninstaller_test(win, report, wait, finish):
 
 def settings_test(win, report, wait, finish):
     """Settings of a throwaway home with a fake `systemctl --user`: show the saved values, change a
-    number, turn automatic cleaning on (the timer is enabled) and forget remembered selections."""
+    number, turn automatic cleaning on (the timer is enabled), pick a language (Restart starts the app
+    again, here through a stub) and forget remembered selections."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
@@ -743,7 +745,9 @@ def settings_test(win, report, wait, finish):
             return done()
         row = page.rows.get("journal_days")
         report(row is not None and row.get_value() == 14 and page.rows["journal_mb"].get_value() == 100
-               and page.rows["schedule"].get_selected() == 0, "settings show the saved values and defaults")
+               and page.rows["schedule"].get_selected() == 0 and page.rows["language"].get_selected() == 0
+               and not page.rows["language"].restart_button.get_visible(),
+               "settings show the saved values and defaults")
         row.set_value(30)
         wait(idle, dry_changed, 30, "dry-run change")
 
@@ -765,6 +769,31 @@ def settings_test(win, report, wait, finish):
         text = open(timer).read() if os.path.exists(timer) else ""
         report("OnCalendar=weekly" in text and os.path.exists(os.path.join(home, "enabled", "cleanmate.timer")),
                "turning automatic cleaning on enables the weekly timer")
+        page.rows["language"].set_selected(2)
+        wait(idle, language_set, 30, "language")
+
+    app = win.get_application()
+    started, quits = [], []
+
+    def language_set():
+        row = page.rows["language"]
+        report("language=vi" in saved() and row.restart_button.get_visible() and row.get_subtitle(),
+               "picking Tiếng Việt saves it and offers a restart")
+        app.spawn, app.quit = started.append, lambda: quits.append(1)  # the real ones would end the self-test
+        row.restart_button.emit("clicked")
+        wait(lambda: quits, restarted, 10, "restart")
+
+    def restarted():
+        del app.spawn, app.quit
+        argv = started[0] if started else []
+        report(len(started) == 1 and argv[1:2] == [os.path.abspath(sys.argv[0])] and argv[2:] == sys.argv[1:],
+               "Restart starts CleanMate again with the same arguments, then quits")
+        page.rows["language"].set_selected(0)
+        wait(idle, language_back, 30, "language back")
+
+    def language_back():
+        report("language=system" in saved() and not page.rows["language"].restart_button.get_visible(),
+               "back to the language in use: no restart needed")
         page.change("selections", "reset")  # the confirmation itself needs a click
         wait(idle, reset, 30, "reset selections")
 

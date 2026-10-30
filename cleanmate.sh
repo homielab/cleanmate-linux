@@ -4950,12 +4950,23 @@ declare -A SETTING_RANGE=(
   [node_modules_days]="7 3650 90" [installer_days]="7 3650 30" [ai_history_days]="1 3650 30")
 SETTING_KEYS=(update_check low_disk_pct journal_days journal_mb log_max_mb app_log_days tmp_days cache_days
   node_modules_days installer_days ai_history_days) # the order of the Settings screens
+# Settings with a fixed list of values, the default first. `language` is the desktop app's (the terminal
+# app stays English): it reads the file itself at start-up.
+declare -A SETTING_CHOICES=([language]="system en vi")
+SETTING_VALUE_RE='^[0-9a-z]+$' # what a line of the settings file may hold; each key checks its own values
 
 setting_valid() { # KEY VALUE → a number within the key's range
   local -a r
   [[ -n ${SETTING_RANGE[$1]:-} && $2 =~ ^[0-9]{1,6}$ ]] || return 1
   read -ra r <<<"${SETTING_RANGE[$1]}"
   ((10#$2 >= r[0] && 10#$2 <= r[1]))
+}
+
+setting_choice() { # VAR KEY → VAR = the saved value when it is one of the key's choices, else the default
+  local -a c
+  read -ra c <<<"${SETTING_CHOICES[$2]}"
+  if [[ " ${c[*]} " == *" ${CFG[$2]:-} "* && -n ${CFG[$2]:-} ]]; then printf -v "$1" '%s' "${CFG[$2]}"
+  else printf -v "$1" '%s' "${c[0]}"; fi
 }
 
 setting() { # VAR KEY → VAR = the saved value, or the default when it's missing or out of range
@@ -4998,7 +5009,7 @@ save_setting() { # KEY VALUE — change one line of the settings file; the other
   local -A cur=()
   CFG[$1]=$2
   ((DRY_RUN)) && return 0
-  load_kv "$SETTINGS_FILE" cur '^[0-9]+$'
+  load_kv "$SETTINGS_FILE" cur "$SETTING_VALUE_RE"
   cur[$1]=$2
   mkdir -p "${SETTINGS_FILE%/*}" && tmp=$(mktemp -p "${SETTINGS_FILE%/*}" .settings.XXXXXX) || return
   for k in "${!cur[@]}"; do printf '%s=%s\n' "$k" "${cur[$k]}"; done | sort >"$tmp" && mv -f -- "$tmp" "$SETTINGS_FILE" ||
@@ -5008,7 +5019,7 @@ save_setting() { # KEY VALUE — change one line of the settings file; the other
 load_settings() { # the settings file and remembered selections, as saved (by either app)
   CFG=() PREF=()
   load_kv "$PREF_FILE" PREF '^[01]$'
-  load_kv "$SETTINGS_FILE" CFG '^[0-9]+$'
+  load_kv "$SETTINGS_FILE" CFG "$SETTING_VALUE_RE"
   apply_settings
 }
 
@@ -6121,6 +6132,9 @@ json_setting() { # KEY → one "setting" event with what is in effect now
       json_str v "$(schedule_get | head -n 1)"
       printf '{"event":"setting","key":"schedule","value":%s,"choices":["off","daily","weekly","monthly"],"default":"off"}\n' "$v" ;;
     selections) printf '{"event":"setting","key":"selections","value":%d}\n' "${#PREF[@]}" ;;
+    language)
+      setting_choice v language
+      printf '{"event":"setting","key":"language","value":"%s","choices":["system","en","vi"],"default":"system"}\n' "$v" ;;
     *)
       read -ra r <<<"${SETTING_RANGE[$1]}"
       setting v "$1"
@@ -6131,11 +6145,11 @@ json_setting() { # KEY → one "setting" event with what is in effect now
 json_settings() {
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   local k
-  for k in schedule "${SETTING_KEYS[@]}" selections; do json_setting "$k"; done
+  for k in language schedule "${SETTING_KEYS[@]}" selections; do json_setting "$k"; done
   printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool have systemctl)" "$(json_bool packaged)"
 }
 
-json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, selections reset, or a number in range
+json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, selections reset, or a number in range
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   (($# == 2)) || { json_error "Usage: --json settings-set KEY VALUE"; return 2; }
   local key=$1 val=$2 state=ok info
@@ -6147,6 +6161,12 @@ json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, selecti
       schedule_set "$val" || state=fail
       info=${UI_TOAST//$'\e'\[*([0-9;])m/}
       info=${info#"✔ "} info=${info#"✘ "} ;;
+    language)
+      [[ " ${SETTING_CHOICES[language]} " == *" $val "* ]] ||
+        { json_error "language must be one of: ${SETTING_CHOICES[language]}"; return 2; }
+      if ((DRY_RUN)); then info="would be set to $val"
+      elif save_setting language "$val"; then info="set to $val"
+      else state=fail info="Could not save ${SETTINGS_FILE/#$HOME/\~}"; fi ;;
     selections)
       [[ $val == reset ]] || { json_error "selections can only be reset"; return 2; }
       if ((DRY_RUN)); then info="would be forgotten"

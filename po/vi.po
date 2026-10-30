@@ -890,6 +890,30 @@ msgstr "Đã xoá lịch sử"
 msgid "Freed {size}"
 msgstr "Đã giải phóng {size}"
 
+#: gui/cleanmate_gui/settings.py:14
+msgid "Same as system"
+msgstr "Theo hệ thống"
+
+#: gui/cleanmate_gui/settings.py:109
+msgid "General"
+msgstr "Chung"
+
+#: gui/cleanmate_gui/settings.py:110
+msgid "Language"
+msgstr "Ngôn ngữ"
+
+#: gui/cleanmate_gui/settings.py:112
+msgid "Restart"
+msgstr "Khởi động lại"
+
+#: gui/cleanmate_gui/settings.py:191
+msgid ""
+"Restart CleanMate to use the new language. The system's language does not "
+"change."
+msgstr ""
+"Khởi động lại CleanMate để dùng ngôn ngữ mới. Ngôn ngữ của hệ thống không "
+"đổi."
+
 #: gui/cleanmate_gui/settings.py:12
 msgid "Off"
 msgstr "Tắt"
