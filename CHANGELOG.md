@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Changed
 
+- **AI Models**: LM Studio models in the folder you chose in LM Studio's My Models are listed too, and LM Studio models stay locked while its headless daemon (`llmster`) or the `lms` CLI runs.
 - Desktop app, **Duplicates**: nothing is ticked after a search, and *Select automatically* now keeps the **oldest** copy of each group (usually the original), like the terminal app, instead of the newest.
 - README and app store listing: screenshots of Space Lens, Duplicates, Startup Items and Settings.
 - Desktop app, **Startup Items**: switching one of your systemd services or timers on or off now also starts or stops it right away, not only at the next login.

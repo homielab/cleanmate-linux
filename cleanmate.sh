@@ -2508,6 +2508,34 @@ declare -A ITEM_ONCE=() MODEL_KIND=() MODEL_REF=()
 HF_HUB=${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}
 LMS_DIRS=("$HOME/.lmstudio/models" "$HOME/.cache/lm-studio/models")
 
+lms_downloads_folder() { # the models folder chosen in LM Studio's My Models ("downloadsFolder" in its settings.json)
+  local f v
+  for f in "$HOME/.lmstudio/settings.json" "$HOME/.cache/lm-studio/settings.json"; do
+    [[ -f $f && ! -L $f ]] || continue # only read, never written
+    if have jq; then
+      v=$(jq -r 'if type == "object" and (.downloadsFolder | type) == "string" then .downloadsFolder else empty end' -- "$f" 2>/dev/null)
+    elif have python3; then
+      v=$(python3 -I -c 'import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+v = d.get("downloadsFolder") if isinstance(d, dict) else None
+if isinstance(v, str): print(v)' "$f" 2>/dev/null)
+    else
+      return 0
+    fi
+    v=${v%/}
+    [[ $v == /?* && $v != *$'\n'* ]] && printf '%s\n' "$v"
+  done
+  return 0
+}
+lms_add_downloads_folder() {
+  local d e
+  while IFS= read -r d; do
+    for e in "${LMS_DIRS[@]}"; do [[ $e == "$d" ]] && continue 2; done
+    LMS_DIRS+=("$d") # model_safe_path still checks every model in it
+  done < <(lms_downloads_folder)
+}
+lms_add_downloads_folder
+
 ollama_models() { # name<TAB>bytes, as the Ollama server reports them
   have ollama || return 0
   local n s1 s2
@@ -2560,7 +2588,7 @@ model_details() {
   esac
   return 0
 }
-lockedby_model() { [[ ${MODEL_KIND[$1]} == lms ]] && running_proc -xi 'lm-studio|lm studio|lms'; }
+lockedby_model() { [[ ${MODEL_KIND[$1]} == lms ]] && running_proc -xi 'lms|llmster|lm[- ]studio|lm studio helpe?r?'; }
 model_precheck() { # LM Studio may have the model loaded
   lockedby_model "$1" >/dev/null || return 0
   if ((ASSUME_YES)); then warn "Skipping ${ITEM_LABEL[$1]}: LM Studio is running."; return 1; fi

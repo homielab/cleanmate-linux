@@ -179,13 +179,15 @@ test_browser_items_are_separate() {
   assert_exists "$HOME_DIR/.cache/google-chrome/Default/Cache/a"
 }
 
-running_stub() { # DIR NAME… — a pgrep that reports these programs as running
+running_stub() { # DIR NAME… — a pgrep that reports these programs as running (the pattern is a whole-name ERE)
   local d=$1; shift
   mkdir -p "$d"
   { echo '#!/bin/sh'
-    echo 'for a; do case $a in'
-    for n; do printf '  %s) echo "4242 %s"; exit 0 ;;\n' "$n" "$n"; done
-    echo 'esac; done; exit 1'; } >"$d/pgrep"
+    echo 'for a; do case $a in -*) continue ;; esac'
+    printf '  for n in'; printf ' "%s"' "$@"; echo '; do'
+    echo '    printf "%s\n" "$n" | grep -qEix -- "$a" && { echo "4242 $n"; exit 0; }'
+    echo '  done'
+    echo 'done; exit 1'; } >"$d/pgrep"
   chmod 755 "$d/pgrep"
 }
 
@@ -1625,6 +1627,44 @@ test_ai_models_are_separate_and_never_remembered() {
   [[ $out == *"mine/"* ]] && fail "home folders listed as models through a symlink" || ok_ "symlinked store ignored"
   in_app 'model_safe_path "$HOME/.lmstudio/models/mine/Documents"' && fail "symlinked path accepted" || ok_ "symlinked path refused"
   assert_exists "$HOME_DIR/Documents/thesis.odt"
+}
+
+# LM Studio: a models folder chosen in its settings is listed, and its
+# headless daemon (llmster) locks the models like the app does.
+test_lm_studio_downloads_folder_and_daemon_lock() {
+  fresh_home
+  local own=$HOME_DIR/AI/lms out id bin=$WORK/lmsbin
+  old "$own/pub/qwen-4b/model.gguf"
+  mkdir -p "$HOME_DIR/.lmstudio"
+  printf '{"downloadsFolder": "%s"}\n' "$own" >"$HOME_DIR/.lmstudio/settings.json"
+  out=$(cm --scan --only models 2>&1)
+  assert_contains "$out" "LM Studio — pub/qwen-4b"
+  id=$(in_app 'for i in "${ITEM_IDS[@]}"; do [[ ${ITEM_LABEL[$i]} == "LM Studio — pub/qwen-4b" ]] && echo "$i"; done')
+  [[ -n $id ]] && ok_ "custom folder model registered" || fail "no item for the custom folder"
+  running_stub "$bin" llmster
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --scan --only models 2>&1)
+  assert_contains "$out" "close llmster first"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean "$id" 2>&1)
+  assert_contains "$out" "\"id\":\"$id\",\"state\":\"skip\""
+  out=$(BASE_PATH="$bin:$BASE_PATH" in_app "ASSUME_YES=1; model_precheck $id" 2>&1) && fail "--yes did not skip"
+  assert_contains "$out" "LM Studio is running"
+  assert_exists "$own/pub/qwen-4b/model.gguf"
+  running_stub "$bin" films "LM Studio Helpe"
+  out=$(BASE_PATH="$bin:$BASE_PATH" in_app "lockedby_model $id")
+  [[ $out == "LM Studio Helpe" ]] && ok_ "app helper locks, 'films' does not" || fail "lock matched: '$out'"
+  # a wrong type or a symlinked folder or settings file is ignored
+  printf '{"downloadsFolder": 42}\n' >"$HOME_DIR/.lmstudio/settings.json"
+  out=$(cm --scan --only models 2>&1)
+  [[ $out == *qwen-4b* ]] && fail "non-string downloadsFolder used" || ok_ "wrong type ignored"
+  ln -s "$own" "$HOME_DIR/AI/link"
+  printf '{"downloadsFolder": "%s"}\n' "$HOME_DIR/AI/link" >"$HOME_DIR/AI/s.json"
+  rm "$HOME_DIR/.lmstudio/settings.json"; ln -s "$HOME_DIR/AI/s.json" "$HOME_DIR/.lmstudio/settings.json"
+  out=$(cm --scan --only models 2>&1)
+  [[ $out == *qwen-4b* ]] && fail "symlinked settings used" || ok_ "symlinked settings ignored"
+  rm "$HOME_DIR/.lmstudio/settings.json"; cp "$HOME_DIR/AI/s.json" "$HOME_DIR/.lmstudio/settings.json"
+  out=$(cm --scan --only models 2>&1)
+  [[ $out == *qwen-4b* ]] && fail "symlinked downloadsFolder used" || ok_ "symlinked folder ignored"
+  assert_exists "$HOME_DIR/.lmstudio/settings.json"
 }
 
 test_ollama_models_use_ollama_rm() {
