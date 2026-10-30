@@ -106,7 +106,7 @@ msgid "Select automatically"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:196
-msgid "Tick every copy except the newest one of each group"
+msgid "Tick every copy except the oldest one of each group"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:218 gui/cleanmate_gui/duplicates.py:258
@@ -115,7 +115,7 @@ msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:233
 #, python-brace-format
-msgid "Newest · modified {date}"
+msgid "Oldest · modified {date}"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:233

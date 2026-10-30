@@ -1086,7 +1086,7 @@ test_json_startup_items() {
   printf '%s\n' 'sync.service enabled enabled' 'notes.timer disabled enabled' 'pipewire.service enabled enabled' \
     'muted.service disabled enabled' 'tpl@.service disabled enabled' 'static.service static -' >"$HOME_DIR/units"
   printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift' \
-    'case $1 in list-unit-files) cat "$HOME/units" ;; enable | disable) sed -i "s/^$2 [a-z]*/$2 ${1}d/" "$HOME/units" ;; esac' \
+    'case $1 in list-unit-files) cat "$HOME/units" ;; enable | disable) for u; do :; done; sed -i "s/^$u [a-z]*/$u ${1}d/" "$HOME/units" ;; esac' \
     >"$HOME_DIR/.local/bin/systemctl"
   chmod +x "$HOME_DIR/.local/bin/systemctl"
   if ((EUID == 0)); then
@@ -1123,13 +1123,17 @@ done 7 true" "autostart entries and systemd user units; the system's are view on
   out=$(user_cm --json startup-set systemd:notes.timer enable | startup_list)
   assert_contains "$out" "ok - turned on"
   assert_contains "$(cat "$HOME_DIR/units")" "notes.timer enabled"
+  assert_contains "$(cat "$HOME_DIR/systemctl.log")" "--user enable --now notes.timer" # starts right away
+  user_cm --json startup-set systemd:notes.timer disable >/dev/null
+  assert_contains "$(cat "$HOME_DIR/systemctl.log")" "--user disable --now notes.timer"
+  assert_contains "$(cat "$HOME_DIR/units")" "notes.timer disabled"
   out=$(user_cm --json startup-set systemd:pipewire.service disable | startup_list)
   assert_contains "$out" "fail - It comes with the system: only shown here"
   out=$(user_cm --json startup-set systemd:notes.timer remove | startup_list)
   assert_contains "$out" "fail - Only units in ~/.config/systemd/user can be removed"
   out=$(user_cm --json startup-set systemd:sync.service remove | startup_list)
   assert_contains "$out" "ok sync.service moved to the Trash"; assert_missing "$u/sync.service"
-  assert_contains "$(cat "$HOME_DIR/systemctl.log")" $'--user disable sync.service\n--user daemon-reload'
+  assert_contains "$(cat "$HOME_DIR/systemctl.log")" $'--user disable --now sync.service\n--user daemon-reload'
   assert_eq "$(grep -c pipewire "$HOME_DIR/systemctl.log")" 0 "a system unit is never changed"
   out=$(user_cm --json startup-set 'systemd:-x.service' enable 2>&1); assert_contains "$out" "Not a service or timer"
   out=$(user_cm --json startup-set 'autostart:../x.desktop' enable 2>&1); assert_contains "$out" "Unknown startup item"
@@ -1355,7 +1359,7 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "three folders deep, the path bar shows each"
     assert_contains "$out" "outside the home folder: view only"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the folder back where it was"
-    assert_contains "$out" "the older copies are ticked, the newest is kept"
+    assert_contains "$out" "Select automatically keeps the oldest copy"
     assert_contains "$out" "ticking every copy shows a warning"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the copies back in their group"
     ((EUID == 0)) || assert_contains "$out" "switching an app off writes Hidden=true"

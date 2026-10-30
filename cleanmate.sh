@@ -5908,7 +5908,7 @@ startup_set_systemd() { # ID UNIT ACTION
     return
   fi
   if [[ $act == remove ]]; then
-    [[ $state == enabled ]] && systemctl --user disable "$unit" >/dev/null 2>&1
+    [[ $state == enabled ]] && systemctl --user disable --now "$unit" >/dev/null 2>&1
     UNDO_BATCH=()
     move_to_trash "$p" >/dev/null 2>&1 || { json_startup_task "$id" fail "Could not move it to the Trash"; return; }
     name=""; ((${#UNDO_BATCH[@]})) && name=${UNDO_BATCH[0]%%$'\t'*}
@@ -5916,7 +5916,8 @@ startup_set_systemd() { # ID UNIT ACTION
     log "startup: removed $unit"
     json_startup_task "$id" ok "moved to the Trash" "$name"; return
   fi
-  if err=$(systemctl --user "$act" "$unit" 2>&1 >/dev/null); then
+  # --now: a timer or service starts or stops right away, not only at the next login
+  if err=$(systemctl --user "$act" --now "$unit" 2>&1 >/dev/null); then
     log "startup: $act $unit"
     json_startup_task "$id" ok "turned $( [[ $act == enable ]] && echo on || echo off)"
   else json_startup_task "$id" fail "${err:-systemctl --user $act failed}"; fi

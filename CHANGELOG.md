@@ -6,6 +6,11 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Desktop app, **Duplicates**: nothing is ticked after a search, and *Select automatically* now keeps the **oldest** copy of each group (usually the original), like the terminal app, instead of the newest.
+- Desktop app, **Startup Items**: switching one of your systemd services or timers on or off now also starts or stops it right away, not only at the next login.
+
 ### Added
 
 - **Old installers in Downloads** (System Junk, not pre-selected): `.deb`, AppImage, `.iso`, `.img`, `.run`, `.snap` and Flatpak files at the top of your Downloads folder that you downloaded more than 30 days ago. They go to the Trash, so you can get them back (in the terminal app, `z` on the home screen undoes it). The desktop app lists each file with its size, so you can keep some. Subfolders, links, files still downloading and files a program has open are left alone; automatic cleaning never touches them.

@@ -102,8 +102,8 @@ msgid "Select automatically"
 msgstr "Chọn tự động"
 
 #: gui/cleanmate_gui/duplicates.py:196
-msgid "Tick every copy except the newest one of each group"
-msgstr "Chọn mọi bản trừ bản mới nhất của mỗi nhóm"
+msgid "Tick every copy except the oldest one of each group"
+msgstr "Chọn mọi bản trừ bản cũ nhất của mỗi nhóm"
 
 #: gui/cleanmate_gui/duplicates.py:218 gui/cleanmate_gui/duplicates.py:258
 msgid "Every copy is selected: none would be kept"
@@ -111,8 +111,8 @@ msgstr "Đã chọn mọi bản: sẽ không giữ lại bản nào"
 
 #: gui/cleanmate_gui/duplicates.py:233
 #, python-brace-format
-msgid "Newest · modified {date}"
-msgstr "Mới nhất · sửa {date}"
+msgid "Oldest · modified {date}"
+msgstr "Cũ nhất · sửa {date}"
 
 #: gui/cleanmate_gui/duplicates.py:233
 #, python-brace-format

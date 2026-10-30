@@ -2,7 +2,9 @@
 
 The engine finds the groups (`--json dupes`: same size, then same content), moves files
 (`--json trash`) and puts them back (`--json restore`); this page only shows the groups and
-keeps the choice. By default every copy except the newest of each group is ticked.
+keeps the choice. Nothing is ticked after a search; *Select automatically* ticks every copy except
+the oldest of each group (the original; newer ones are usually downloaded or copied again), like
+the terminal app.
 """
 import os
 import time
@@ -19,6 +21,16 @@ MIN_SIZES = [("100 KB", 100 << 10), ("1 MB", 1 << 20), ("10 MB", 10 << 20), ("10
 
 def group_key(g):
     return f"{g['bytes']}:{g['hash']}"
+
+
+def oldest_copy(g):
+    """Path of the copy to keep: the oldest (smallest mtime; files come newest first, so a tie keeps the last)."""
+    return min(reversed(g["files"]), key=lambda f: f["mtime"])["path"]
+
+
+def auto_selection(groups):
+    """Every copy except the oldest of each group."""
+    return {f["path"] for g in groups for f in g["files"] if f["path"] != oldest_copy(g)}
 
 
 def file_icon(path):
@@ -153,7 +165,7 @@ class DuplicatesPage(Gtk.Box):
                 self.window.toast(info["message"])
             self.groups = groups
             self.found = info.get("found", len(groups))
-            self.select_automatically(show=False)
+            self.selected = set()
             self.show_results()
 
         self.running = self.engine.dupes(min_bytes, self.folder, on_event, on_done)
@@ -163,8 +175,8 @@ class DuplicatesPage(Gtk.Box):
         return [g for g in self.groups if len(g["files"]) > 1]
 
     def select_automatically(self, show=True):
-        """Tick every copy except the newest of each group."""
-        self.selected = {f["path"] for g in self.shown_groups() for f in g["files"][1:]}
+        """Tick every copy except the oldest of each group."""
+        self.selected = auto_selection(self.shown_groups())
         if show:
             for path, check in self.checks.items():
                 check.set_active(path in self.selected)
@@ -193,7 +205,7 @@ class DuplicatesPage(Gtk.Box):
         text.append(title)
         text.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
         auto = Gtk.Button(label=_("Select automatically"), valign=Gtk.Align.CENTER,
-                          tooltip_text=_("Tick every copy except the newest one of each group"))
+                          tooltip_text=_("Tick every copy except the oldest one of each group"))
         auto.connect("clicked", lambda *_a: self.select_automatically())
         header = Gtk.Box(spacing=12)
         header.append(text)
@@ -211,8 +223,8 @@ class DuplicatesPage(Gtk.Box):
         self.update_summary()
 
     def group_row(self, g, biggest, expand):
-        newest = g["files"][0]["path"]
-        row = Adw.ExpanderRow(title=os.path.basename(newest), use_markup=False, expanded=expand,
+        oldest = oldest_copy(g)
+        row = Adw.ExpanderRow(title=os.path.basename(oldest), use_markup=False, expanded=expand,
                               css_classes=["item-row"])
         warning = Gtk.Image(icon_name="dialog-warning-symbolic", css_classes=["warning"], visible=False,
                             tooltip_text=_("Every copy is selected: none would be kept"))
@@ -220,17 +232,17 @@ class DuplicatesPage(Gtk.Box):
         row.add_suffix(warning)
         for widget in size_widgets(g["bytes"] * (len(g["files"]) - 1), biggest):
             row.add_suffix(widget)
-        row.add_prefix(Gtk.Image(gicon=file_icon(newest)))
+        row.add_prefix(Gtk.Image(gicon=file_icon(oldest)))
         self.group_rows[group_key(g)] = (row, warning)
-        for i, f in enumerate(g["files"]):
-            row.add_row(self.file_row(g, f, i == 0))
+        for f in g["files"]:
+            row.add_row(self.file_row(g, f, f["path"] == oldest))
         self.update_group(g)
         return row
 
-    def file_row(self, g, f, newest):
+    def file_row(self, g, f, oldest):
         path = f["path"]
         date = time.strftime("%-d %b %Y %H:%M", time.localtime(f["mtime"]))
-        subtitle = (_("Newest · modified {date}") if newest else _("Modified {date}")).format(date=date)
+        subtitle = (_("Oldest · modified {date}") if oldest else _("Modified {date}")).format(date=date)
         row = Adw.ActionRow(title=short_path(os.path.dirname(path)), subtitle=subtitle, use_markup=False,
                             title_lines=1, css_classes=["item-row"], tooltip_text=path)
         check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"],

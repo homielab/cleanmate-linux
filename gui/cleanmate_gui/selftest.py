@@ -373,9 +373,10 @@ def space_lens_test(win, report, wait, finish):
 
 
 def duplicates_test(win, report, wait, finish):
-    """Three copies of a photo: one group with the two older copies ticked; dry run, then Trash and Undo
+    """Three copies of a photo: one group, nothing ticked; Select automatically keeps the oldest; dry run, then Trash and Undo
     in a throwaway home."""
     from .engine import Engine
+    from .duplicates import auto_selection
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home = os.path.join(sandbox, "home")
     copies = [os.path.join(home, d, "beach.jpg") for d in ("Photos", "Backup", "Downloads")]
@@ -389,7 +390,7 @@ def duplicates_test(win, report, wait, finish):
     with open(os.path.join(home, "Photos", "other.jpg"), "wb") as f:  # same size, other content
         f.write(os.urandom(1536 << 10))
     env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share")}
-    older, newest = copies[:2], copies[2]
+    oldest, newer, newest = copies[0], copies[1:], copies[2]
 
     win.show_page("dupes")
     page = win.pages["dupes"]
@@ -409,18 +410,21 @@ def duplicates_test(win, report, wait, finish):
         startup_test(win, report, wait, finish)
 
     def searched():
-        report(files() == [[newest] + older[::-1]], f"one group of three copies, newest first: {files()}")
-        report(page.selected == set(older) and not page.checks[newest].get_active(),
-               "the older copies are ticked, the newest is kept")
-        page.checks[newest].set_active(True)
+        report(files() == [copies[::-1]], f"one group of three copies, newest first: {files()}")
+        report(not page.selected and not any(c.get_active() for c in page.checks.values()),
+               "nothing is ticked after a search")
+        report(auto_selection([{"files": [{"path": "c", "mtime": 3}, {"path": "b", "mtime": 1}, {"path": "a", "mtime": 2}]}])
+               == {"a", "c"}, "auto_selection keeps the copy with the oldest date")
+        for path in copies:
+            page.checks[path].set_active(True)
         row, warning = next(iter(page.group_rows.values()))
         report(warning.get_visible() and row.get_subtitle() == _("Every copy is selected: none would be kept"),
                "ticking every copy shows a warning")
-        page.checks[older[0]].get_ancestor(Adw.ActionRow).activate()
-        report(not warning.get_visible() and older[0] not in page.selected, "activating a copy's row toggles its box")
+        page.checks[newest].get_ancestor(Adw.ActionRow).activate()
+        report(not warning.get_visible() and newest not in page.selected, "activating a copy's row toggles its box")
         page.select_automatically()
-        report(page.selected == set(older) and not page.checks[newest].get_active(),
-               "Select automatically keeps the newest copy")
+        report(page.selected == set(newer) and not page.checks[oldest].get_active()
+               and all(page.checks[p].get_active() for p in newer), "Select automatically keeps the oldest copy")
         page.trash(sorted(page.selected))
         wait(lambda: page.running is None, dry_trashed, 60, "dry-run trash")
 
@@ -434,16 +438,16 @@ def duplicates_test(win, report, wait, finish):
         wait(lambda: page.running is None, trashed, 60, "trash")
 
     def trashed():
-        report(os.path.exists(newest) and not any(os.path.exists(p) for p in older) and not files(),
-               "Move to Trash keeps the newest copy; the group is gone")
+        report(os.path.exists(oldest) and not any(os.path.exists(p) for p in newer) and not files(),
+               "Move to Trash keeps the oldest copy; the group is gone")
         if not page.undo_toast:
             report(False, "no Undo toast after moving to the Trash")
             return done()
         page.undo_toast.emit("button-clicked")
-        wait(lambda: page.running is None and all(os.path.exists(p) for p in older), undone, 60, "undo")
+        wait(lambda: page.running is None and all(os.path.exists(p) for p in newer), undone, 60, "undo")
 
     def undone():
-        report(all(os.path.exists(p) for p in copies) and files() == [[newest] + older[::-1]],
+        report(all(os.path.exists(p) for p in copies) and files() == [copies[::-1]],
                "Undo from the toast puts the copies back in their group")
         done()
 
@@ -467,7 +471,7 @@ def startup_test(win, report, wait, finish):
                        (os.path.join(home, "units"), "sync.service enabled enabled\npipewire.service enabled enabled\n"),
                        (os.path.join(bin_dir, "systemctl"),
                         '#!/bin/sh\nshift\ncase $1 in list-unit-files) cat "$HOME/units" ;; '
-                        'enable|disable) sed -i "s/^$2 [a-z]*/$2 ${1}d/" "$HOME/units" ;; esac\n')):
+                        'enable|disable) for u; do :; done; sed -i "s/^$u [a-z]*/$u ${1}d/" "$HOME/units" ;; esac\n')):
         with open(path, "w") as f:
             f.write(text)
     os.chmod(os.path.join(bin_dir, "systemctl"), 0o755)

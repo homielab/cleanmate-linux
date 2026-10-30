@@ -68,11 +68,12 @@ as you. An item whose program is running is locked until you close it. **Space L
 takes up the space in your home folder (or any folder or drive), biggest first: click a folder to
 dig deeper, tick what you don't need and move it to the Trash, **Undo** puts it back; outside your
 home folder it only shows. **Duplicates** groups identical files (from 1 MB, in a folder or drive you
-pick) and ticks every copy except the newest; you're warned if every copy of a file is ticked.
+pick); nothing is ticked until you choose, and **Select automatically** ticks every copy except the oldest
+(usually the original); you're warned if every copy of a file is ticked.
 **Large & Old Files** lists
 your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
 Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash). **Startup Items** switches the apps and your systemd user services
-that start at login on or off (the system's own services are only shown); removing one of yours
+that start at login on or off (a service or timer also starts or stops right away; the system's own services are only shown); removing one of yours
 moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps and, if you tick
 them, the folders they leave in your home (to the Trash). **Maintenance** runs the terminal app's maintenance
 tasks (updates, package repair, TRIM, font cache, locate…) with their output in a log window, asking for your
@@ -132,7 +133,7 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
 - **System Overview** — storage, free-space history, and space outside your folders: Timeshift
   snapshots, the swap file, ext4's reserved space (history and hidden space only here).
 - Space Lens (browse folders by size), Large & Old Files (here with virtual machine disks),
-  Duplicates (here the oldest copy is kept), Startup Items (login apps) and Settings.
+  Duplicates, Startup Items (login apps) and Settings.
 
 ## Safe by design
 
