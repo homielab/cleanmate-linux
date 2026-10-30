@@ -5138,6 +5138,8 @@ overview_lines() {
     size_bar barv "$b" "$max" 24
     printf '  %s %9s  %s\n' "$barv" "$(human "$b")" "${p/#$HOME/\~}"
   done < <(top_home_dirs)
+
+  protection_lines
 }
 
 TOP_DIRS=12 # the largest folders System Overview lists
@@ -5194,6 +5196,151 @@ hidden_space_lines() {
   printf '%s\n' "${rows[@]}" | while IFS=$'\t' read -r name b note; do
     printf '  %-30s %9s  %s%s%s\n' "$name" "$( ((b > 0)) && human "$b" || echo "?")" "$DIM" "$note" "$NC"
   done
+}
+
+# System protection, read only: the firewall, AppArmor, automatic security
+# updates and Secure Boot. Nothing here needs root or changes anything; when one
+# is off the user gets the command to run. CLEANMATE_SYSROOT (tests) reads /etc,
+# /sys, /run and /usr/bin under another folder.
+SYSROOT=${CLEANMATE_SYSROOT:-}
+SECURE_BOOT_VAR=SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
+
+unit_state() { # is-active|is-enabled UNIT → systemd's one-word answer; nothing when systemd isn't running
+  [[ -d $SYSROOT/run/systemd/system ]] && have systemctl || return 0
+  timeout 5 systemctl "$1" "$2" 2>/dev/null | head -n1
+  return 0
+}
+
+apt_periodic() { # NAME → value of APT::Periodic::NAME as APT reads it (the last one set wins; empty when unset)
+  local f files=() name
+  for f in "$SYSROOT"/etc/apt/apt.conf.d/* "$SYSROOT/etc/apt/apt.conf"; do
+    name=${f##*/}
+    # APT skips names with other characters and extensions other than .conf (e.g. .dpkg-old)
+    [[ -f $f && $name =~ ^[A-Za-z0-9_.-]+$ && ($name != *.* || $name == *.conf) ]] && files+=("$f")
+  done
+  ((${#files[@]})) || return 0
+  sed -nE "s#^[[:space:]]*APT::Periodic::$1[[:space:]]+\"([^\"]*)\".*#\\1#Ip" "${files[@]}" 2>/dev/null | tail -n1
+}
+
+protection_rows() { # → id<TAB>on|off|unknown|na<TAB>reason<TAB>command that turns it on (may be empty)
+  local f v s
+  # firewall: `ufw status` needs root, its config and service don't
+  f=$SYSROOT/etc/ufw/ufw.conf
+  if [[ -f $f ]]; then
+    v=$(sed -nE 's/^[[:space:]]*ENABLED[[:space:]]*=[[:space:]]*"?([A-Za-z]*)"?.*/\1/p' "$f" 2>/dev/null | tail -n1)
+    s=$(unit_state is-active ufw)
+    case $v in
+      yes) if [[ $s == inactive || $s == failed ]]; then printf 'firewall\toff\tinactive\tsudo ufw enable\n'
+           else printf 'firewall\ton\tufw\t\n'; fi ;;
+      no) printf 'firewall\toff\tdisabled\tsudo ufw enable\n' ;;
+      *) printf 'firewall\tunknown\tunreadable\t\n' ;;
+    esac
+  elif [[ $(unit_state is-active firewalld) == active ]]; then
+    printf 'firewall\ton\tfirewalld\t\n'
+  else
+    printf 'firewall\toff\tmissing\tsudo apt install ufw && sudo ufw enable\n'
+  fi
+
+  # AppArmor: on in the kernel, and its profiles loaded at boot
+  f=$SYSROOT/sys/module/apparmor/parameters/enabled
+  v=""
+  [[ -r $f ]] && read -r v <"$f" 2>/dev/null
+  case $v in
+    Y) s=$(unit_state is-active apparmor)
+       if [[ $s == inactive || $s == failed ]]; then printf 'apparmor\toff\tservice\tsudo systemctl enable --now apparmor\n'
+       else printf 'apparmor\ton\tloaded\t\n'; fi ;;
+    N) printf 'apparmor\toff\tkernel\t\n' ;;
+    *) printf 'apparmor\tunknown\tunreadable\t\n' ;;
+  esac
+
+  # automatic security updates: the package, APT's switch and the daily timer that runs it
+  if [[ ! -d $SYSROOT/etc/apt ]]; then
+    printf 'updates\tna\tno-apt\t\n'
+  elif [[ ! -x $SYSROOT/usr/bin/unattended-upgrade ]]; then
+    printf 'updates\toff\tmissing\tsudo apt install unattended-upgrades\n'
+  else
+    v=$(apt_periodic Unattended-Upgrade)
+    if [[ -z $v || $v == 0 || $(apt_periodic Enable) == 0 ]]; then
+      printf 'updates\toff\tdisabled\tsudo dpkg-reconfigure -plow unattended-upgrades\n'
+    else
+      s=$(unit_state is-enabled apt-daily-upgrade.timer)
+      if [[ $s == disabled || $s == masked ]]; then
+        printf 'updates\toff\ttimer\tsudo systemctl enable --now apt-daily-upgrade.timer\n'
+      else printf 'updates\ton\ton\t\n'; fi
+    fi
+  fi
+
+  # Secure Boot: only on UEFI; mokutil when installed, else the EFI variable (its last byte is the state)
+  if [[ ! -d $SYSROOT/sys/firmware/efi ]]; then
+    printf 'secureboot\tna\tlegacy\t\n'
+  else
+    v=""
+    if have mokutil; then
+      case $(timeout 5 mokutil --sb-state 2>/dev/null) in
+        *"SecureBoot enabled"*) v=1 ;;
+        *"SecureBoot disabled"*) v=0 ;;
+      esac
+    fi
+    f=$SYSROOT/sys/firmware/efi/efivars/$SECURE_BOOT_VAR
+    [[ -z $v && -r $f ]] && v=$(tail -c1 "$f" 2>/dev/null | od -An -tu1 | tr -d ' \n')
+    case $v in
+      1) printf 'secureboot\ton\ton\t\n' ;;
+      0) printf 'secureboot\toff\tfirmware\t\n' ;;
+      *) printf 'secureboot\tunknown\tunreadable\t\n' ;;
+    esac
+  fi
+}
+
+protection_text() { # ID STATE REASON → PT_NAME PT_VALUE PT_HINT in English (the desktop app has its own, translated)
+  case $1 in
+    firewall) PT_NAME="Firewall" ;;
+    apparmor) PT_NAME="AppArmor" ;;
+    updates) PT_NAME="Automatic security updates" ;;
+    *) PT_NAME="Secure Boot" ;;
+  esac
+  case $2 in
+    on) PT_VALUE="On" ;;
+    off) PT_VALUE="Off" ;;
+    na) PT_VALUE="Not applicable" ;;
+    *) PT_VALUE="Unknown" ;;
+  esac
+  case $1:$3 in
+    firewall:ufw) PT_VALUE="On (ufw)" PT_HINT="" ;;
+    firewall:firewalld) PT_VALUE="On (firewalld)" PT_HINT="" ;;
+    firewall:disabled) PT_HINT="ufw is turned off. To turn it on, run:" ;;
+    firewall:inactive) PT_HINT="ufw is set to start but isn't running. To start it, run:" ;;
+    firewall:missing) PT_HINT="No firewall is installed. To install ufw and turn it on, run:" ;;
+    firewall:*) PT_HINT="Can't read /etc/ufw/ufw.conf." ;;
+    apparmor:service) PT_HINT="AppArmor's profiles aren't loaded. To load them, run:" ;;
+    apparmor:kernel) PT_HINT="Turned off when the computer starts: remove apparmor=0 from the kernel options in /etc/default/grub, then run sudo update-grub." ;;
+    apparmor:unreadable) PT_HINT="Can't read AppArmor's state from the kernel." ;;
+    updates:missing) PT_HINT="unattended-upgrades isn't installed. To install it, run:" ;;
+    updates:disabled) PT_HINT="Turned off in APT's settings. To turn it on, run:" ;;
+    updates:timer) PT_HINT="The daily upgrade timer is off. To turn it on, run:" ;;
+    updates:no-apt) PT_HINT="This system doesn't use APT." ;;
+    secureboot:firmware) PT_HINT="Turn it on in your computer's firmware (UEFI) settings." ;;
+    secureboot:legacy) PT_HINT="This computer starts without UEFI, so there is no Secure Boot." ;;
+    secureboot:unreadable) PT_HINT="Can't read the Secure Boot state." ;;
+    *) PT_HINT="" ;;
+  esac
+}
+
+protection_lines() {
+  local id state reason cmd mark
+  printf '\n  %sSystem protection%s %s(read only)%s\n' "$BOLD" "$NC" "$DIM" "$NC"
+  while IFS=$'\t' read -r id state reason cmd; do
+    protection_text "$id" "$state" "$reason"
+    case $state in
+      on) mark="${GREEN}✓${NC}" ;;
+      off) mark="${YELLOW}!${NC}" ;;
+      na) mark="${DIM}–${NC}" ;;
+      *) mark="${DIM}?${NC}" ;;
+    esac
+    printf '  %s %-28s %s\n' "$mark" "$PT_NAME" "$PT_VALUE"
+    [[ -n $PT_HINT ]] && printf '      %s%s%s\n' "$DIM" "$PT_HINT" "$NC"
+    [[ -n $cmd ]] && printf '      %s\n' "$cmd"
+  done < <(protection_rows)
+  return 0
 }
 
 overview() {
@@ -7275,6 +7422,10 @@ json_overview() {
     printf '{"event":"freed","days":30,"bytes":%d,"cleanups":%d,"since":%d,"lifetime":%d,"runs":%d,"last_time":%d,"last_bytes":%d}\n' \
       "$b30" "$n30" "$since" "${STATS[lifetime]:-0}" "${STATS[runs]:-0}" "${STATS[last_time]:-0}" "${STATS[last_freed]:-0}"
   fi
+  while IFS=$'\t' read -r t s u a; do
+    json_str jd "$a"
+    printf '{"event":"protection","id":"%s","state":"%s","reason":"%s","command":%s}\n' "$t" "$s" "$u" "$jd"
+  done < <(protection_rows)
   record_disk_usage # opening the app counts as a use, like a scan in the terminal app
   json_history
   # the slow part last (du), so the app shows everything above meanwhile

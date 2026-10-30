@@ -43,7 +43,8 @@ cm() { # run the app non-interactively inside the fake home
     ${CLEANMATE_APP_DIRS:+CLEANMATE_APP_DIRS=$CLEANMATE_APP_DIRS} \
     ${CLEANMATE_SYSTEM_AUTOSTART:+CLEANMATE_SYSTEM_AUTOSTART=$CLEANMATE_SYSTEM_AUTOSTART} \
     ${CLEANMATE_VOLUME_ROOTS:+CLEANMATE_VOLUME_ROOTS=$CLEANMATE_VOLUME_ROOTS} \
-    ${CLEANMATE_MOUNTS:+CLEANMATE_MOUNTS=$CLEANMATE_MOUNTS} bash "$SCRIPT" "$@"
+    ${CLEANMATE_MOUNTS:+CLEANMATE_MOUNTS=$CLEANMATE_MOUNTS} \
+    ${CLEANMATE_SYSROOT:+CLEANMATE_SYSROOT=$CLEANMATE_SYSROOT} bash "$SCRIPT" "$@"
 }
 
 # As root, `--json clean` refuses home items (the desktop app elevates only for
@@ -2532,7 +2533,7 @@ for l in sys.stdin:
     elif e["event"] == "history": print("history", len(e["points"]))
     elif e["event"] == "outside": print("outside", e["kind"], e["bytes"], e["path"], e["count"], bool(e["note"]))
     elif e["event"] == "top_dirs": print("top_dirs", " ".join(d["path"].replace(e["home"] + "/", "") for d in e["dirs"] if d["bytes"] >= 0))
-    else: print(e["event"])'
+    elif e["event"] != "protection": print(e["event"])'
   out=$(cm --json overview | python3 -c "$ev")
   [[ $(grep '^top_dirs' <<<"$out") == "top_dirs "*.config* ]] || fail "top_dirs lists the home's folders: $(grep '^top_dirs' <<<"$out")"
   out=$(grep -v '^top_dirs' <<<"$out")
@@ -2574,6 +2575,89 @@ $(date -d "$(date +%F)" +%s) 5000000000 100000000000" "history points: epoch of 
   assert_contains "$out" $'\t2048'
   out=$(cm --json overview | python3 -c "$ev" | grep freed)
   assert_eq "$out" "freed 3048 2 8048 3 2048 True" "a cleanup is added to the history"
+}
+
+test_system_protection() {
+  fresh_home
+  local bin=$WORK/protbin r=$WORK/sysroot out before
+  local sb=$r/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
+  mkdir -p "$bin" "$r/etc/ufw" "$r/sys/module/apparmor/parameters" "$r/etc/apt/apt.conf.d" "$r/usr/bin" \
+    "$r/run/systemd/system" "${sb%/*}"
+  # systemctl answers from $bin/units (UNIT=state), mokutil prints $bin/sb-state; sudo and pkexec record a call
+  printf '#!/bin/sh\ngrep -m1 "^$2=" "%s/units" 2>/dev/null | cut -d= -f2\n' "$bin" >"$bin/systemctl"
+  printf '#!/bin/sh\ncat "%s/sb-state" 2>/dev/null\n' "$bin" >"$bin/mokutil"
+  printf '#!/bin/sh\necho "$0 $*" >>"%s/escalated"\nexit 1\n' "$bin" | tee "$bin/sudo" >"$bin/pkexec"
+  chmod +x "$bin/"*
+  local BASE_PATH="$bin:$BASE_PATH"
+  prot() { in_app "SYSROOT='$r'; protection_rows" | grep "^$1"$'\t' | cut -f2- | tr '\t' ' ' | sed 's/ *$//'; }
+  # everything on
+  printf '# comment\nIPV6=yes\nENABLED=yes\n' >"$r/etc/ufw/ufw.conf"
+  echo Y >"$r/sys/module/apparmor/parameters/enabled"
+  printf '#!/bin/sh\n' >"$r/usr/bin/unattended-upgrade" && chmod +x "$r/usr/bin/unattended-upgrade"
+  printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n' >"$r/etc/apt/apt.conf.d/20auto-upgrades"
+  printf '\006\000\000\000\001' >"$sb"
+  printf 'ufw=active\napparmor=active\napt-daily-upgrade.timer=enabled\n' >"$bin/units"
+  out=$(in_app "SYSROOT='$r'; protection_rows")
+  assert_eq "$out" $'firewall\ton\tufw\t\napparmor\ton\tloaded\t\nupdates\ton\ton\t\nsecureboot\ton\ton\t' "all four on"
+  # firewall
+  printf 'ENABLED=no\n' >"$r/etc/ufw/ufw.conf"
+  assert_eq "$(prot firewall)" "off disabled sudo ufw enable" "ufw switched off"
+  printf 'ENABLED="yes"\n' >"$r/etc/ufw/ufw.conf"; sed -i 's/^ufw=.*/ufw=inactive/' "$bin/units"
+  assert_eq "$(prot firewall)" "off inactive sudo ufw enable" "ufw on in its config but its service isn't running"
+  mv "$r/run/systemd" "$r/run/systemd.off"
+  assert_eq "$(prot firewall)" "on ufw" "without systemd running, ufw's config decides"
+  mv "$r/run/systemd.off" "$r/run/systemd"
+  printf 'ENABLED=maybe\n' >"$r/etc/ufw/ufw.conf"
+  assert_eq "$(prot firewall)" "unknown unreadable" "a value it can't read: unknown"
+  rm "$r/etc/ufw/ufw.conf"
+  assert_eq "$(prot firewall)" "off missing sudo apt install ufw && sudo ufw enable" "no ufw"
+  echo firewalld=active >>"$bin/units"
+  assert_eq "$(prot firewall)" "on firewalld" "firewalld counts as a firewall"
+  # AppArmor
+  sed -i 's/^apparmor=.*/apparmor=inactive/' "$bin/units"
+  assert_eq "$(prot apparmor)" "off service sudo systemctl enable --now apparmor" "profiles not loaded"
+  echo N >"$r/sys/module/apparmor/parameters/enabled"
+  assert_eq "$(prot apparmor)" "off kernel" "turned off on the kernel command line: no command"
+  rm "$r/sys/module/apparmor/parameters/enabled"
+  assert_eq "$(prot apparmor)" "unknown unreadable" "no AppArmor in the kernel: unknown"
+  # automatic security updates
+  printf 'APT::Periodic::Unattended-Upgrade "0";\n' >"$r/etc/apt/apt.conf.d/99local.dpkg-old"
+  assert_eq "$(prot updates)" "on on" "APT skips .dpkg-old files"
+  sed -i 's/^apt-daily-upgrade.timer=.*/apt-daily-upgrade.timer=disabled/' "$bin/units"
+  assert_eq "$(prot updates)" "off timer sudo systemctl enable --now apt-daily-upgrade.timer" "daily upgrade timer off"
+  printf 'apt::periodic::unattended-upgrade "0"; // later file wins\n' >"$r/etc/apt/apt.conf.d/99local"
+  assert_eq "$(prot updates)" "off disabled sudo dpkg-reconfigure -plow unattended-upgrades" "a later file turns it off"
+  rm "$r/etc/apt/apt.conf.d/99local"; printf 'APT::Periodic::Enable "0";\n' >"$r/etc/apt/apt.conf"
+  assert_eq "$(prot updates)" "off disabled sudo dpkg-reconfigure -plow unattended-upgrades" "APT's periodic jobs off"
+  rm "$r/usr/bin/unattended-upgrade"
+  assert_eq "$(prot updates)" "off missing sudo apt install unattended-upgrades" "package not installed"
+  mv "$r/etc/apt" "$r/etc/apt.off"
+  assert_eq "$(prot updates)" "na no-apt" "no APT: not applicable"
+  mv "$r/etc/apt.off" "$r/etc/apt"
+  # Secure Boot
+  printf '\006\000\000\000\000' >"$sb"
+  assert_eq "$(prot secureboot)" "off firmware" "EFI variable says off"
+  echo "SecureBoot enabled" >"$bin/sb-state"
+  assert_eq "$(prot secureboot)" "on on" "mokutil comes first"
+  rm "$bin/sb-state" "$sb"
+  assert_eq "$(prot secureboot)" "unknown unreadable" "UEFI without the variable: unknown"
+  rm -r "$r/sys/firmware"
+  assert_eq "$(prot secureboot)" "na legacy" "no UEFI: not applicable"
+  # both apps show it; nothing asked for a password, nothing written
+  before=$(ls -lAR --time-style=+%s.%N "$r")
+  out=$(in_app "SYSROOT='$r'; protection_lines")
+  assert_contains "$out" "System protection"
+  assert_contains "$out" "sudo apt install unattended-upgrades"
+  assert_contains "$out" "Not applicable"
+  out=$(CLEANMATE_SYSROOT=$r cm --json overview | grep '"protection"' | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l); print(e["id"], e["state"], e["reason"], e["command"])')
+  assert_eq "$out" "firewall on firewalld 
+apparmor unknown unreadable 
+updates off missing sudo apt install unattended-upgrades
+secureboot na legacy " "--json overview sends one protection event per check"
+  [[ -e $bin/escalated ]] && fail "protection asked for root: $(cat "$bin/escalated")"
+  assert_eq "$(ls -lAR --time-style=+%s.%N "$r")" "$before" "reading changes no file"
 }
 
 test_gui_language_setting() {

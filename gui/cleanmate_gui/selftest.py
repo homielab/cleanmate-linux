@@ -13,7 +13,7 @@ import sys
 import tempfile
 import time
 
-from gi.repository import Adw, GLib
+from gi.repository import Adw, GLib, Gtk
 
 from . import i18n
 from . import uninstaller as U
@@ -1288,14 +1288,21 @@ esac
 def overview_test(win, report, wait, finish):
     """System Overview with a fake df, swapon and a slow du: a 95 % full disk gets the warning colour, the
     page shows before the folder sizes arrive, space outside your folders and the largest folders follow,
-    Refresh picks up a cleanup and free-space history recorded meanwhile, and a large folder opens in
-    Space Lens."""
+    Refresh picks up a cleanup and free-space history recorded meanwhile, a large folder opens in
+    Space Lens, and System protection (a fake /etc and /sys) shows each check last, with a command to copy
+    when one is off."""
     from .engine import Engine, human
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
     videos, projects = os.path.join(home, "Videos"), os.path.join(home, "Projects")
-    for d in (home, bin_dir, videos, projects):
+    sysroot = os.path.join(sandbox, "root")
+    for d in (home, bin_dir, videos, projects, os.path.join(sysroot, "etc", "ufw"),
+              os.path.join(sysroot, "etc", "apt", "apt.conf.d"), os.path.join(sysroot, "sys", "module", "apparmor",
+                                                                              "parameters")):
         os.makedirs(d)
+    for path, text in (("etc/ufw/ufw.conf", "ENABLED=no\n"), ("sys/module/apparmor/parameters/enabled", "Y\n")):
+        with open(os.path.join(sysroot, path), "w") as f:  # ufw off, AppArmor on, no unattended-upgrades, no UEFI
+            f.write(text)
     for path, size in ((os.path.join(videos, "film.mkv"), 40 << 20), (os.path.join(projects, "app.bin"), 5 << 20)):
         with open(path, "wb") as f:  # sparse: no real disk use
             f.truncate(size)
@@ -1307,7 +1314,7 @@ def overview_test(win, report, wait, finish):
             f.write(text)
         os.chmod(os.path.join(bin_dir, name), 0o755)
     env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
-           "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+           "CLEANMATE_SYSROOT": sysroot, "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
 
     win.show_page("overview")
     page = win.pages["overview"]
@@ -1343,6 +1350,41 @@ def overview_test(win, report, wait, finish):
                "space outside your folders: ext4 reserved space and the swap file")
         tops = [k[len("top:"):] for k in page.rows if k.startswith("top:")]
         report(tops[:2] == [videos, projects], f"largest folders, biggest first: {[os.path.basename(t) for t in tops]}")
+        protect = {k[len("protect:"):]: r for k, r in page.rows.items() if k.startswith("protect:")}
+        report(list(protect) == ["firewall", "apparmor", "updates", "secureboot"]
+               and page.results.get_last_child() is page.groups.get("protection"),
+               f"System protection is the last group, one row per check: {list(protect)}")
+        firewall, apparmor = protect.get("firewall"), protect.get("apparmor")
+        report(firewall is not None and firewall.get_subtitle().endswith("\nsudo ufw enable")
+               and "sudo apt install unattended-upgrades" in protect["updates"].get_subtitle()
+               and "\n" not in apparmor.get_subtitle() and "sudo" not in protect["secureboot"].get_subtitle(),
+               "a check that is off shows the command that turns it on; one that is on or not applicable doesn't")
+        buttons = []
+        child = firewall.get_first_child() if firewall else None
+        stack = [child] if child else []
+        while stack:
+            w = stack.pop()
+            if isinstance(w, Gtk.Button) and w.get_icon_name() == "edit-copy-symbolic":
+                buttons.append(w)
+            if w.get_next_sibling():
+                stack.append(w.get_next_sibling())
+            if w.get_first_child():
+                stack.append(w.get_first_child())
+        copied = []
+        if buttons:
+            buttons[0].emit("clicked")
+            def on_text(clipboard, result):
+                try:
+                    copied.append(clipboard.read_text_finish(result))
+                except GLib.Error as error:
+                    copied.append(error.message)
+            page.get_clipboard().read_text_async(None, on_text)
+        else:
+            copied.append(None)
+        wait(lambda: copied, lambda: copy_done(len(buttons), copied[0]), 10, "clipboard")
+
+    def copy_done(n_buttons, copied):
+        report(n_buttons == 1 and copied == "sudo ufw enable", f"Copy puts the command on the clipboard: {copied!r}")
         state = os.path.join(home, ".local", "state", "cleanmate")
         os.makedirs(state, exist_ok=True)
         with open(os.path.join(state, "cleanups.tsv"), "w") as f:

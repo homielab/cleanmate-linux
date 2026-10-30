@@ -1,10 +1,11 @@
 """System Overview: the system, each disk with a usage bar, free space over time, memory, what CleanMate
-freed lately, space outside your folders and your largest folders.
+freed lately, space outside your folders, your largest folders and whether the system's protections are on.
 
 The engine measures it all (`--json overview`), the same facts as the terminal app's System Overview;
 this page only shows them. A disk over 90 % full gets the warning colour. The engine sends the quick facts
 first and measures folders (du) last: the page shows as soon as the quick part is there, and the last two
-groups fill in when the rest arrives.
+groups fill in when the rest arrives. System protection is read only: when one is off the page shows the
+command that turns it on, to copy and run in a terminal; the app never runs it.
 """
 import os
 import time
@@ -160,6 +161,45 @@ def outside_text(e):
     return kind, e["note"]
 
 
+PROTECTION_STATES = {  # state → icon, style
+    "on": ("emblem-ok-symbolic", "success"),
+    "off": ("dialog-warning-symbolic", "warning"),
+    "unknown": ("dialog-question-symbolic", "dim-label"),
+    "na": ("action-unavailable-symbolic", "dim-label"),
+}
+
+
+def protection_text(e):
+    """Name, value and hint of a row in "System protection"."""
+    names = {"firewall": _("Firewall"), "apparmor": _("AppArmor"), "updates": _("Automatic security updates"),
+             "secureboot": _("Secure Boot")}
+    values = {"on": _("On"), "off": _("Off"), "na": _("Not applicable")}
+    value = values.get(e["state"], _("Unknown"))
+    hints = {
+        ("firewall", "ufw"): _("ufw is turned on."),
+        ("firewall", "firewalld"): _("firewalld is turned on."),
+        ("firewall", "disabled"): _("ufw is turned off. To turn it on, run in a terminal:"),
+        ("firewall", "inactive"): _("ufw is set to start but isn't running. To start it, run in a terminal:"),
+        ("firewall", "missing"): _("No firewall is installed. To install ufw and turn it on, run in a terminal:"),
+        ("firewall", "unreadable"): _("Can't read /etc/ufw/ufw.conf."),
+        ("apparmor", "loaded"): _("Apps with an AppArmor profile are confined."),
+        ("apparmor", "service"): _("AppArmor's profiles aren't loaded. To load them, run in a terminal:"),
+        ("apparmor", "kernel"): _("Turned off when the computer starts: remove apparmor=0 from the kernel options "
+                                  "in /etc/default/grub, then run sudo update-grub."),
+        ("apparmor", "unreadable"): _("Can't read AppArmor's state from the kernel."),
+        ("updates", "on"): _("unattended-upgrades installs security updates every day."),
+        ("updates", "missing"): _("unattended-upgrades isn't installed. To install it, run in a terminal:"),
+        ("updates", "disabled"): _("Turned off in APT's settings. To turn it on, run in a terminal:"),
+        ("updates", "timer"): _("The daily upgrade timer is off. To turn it on, run in a terminal:"),
+        ("updates", "no-apt"): _("This system doesn't use APT."),
+        ("secureboot", "on"): _("Only signed boot loaders and kernels start."),
+        ("secureboot", "firmware"): _("Turn it on in your computer's firmware (UEFI) settings."),
+        ("secureboot", "legacy"): _("This computer starts without UEFI, so there is no Secure Boot."),
+        ("secureboot", "unreadable"): _("Can't read the Secure Boot state."),
+    }
+    return names.get(e["id"], e["id"]), value, hints.get((e["id"], e["reason"]), "")
+
+
 class OverviewPage(Gtk.Box):
     """Read-only facts in groups, with a Refresh button; a click on a large folder opens it in Space Lens."""
 
@@ -205,7 +245,7 @@ class OverviewPage(Gtk.Box):
     def load(self):
         if self.running:
             return
-        data = {"disk": [], "outside": []}
+        data = {"disk": [], "outside": [], "protection": []}
         if not self.data:
             self.stack.set_visible_child_name("loading")
         self.refresh_button.set_sensitive(False)
@@ -223,7 +263,7 @@ class OverviewPage(Gtk.Box):
             self.first_before_folders = "top_dirs" not in data
 
         def on_event(e):
-            if e["event"] in ("disk", "outside"):
+            if e["event"] in ("disk", "outside", "protection"):
                 data[e["event"]].append(e)
             else:
                 data[e["event"]] = e
@@ -347,6 +387,17 @@ class OverviewPage(Gtk.Box):
                                          header_suffix=Gtk.Spinner(spinning=True, valign=Gtk.Align.CENTER))
             self.groups[key] = group
             self.results.append(group)
+
+        protection = Adw.PreferencesGroup(
+            title=_("System protection"),
+            description=_("Read only: CleanMate doesn't change these. To turn one on, run the command shown in a "
+                          "terminal."))
+        if not d.get("protection"):
+            protection.set_description(_("Couldn't read the system's protection."))
+        for e in d.get("protection", []):
+            protection.add(self.protection_row(e))
+        self.groups["protection"] = protection
+        self.results.append(protection)
         self.stack.set_visible_child_name("results")
 
     def show_folders(self):
@@ -402,6 +453,28 @@ class OverviewPage(Gtk.Box):
             self.results.insert_child_after(group, self.groups[key])
             self.results.remove(self.groups[key])
             self.groups[key] = group
+
+    def protection_row(self, e):
+        name, value, hint = protection_text(e)
+        command = e.get("command") or ""
+        icon, style = PROTECTION_STATES.get(e["state"], PROTECTION_STATES["unknown"])
+        subtitle = hint + ("\n" + command if command else "")
+        row = Adw.ActionRow(title=name, use_markup=False, subtitle_selectable=True, css_classes=["item-row"])
+        row.set_subtitle(subtitle)  # after use_markup=False: a command may hold "&&"
+        row.add_prefix(Gtk.Image(icon_name=icon, pixel_size=24, css_classes=[style]))
+        if command:
+            copy = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                              tooltip_text=_("Copy the command"))
+            copy.update_property([Gtk.AccessibleProperty.LABEL], [_("Copy the command")])
+            copy.connect("clicked", lambda _b, c=command: self.copy_command(c))
+            row.add_suffix(copy)
+        row.add_suffix(Gtk.Label(label=value, css_classes=[style] if e["state"] in ("on", "off") else ["dim-label"]))
+        self.rows["protect:" + e["id"]] = row
+        return row
+
+    def copy_command(self, command):
+        self.get_clipboard().set(command)
+        self.window.toast(_("Command copied. Paste it in a terminal to run it."))
 
     def fact_row(self, key, label, value):
         row = Adw.ActionRow(title=label, subtitle=value, use_markup=False, subtitle_selectable=True,

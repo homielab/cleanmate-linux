@@ -82,7 +82,9 @@ password once per task, and switches the snap-versions and journal-size limits o
 isn't installed is locked. The app opens on **System Overview**: your system and package counts, each disk
 with a usage bar (in the warning colour over 90 % full), a chart of free space over the last 30 days, memory
 and swap, what CleanMate freed in the last 30 days, space in use outside your folders (Timeshift snapshots,
-the swap file, ext4's reserved space) and your largest folders, which open in Space Lens.
+the swap file, ext4's reserved space), your largest folders, which open in Space Lens, and **System
+protection**: whether the firewall (ufw), AppArmor, automatic security updates and Secure Boot are on. It
+only reads them; one that is off shows the command that turns it on, with a button to copy it.
 
 | Large & Old Files | Uninstaller |
 | --- | --- |
@@ -144,7 +146,8 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
 - **Maintenance** — update everything (with a list of what will change first), repair packages,
   TRIM, free RAM, and lasting limits so old snap versions and system logs don't pile up again.
 - **System Overview** — storage, free-space history, space outside your folders (Timeshift
-  snapshots, the swap file, ext4's reserved space) and your largest folders.
+  snapshots, the swap file, ext4's reserved space), your largest folders, and whether the firewall,
+  AppArmor, automatic security updates and Secure Boot are on (read only, with the command to fix one).
 - Space Lens (browse folders by size), Large & Old Files (here with virtual machine disks),
   Duplicates, Startup Items (login apps) and Settings.
 
