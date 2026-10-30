@@ -38,7 +38,12 @@ class ScanPage(Gtk.Box):
         self.selected = {}  # id → bool
         self.checks = {}  # id → Gtk.CheckButton
         self.group_buttons = []  # (tri-state check, ids)
+        self.entries = {}  # item id → its "entry" events (Docker images, build-cache records), once loaded
+        self.entry_selected = {}  # item id → set of ticked entry ids
+        self.entry_checks = {}  # item id → {entry id → Gtk.CheckButton}
+        self.size_labels = {}  # item id → its size label ("selected / total" when only some entries are ticked)
         self.syncing = False
+        self.entry_syncing = False  # checkboxes moved by the page while syncing an item and its entries
         self.running = None  # Gio.Cancellable of the current engine run
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vexpand=True)
@@ -132,6 +137,10 @@ class ScanPage(Gtk.Box):
             child = self.results.get_first_child()
         self.checks.clear()
         self.group_buttons.clear()
+        self.entries.clear()
+        self.entry_selected.clear()
+        self.entry_checks.clear()
+        self.size_labels.clear()
         # an item whose program is running is skipped by the engine: never tick it
         self.selected = {i: e["selected"] and not e.get("locked") for i, e in self.items.items()
                          if e["status"] == "found"}
@@ -198,32 +207,133 @@ class ScanPage(Gtk.Box):
             subtitle = _("Close {program} and scan again").format(program=locked)
         elif e["root"]:
             subtitle = f"{subtitle} · {_('Needs your password')}" if subtitle else _("Needs your password")
-        row = Adw.ActionRow(title=e["label"], subtitle=subtitle, use_markup=False,
-                            subtitle_lines=1, tooltip_text=e["description"], css_classes=["item-row"])
+        expander = bool(e.get("entries")) and not locked and not self.privacy
+        row_type = Adw.ExpanderRow if expander else Adw.ActionRow
+        row = row_type(title=e["label"], subtitle=subtitle, use_markup=False, subtitle_lines=1,
+                       tooltip_text=e["description"], css_classes=["item-row"])
         check = Gtk.CheckButton(active=self.selected.get(e["id"], False), valign=Gtk.Align.CENTER,
                                 css_classes=["big-check"], sensitive=not locked)
         check.connect("toggled", self.on_toggled, e["id"])
         self.checks[e["id"]] = check
         row.add_prefix(check)
+        suffixes = []
         if locked:
-            row.add_suffix(Gtk.Image(icon_name="changes-prevent-symbolic", css_classes=["warning"],
-                                     tooltip_text=_("{program} is running — close it, then scan again").format(program=locked)))
-        else:
+            suffixes.append(Gtk.Image(icon_name="changes-prevent-symbolic", css_classes=["warning"],
+                                      tooltip_text=_("{program} is running — close it, then scan again").format(program=locked)))
+        elif not expander:
             row.set_activatable_widget(check)
         if e["root"] and not locked:
-            row.add_suffix(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password")))
+            suffixes.append(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password")))
         if not self.privacy:
-            for widget in size_widgets(e["bytes"], biggest):
-                row.add_suffix(widget)
+            bar, size = size_widgets(e["bytes"], biggest)
+            self.size_labels[e["id"]] = size
+            suffixes += [bar, size]
         info = Gtk.Button(icon_name="go-next-symbolic", valign=Gtk.Align.CENTER,
                           css_classes=["flat"], tooltip_text=_("Show what's inside"))
         info.connect("clicked", lambda *_: self.show_details(e))
-        row.add_suffix(info)
+        suffixes.append(info)
+        if expander:  # an ExpanderRow stacks its suffixes the other way round
+            suffixes.reverse()
+            row.connect("notify::expanded", lambda r, _p: r.get_expanded() and self.load_entries(e["id"], r))
+        for widget in suffixes:
+            row.add_suffix(widget)
         return row
 
+    # ── entries: single parts of an item (Docker images, build-cache records) ──
+    def load_entries(self, item_id, row):
+        if item_id in self.entries or getattr(row, "loading", None):
+            return
+        placeholder = Adw.ActionRow(title=_("Loading…"), css_classes=["dim-label"])
+        row.loading = placeholder
+        row.add_row(placeholder)
+        found = []
+
+        def on_event(ev):
+            if ev["event"] == "entry" and ev["item"] == item_id:
+                found.append(ev)
+
+        def on_done(ok, status):
+            row.remove(placeholder)
+            row.loading = None
+            if item_id not in self.items or self.checks.get(item_id) is None:
+                return  # scanned again meanwhile
+            self.entries[item_id] = found
+            if not found:
+                row.add_row(Adw.ActionRow(title=_("Nothing to choose one by one — Clean removes it all"),
+                                          css_classes=["dim-label"]))
+                return
+            on = self.selected.get(item_id, False)
+            picked = {x["id"] for x in found if x["selected"]} or {x["id"] for x in found}
+            self.entry_selected[item_id] = picked if on else set()
+            self.entry_checks[item_id] = {}
+            for x in found:
+                row.add_row(self.entry_row(item_id, x))
+            self.sync_item(item_id)
+            self.update_summary()
+
+        self.engine.details(item_id, on_event, on_done)
+
+    def entry_row(self, item_id, x):
+        row = Adw.ActionRow(title=x["label"], use_markup=False, title_lines=1, css_classes=["item-row"],
+                            tooltip_text=x["id"])
+        check = Gtk.CheckButton(active=x["id"] in self.entry_selected[item_id], valign=Gtk.Align.CENTER,
+                                css_classes=["big-check"])
+        check.connect("toggled", self.on_entry_toggled, item_id, x["id"])
+        self.entry_checks[item_id][x["id"]] = check
+        row.add_prefix(check)
+        row.set_activatable_widget(check)
+        row.add_suffix(Gtk.Label(label=human(x["bytes"]), width_chars=9, xalign=1,
+                                 css_classes=["numeric", "dim-label"]))
+        return row
+
+    def on_entry_toggled(self, check, item_id, entry_id):
+        if self.entry_syncing:
+            return
+        chosen = self.entry_selected[item_id]
+        if check.get_active():
+            chosen.add(entry_id)
+        else:
+            chosen.discard(entry_id)
+        self.sync_item(item_id)
+        self.update_summary()
+
+    def sync_item(self, item_id):
+        """The item's box follows its entries: none / some (inconsistent) / all; its size shows selected / total."""
+        chosen, every = self.entry_selected[item_id], self.entries[item_id]
+        self.selected[item_id] = bool(chosen)
+        self.entry_syncing = True
+        box = self.checks[item_id]
+        box.set_active(bool(chosen))
+        box.set_inconsistent(0 < len(chosen) < len(every))
+        self.entry_syncing = False
+        size = self.size_labels.get(item_id)
+        if size:
+            total = self.items[item_id]["bytes"]
+            size.set_text(f"{human(self.chosen_bytes(item_id))} / {human(total)}" if self.partial(item_id)
+                          else human(total))
+
+    def partial(self, item_id):
+        """Only some entries of the item are ticked: clean just those."""
+        chosen = self.entry_selected.get(item_id)
+        return bool(chosen) and len(chosen) < len(self.entries.get(item_id, []))
+
+    def chosen_bytes(self, item_id):
+        if self.partial(item_id):
+            return sum(x["bytes"] for x in self.entries[item_id] if x["id"] in self.entry_selected[item_id])
+        return self.items[item_id]["bytes"]
+
     def on_toggled(self, check, item_id):
+        if self.entry_syncing:
+            return
         self.selected[item_id] = check.get_active()
         self.window.selection.remember(item_id, check.get_active())
+        if self.entries.get(item_id):  # its entries follow the item
+            self.entry_selected[item_id] = {x["id"] for x in self.entries[item_id]} if check.get_active() else set()
+            self.entry_syncing = True
+            for box in self.entry_checks[item_id].values():
+                box.set_active(check.get_active())
+            self.entry_syncing = False
+            self.sync_item(item_id)
         self.update_summary()
 
     def on_group_toggle(self, button, ids):
@@ -239,7 +349,7 @@ class ScanPage(Gtk.Box):
             self.summary.set_text(ngettext("{n} selected", "{n} selected", len(ids)))
         else:
             self.summary.set_markup(ngettext("Selected <b>{size}</b> in {n} item", "Selected <b>{size}</b> in {n} items",
-                                             len(ids), size=human(sum(self.items[i]["bytes"] for i in ids))))
+                                             len(ids), size=human(sum(self.chosen_bytes(i) for i in ids))))
         self.clean_button.set_sensitive(bool(ids))
         self.syncing = True  # the group boxes follow the rows: none / some (inconsistent) / all
         for button, group_ids in self.group_buttons:
@@ -279,7 +389,7 @@ class ScanPage(Gtk.Box):
         ids = [i for i, on in self.selected.items() if on]
         if not ids:
             return
-        total = sum(self.items[i]["bytes"] for i in ids)
+        total = sum(self.chosen_bytes(i) for i in ids)
         needs_root = any(self.items[i]["root"] for i in ids)
         lines = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         for i in ids[:12]:
@@ -289,7 +399,7 @@ class ScanPage(Gtk.Box):
             if e["root"]:
                 row.append(Gtk.Image(icon_name="system-lock-screen-symbolic"))
             if not self.privacy:
-                row.append(Gtk.Label(label=human(e["bytes"]), css_classes=["numeric", "dim-label"]))
+                row.append(Gtk.Label(label=human(self.chosen_bytes(i)), css_classes=["numeric", "dim-label"]))
             lines.append(row)
         if len(ids) > 12:
             lines.append(Gtk.Label(label=_("… and {n} more").format(n=len(ids) - 12), xalign=0, css_classes=["dim-label"]))
@@ -380,7 +490,15 @@ class ScanPage(Gtk.Box):
             self.window.refresh_disk()
             GLib.timeout_add(1200, lambda: (self.scan(), False)[1])
 
-        if user_ids:
-            self.engine.clean(user_ids, on_event, lambda ok, st: run_root())
-        else:
-            run_root()
+        # items with only some entries ticked run one by one with those entries, the rest together
+        some = {i: sorted(self.entry_selected[i]) for i in user_ids if self.partial(i)}
+        whole = [i for i in user_ids if i not in some]
+        runs = ([(whole, None)] if whole else []) + [([i], entries) for i, entries in some.items()]
+
+        def run_user():
+            if not runs:
+                return run_root()
+            run_ids, entries = runs.pop(0)
+            self.engine.clean(run_ids, on_event, lambda ok, st: run_user(), entries=entries)
+
+        run_user()

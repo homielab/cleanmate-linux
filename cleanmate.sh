@@ -1931,6 +1931,49 @@ scan_docker_build() { docker_ok || return 1; docker_scan "$(docker_reclaimable "
 clean_docker_build() { run docker builder prune -f; }
 details_docker_build() { docker system df 2>/dev/null | sed 's/^/  /'; return 0; }
 
+# Entries: the desktop app can clean single dangling images and build-cache records
+# (`--json details` lists them, `--json clean ID --entries …` removes those).
+# entries_ID prints id<TAB>bytes<TAB>selected<TAB>label; clean_entries_ID removes the given IDs.
+# Only for a Docker on this computer (a unix socket), never a remote one.
+ENTRY_RE_docker_dangling='^sha256:[0-9a-f]{64}$'
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_docker_build='^[a-z0-9]{20,32}$' # BuildKit record IDs are base-32
+docker_local() {
+  local h=${DOCKER_HOST:-}
+  [[ -n $h ]] || h=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null)
+  [[ -z $h || $h == unix://* ]]
+}
+entries_docker_dangling() {
+  docker_ok && docker_local || return 1
+  local id size since
+  while IFS=$'\t' read -r id size since; do
+    [[ $id =~ $ENTRY_RE_docker_dangling ]] || continue
+    printf '%s\t%s\t1\t%s\n' "$id" "$(si_to_bytes "$size")" "${id:7:12} · created $since"
+  done < <(docker images -f dangling=true --no-trunc --format '{{.ID}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null)
+}
+entries_docker_build() { # records not in use, biggest first; a shared one frees nothing on its own
+  docker_ok && docker_local || return 1
+  docker system df -v --format \
+    '{{range .BuildCache}}{{.ID}}|{{.Size}}|{{.InUse}}|{{.Shared}}|{{.CacheType}}|{{.LastUsedSince}}|{{.Description}}{{println}}{{end}}' \
+    2>/dev/null | awk -F'|' '
+      function bytes(s,  n, u) { # 1.09MB, 512kB, 0B (SI units, like si_to_bytes)
+        n = s + 0; u = toupper(substr(s, match(s, /[^0-9.]/), 1))
+        return int(n * (u == "K" ? 1e3 : u == "M" ? 1e6 : u == "G" ? 1e9 : u == "T" ? 1e12 : 1) + 0.5)
+      }
+      $1 ~ /^[a-z0-9]+$/ && length($1) >= 20 && length($1) <= 32 && $3 != "true" { # see ENTRY_RE_docker_build
+        d = $7; for (i = 8; i <= NF; i++) d = d "|" $i
+        if (d == "") d = $5
+        gsub(/[\t\r]/, " ", d)
+        printf "%s\t%.0f\t0\t%s · used %s%s\n", $1, ($4 == "true" ? 0 : bytes($2)), d, $6, ($4 == "true" ? " · shared" : "")
+      }' | sort -t $'\t' -k2,2nr | head -n 300
+}
+clean_entries_docker_dangling() { local id rc=0; for id; do run docker rmi "$id" || rc=1; done; return "$rc"; }
+clean_entries_docker_build() {
+  local id rc=0
+  for id; do run docker builder prune --force --filter "id=$id" || rc=1; done
+  return "$rc"
+}
+
 scan_docker_containers() {
   docker_ok || return 1
   local n
@@ -4964,10 +5007,10 @@ json_item() { # ID [with scan results] → one "item" event
   if [[ ${2:-} == scanned ]]; then
     json_str note "${RES_NOTE[$id]}"; json_str lock "${RES_LOCK[$id]:-}"
     case ${RES_RC[$id]} in 0) status=found ;; 3) status=timeout ;; *) status=clean ;; esac
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s}\n' \
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s}\n' \
       "$id" "$cat" "$label" "$desc" "$( ((ITEM_DEFAULT[$id])) && echo true || echo false)" \
       "$([[ -n ${ITEM_ROOT[$id]:-} ]] && echo true || echo false)" "$status" "${RES_BYTES[$id]:-0}" "$note" \
-      "$( ((${SEL[$id]:-0})) && echo true || echo false)" "$lock"
+      "$( ((${SEL[$id]:-0})) && echo true || echo false)" "$lock" "$(json_bool has_entries "$id")"
   else
     printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s}\n' \
       "$id" "$cat" "$label" "$desc" "$( ((ITEM_DEFAULT[$id])) && echo true || echo false)" \
@@ -4976,6 +5019,29 @@ json_item() { # ID [with scan results] → one "item" event
 }
 
 json_error() { local m; json_str m "$1"; printf '{"event":"error","message":%s}\n' "$m"; }
+
+has_entries() { declare -F "entries_$1" >/dev/null; }
+
+json_entries() { # ID → one "entry" event per part of the item that can be cleaned on its own
+  local eid b sel label
+  has_entries "$1" || return 0
+  while IFS=$'\t' read -r eid b sel label; do
+    json_str label "$label"
+    printf '{"event":"entry","item":"%s","id":"%s","bytes":%d,"label":%s,"selected":%s}\n' \
+      "$1" "$eid" "$b" "$label" "$( ((sel)) && echo true || echo false)"
+  done < <("entries_$1" 2>/dev/null)
+}
+
+json_pick_entries() { # ID LIST → ENTRY_PICK: the comma-separated IDs, each checked by format
+  local re_var="ENTRY_RE_$1" e
+  ENTRY_PICK=()
+  declare -F "clean_entries_$1" >/dev/null || { json_error "$1 can't be cleaned entry by entry"; return 2; }
+  IFS=, read -ra ENTRY_PICK <<<"$2"
+  ((${#ENTRY_PICK[@]})) || { json_error "No entries given."; return 2; }
+  for e in "${ENTRY_PICK[@]}"; do
+    [[ $e =~ ${!re_var} ]] || { json_error "Not an entry ID of $1: $e"; return 2; }
+  done
+}
 
 json_task() { # ID STATE INFO FREED
   local info; json_str info "${3:-}"
@@ -4999,6 +5065,7 @@ json_main() { # SUBCOMMAND ARGS…
       [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error "Unknown item: $id"; return 2; }
       local lines=() l out="" first=1
       if declare -F "details_$id" >/dev/null; then mapfile -t lines < <("details_$id" 2>/dev/null); fi
+      json_entries "$id"
       for l in "${lines[@]}"; do
         json_str l "$l"
         ((first)) || out+=","
@@ -5027,14 +5094,24 @@ json_allowed() { # ID UID
   (($2 != 0)) || [[ -n ${ITEM_ROOT[$1]:-} ]]
 }
 
-json_clean() { # ID… — clean exactly these items, streaming "task" events
-  local id ids=() out rc before freed total=0 avail0 avail1 src bytes note info
-  for id in "$@"; do
+json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or these entries of one), streaming "task" events
+  local id ids=() out rc before freed total=0 avail0 avail1 src bytes note info entries="" e
+  local -a ENTRY_PICK=()
+  while (($#)); do
+    case $1 in
+      --entries) entries=${2:-}; [[ -n $entries ]] || { json_error "--entries needs a list of IDs"; return 2; }; shift 2; continue ;;
+    esac
+    id=$1
+    shift
     [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error "Unknown item: $id"; return 2; }
     json_allowed "$id" "$EUID" || { json_error "Refusing to clean $id as root (only system items are allowed)"; return 2; }
     ids+=("$id")
   done
   ((${#ids[@]})) || { json_error "No items given."; return 2; }
+  if [[ -n $entries ]]; then
+    ((${#ids[@]} == 1)) || { json_error "--entries works with one item at a time"; return 2; }
+    json_pick_entries "${ids[0]}" "$entries" || return
+  fi
   avail0=$(fs_avail)
   for id in "${ids[@]}"; do
     json_task "$id" run
@@ -5047,7 +5124,12 @@ json_clean() { # ID… — clean exactly these items, streaming "task" events
       json_task "$id" skip "Skipped: the app is running — close it and try again"; continue
     fi
     out=$(mktemp -p "$SESSION_TMP")
-    task_clean "$id" >"$out" 2>&1 </dev/null; rc=$?
+    if ((${#ENTRY_PICK[@]})); then
+      json_clean_entries "$id" >"$out" 2>&1 </dev/null; rc=$?
+      ((DRY_RUN)) && before=$ENTRY_BYTES # what these entries would free; a real run measures the item again
+    else
+      task_clean "$id" >"$out" 2>&1 </dev/null; rc=$?
+    fi
     if ((rc != 0)); then
       info=$(grep -v '^@@scan' "$out" | grep -v '^\s*$' | tail -n 1)
       json_task "$id" fail "${info:-failed (exit $rc)}" 0
@@ -5070,6 +5152,24 @@ json_clean() { # ID… — clean exactly these items, streaming "task" events
   ((DRY_RUN)) || record_cleanup "$total"
   log "GUI cleanup finished — $(human "$total") freed (dry-run=$DRY_RUN)"
   printf '{"event":"done","freed":%d,"avail_before":%d,"avail_after":%d}\n' "$total" "$avail0" "$avail1"
+}
+
+json_clean_entries() { # ID — clean ENTRY_PICK of ID (only entries entries_ID lists now) → ENTRY_BYTES, @@scan line
+  local id=$1 eid b sel label pick=() src
+  local -A listed=()
+  ENTRY_BYTES=0
+  while IFS=$'\t' read -r eid b sel label; do listed[$eid]=$b; done < <("entries_$id" 2>/dev/null)
+  for eid in "${ENTRY_PICK[@]}"; do
+    [[ -n ${listed[$eid]:-} ]] || { echo "Not found (any more): $eid"; continue; }
+    pick+=("$eid") ENTRY_BYTES=$((ENTRY_BYTES + listed[$eid]))
+  done
+  ((${#pick[@]})) || { echo "None of the chosen entries is there any more"; return 1; }
+  "clean_entries_$id" "${pick[@]}" || return
+  if ((!DRY_RUN)); then
+    SCAN_BYTES=0 SCAN_NOTE=""
+    "scan_$id" >/dev/null 2>&1; src=$?
+    printf '\n@@scan\t%s\t%s\t%s\n' "$src" "${SCAN_BYTES:-0}" "$SCAN_NOTE"
+  fi
 }
 
 # ── Large & Old Files, Trash and undo for the desktop app ──

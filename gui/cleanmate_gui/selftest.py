@@ -3,7 +3,8 @@
 Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
 Files, Space Lens, Duplicates and Startup Items checks move files to the Trash for real, and the Settings
-check saves settings for real, but only in a throwaway home folder they made, with the engine pointed at it.
+check saves settings for real, and the Docker check removes an image through a fake `docker`, but only in a
+throwaway home folder they made, with the engine pointed at it.
 """
 import os
 import shutil
@@ -708,7 +709,7 @@ def settings_test(win, report, wait, finish):
     def done():
         dialog.close()
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        docker_entries_test(win, report, wait, finish)
 
     def first():
         report("schedule" in page.rows or os.geteuid() == 0, "Settings opens from the main menu")
@@ -753,6 +754,85 @@ def settings_test(win, report, wait, finish):
         done()
 
     wait(idle, first, 30, "first settings")
+
+
+DOCKER_STUB = """#!/bin/sh
+echo "$*" >>"$HOME/docker.log"
+case "$*" in
+  info*) exit 0 ;;
+  "context inspect"*) echo unix:///var/run/docker.sock ;;
+  "system df --format"*) printf 'Images\\t200MB (10%%)\\n' ;;
+  "system df -v --format"*) ;;
+  "images -f dangling=true --format {{.Size}}") [ -e "$HOME/gone" ] && echo 80MB || printf '120MB\\n80MB\\n' ;;
+  "images -f dangling=true --no-trunc"*) [ -e "$HOME/gone" ] || printf 'sha256:%s\\t120MB\\t3 days ago\\n' "$(printf 'a%.0s' $(seq 64))"
+    printf 'sha256:%s\\t80MB\\t2 weeks ago\\n' "$(printf 'b%.0s' $(seq 64))" ;;
+  rmi*) touch "$HOME/gone" ;;
+esac
+"""
+
+
+def docker_entries_test(win, report, wait, finish):
+    """Developer Junk with a fake docker: two dangling images as sub-rows; untick one, Clean removes only
+    the other (for real, through the stub)."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
+    for d in (home, bin_dir):
+        os.makedirs(d)
+    with open(os.path.join(bin_dir, "docker"), "w") as f:
+        f.write(DOCKER_STUB)
+    os.chmod(os.path.join(bin_dir, "docker"), 0o755)
+    log = os.path.join(home, "docker.log")
+    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+           "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+    keep, drop = "sha256:" + "b" * 64, "sha256:" + "a" * 64
+
+    win.show_page("dev")
+    page = win.pages["dev"]
+    real_engine = page.engine
+    page.engine = Engine(real_engine.path, dry_run=False, env=env)
+
+    def done():
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def scanned():
+        row = page.checks.get("docker_dangling")
+        row = row and row.get_ancestor(Adw.ExpanderRow)
+        if not row:
+            report(False, "Docker dangling images have no sub-rows")
+            return done()
+        row.set_expanded(True)
+        wait(lambda: "docker_dangling" in page.entries, listed, 30, "Docker entries")
+
+    def listed():
+        boxes = page.entry_checks.get("docker_dangling", {})
+        report(sorted(boxes) == [drop, keep] and all(b.get_active() for b in boxes.values()),
+               "two dangling images listed under the item, both ticked")
+        boxes[keep].set_active(False)
+        box = page.checks["docker_dangling"]
+        report(box.get_active() and box.get_inconsistent() and page.chosen_bytes("docker_dangling") == 120000000
+               and page.size_labels["docker_dangling"].get_text().count("/") == 1,
+               "unticking one: the item box is half-ticked and the size shows selected / total")
+        if os.geteuid() == 0:
+            report(True, "real clean skipped: as root the engine refuses home items")
+            return done()
+        for i in list(page.selected):
+            page.selected[i] = i == "docker_dangling"
+        page.clean(["docker_dangling"])
+        wait(lambda: page.clean_title.get_text().startswith(lead(_("Freed {size}"))), cleaned, 60, "Docker clean")
+
+    def cleaned():
+        text = open(log).read() if os.path.exists(log) else ""
+        removed = [line for line in text.splitlines() if line.startswith("rmi ")]
+        report(removed == [f"rmi {drop}"] and "image prune" not in text, "Clean removes only the ticked image")
+        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", done, 60,
+             "scan after cleaning")
+
+    page.scan()
+    wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,
+         "Developer Junk scan")
 
 
 def show_scene_page(win, page_id):

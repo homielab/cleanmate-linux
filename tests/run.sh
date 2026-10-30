@@ -541,6 +541,95 @@ EOF
   [[ $out == *"image prune -a"* ]] && fail "unused images must not be pruned unless selected" || ok_ "unused images untouched"
 }
 
+docker_entries_stub() { # DIR LOG — a docker with two dangling images and three build-cache records; calls logged
+  local a b
+  a=sha256:$(printf 'a%.0s' {1..64}) b=sha256:$(printf 'b%.0s' {1..64})
+  mkdir -p "$1"
+  cat >"$1/docker" <<EOF
+#!/bin/sh
+echo "\$*" >>"$2"
+case "\$*" in
+  info*) exit 0 ;;
+  "context inspect"*) echo unix:///var/run/docker.sock ;;
+  "system df --format"*) printf 'Images\t200MB (10%%)\nBuild Cache\t3.5GB\n' ;;
+  "system df -v --format"*) printf '%s\n' \\
+    'k4v2r7x9q0w3e5t8y1u6i2o4p|3GB|false|false|regular|2 days ago|mount / from exec /bin/sh -c npm ci' \\
+    'z9y8x7w6v5u4t3s2r1q0p9o8n|500MB|false|true|source.local|3 hours ago|local source for context' \\
+    'inuse0000000000000000000x|1GB|true|false|regular|1 minute ago|being built' ;;
+  "images -f dangling=true --format {{.Size}}") printf '120MB\n80MB\n' ;;
+  "images -f dangling=true --no-trunc"*) printf '$a\t120MB\t3 days ago\n$b\t80MB\t2 weeks ago\n' ;;
+esac
+EOF
+  chmod +x "$1/docker"
+}
+
+entry_list() { # reads `--json details` / `clean` → entries and tasks, one line each
+  python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["item"], e["id"][:16], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["id"], e["freed"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])'
+}
+
+test_docker_entries_one_by_one() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local log=$WORK/docker-entries.log out a b
+  a=sha256:$(printf 'a%.0s' {1..64}) b=sha256:$(printf 'b%.0s' {1..64})
+  : >"$log"
+  chmod 666 "$log" # root runs write it as nobody
+  docker_entries_stub "$WORK/dockerentries" "$log"
+  local BASE_PATH="$WORK/dockerentries:$BASE_PATH"
+  out=$(cm --json details docker_dangling | entry_list)
+  assert_eq "$out" "docker_dangling sha256:aaaaaaaaa 120000000 on aaaaaaaaaaaa · created 3 days ago
+docker_dangling sha256:bbbbbbbbb 80000000 on bbbbbbbbbbbb · created 2 weeks ago" "dangling images, ticked"
+  out=$(cm --json details docker_build | entry_list)
+  assert_eq "$out" "docker_build k4v2r7x9q0w3e5t8 3000000000 off mount / from exec /bin/sh -c npm ci · used 2 days ago
+docker_build z9y8x7w6v5u4t3s2 0 off local source for context · used 3 hours ago · shared" \
+    "build cache: not in use only, biggest first, shared = 0 bytes, not ticked"
+  out=$(cm --json scan --only dev | grep '"id":"docker_build"')
+  assert_contains "$out" '"entries":true'
+  assert_contains "$(cm --json scan --only dev | grep '"id":"docker_volumes"')" '"entries":false'
+  # untick one of two dangling images → only the other is removed
+  : >"$log"
+  out=$(user_cm --json clean docker_dangling --entries "$a" | entry_list)
+  assert_contains "$out" "ok docker_dangling"
+  assert_eq "$(grep -c '^rmi ' "$log")" 1 "one docker rmi"
+  assert_contains "$(<"$log")" "rmi $a"
+  [[ $(<"$log") == *"rmi $b"* || $(<"$log") == *"image prune"* ]] && fail "only the chosen image is removed" || ok_ "the other image stays"
+  : >"$log"
+  user_cm --json clean docker_build --entries k4v2r7x9q0w3e5t8y1u6i2o4p >/dev/null
+  assert_contains "$(<"$log")" "builder prune --force --filter id=k4v2r7x9q0w3e5t8y1u6i2o4p"
+  # dry run: what the chosen entries would free, nothing run
+  : >"$log"
+  out=$(user_cm --json --dry-run clean docker_dangling --entries "$a" | entry_list)
+  assert_contains "$out" "ok docker_dangling 120000000"
+  [[ $(<"$log") == *rmi* ]] && fail "dry run must not remove" || ok_ "dry run removes nothing"
+  # wrong IDs are refused before docker is asked anything
+  : >"$log"
+  out=$(user_cm --json clean docker_dangling --entries 'sha256:abc;rm' 2>&1 | entry_list)
+  assert_contains "$out" "error Not an entry ID of docker_dangling: sha256:abc;rm"
+  out=$(user_cm --json clean docker_dangling --entries "postgres:18" 2>&1 | entry_list)
+  assert_contains "$out" "error Not an entry ID"
+  out=$(user_cm --json clean docker_build --entries "-f,abc" 2>&1 | entry_list)
+  assert_contains "$out" "error Not an entry ID of docker_build: -f"
+  out=$(user_cm --json clean docker_volumes --entries abc 2>&1 | entry_list)
+  assert_contains "$out" "error docker_volumes can't be cleaned entry by entry"
+  out=$(user_cm --json clean docker_dangling docker_build --entries "$a" 2>&1 | entry_list)
+  assert_contains "$out" "error --entries works with one item at a time"
+  assert_eq "$(<"$log")" "" "docker never called for a refused request"
+  # a well-formed ID that isn't listed (a tagged image, a record in use) is never removed
+  out=$(user_cm --json clean docker_dangling --entries "sha256:$(printf 'c%.0s' {1..64})" | entry_list)
+  assert_contains "$out" "fail docker_dangling 0 None of the chosen entries is there any more"
+  out=$(user_cm --json clean docker_build --entries inuse0000000000000000000x | entry_list)
+  assert_contains "$out" "fail docker_build"
+  [[ $(<"$log") == *"rmi"* || $(<"$log") == *"builder prune"* ]] && fail "unlisted entries must not be removed" || ok_ "unlisted entries untouched"
+  # a Docker that isn't on this computer: no entries
+  out=$(in_app 'DOCKER_HOST=tcp://10.0.0.5:2375 json_entries docker_dangling')
+  assert_eq "$out" "" "no entries for a remote Docker"
+}
+
 test_free_space_history() {
   fresh_home
   local out today
@@ -1077,6 +1166,8 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the app's folder back"
     ((EUID == 0)) || assert_contains "$out" "a changed number and switch are saved for the terminal app"
     ((EUID == 0)) || assert_contains "$out" "turning automatic cleaning on enables the weekly timer"
+    assert_contains "$out" "unticking one: the item box is half-ticked and the size shows selected / total"
+    ((EUID == 0)) || assert_contains "$out" "Clean removes only the ticked image"
     assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
     if [[ $lang == vi* ]]; then assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"; fi
   done

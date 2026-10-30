@@ -111,8 +111,10 @@ class Engine:
     def details(self, item_id, on_event, on_done):
         return self.run(["details", item_id], on_event, on_done)
 
-    def clean(self, ids, on_event, on_done, as_root=False):
-        return self.run(["clean", *ids], on_event, on_done, as_root=as_root)
+    def clean(self, ids, on_event, on_done, as_root=False, entries=None):
+        """Clean these items; with entries (IDs from `details` "entry" events), only those parts of one item."""
+        extra = ["--entries", ",".join(entries)] if entries else []
+        return self.run(["clean", *ids, *extra], on_event, on_done, as_root=as_root)
 
     def large(self, min_bytes, days, folder, on_event, on_done):
         return self.run(["large", "--min", str(min_bytes), "--days", str(days), "--path", folder],
