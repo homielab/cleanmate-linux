@@ -2546,7 +2546,7 @@ details_maven() { detail_paths "${MAVEN_PATHS[@]}"; }
 # A folder a tool is pointed to by an environment variable: the live environment first, then
 # the last `export NAME=value` in the shell startup files (read as text, never run). Only a
 # plain path inside HOME ($HOME, ${HOME} or ~ allowed) counts; anything else is ignored.
-env_home_dir() { # NAME → path, or nothing
+env_value() { # NAME → its value (live environment, else the shell startup files) with ~ and $HOME expanded, or nothing
   local name=$1 v="" f line
   v=${!name:-}
   if [[ -z $v ]]; then
@@ -2560,6 +2560,12 @@ env_home_dir() { # NAME → path, or nothing
     done
   fi
   v=${v/#\~/$HOME}; v=${v/#\$\{HOME\}/$HOME}; v=${v/#\$HOME/$HOME}
+  [[ -n $v ]] && printf '%s\n' "$v"
+  return 0
+}
+env_home_dir() { # NAME → path, or nothing
+  local v
+  v=$(env_value "$1")
   [[ $v == "$HOME"/* && $v != *[\$\`\;\&\|\<\>\(\)\\]* && $v != *..* && ! -L $v ]] && printf '%s\n' "${v%/}"
   return 0
 }
@@ -2613,6 +2619,175 @@ reg_cache_item pub_cache dev "Dart & Flutter pub cache" 0 \
   "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept." \
   "$(env_home_paths PUB_CACHE hosted "$HOME/.pub-cache/hosted")
 $(env_home_paths PUB_CACHE git/cache "$HOME/.pub-cache/git/cache")" "dart|dartaotruntime|flutter"
+
+# Android emulator system images no virtual device (AVD) uses: 1–8 GB each, and they stay when
+# the AVD is deleted. SDKs: ~/Android/Sdk, ANDROID_HOME and ANDROID_SDK_ROOT (inside your home, no
+# symlinks on the way). An image is system-images/<android-N>/<tag>/<abi> with a source.properties
+# or package.xml; an AVD uses the one its config.ini's image.sysdir.N names. AVDs are read from
+# ~/.android/avd, ANDROID_AVD_HOME, ANDROID_USER_HOME/avd and ANDROID_SDK_HOME/.android/avd, both
+# the <name>.avd folders and the <name>.ini files pointing elsewhere (path=). An AVD that can't be
+# read keeps every image. Deleted for good (the SDK Manager downloads one again); platforms,
+# build-tools, ndk, emulator and the AVDs are never touched. Locked while Android Studio, the
+# emulator, sdkmanager or avdmanager runs. Not ticked; the desktop app lists each image.
+reg android_images dev "Android system images (unused)" 0 "Android emulator system images no virtual device (AVD) uses, often several GB each. Deleted; download one again with Android Studio's SDK Manager. Close Android Studio and the emulator first."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_android_images='^/[A-Za-z0-9/._~%-]+$' # the image folder's full path, percent-encoded (urlencode_path)
+declare -A AU_USED=() # <android-N>/<tag>/<abi> of the images AVDs use
+
+android_sdk_roots() { # SDK folders inside your home, no symlinks on the way
+  local d
+  { printf '%s\n' "$HOME/Android/Sdk"; env_home_dir ANDROID_HOME; env_home_dir ANDROID_SDK_ROOT; } | awk '!seen[$0]++' |
+    while IFS= read -r d; do
+      [[ $d == "$HOME"/* && -d $d && ! -L $d && $(realpath -e -- "$d" 2>/dev/null) == "$d" ]] && printf '%s\n' "$d"
+    done
+  return 0
+}
+
+avd_homes() { # folders AVDs are kept in; fails when a variable names one that can't be read as a plain path
+  local n v
+  printf '%s\n' "$HOME/.android/avd"
+  for n in ANDROID_AVD_HOME ANDROID_USER_HOME ANDROID_SDK_HOME; do
+    v=$(env_value "$n")
+    [[ -n $v ]] || continue
+    [[ $v == /* && $v != *[\$\`[:cntrl:]]* ]] || return 1
+    v=${v%/}
+    case $n in ANDROID_USER_HOME) v+=/avd ;; ANDROID_SDK_HOME) v+=/.android/avd ;; esac
+    printf '%s\n' "$v"
+  done
+}
+
+ini_lines() { # FILE → its lines without CR; fails when it isn't a readable, small regular file
+  [[ -f $1 && -r $1 ]] && (($(stat -c %s -- "$1" 2>/dev/null || echo 1048577) <= 1048576)) || return 1
+  tr -d '\r' <"$1" 2>/dev/null
+}
+
+avd_uses() { # AVD_FOLDER → AU_USED[<android-N>/<tag>/<abi>]=1 for its images; fails when its config.ini can't be read
+  local lines line v got=0
+  lines=$(ini_lines "$1/config.ini") || return 1
+  while IFS= read -r line; do
+    [[ $line =~ ^[[:space:]]*image\.sysdir\.[0-9]+[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*$ ]] || continue
+    v=${BASH_REMATCH[1]//\\//}
+    v=${v%/}
+    [[ $v == system-images/* || $v == */system-images/* ]] || return 1 # an image somewhere we don't look
+    AU_USED[${v##*system-images/}]=1 got=1
+  done <<<"$lines"
+  ((got))
+}
+
+android_used_images() { # → AU_USED for every AVD; fails when one of them can't be read
+  local homes h f d lines line p
+  local -A seen=()
+  AU_USED=()
+  homes=$(avd_homes) || return 1
+  while IFS= read -r h; do
+    [[ -e $h || -L $h ]] || continue
+    [[ -d $h && -r $h && -x $h ]] || return 1
+    for d in "$h"/*.avd; do
+      [[ -e $d ]] || continue
+      seen[$d]=1
+      avd_uses "$d" || return 1
+    done
+    for f in "$h"/*.ini; do
+      [[ -e $f ]] || continue
+      lines=$(ini_lines "$f") || return 1
+      p=""
+      while IFS= read -r line; do
+        [[ $line =~ ^[[:space:]]*path\.rel[[:space:]]*=[[:space:]]*(.*[^[:space:]]) && -z $p ]] && p=${h%/*}/${BASH_REMATCH[1]}
+        [[ $line =~ ^[[:space:]]*path[[:space:]]*=[[:space:]]*(.*[^[:space:]]) ]] && p=${BASH_REMATCH[1]}
+      done <<<"$lines"
+      p=${p%/}
+      [[ -n $p && -z ${seen[$p]:-} ]] || continue
+      seen[$p]=1
+      if [[ -d $p ]]; then avd_uses "$p" || return 1
+      elif ! path_gone "$p"; then return 1; fi # on a drive that isn't plugged in, or can't be checked
+    done
+  done <<<"$homes"
+}
+
+android_images() { # → AI_DIR / AI_BYTES / AI_LABEL of images no AVD uses, biggest first; none when an AVD can't be read
+  local root d rel api tag abi b lines=()
+  AI_DIR=() AI_BYTES=() AI_LABEL=()
+  android_used_images || return 0
+  while IFS= read -r root; do
+    [[ -d $root/system-images && ! -L $root/system-images ]] || continue
+    for d in "$root"/system-images/*/*/*/; do
+      d=${d%/} rel=${d#"$root"/system-images/}
+      IFS=/ read -r api tag abi <<<"$rel"
+      [[ ! -L $root/system-images/$api && ! -L $root/system-images/$api/$tag && ! -L $d && -d $d ]] || continue
+      [[ -f $d/source.properties || -f $d/package.xml ]] || continue
+      [[ -z ${AU_USED[$rel]:-} && $d != *[[:cntrl:]]* ]] || continue
+      touches_exclusion "$d" && continue
+      b=$(du -sbx -- "$d" 2>/dev/null | cut -f1)
+      lines+=("${b:-0}"$'\t'"$d"$'\t'"Android ${api#android-} · $tag · $abi")
+    done
+  done < <(android_sdk_roots)
+  ((${#lines[@]})) || return 0
+  while IFS=$'\t' read -r b d rel; do
+    AI_BYTES+=("$b") AI_DIR+=("$d") AI_LABEL+=("$rel")
+  done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
+}
+
+lockedby_android_images() { # Android Studio, the emulator, sdkmanager or avdmanager
+  running_proc -x 'studio|android-studio|studio\.sh|emulator|emulator64-.*|qemu-system-.*|sdkmanager|avdmanager' && return
+  # started by studio.sh, sdkmanager and avdmanager they run as java
+  if running_proc -f 'idea\.platform\.prefix=AndroidStudio' >/dev/null; then echo "Android Studio"
+  elif running_proc -f 'com\.android\.sdklib\.tool\.(sdkmanager\.SdkManagerCli|AvdManagerCli)' >/dev/null; then echo "sdkmanager"
+  else return 1; fi
+}
+precheck_android_images() { # deleting an image the SDK Manager or the emulator works on would break it
+  local p
+  p=$(lockedby_android_images) || return 0
+  warn "Skipping ${ITEM_LABEL[android_images]}: close $p first."
+  return 1
+}
+
+delete_android_images() { # INDEX… of AI_DIR
+  local i d rc=0
+  for i; do
+    d=${AI_DIR[i]}
+    is_protected "$d" && { err "Refusing to touch protected path: $d"; rc=1; continue; }
+    run rm -rf -- "$d" || { rc=1; continue; }
+    ((DRY_RUN)) || rmdir -- "${d%/*}" "${d%/*/*}" 2>/dev/null # <tag> and <android-N> once empty
+  done
+  return "$rc"
+}
+
+scan_android_images() {
+  local b
+  android_images
+  ((${#AI_DIR[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${AI_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#AI_DIR[@]} image) no AVD uses"
+}
+clean_android_images() {
+  android_images
+  ((${#AI_DIR[@]})) || return 0
+  delete_android_images "${!AI_DIR[@]}"
+}
+details_android_images() {
+  local i
+  android_images
+  for i in "${!AI_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${AI_BYTES[i]}")" "$(human "${AI_BYTES[i]}")" "$NC" "${AI_LABEL[i]}" "${AI_DIR[i]/#$HOME/\~}"
+  done
+}
+entries_android_images() {
+  local i
+  android_images
+  for i in "${!AI_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${AI_DIR[i]}")" "${AI_BYTES[i]}" "${AI_LABEL[i]}"
+  done
+}
+clean_entries_android_images() { # encoded image folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  android_images
+  for id; do
+    for i in "${!AI_DIR[@]}"; do [[ $(urlencode_path "${AI_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_android_images "${pick[@]}"
+}
 
 si_to_bytes() { local v=${1%B}; v=${v/k/K}; numfmt --from=si "$v" 2>/dev/null || echo 0; }
 # Docker: one item per kind of leftover, sized from `docker system df`.
@@ -6151,7 +6326,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 # never empty a Trash behind the user's back
-  SEL[stale_build_dirs]=0 # the user picks which projects to rebuild
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 # the user picks which projects to rebuild and images to download again
   plain_results
   printf '\n'
   start_cleanup

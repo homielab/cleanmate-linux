@@ -2194,6 +2194,84 @@ test_ollama_partial_downloads_and_pub_cache() {
   assert_exists "$h/.pub-cache/global_packages/g/p"; assert_exists "$h/.pub-cache/git/repo-abc/src"; assert_exists "$h/pc/credentials.json"
 }
 
+# Android system images: only those no AVD uses are listed, each as an entry, never ticked;
+# an AVD that can't be read keeps all of them, and Android Studio or the emulator locks the item.
+test_unused_android_system_images() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/androidbin p enc33 enc34 b33 b34
+  local s=$h/Android/Sdk/system-images s2=$h/sdk2/system-images
+  sized "$s/android-34/google_apis/x86_64/system.img" 300000; new "$s/android-34/google_apis/x86_64/source.properties"
+  sized "$s/android-33/google_apis_playstore/x86_64/system.img" 200000; new "$s/android-33/google_apis_playstore/x86_64/package.xml"
+  sized "$s/android-30/default/x86_64/system.img" 100000; new "$s/android-30/default/x86_64/source.properties" # the AVD's
+  sized "$s/android-29/default/x86_64/system.img" 10                     # no source.properties / package.xml
+  sized "$s2/android-31/google_apis/arm64-v8a/system.img" 10; new "$s2/android-31/google_apis/arm64-v8a/package.xml" # a moved AVD's
+  for p in platforms/android-34/android.jar build-tools/34.0.0/aapt ndk/27.1/x emulator/emulator platform-tools/adb; do
+    new "$h/Android/Sdk/$p"
+  done
+  printf 'export ANDROID_HOME="$HOME/sdk2"\n' >"$h/.profile"
+  mkdir -p "$h/.android/avd/Pixel.avd" "$h/vms/Tab.avd"
+  printf 'avd.ini.encoding=UTF-8\r\nimage.sysdir.1=system-images/android-30/default/x86_64/\r\n' >"$h/.android/avd/Pixel.avd/config.ini"
+  printf 'path=%s\npath.rel=avd/Pixel.avd\n' "$h/.android/avd/Pixel.avd" >"$h/.android/avd/Pixel.ini"
+  printf 'image.sysdir.1 = %s/sdk2/system-images/android-31/google_apis/arm64-v8a/\n' "$h" >"$h/vms/Tab.avd/config.ini"
+  printf 'path=%s/vms/Tab.avd\n' "$h" >"$h/.android/avd/Tab.ini"
+  printf 'path=%s/gone/Gone.avd\n' "$h" >"$h/.android/avd/Gone.ini" # its AVD was deleted
+  b34=$(du -sb "$s/android-34/google_apis/x86_64" | cut -f1) b33=$(du -sb "$s/android-33/google_apis_playstore/x86_64" | cut -f1)
+  enc34=$(in_app "urlencode_path '$s/android-34/google_apis/x86_64'") enc33=$(in_app "urlencode_path '$s/android-33/google_apis_playstore/x86_64'")
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["status"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"], repr(e["locked"]))
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"])
+    elif e["event"] == "error": print("error", e["message"])'
+  out=$(cm --json scan --only dev | grep '"id":"android_images"' | python3 -c "$list")
+  assert_eq "$out" "android_images found $((b34 + b33)) 2 images no AVD uses False True False ''" "two unused images, not ticked"
+  out=$(cm --json details android_images | python3 -c "$list")
+  assert_eq "$out" "$enc34 $b34 off Android 34 · google_apis · x86_64
+$enc33 $b33 off Android 33 · google_apis_playstore · x86_64" "one entry per image, biggest first"
+  out=$(cm --scan --only dev 2>&1)
+  assert_contains "$out" "Android system images (unused)"
+  select_only android_images # automatic cleaning leaves them alone even when ticked
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$s/android-34/google_apis/x86_64"
+  # Android Studio, the emulator, sdkmanager or avdmanager running: locked and skipped
+  running_stub "$bin" "qemu-system-x86"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan --only dev | grep '"id":"android_images"' | python3 -c "$list")
+  assert_contains "$out" "'qemu-system-x86'"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean android_images --entries "$enc34" 2>&1)
+  assert_contains "$out" '"id":"android_images","state":"skip"'
+  running_stub "$bin" studio
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only dev 2>&1 </dev/null)
+  assert_contains "$out" "Skipping"
+  assert_exists "$s/android-34/google_apis/x86_64"
+  out=$(user_cm --json clean android_images --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of android_images: ../etc"
+  out=$(user_cm --json clean android_images --entries "$enc33" | python3 -c "$list")
+  assert_eq "$out" "ok $b33" "only the chosen image"
+  assert_missing "$s/android-33"; assert_exists "$s/android-34/google_apis/x86_64"
+  out=$(user_cm --json clean android_images | python3 -c "$list")
+  assert_eq "$out" "ok $b34" "the other unused image"
+  assert_missing "$s/android-34"
+  for p in system-images/android-30/default/x86_64/system.img system-images/android-29/default/x86_64/system.img \
+    platforms/android-34/android.jar build-tools/34.0.0/aapt ndk/27.1/x emulator/emulator platform-tools/adb; do
+    assert_exists "$h/Android/Sdk/$p"
+  done
+  assert_exists "$s2/android-31/google_apis/arm64-v8a/system.img"; assert_exists "$h/.android/avd/Pixel.avd/config.ini"
+  # an AVD whose config.ini can't be read (here: names no image) keeps every image
+  sized "$s/android-35/google_apis/x86_64/system.img" 10; new "$s/android-35/google_apis/x86_64/source.properties"
+  out=$(cm --json details android_images | python3 -c "$list")
+  assert_eq "$out" "$(in_app "urlencode_path '$s/android-35/google_apis/x86_64'") $(du -sb "$s/android-35/google_apis/x86_64" | cut -f1) off Android 35 · google_apis · x86_64" \
+    "listed while every AVD reads fine"
+  printf 'garbage\n' >"$h/vms/Tab.avd/config.ini"
+  out=$(cm --json details android_images | python3 -c "$list")
+  assert_eq "$out" "" "a broken config.ini lists nothing"
+  printf 'image.sysdir.1=system-images/android-31/google_apis/arm64-v8a/\n' >"$h/vms/Tab.avd/config.ini"
+  printf 'export ANDROID_AVD_HOME=$OTHER/avd\n' >>"$h/.profile" # an AVD folder we can't tell
+  out=$(cm --json details android_images | python3 -c "$list")
+  assert_eq "$out" "" "an AVD folder that can't be worked out lists nothing"
+}
+
 test_firebase_zcode_mimocode_keep_logins_and_sessions() {
   fresh_home
   local h=$HOME_DIR fb=$HOME_DIR/.cache/firebase out holder

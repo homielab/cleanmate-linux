@@ -660,6 +660,14 @@ msgstr ""
 msgid "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept."
 msgstr ""
 
+#. android_images label
+msgid "Android system images (unused)"
+msgstr ""
+
+#. android_images description
+msgid "Android emulator system images no virtual device (AVD) uses, often several GB each. Deleted; download one again with Android Studio's SDK Manager. Close Android Studio and the emulator first."
+msgstr ""
+
 #. ollama_partial label
 msgid "Ollama — unfinished downloads"
 msgstr ""

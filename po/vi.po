@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 13:45+0000\n"
+"POT-Creation-Date: 2026-10-30 14:33+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -977,8 +977,7 @@ msgstr "Mục có ổ khoá cần mật khẩu của bạn."
 msgid ""
 "Items moved to the Trash can be undone for 10 seconds; the rest is deleted "
 "for good."
-msgstr ""
-"Mục vào Thùng rác hoàn tác được trong 10 giây; mục khác bị xoá hẳn."
+msgstr "Mục vào Thùng rác hoàn tác được trong 10 giây; mục khác bị xoá hẳn."
 
 #: gui/cleanmate_gui/scanpage.py:457 gui/cleanmate_gui/scanpage.py:501
 #: gui/cleanmate_gui/uninstaller.py:483 gui/cleanmate_gui/uninstaller.py:522
@@ -2929,6 +2928,20 @@ msgid ""
 msgstr ""
 "Các gói Dart và Flutter đã tải (~/.pub-cache/hosted, git/cache). 'pub get' "
 "tải lại; công cụ đã kích hoạt và đăng nhập pub được giữ."
+
+#. android_images label
+msgid "Android system images (unused)"
+msgstr "Ảnh hệ thống Android (không dùng)"
+
+#. android_images description
+msgid ""
+"Android emulator system images no virtual device (AVD) uses, often several "
+"GB each. Deleted; download one again with Android Studio's SDK Manager. "
+"Close Android Studio and the emulator first."
+msgstr ""
+"Ảnh hệ thống của trình giả lập Android mà không thiết bị ảo (AVD) nào dùng, "
+"thường vài GB mỗi ảnh. Xoá hẳn; tải lại bằng SDK Manager của Android Studio. "
+"Hãy đóng Android Studio và trình giả lập trước."
 
 #. ollama_partial label
 msgid "Ollama — unfinished downloads"
