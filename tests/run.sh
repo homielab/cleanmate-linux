@@ -774,6 +774,32 @@ for l in sys.stdin:
   assert_missing "$(dirname "$HOME_DIR")/escaped"; assert_exists "$trash/files/evil"
 }
 
+test_json_clean_gives_trash_keys_for_undo() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local dl=$HOME_DIR/Downloads thumb=$HOME_DIR/.cache/thumbnails/large/a.png out
+  sized "$dl/a.deb" 1000; touch -d "40 days ago" "$dl/a.deb"
+  mkdir -p "${thumb%/*}"; echo x >"$thumb"
+  local done_='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "done": print(json.dumps(e.get("trash"), sort_keys=True))
+    elif e["event"] == "item": print(e["id"], e["trash"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["id"], e.get("trash", ""))'
+  out=$(cm --json items | python3 -c "$done_" | grep -E '^(old_installers|old_downloads|stale_build_dirs|vscode_stale_workspaces|thumbs|node_modules) ' | sort)
+  assert_eq "$out" $'node_modules False\nold_downloads True\nold_installers True\nstale_build_dirs True\nthumbs False\nvscode_stale_workspaces True' \
+    "items say which ones go to the Trash"
+  out=$(user_cm --json --dry-run clean old_installers thumbs | python3 -c "$done_")
+  assert_eq "$out" $'ok old_installers \nok thumbs \n{}' "dry run: nothing to undo"
+  out=$(user_cm --json clean old_installers thumbs | python3 -c "$done_")
+  assert_eq "$out" $'ok old_installers \nok thumbs \n{"old_installers": ["a.deb"]}' \
+    "done lists the Trash keys of what went to the Trash, by item; deleted items have none"
+  assert_missing "$dl/a.deb"; assert_missing "$thumb"
+  out=$(user_cm --json restore a.deb | python3 -c "$done_")
+  assert_eq "$out" $'ok '"$dl/a.deb"$' a.deb\nnull' "restore takes the keys of done"
+  assert_exists "$dl/a.deb"; assert_missing "$thumb"
+}
+
 test_json_trash_on_a_drive() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -1844,6 +1870,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     ((EUID == 0)) || assert_contains "$out" "back to the language in use: no restart needed"
     assert_contains "$out" "unticking one: the item box is half-ticked and the size shows selected / total"
     ((EUID == 0)) || assert_contains "$out" "Clean removes only the ticked image"
+    ((EUID == 0)) || assert_contains "$out" "a clean that deleted everything for good offers no Undo"
+    assert_contains "$out" "the confirmation says an item that goes to the Trash can be undone"
+    ((EUID == 0)) || assert_contains "$out" "Undo puts the installer back from the Trash and the scan lists it again"
     assert_contains "$out" "a missing tool locks the row with why"
     ((EUID == 0)) || assert_contains "$out" "Rebuild font cache runs as you; the log shows its output, then done"
     assert_contains "$out" "Update everything asks for the password once"

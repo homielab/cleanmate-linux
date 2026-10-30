@@ -45,6 +45,10 @@ class ScanPage(Gtk.Box):
         self.syncing = False
         self.entry_syncing = False  # checkboxes moved by the page while syncing an item and its entries
         self.running = None  # Gio.Cancellable of the current engine run
+        self.trashed = {}  # item id → Trash keys of the last clean (what Undo puts back)
+        self.undo_toast = None  # the toast offering Undo after a clean that moved items to the Trash
+        self.restoring = None  # Gio.Cancellable of the Undo run
+        self.scan_again = False  # Undo finished during a scan: scan once more to show what came back
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vexpand=True)
         self.append(self.stack)
@@ -131,6 +135,9 @@ class ScanPage(Gtk.Box):
                 self.stack.set_visible_child_name("start")
                 return
             self.show_results()
+            if self.scan_again:
+                self.scan_again = False
+                self.scan()
 
         self.running = self.engine.scan(self.categories, on_event, on_done)
 
@@ -415,7 +422,7 @@ class ScanPage(Gtk.Box):
             body = _("This can't be undone.")
         else:
             heading = ngettext("Clean {n} item?", "Clean {n} items?", len(ids))
-            body = _("About {size} will be removed.").format(size=human(total))
+            body = _("About {size} will be removed.").format(size=human(total)) + " " + self.undo_note(ids)
         if needs_root:
             body += " " + _("Items with a lock need your password.")
         dialog = Adw.AlertDialog(heading=heading, body=body, extra_child=lines)
@@ -427,11 +434,18 @@ class ScanPage(Gtk.Box):
         dialog.connect("response", lambda d, r: r == "clean" and self.clean(ids))
         dialog.present(self.window)
 
+    def undo_note(self, ids):
+        """What the confirmation says about undoing: only items that go to the Trash come back."""
+        if any(self.items[i].get("trash") for i in ids):
+            return _("Items moved to the Trash can be undone for 10 seconds; the rest is deleted for good.")
+        return _("This can't be undone.")
+
     def clean(self, ids):
         user_ids = [i for i in ids if not self.items[i]["root"]]
         root_ids = [i for i in ids if self.items[i]["root"]]
         self.task_rows = {}
         self.freed = 0
+        self.trashed = {}
         self.avail = [None, None]  # free space before the first and after the last run
         self.done_count = 0
         self.total_count = len(ids)
@@ -457,6 +471,8 @@ class ScanPage(Gtk.Box):
                 if self.avail[0] is None:
                     self.avail[0] = e["avail_before"]
                 self.avail[1] = e["avail_after"]
+                for item_id, keys in (e.get("trash") or {}).items():
+                    self.trashed.setdefault(item_id, []).extend(keys)
             if e["event"] != "task" or e["id"] not in self.task_rows:
                 return
             row = self.task_rows[e["id"]]
@@ -500,7 +516,13 @@ class ScanPage(Gtk.Box):
                     msg += " · " + _("Free space: {before} → {after}").format(
                         before=human(self.avail[0]), after=human(self.avail[1]))
             self.clean_title.set_text(msg)
-            self.window.toast(msg)
+            keys = [k for item_keys in self.trashed.values() for k in item_keys]
+            if keys and not self.engine.dry_run:
+                text = ngettext("Freed {size} · {n} item moved to the Trash",
+                                "Freed {size} · {n} items moved to the Trash", len(keys), size=human(self.freed))
+                self.undo_toast = self.window.toast(text, _("Undo"), lambda: self.undo(keys), timeout=10)
+            else:
+                self.window.toast(msg)
             self.window.refresh_disk()
             GLib.timeout_add(1200, lambda: (self.scan(), False)[1])
 
@@ -516,3 +538,34 @@ class ScanPage(Gtk.Box):
             self.engine.clean(run_ids, on_event, lambda ok, st: run_user(), entries=entries)
 
         run_user()
+
+    # ── undo: put back what the last clean moved to the Trash ──
+    def undo(self, keys):
+        if self.restoring or not keys:
+            return
+        self.undo_toast = None
+        back, failed = [], []
+
+        def on_event(e):
+            if e["event"] == "error":
+                failed.append({"info": e["message"]})
+            elif e["event"] == "task":
+                (back if e["state"] == "ok" else failed).append(e)
+
+        def on_done(ok, status):
+            self.restoring = None
+            self.window.set_busy(False)
+            if failed:
+                self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
+                    back=len(back), failed=len(failed), reason=failed[0]["info"]))
+            else:
+                self.window.toast(ngettext("Put back {n} item from the Trash", "Put back {n} items from the Trash",
+                                           len(back)))
+            self.window.refresh_disk()
+            if self.running:  # a scan is on its way: it may have missed what came back
+                self.scan_again = True
+            elif self.stack.get_visible_child_name() != "cleaning":  # a clean scans again when it ends
+                self.scan()
+
+        self.window.set_busy(True)
+        self.restoring = self.engine.restore(keys, on_event, on_done)

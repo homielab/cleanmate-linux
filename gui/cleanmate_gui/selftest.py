@@ -995,6 +995,8 @@ def docker_entries_test(win, report, wait, finish):
             return done()
         for i in list(page.selected):
             page.selected[i] = i == "docker_dangling"
+        report(page.undo_note(["docker_dangling"]) == _("This can't be undone."),
+               "the confirmation says an item deleted for good can't be undone")
         page.clean(["docker_dangling"])
         wait(lambda: page.clean_title.get_text().startswith(lead(_("Freed {size}"))), cleaned, 60, "Docker clean")
 
@@ -1002,6 +1004,7 @@ def docker_entries_test(win, report, wait, finish):
         text = open(log).read() if os.path.exists(log) else ""
         removed = [line for line in text.splitlines() if line.startswith("rmi ")]
         report(removed == [f"rmi {drop}"] and "image prune" not in text, "Clean removes only the ticked image")
+        report(page.undo_toast is None and not page.trashed, "a clean that deleted everything for good offers no Undo")
         report(" → " in page.clean_title.get_text(), f"a real clean shows free space before → after: {page.clean_title.get_text()}")
         wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", done, 60,
              "scan after cleaning")
@@ -1131,6 +1134,9 @@ def old_installers_test(win, report, wait, finish):
         report(box.get_active() and box.get_inconsistent() and page.chosen_bytes("old_installers") == 1000
                and page.size_labels["old_installers"].get_text().count("/") == 1,
                "ticking one file: the item box is half-ticked and the size shows selected / total")
+        report(page.undo_note(["old_installers"]) == _("Items moved to the Trash can be undone for 10 seconds; "
+                                                       "the rest is deleted for good."),
+               "the confirmation says an item that goes to the Trash can be undone")
         if os.geteuid() == 0:
             report(True, "real clean skipped: as root the engine refuses home items")
             return old_downloads()
@@ -1142,8 +1148,24 @@ def old_installers_test(win, report, wait, finish):
         report(not os.path.exists(os.path.join(downloads, "a.deb")) and os.path.exists(os.path.join(trash, "a.deb"))
                and os.path.exists(os.path.join(downloads, "b.iso")),
                "Clean moves only the ticked installer to the Trash")
-        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", old_downloads, 60,
+        report(page.trashed == {"old_installers": ["a.deb"]} and page.undo_toast is not None,
+               "after a clean that moved something to the Trash, a toast offers Undo")
+        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", undo, 60,
              "scan after cleaning")
+
+    def undo():
+        if not page.undo_toast:
+            return old_downloads()
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: page.restoring is None and page.running is None
+             and page.stack.get_visible_child_name() == "results"
+             and page.items.get("old_installers", {}).get("bytes") == 3000, undone, 60, "undo of the clean")
+
+    def undone():
+        report(os.path.exists(os.path.join(downloads, "a.deb"))
+               and not os.path.exists(os.path.join(sandbox, ".local", "share", "Trash", "files", "a.deb")),
+               "Undo puts the installer back from the Trash and the scan lists it again")
+        old_downloads()
 
     def old_downloads():
         box = page.checks.get("old_downloads")

@@ -934,6 +934,8 @@ reg podman       dev    "Podman: stopped containers & dangling images" 0 "podman
 
 for _id in apt_cache orphans residual journal old_logs big_logs crash coredump snap_old old_kernels; do ITEM_ROOT[$_id]=1; done
 unset _id
+# items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
+declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1)
 
 # ── detail helpers ──
 
@@ -6201,14 +6203,15 @@ json_item() { # ID [with scan results] → one "item" event
   if [[ ${2:-} == scanned ]]; then
     json_str note "${RES_NOTE[$id]}"; json_str lock "${RES_LOCK[$id]:-}"
     case ${RES_RC[$id]} in 0) status=found ;; 3) status=timeout ;; *) status=clean ;; esac
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s}\n' \
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s,"trash":%s}\n' \
       "$id" "$cat" "$label" "$desc" "$( ((ITEM_DEFAULT[$id])) && echo true || echo false)" \
       "$([[ -n ${ITEM_ROOT[$id]:-} ]] && echo true || echo false)" "$status" "${RES_BYTES[$id]:-0}" "$note" \
-      "$( ((${SEL[$id]:-0})) && echo true || echo false)" "$lock" "$(json_bool has_entries "$id")"
+      "$( ((${SEL[$id]:-0})) && echo true || echo false)" "$lock" "$(json_bool has_entries "$id")" \
+      "$([[ -n ${ITEM_TRASH[$id]:-} ]] && echo true || echo false)"
   else
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s}\n' \
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"trash":%s}\n' \
       "$id" "$cat" "$label" "$desc" "$( ((ITEM_DEFAULT[$id])) && echo true || echo false)" \
-      "$([[ -n ${ITEM_ROOT[$id]:-} ]] && echo true || echo false)"
+      "$([[ -n ${ITEM_ROOT[$id]:-} ]] && echo true || echo false)" "$([[ -n ${ITEM_TRASH[$id]:-} ]] && echo true || echo false)"
   fi
 }
 
@@ -6293,7 +6296,7 @@ json_allowed() { # ID UID
 }
 
 json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or these entries of one), streaming "task" events
-  local id ids=() out rc before freed total=0 avail0 avail1 src bytes note info entries="" e
+  local id ids=() out rc before freed total=0 avail0 avail1 src bytes note info entries="" e key keys trashed=""
   local -a ENTRY_PICK=()
   while (($#)); do
     case $1 in
@@ -6328,6 +6331,12 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
     else
       task_clean "$id" >"$out" 2>&1 </dev/null; rc=$?
     fi
+    keys="" # what went to the Trash, also when the rest failed: `restore` puts these back
+    while IFS=$'\t' read -r _ key _; do
+      [[ -n $key ]] || continue
+      json_str key "$key"; keys+=${keys:+,}$key
+    done < <(grep '^@@undo' "$out")
+    [[ -n $keys ]] && trashed+=${trashed:+,}"\"$id\":[$keys]"
     if ((rc != 0)); then
       info=$(grep -v '^@@' "$out" | grep -v '^\s*$' | tail -n 1)
       json_task "$id" fail "${info:-failed (exit $rc)}" 0
@@ -6349,7 +6358,7 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
   avail1=$(fs_avail)
   ((DRY_RUN)) || record_cleanup "$total"
   log "GUI cleanup finished — $(human "$total") freed (dry-run=$DRY_RUN)"
-  printf '{"event":"done","freed":%d,"avail_before":%d,"avail_after":%d}\n' "$total" "$avail0" "$avail1"
+  printf '{"event":"done","freed":%d,"avail_before":%d,"avail_after":%d,"trash":{%s}}\n' "$total" "$avail0" "$avail1" "$trashed"
 }
 
 json_clean_entries() { # ID — clean ENTRY_PICK of ID (only entries entries_ID lists now) → ENTRY_BYTES, @@scan line

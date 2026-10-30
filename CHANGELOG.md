@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- Desktop app, **Smart Scan and the cleanup pages**: after a clean that moved items to the Trash (old installers, old downloads, stale build folders, editor data of deleted projects), the message offers **Undo** for 10 seconds and puts them back. The confirmation says whether the selection can be undone; everything else is still deleted for good.
 - **Old downloads** (System Junk, not pre-selected, both apps): files and folders at the top of your Downloads folder that you haven't opened or changed for 90 days — a folder counts as used when anything inside it was. Each one is listed on its own in the desktop app and moved to the Trash, so you can put it back. Old installers, unfinished downloads, open files and *Never clean* folders are skipped. Change the 90 days in Settings › Old downloads.
 - **Desktop app**: keyboard shortcuts — Ctrl+1…9 switch pages, Ctrl+R (or F5) scans, searches or lists again, Ctrl+? opens the shortcut list (also in the main menu). After a clean, the result shows *Free space: before → after*.
 - **Uninstaller (desktop app)**: filter *Unused for 1/3/6/12+ months*. Apps without a last-used date show *Unknown*, stay hidden under the filter and come back with *Show*.
