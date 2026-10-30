@@ -2265,6 +2265,7 @@ discover_models
 
 PREF_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/cleanmate/selection"
 STATS_FILE="$LOG_DIR/stats"
+CLEANUP_HISTORY="$LOG_DIR/cleanups.tsv" # epoch<TAB>bytes freed, one row per cleanup (last 1000)
 declare -A PREF=() STATS=()
 
 load_kv() { # FILE ASSOC_NAME VALUE_REGEX
@@ -2291,6 +2292,8 @@ record_cleanup() { # BYTES_FREED
   mkdir -p "$LOG_DIR" || return
   local k
   for k in lifetime runs last_time last_freed; do printf '%s=%s\n' "$k" "${STATS[$k]}"; done >"$STATS_FILE"
+  { [[ -f $CLEANUP_HISTORY ]] && tail -n 999 "$CLEANUP_HISTORY"; printf '%s\t%s\n' "$EPOCHSECONDS" "$1"; } \
+    >"$CLEANUP_HISTORY.tmp" 2>/dev/null && mv -f "$CLEANUP_HISTORY.tmp" "$CLEANUP_HISTORY"
   if [[ -f $LOG_FILE ]] && (($(wc -l <"$LOG_FILE") > 2000)); then # keep our own log small
     tail -n 1000 "$LOG_FILE" >"$LOG_FILE.tmp" && mv -f "$LOG_FILE.tmp" "$LOG_FILE"
   fi
@@ -4048,23 +4051,48 @@ maintenance_menu() {
 
 # ───────────────────────────── overview ─────────────────────────────────────
 
+# What System Overview shows, measured apart from how each app prints it.
+sys_facts() { # → OV_OS OV_KERNEL OV_CPU OV_THREADS OV_UPTIME (seconds)
+  OV_OS=$(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")
+  OV_KERNEL=$(uname -r)
+  OV_CPU=$(lscpu 2>/dev/null | awk -F: '/Model name/ {gsub(/^ +/, "", $2); print $2; exit}')
+  OV_THREADS=$(nproc 2>/dev/null || echo 0)
+  OV_UPTIME=$(awk '{printf "%d", $1}' /proc/uptime 2>/dev/null)
+}
+
+pkg_counts() { # → OV_APT OV_SNAP OV_FLATPAK (empty when the tool isn't installed)
+  OV_APT="" OV_SNAP="" OV_FLATPAK=""
+  have dpkg-query && OV_APT=$(dpkg-query -f '.\n' -W 2>/dev/null | wc -l)
+  have snap && OV_SNAP=$(snap list 2>/dev/null | tail -n +2 | wc -l)
+  have flatpak && OV_FLATPAK=$(flatpak list 2>/dev/null | wc -l)
+  return 0
+}
+
+disk_rows() { # → mount<TAB>size<TAB>used<TAB>avail<TAB>fstype<TAB>device per real filesystem
+  df -B1 --output=target,size,used,avail,fstype,source -x tmpfs -x devtmpfs -x squashfs -x overlay -x efivarfs 2>/dev/null |
+    awk 'NR > 1 && $2 > 0 {print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6}'
+}
+
+mem_facts() { # → OV_RAM_TOTAL OV_RAM_AVAIL OV_SWAP_TOTAL OV_SWAP_USED (bytes)
+  read -r OV_RAM_TOTAL OV_RAM_AVAIL OV_SWAP_TOTAL OV_SWAP_USED < <(free -b 2>/dev/null |
+    awk '/^Mem:/ {t = $2; a = $7} /^Swap:/ {st = $2; su = $3} END {print t + 0, a + 0, st + 0, su + 0}')
+}
+
 overview_lines() {
-  local os cpu t s u a fs pct barv max=0 b p
-  os=$(. /etc/os-release && echo "$PRETTY_NAME")
-  cpu=$(lscpu 2>/dev/null | awk -F: '/Model name/ {gsub(/^ +/, "", $2); print $2; exit}')
+  local t s u a fs pct barv max=0 b p pk
+  sys_facts; pkg_counts
+  pk="${OV_APT:-0} apt${OV_SNAP:+, $OV_SNAP snap}${OV_FLATPAK:+, $OV_FLATPAK flatpak}"
   printf '  %sSystem%s\n' "$BOLD" "$NC"
-  printf '  %s%-10s%s %s\n' "$DIM" "OS" "$NC" "$os" "$DIM" "Kernel" "$NC" "$(uname -r)" \
-    "$DIM" "Uptime" "$NC" "$(uptime -p | sed 's/^up //')" "$DIM" "CPU" "$NC" "${cpu:-unknown} ($(nproc) threads)" \
-    "$DIM" "Packages" "$NC" "$(dpkg-query -f '.\n' -W 2>/dev/null | wc -l) apt$(have snap && echo ", $(($(snap list 2>/dev/null | wc -l) - 1)) snap")$(have flatpak && echo ", $(flatpak list 2>/dev/null | wc -l) flatpak")"
+  printf '  %s%-10s%s %s\n' "$DIM" "OS" "$NC" "$OV_OS" "$DIM" "Kernel" "$NC" "$OV_KERNEL" \
+    "$DIM" "Uptime" "$NC" "$(uptime -p | sed 's/^up //')" "$DIM" "CPU" "$NC" "${OV_CPU:-unknown} ($OV_THREADS threads)" \
+    "$DIM" "Packages" "$NC" "$pk"
 
   printf '\n  %sStorage%s\n' "$BOLD" "$NC"
-  df -B1 --output=target,size,used,avail,fstype -x tmpfs -x devtmpfs -x squashfs -x overlay -x efivarfs 2>/dev/null |
-    tail -n +2 | while read -r t s u a fs; do
-      ((s > 0)) || continue
-      pct=$((u * 100 / s))
-      mini_bar barv "$pct" 24
-      printf '  %-18s %s %3d%%  %s free of %s  %s%s%s\n' "$t" "$barv" "$pct" "$(human "$a")" "$(human "$s")" "$DIM" "$fs" "$NC"
-    done
+  disk_rows | while IFS=$'\t' read -r t s u a fs _; do
+    pct=$((u * 100 / s))
+    mini_bar barv "$pct" 24
+    printf '  %-18s %s %3d%%  %s free of %s  %s%s%s\n' "$t" "$barv" "$pct" "$(human "$a")" "$(human "$s")" "$DIM" "$fs" "$NC"
+  done
 
   disk_history_lines
   hidden_space_lines
@@ -5112,7 +5140,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|settings|settings-set|apps|uninstall|maintenance|maintain …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|settings|settings-set|apps|uninstall|maintenance|maintain|overview …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -5214,7 +5242,8 @@ json_main() { # SUBCOMMAND ARGS…
     uninstall) json_uninstall "$@" ;;
     maintenance) json_maintenance ;;
     maintain) json_maintain "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|apps|uninstall [--check] ID…|maintenance|maintain ID [on|off] [--user-steps]"; return 2 ;;
+    overview) json_overview ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|apps|uninstall [--check] ID…|maintenance|maintain ID [on|off] [--user-steps]|overview"; return 2 ;;
   esac
 }
 
@@ -5911,6 +5940,37 @@ json_maintain() { # ID [on|off] [--user-steps]
   done
   log "GUI maintenance $id finished — $n_ok ok, $n_fail failed, $n_skip skipped (dry-run=$DRY_RUN)"
   printf '{"event":"done","ok":%d,"failed":%d,"skipped":%d}\n' "$n_ok" "$n_fail" "$n_skip"
+}
+
+# System Overview for the desktop app: the same facts as the terminal app's,
+# as numbers. "freed" comes only once a cleanup was recorded.
+
+json_overview() {
+  local t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 e b cut
+  sys_facts; pkg_counts; mem_facts
+  json_str j1 "$OV_OS"; json_str j2 "$OV_KERNEL"; json_str j3 "$OV_CPU"
+  printf '{"event":"system","os":%s,"kernel":%s,"cpu":%s,"threads":%d,"uptime":%d,"apt":%s,"snap":%s,"flatpak":%s}\n' \
+    "$j1" "$j2" "$j3" "${OV_THREADS:-0}" "${OV_UPTIME:-0}" "${OV_APT:-null}" "${OV_SNAP:-null}" "${OV_FLATPAK:-null}"
+  while IFS=$'\t' read -r t s u a fs dev; do
+    [[ $s =~ ^[0-9]+$ && $u =~ ^[0-9]+$ && $a =~ ^[0-9]+$ ]] || continue
+    json_str jt "$t"; json_str jf "$fs"; json_str jd "$dev"
+    printf '{"event":"disk","mount":%s,"fstype":%s,"device":%s,"size":%d,"used":%d,"avail":%d}\n' "$jt" "$jf" "$jd" "$s" "$u" "$a"
+  done < <(disk_rows)
+  printf '{"event":"memory","ram_total":%d,"ram_used":%d,"ram_avail":%d,"swap_total":%d,"swap_used":%d}\n' \
+    "$OV_RAM_TOTAL" "$((OV_RAM_TOTAL - OV_RAM_AVAIL))" "$OV_RAM_AVAIL" "$OV_SWAP_TOTAL" "$OV_SWAP_USED"
+  if [[ -f $CLEANUP_HISTORY || -n ${STATS[runs]:-} ]]; then
+    cut=$((EPOCHSECONDS - 30 * 86400))
+    if [[ -f $CLEANUP_HISTORY ]]; then
+      while IFS=$'\t' read -r e b; do
+        [[ $e =~ ^[0-9]+$ && $b =~ ^[0-9]+$ ]] || continue
+        ((since == 0)) && since=$e
+        ((e >= cut)) && { ((++n30)); b30=$((b30 + b)); }
+      done <"$CLEANUP_HISTORY"
+    fi
+    printf '{"event":"freed","days":30,"bytes":%d,"cleanups":%d,"since":%d,"lifetime":%d,"runs":%d,"last_time":%d,"last_bytes":%d}\n' \
+      "$b30" "$n30" "$since" "${STATS[lifetime]:-0}" "${STATS[runs]:-0}" "${STATS[last_time]:-0}" "${STATS[last_freed]:-0}"
+  fi
+  printf '{"event":"done"}\n'
 }
 
 # ───────────────────────────── desktop app ──────────────────────────────────

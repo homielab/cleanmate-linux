@@ -45,6 +45,8 @@ def screenshot(win, path, then=None, tries=15):
 
 
 def run(app, win):
+    report_default = win.content_stack.get_visible_child_name()
+    show_scene_page(win, "smart")
     page = win.pages["smart"]
     win.selection.remember = lambda *_: None  # never change the user's remembered choices
     if app.screenshot:  # headless displays may not animate: no transitions or fade-ins
@@ -154,6 +156,7 @@ def run(app, win):
 
     if app.screenshot:
         return run_scene(app, win, app.scene, app.screenshot, report, wait, finish)
+    report(report_default == "overview", "the app opens on System Overview")
     page.scan()
     wait(lambda: page.running is None and page.stack.get_visible_child_name() != "scanning",
          after_scan, 120, "scan")
@@ -877,7 +880,7 @@ def maintenance_test(win, report, wait, finish):
             page.log.close()
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        overview_test(win, report, wait, finish)
 
     def first():
         report(len(page.rows) == 9, f"Maintenance lists the terminal app's 9 tasks: {sorted(page.rows)}")
@@ -921,6 +924,70 @@ def maintenance_test(win, report, wait, finish):
         wait(idle, done, 30, "list after updating")
 
     wait(idle, first, 60, "first maintenance list")
+
+
+OVERVIEW_DF = """#!/bin/sh
+case "$*" in
+  *target*) printf 'Mounted on Size Used Avail Type Filesystem\\n/ 100000000000 95000000000 5000000000 ext4 /dev/sda2\\n/boot/efi 1000000000 100000000 900000000 vfat /dev/sda1\\n' ;;
+  *) printf 'Size Avail\\n100000000000 5000000000\\n' ;;
+esac
+"""
+
+
+def overview_test(win, report, wait, finish):
+    """System Overview with a fake df: a 95 % full disk gets the warning colour, the page shows fast, and
+    Refresh picks up a cleanup recorded meanwhile."""
+    from .engine import Engine, human
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
+    for d in (home, bin_dir):
+        os.makedirs(d)
+    with open(os.path.join(bin_dir, "df"), "w") as f:
+        f.write(OVERVIEW_DF)
+    os.chmod(os.path.join(bin_dir, "df"), 0o755)
+    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+           "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+
+    win.show_page("overview")
+    page = win.pages["overview"]
+    real_engine = page.engine
+
+    def idle():
+        return not page.busy
+
+    def done():
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def first():
+        report("system" in page.data and page.stack.get_visible_child_name() == "results",
+               f"System Overview shows this computer ({len(page.data.get('disk', []))} disks)")
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.refresh_button.emit("clicked")
+        wait(idle, listed, 60, "overview")
+
+    def listed():
+        full, boot = page.bars.get("disk:/"), page.bars.get("disk:/boot/efi")
+        report(full is not None and boot is not None and full.has_css_class("almost-full")
+               and not boot.has_css_class("almost-full"), "a disk over 90 % full gets the warning colour")
+        report(page.render_ms is not None and page.render_ms < 300,
+               f"the page shows in under 300 ms once the engine answers ({page.render_ms:.0f} ms)")
+        report("freed30" not in page.rows, "no Freed numbers before the first cleanup")
+        state = os.path.join(home, ".local", "state", "cleanmate")
+        os.makedirs(state)
+        with open(os.path.join(state, "cleanups.tsv"), "w") as f:
+            f.write(f"{int(time.time()) - 86400}\t2147483648\n")
+        with open(os.path.join(state, "stats"), "w") as f:
+            f.write(f"lifetime=2147483648\nruns=1\nlast_time={int(time.time()) - 86400}\nlast_freed=2147483648\n")
+        page.refresh_button.emit("clicked")
+        wait(lambda: idle() and "freed30" in page.rows, refreshed, 60, "refresh")
+
+    def refreshed():
+        report(human(2147483648) in page.rows["freed30"].get_subtitle(), "Refresh shows what was freed in 30 days")
+        done()
+
+    wait(idle, first, 60, "first overview")
 
 
 def show_scene_page(win, page_id):

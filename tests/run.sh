@@ -1231,6 +1231,10 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "a missing tool locks the row with why"
     ((EUID == 0)) || assert_contains "$out" "Rebuild font cache runs as you; the log shows its output, then done"
     assert_contains "$out" "Update everything asks for the password once"
+    assert_contains "$out" "the app opens on System Overview"
+    assert_contains "$out" "a disk over 90 % full gets the warning colour"
+    assert_contains "$out" "the page shows in under 300 ms once the engine answers"
+    assert_contains "$out" "Refresh shows what was freed in 30 days"
     assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
     if [[ $lang == vi* ]]; then assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"; fi
   done
@@ -1699,6 +1703,45 @@ done 1 0 0" "TRIM streams its output, then the result"
   out=$(in_app 'have() { return 0; }; DRY_RUN=1 JOURNAL_KEEP_MB=120 SESSION_TMP=$(mktemp -d); json_main maintain journal_limit on; rm -r "$SESSION_TMP"' | python3 -c "$ev")
   assert_contains "$out" "SystemMaxUse=%sM"
   assert_contains "$out" "journal_cap ok would run"
+}
+
+test_json_overview() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/ovbin out ev state=$HOME_DIR/.local/state/cleanmate
+  mkdir -p "$bin"
+  cat >"$bin/df" <<'STUB'
+#!/bin/sh
+case "$*" in
+  *target*) printf 'Mounted on Size Used Avail Type Filesystem\n/ 100000000000 95000000000 5000000000 ext4 /dev/sda2\n/boot/efi 1000000000 100000000 900000000 vfat /dev/sda1\n/empty 0 0 0 ext4 /dev/loop9\n' ;;
+  *) printf 'Size Avail\n100000000000 5000000000\n' ;;
+esac
+STUB
+  chmod +x "$bin/df"
+  local BASE_PATH="$bin:$BASE_PATH"
+  ev='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "system": print("system", bool(e["kernel"]), e["threads"] > 0, e["uptime"] >= 0, isinstance(e["apt"], (int, type(None))))
+    elif e["event"] == "disk": print("disk", e["mount"], e["fstype"], e["device"], e["size"], e["used"], e["avail"])
+    elif e["event"] == "memory": print("memory", e["ram_total"] > 0, e["ram_used"] + e["ram_avail"] == e["ram_total"], e["swap_used"] <= e["swap_total"])
+    elif e["event"] == "freed": print("freed", e["bytes"], e["cleanups"], e["lifetime"], e["runs"], e["last_bytes"], e["since"] > 0)
+    else: print(e["event"])'
+  out=$(cm --json overview | python3 -c "$ev")
+  assert_eq "$out" "system True True True True
+disk / ext4 /dev/sda2 100000000000 95000000000 5000000000
+disk /boot/efi vfat /dev/sda1 1000000000 100000000 900000000
+memory True True True
+done" "system, real filesystems from df, memory; no freed group before the first cleanup"
+  mkdir -p "$state"
+  printf '%s\t5000\n%s\t1000\n%s\tjunk\n' "$(($(date +%s) - 40 * 86400))" "$(($(date +%s) - 5 * 86400))" "x" >"$state/cleanups.tsv"
+  printf 'lifetime=6000\nruns=2\nlast_time=%s\nlast_freed=1000\n' "$(($(date +%s) - 5 * 86400))" >"$state/stats"
+  out=$(cm --json overview | python3 -c "$ev" | grep freed)
+  assert_eq "$out" "freed 1000 1 6000 2 1000 True" "freed in 30 days counts only the recent cleanup"
+  out=$(in_app 'load_kv "$STATS_FILE" STATS "^[0-9]+$"; record_cleanup 2048; tail -n 1 "$CLEANUP_HISTORY"')
+  assert_contains "$out" $'\t2048'
+  out=$(cm --json overview | python3 -c "$ev" | grep freed)
+  assert_eq "$out" "freed 3048 2 8048 3 2048 True" "a cleanup is added to the history"
 }
 
 # ── runner ───────────────────────────────────────────────────────────────────

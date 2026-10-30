@@ -77,7 +77,9 @@ moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap an
 them, the folders they leave in your home (to the Trash). **Maintenance** runs the terminal app's maintenance
 tasks (updates, package repair, TRIM, font cache, locate…) with their output in a log window, asking for your
 password once per task, and switches the snap-versions and journal-size limits on or off; a task whose tool
-isn't installed is locked.
+isn't installed is locked. The app opens on **System Overview**: your system and package counts, each disk
+with a usage bar (in the warning colour over 90 % full), memory and swap, and what CleanMate freed in the
+last 30 days.
 
 | Large & Old Files | Uninstaller |
 | --- | --- |
@@ -118,7 +120,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 **Privacy** (never part of Smart Scan) clears shell history (bash, zsh, fish), *Recent files*,
 Python/Node/database shell history, Vim history, and the Alt+F2 and emoji history.
 
-**More tools in the terminal app** (Space Lens, Large & Old Files, Duplicates, the Uninstaller, Startup Items, Maintenance and Settings are in the desktop app too):
+**More tools in the terminal app** (Space Lens, Large & Old Files, Duplicates, the Uninstaller, Startup Items, Maintenance, System Overview and Settings are in the desktop app too):
 
 - **Uninstaller** — every app you can open (apt, Snap, Flatpak), with its real size (the app *plus*
   its folders in your home) and when you last used it. Sort by size or last use, or show only apps
@@ -128,7 +130,7 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
 - **Maintenance** — update everything (with a list of what will change first), repair packages,
   TRIM, free RAM, and lasting limits so old snap versions and system logs don't pile up again.
 - **System Overview** — storage, free-space history, and space outside your folders: Timeshift
-  snapshots, the swap file, ext4's reserved space.
+  snapshots, the swap file, ext4's reserved space (history and hidden space only here).
 - Space Lens (browse folders by size), Large & Old Files (here with virtual machine disks),
   Duplicates (here the oldest copy is kept), Startup Items (login apps) and Settings.
 

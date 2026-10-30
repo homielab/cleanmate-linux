@@ -10,6 +10,7 @@ from .engine import SMART_SCAN, Selection, human
 from .i18n import _
 from .largefiles import LargeFilesPage
 from .maintenance import MaintenancePage
+from .overview import OverviewPage
 from .scanpage import ScanPage
 from .settings import SettingsPage
 from .spacelens import SpaceLensPage
@@ -18,7 +19,7 @@ from .uninstaller import UninstallerPage
 
 TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "dupes": DuplicatesPage,
               "uninstall": UninstallerPage, "startup": StartupPage,
-              "maintenance": MaintenancePage}  # pages with their own engine commands
+              "maintenance": MaintenancePage, "overview": OverviewPage}  # pages with their own engine commands
 
 # (id, title, icon, categories, description) — same order as the terminal app's menu
 PAGES = [
@@ -54,6 +55,8 @@ PAGES = [
     ("maintenance", _("Maintenance"), "emblem-system-symbolic", None,
      _("Update everything, repair packages, TRIM, rebuild caches, and keep snap versions and system logs "
        "from piling up again.")),
+    ("overview", _("System Overview"), "utilities-system-monitor-symbolic", None,
+     _("Your system, disks, memory, and the space CleanMate freed.")),
 ]
 REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
@@ -83,7 +86,7 @@ class Window(Adw.ApplicationWindow):
         more = Gtk.Box(spacing=12)
         more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
         more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
-        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("System Overview and more in the terminal app"))
+        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Open the terminal app (cm)"))
         more_row.page_id = "terminal"
         self.sidebar_list.append(more_row)
         self.sidebar_list.connect("row-activated", self._on_row_activated)
@@ -120,7 +123,7 @@ class Window(Adw.ApplicationWindow):
         if engine.dry_run:
             banner = Adw.Banner(title=_("Dry run — nothing will be deleted"), revealed=True)
             content.add_top_bar(banner)
-        self.content_page = Adw.NavigationPage(title=_("Smart Scan"), child=content)
+        self.content_page = Adw.NavigationPage(title=_("System Overview"), child=content)
 
         self.split = Adw.NavigationSplitView(sidebar=sidebar_page, content=self.content_page,
                                              min_sidebar_width=220, max_sidebar_width=280)
@@ -143,8 +146,11 @@ class Window(Adw.ApplicationWindow):
         self.settings_page = None
 
         self.refresh_disk()
-        self.show_page("smart")
-        self.sidebar_list.select_row(self.sidebar_list.get_row_at_index(0))
+        self.show_page("overview")  # opens at once: the engine answers in the background
+        row = self.sidebar_list.get_first_child()
+        while row and getattr(row, "page_id", None) != "overview":
+            row = row.get_next_sibling()
+        self.sidebar_list.select_row(row)
 
     # ── navigation ──
     def _section_header(self, row, before):

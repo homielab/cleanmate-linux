@@ -159,6 +159,9 @@ class Engine:
         extra = ([mode] if mode else []) + (["--user-steps"] if user_steps else [])
         return self.run(["maintain", item_id, *extra], on_event, on_done, as_root=as_root)
 
+    def overview(self, on_event, on_done):
+        return self.run(["overview"], on_event, on_done)
+
     def version(self):
         try:
             out = GLib.spawn_sync(None, ["bash", self.path, "--version"], None,
