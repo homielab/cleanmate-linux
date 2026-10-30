@@ -1957,10 +1957,12 @@ test_json_overview() {
 #!/bin/sh
 case "$*" in
   *target*) printf 'Mounted on Size Used Avail Type Filesystem\n/ 100000000000 95000000000 5000000000 ext4 /dev/sda2\n/boot/efi 1000000000 100000000 900000000 vfat /dev/sda1\n/empty 0 0 0 ext4 /dev/loop9\n' ;;
+  *fstype*) printf 'Size Used Avail Type\n100000000000 90000000000 5000000000 ext4\n' ;;
   *) printf 'Size Avail\n100000000000 5000000000\n' ;;
 esac
 STUB
-  chmod +x "$bin/df"
+  printf '#!/bin/sh\nprintf "/swap.img file 2147483648\\n/dev/zram0 partition 1073741824\\n"\n' >"$bin/swapon"
+  chmod +x "$bin/df" "$bin/swapon"
   local BASE_PATH="$bin:$BASE_PATH"
   ev='import sys, json
 for l in sys.stdin:
@@ -1969,13 +1971,42 @@ for l in sys.stdin:
     elif e["event"] == "disk": print("disk", e["mount"], e["fstype"], e["device"], e["size"], e["used"], e["avail"])
     elif e["event"] == "memory": print("memory", e["ram_total"] > 0, e["ram_used"] + e["ram_avail"] == e["ram_total"], e["swap_used"] <= e["swap_total"])
     elif e["event"] == "freed": print("freed", e["bytes"], e["cleanups"], e["lifetime"], e["runs"], e["last_bytes"], e["since"] > 0)
+    elif e["event"] == "history": print("history", len(e["points"]))
+    elif e["event"] == "outside": print("outside", e["kind"], e["bytes"], e["path"], e["count"], bool(e["note"]))
+    elif e["event"] == "top_dirs": print("top_dirs", " ".join(d["path"].replace(e["home"] + "/", "") for d in e["dirs"] if d["bytes"] >= 0))
     else: print(e["event"])'
   out=$(cm --json overview | python3 -c "$ev")
+  [[ $(grep '^top_dirs' <<<"$out") == "top_dirs "*.config* ]] || fail "top_dirs lists the home's folders: $(grep '^top_dirs' <<<"$out")"
+  out=$(grep -v '^top_dirs' <<<"$out")
   assert_eq "$out" "system True True True True
 disk / ext4 /dev/sda2 100000000000 95000000000 5000000000
 disk /boot/efi vfat /dev/sda1 1000000000 100000000 900000000
 memory True True True
-done" "system, real filesystems from df, memory; no freed group before the first cleanup"
+history 1
+outside reserved 5000000000 / 1 True
+outside swapfile 2147483648 /swap.img 1 True
+done" "system, real filesystems from df, memory, then free-space history, space outside your folders (reserved, swap file, not a swap partition) and the largest folders; no freed group before the first cleanup"
+  # free-space history: one point per recorded day, oldest first, today's added by opening the overview
+  mkdir -p "$state"
+  printf '%s\t%s\t%s\n' 2026-01-01 50000000000 100000000000 2026-01-15 40000000000 100000000000 bad-row 1 2 \
+    >"$state/disk-history.tsv"
+  out=$(cm --json overview | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "history":
+        for p in e["points"]: print(p["time"], p["avail"], p["size"])')
+  assert_eq "$out" "$(date -d 2026-01-01 +%s) 50000000000 100000000000
+$(date -d 2026-01-15 +%s) 40000000000 100000000000
+$(date -d "$(date +%F)" +%s) 5000000000 100000000000" "history points: epoch of each day, free and total bytes on /"
+  # largest folders in home, biggest first; Timeshift snapshots count as space outside your folders
+  head -c 3000000 /dev/zero >"$HOME_DIR/Videos.big" && mkdir -p "$HOME_DIR/Videos" && mv "$HOME_DIR/Videos.big" "$HOME_DIR/Videos/film"
+  mkdir -p "$HOME_DIR/Projects" && head -c 1000000 /dev/zero >"$HOME_DIR/Projects/app"
+  out=$(cm --json overview | python3 -c "$ev" | grep top_dirs)
+  assert_contains "$out" "top_dirs Videos Projects ."
+  mkdir -p "$WORK/ts/snapshots/2026-10-01_10-00-00" "$WORK/ts/snapshots/2026-10-08_10-00-00"
+  out=$(in_app "timeshift_snapshot_dirs() { echo '$WORK/ts/snapshots'; }; hidden_space_rows" | grep '^timeshift')
+  assert_contains "$out" $'\t'"$WORK/ts/snapshots"$'\t2\t'"delete old ones in Timeshift"
+  assert_contains "$(in_app "timeshift_snapshot_dirs() { echo '$WORK/ts/snapshots'; }; hidden_space_lines")" "Timeshift: 2 snapshots"
   mkdir -p "$state"
   printf '%s\t5000\n%s\t1000\n%s\tjunk\n' "$(($(date +%s) - 40 * 86400))" "$(($(date +%s) - 5 * 86400))" "x" >"$state/cleanups.tsv"
   printf 'lifetime=6000\nruns=2\nlast_time=%s\nlast_freed=1000\n' "$(($(date +%s) - 5 * 86400))" >"$state/stats"

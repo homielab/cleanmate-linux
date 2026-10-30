@@ -57,7 +57,8 @@ PAGES = [
      _("Update everything, repair packages, TRIM, rebuild caches, and keep snap versions and system logs "
        "from piling up again.")),
     ("overview", _("System Overview"), "utilities-system-monitor-symbolic", None,
-     _("Your system, disks, memory, and the space CleanMate freed.")),
+     _("Your system, disks, free space over time, memory, the space CleanMate freed, and your largest "
+       "folders.")),
 ]
 REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
@@ -148,10 +149,7 @@ class Window(Adw.ApplicationWindow):
 
         self.refresh_disk()
         self.show_page("overview")  # opens at once: the engine answers in the background
-        row = self.sidebar_list.get_first_child()
-        while row and getattr(row, "page_id", None) != "overview":
-            row = row.get_next_sibling()
-        self.sidebar_list.select_row(row)
+        self.select_sidebar("overview")
 
     # ── navigation ──
     def _section_header(self, row, before):
@@ -182,6 +180,20 @@ class Window(Adw.ApplicationWindow):
             self.content_stack.add_named(page, pid)
         self.content_stack.set_visible_child_name(pid)
         self.content_page.set_title(spec[1])
+
+    def select_sidebar(self, pid):
+        row = self.sidebar_list.get_first_child()
+        while row and getattr(row, "page_id", None) != pid:
+            row = row.get_next_sibling()
+        if row:
+            self.sidebar_list.select_row(row)
+
+    def open_lens(self, path):
+        """Space Lens at one folder (System Overview's largest folders)."""
+        self.show_page("lens")
+        self.select_sidebar("lens")
+        self.split.set_show_content(True)
+        self.pages["lens"].open_folder(path)
 
     # ── helpers used by pages ──
     def toast(self, text, button=None, on_button=None, timeout=4):

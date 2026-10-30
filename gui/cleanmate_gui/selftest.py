@@ -1079,22 +1079,33 @@ def maintenance_test(win, report, wait, finish):
 OVERVIEW_DF = """#!/bin/sh
 case "$*" in
   *target*) printf 'Mounted on Size Used Avail Type Filesystem\\n/ 100000000000 95000000000 5000000000 ext4 /dev/sda2\\n/boot/efi 1000000000 100000000 900000000 vfat /dev/sda1\\n' ;;
+  *fstype*) printf 'Size Used Avail Type\\n100000000000 90000000000 5000000000 ext4\\n' ;;
   *) printf 'Size Avail\\n100000000000 5000000000\\n' ;;
 esac
 """
 
 
 def overview_test(win, report, wait, finish):
-    """System Overview with a fake df: a 95 % full disk gets the warning colour, the page shows fast, and
-    Refresh picks up a cleanup recorded meanwhile."""
+    """System Overview with a fake df, swapon and a slow du: a 95 % full disk gets the warning colour, the
+    page shows before the folder sizes arrive, space outside your folders and the largest folders follow,
+    Refresh picks up a cleanup and free-space history recorded meanwhile, and a large folder opens in
+    Space Lens."""
     from .engine import Engine, human
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
-    for d in (home, bin_dir):
+    videos, projects = os.path.join(home, "Videos"), os.path.join(home, "Projects")
+    for d in (home, bin_dir, videos, projects):
         os.makedirs(d)
-    with open(os.path.join(bin_dir, "df"), "w") as f:
-        f.write(OVERVIEW_DF)
-    os.chmod(os.path.join(bin_dir, "df"), 0o755)
+    for path, size in ((os.path.join(videos, "film.mkv"), 40 << 20), (os.path.join(projects, "app.bin"), 5 << 20)):
+        with open(path, "wb") as f:  # sparse: no real disk use
+            f.truncate(size)
+    stubs = {"df": OVERVIEW_DF,
+             "swapon": '#!/bin/sh\nprintf "/swap.img file 2147483648\\n"\n',
+             "du": f'#!/bin/sh\nsleep 1\nexec {shutil.which("du") or "/usr/bin/du"} "$@"\n'}  # folders take a while
+    for name, text in stubs.items():
+        with open(os.path.join(bin_dir, name), "w") as f:
+            f.write(text)
+        os.chmod(os.path.join(bin_dir, name), 0o755)
     env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
            "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
 
@@ -1123,18 +1134,44 @@ def overview_test(win, report, wait, finish):
                and not boot.has_css_class("almost-full"), "a disk over 90 % full gets the warning colour")
         report(page.render_ms is not None and page.render_ms < 300,
                f"the page shows in under 300 ms once the engine answers ({page.render_ms:.0f} ms)")
+        report(page.first_before_folders and page.full_ms - page.first_ms >= 900,
+               f"system and disks show before the folder sizes: after {page.first_ms:.0f} ms, "
+               f"folder sizes after {page.full_ms:.0f} ms (du takes 1 s here)")
         report("freed30" not in page.rows, "no Freed numbers before the first cleanup")
+        report(page.chart is None and "history" in page.groups, "one day of free-space history: a note, no chart yet")
+        report("outside:reserved:/" in page.rows and "outside:swapfile:/swap.img" in page.rows,
+               "space outside your folders: ext4 reserved space and the swap file")
+        tops = [k[len("top:"):] for k in page.rows if k.startswith("top:")]
+        report(tops[:2] == [videos, projects], f"largest folders, biggest first: {[os.path.basename(t) for t in tops]}")
         state = os.path.join(home, ".local", "state", "cleanmate")
-        os.makedirs(state)
+        os.makedirs(state, exist_ok=True)
         with open(os.path.join(state, "cleanups.tsv"), "w") as f:
             f.write(f"{int(time.time()) - 86400}\t2147483648\n")
         with open(os.path.join(state, "stats"), "w") as f:
             f.write(f"lifetime=2147483648\nruns=1\nlast_time={int(time.time()) - 86400}\nlast_freed=2147483648\n")
+        days = [time.strftime("%Y-%m-%d", time.localtime(time.time() - n * 86400)) for n in (14, 7)]
+        with open(os.path.join(state, "disk-history.tsv"), "w") as f:
+            f.write(f"{days[0]}\t9000000000\t100000000000\n{days[1]}\t7000000000\t100000000000\n")
         page.refresh_button.emit("clicked")
-        wait(lambda: idle() and "freed30" in page.rows, refreshed, 60, "refresh")
+        wait(lambda: idle() and "freed30" in page.rows and "top:" + videos in page.rows, refreshed, 60, "refresh")
 
     def refreshed():
         report(human(2147483648) in page.rows["freed30"].get_subtitle(), "Refresh shows what was freed in 30 days")
+        chart = page.chart
+        report(chart is not None and [p["avail"] for p in chart.points] == [9000000000, 7000000000, 5000000000]
+               and human(7000000000) in chart.point_text(1), "free-space history: a chart of three days with a "
+               "date and value per day")
+        page.rows["top:" + videos].activate()
+        lens = win.pages["lens"]
+        wait(lambda: lens.running is None and lens.folder == videos, lambda: opened(lens), 60, "Space Lens folder")
+
+    def opened(lens):
+        report(win.content_stack.get_visible_child_name() == "lens"
+               and any(os.path.basename(e["path"]) == "film.mkv" for e in lens.entries),
+               "a click on a large folder opens it in Space Lens")
+        lens.set_root(os.path.expanduser("~"))
+        win.show_page("overview")
+        win.select_sidebar("overview")
         done()
 
     wait(idle, first, 60, "first overview")
@@ -1143,11 +1180,7 @@ def overview_test(win, report, wait, finish):
 def show_scene_page(win, page_id):
     """Show a page with its sidebar row highlighted, as a click would."""
     win.show_page(page_id)
-    row = win.sidebar_list.get_first_child()
-    while row and getattr(row, "page_id", None) != page_id:
-        row = row.get_next_sibling()
-    if row:
-        win.sidebar_list.select_row(row)
+    win.select_sidebar(page_id)
 
 
 def tool_scene(win, scene, path, wait, finish):

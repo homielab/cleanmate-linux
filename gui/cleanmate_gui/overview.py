@@ -1,16 +1,24 @@
-"""System Overview: the system, each disk with a usage bar, memory, and what CleanMate freed lately.
+"""System Overview: the system, each disk with a usage bar, free space over time, memory, what CleanMate
+freed lately, space outside your folders and your largest folders.
 
 The engine measures it all (`--json overview`), the same facts as the terminal app's System Overview;
-this page only shows them. A disk over 90 % full gets the warning colour.
+this page only shows them. A disk over 90 % full gets the warning colour. The engine sends the quick facts
+first and measures folders (du) last: the page shows as soon as the quick part is there, and the last two
+groups fill in when the rest arrives.
 """
+import os
 import time
 
 from gi.repository import Adw, GLib, Gtk
 
 from .engine import human
 from .i18n import _, ngettext
+from .largefiles import short_path
+from .scanpage import size_widgets
 
 FULL = 0.9  # a disk fuller than this is shown in the warning colour
+HISTORY_POINTS = 30  # days in the free-space chart
+WEEK_CHANGE = 100 << 20  # free space changing less than this a week counts as stable
 
 
 def usage_bar(fraction, width=160):
@@ -35,8 +43,125 @@ def uptime_text(seconds):
     return ngettext("{n} minute", "{n} minutes", minutes)
 
 
+def history_trend(points):
+    """The free-space history in words, like the terminal app: where it went and how fast."""
+    first, last = points[0], points[-1]
+    text = _("{start} free on {start_date} → {end} on {end_date}.").format(
+        start=human(first["avail"]), start_date=day_text(first["time"]),
+        end=human(last["avail"]), end_date=day_text(last["time"]))
+    days = (last["time"] - first["time"]) // 86400
+    if days <= 0:
+        return text
+    per_week = (last["avail"] - first["avail"]) * 7 // days
+    if per_week < -WEEK_CHANGE:
+        weeks = last["avail"] // -per_week
+        trend = ngettext("Losing about {size} a week: at this rate the disk is full in about {n} week.",
+                         "Losing about {size} a week: at this rate the disk is full in about {n} weeks.",
+                         weeks, size=human(-per_week))
+    elif per_week > WEEK_CHANGE:
+        trend = _("Gaining about {size} a week.").format(size=human(per_week))
+    else:
+        trend = ngettext("Stable over the last {n} day.", "Stable over the last {n} days.", days)
+    return text + " " + trend
+
+
+def day_text(epoch):
+    return GLib.DateTime.new_from_unix_local(epoch).format("%x")
+
+
+class HistoryChart(Gtk.DrawingArea):
+    """Free space on / per day as a line in the accent colour; hovering a day shows its date and value."""
+
+    PAD = 8
+
+    def __init__(self, points):
+        super().__init__(content_height=120, hexpand=True, has_tooltip=True, css_classes=["accent"],
+                         margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
+        self.points = points[-HISTORY_POINTS:]
+        self.hover = None
+        self.set_draw_func(self.draw)
+        self.connect("query-tooltip", self.on_query_tooltip)
+        motion = Gtk.EventControllerMotion()
+        motion.connect("motion", lambda _c, x, _y: self.set_hover(self.index_at(x)))
+        motion.connect("leave", lambda _c: self.set_hover(None))
+        self.add_controller(motion)
+
+    def set_hover(self, index):
+        if index != self.hover:
+            self.hover = index
+            self.queue_draw()
+
+    def index_at(self, x):
+        span = self.get_width() - 2 * self.PAD
+        n = len(self.points)
+        if span <= 0 or n < 2:
+            return None
+        return min(max(round((x - self.PAD) / span * (n - 1)), 0), n - 1)
+
+    def point_text(self, index):
+        p = self.points[index]
+        return _("{date}: {free} free").format(date=day_text(p["time"]), free=human(p["avail"]))
+
+    def on_query_tooltip(self, _widget, x, _y, _keyboard, tooltip):
+        index = self.index_at(x)
+        if index is None:
+            return False
+        tooltip.set_text(self.point_text(index))
+        return True
+
+    def xy(self, width, height):
+        values = [p["avail"] for p in self.points]
+        low, high = min(values), max(values)
+        margin = (high - low) * 0.1 or max(high * 0.05, 1)  # a flat line sits in the middle
+        low, high = low - margin, high + margin
+        n = len(values)
+        return [(self.PAD + i * (width - 2 * self.PAD) / (n - 1),
+                 self.PAD + (high - v) / (high - low) * (height - 2 * self.PAD)) for i, v in enumerate(values)]
+
+    def draw(self, _area, cr, width, height):
+        if len(self.points) < 2:
+            return
+        color = self.get_color()
+        xy = self.xy(width, height)
+        cr.move_to(xy[0][0], height - self.PAD)
+        for x, y in xy:
+            cr.line_to(x, y)
+        cr.line_to(xy[-1][0], height - self.PAD)
+        cr.close_path()
+        cr.set_source_rgba(color.red, color.green, color.blue, 0.15)
+        cr.fill()
+        cr.move_to(*xy[0])
+        for x, y in xy[1:]:
+            cr.line_to(x, y)
+        cr.set_source_rgba(color.red, color.green, color.blue, 1)
+        cr.set_line_width(2)
+        cr.stroke()
+        for i in {len(xy) - 1, self.hover} - {None}:
+            cr.arc(xy[i][0], xy[i][1], 4, 0, 6.2832)
+            cr.fill()
+
+
+OUTSIDE_ICONS = {"reserved": "drive-harddisk-symbolic", "swapfile": "media-flash-symbolic",
+                 "timeshift": "document-open-recent-symbolic"}
+
+
+def outside_text(e):
+    """Title and subtitle of a row in "Space outside your folders"."""
+    kind, path = e["kind"], e["path"]
+    if kind == "reserved":
+        return _("Reserved for the system"), _(
+            "ext4 keeps about 5 percent of {path} for root, so Ubuntu still runs when the disk is full").format(path=path)
+    if kind == "swapfile":
+        return _("Swap file"), _("{path} · extra memory on disk; shrinking it is possible but needs care").format(
+            path=path)
+    if kind == "timeshift":
+        return ngettext("Timeshift: {n} snapshot", "Timeshift: {n} snapshots", e["count"]), _(
+            "{path} · delete old ones in Timeshift, never by hand").format(path=path)
+    return kind, e["note"]
+
+
 class OverviewPage(Gtk.Box):
-    """Read-only facts in four groups, with a Refresh button."""
+    """Read-only facts in groups, with a Refresh button; a click on a large folder opens it in Space Lens."""
 
     def __init__(self, window, title, icon, description):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
@@ -45,7 +170,12 @@ class OverviewPage(Gtk.Box):
         self.title, self.description = title, description
         self.running = None  # Gio.Cancellable of the current engine run
         self.data = {}  # event name → event ("disk" → list)
-        self.render_ms = None  # how long showing the last result took
+        self.render_ms = None  # how long showing the quick part of the last result took
+        self.first_ms = None  # from Refresh to the quick part on screen
+        self.full_ms = None  # from Refresh to the folder sizes on screen
+        self.first_before_folders = None  # the quick part showed before the folder sizes arrived
+        self.chart = None  # HistoryChart, with two days or more
+        self.groups = {}  # "history", "outside", "top" → Adw.PreferencesGroup
         self.rows = {}  # key → Adw.ActionRow (disk rows: "disk:" + mount)
         self.bars = {}  # same keys → Gtk.LevelBar
 
@@ -72,17 +202,32 @@ class OverviewPage(Gtk.Box):
     def load(self):
         if self.running:
             return
-        data = {"disk": []}
+        data = {"disk": [], "outside": []}
         if not self.data:
             self.stack.set_visible_child_name("loading")
         self.refresh_button.set_sensitive(False)
         self.window.set_busy(True)
+        started = time.monotonic()
+        shown = []
+
+        def show_first():
+            t0 = time.monotonic()
+            self.data = data  # still filling: "outside" and "top_dirs" come later
+            self.show_results()
+            shown.append(True)
+            self.render_ms = (time.monotonic() - t0) * 1000
+            self.first_ms = (time.monotonic() - started) * 1000
+            self.first_before_folders = "top_dirs" not in data
 
         def on_event(e):
-            if e["event"] == "disk":
-                data["disk"].append(e)
+            if e["event"] in ("disk", "outside"):
+                data[e["event"]].append(e)
             else:
                 data[e["event"]] = e
+            if e["event"] == "history" and "system" in data and not shown:
+                show_first()
+            elif e["event"] == "top_dirs" and shown:
+                self.show_folders()
 
         def on_done(ok, status):
             self.running = None
@@ -92,10 +237,10 @@ class OverviewPage(Gtk.Box):
                 self.failed.set_description(data.get("error", {}).get("message", ""))
                 self.stack.set_visible_child_name("failed")
                 return
-            t0 = time.monotonic()
-            self.data = data
-            self.show_results()
-            self.render_ms = (time.monotonic() - t0) * 1000
+            if not shown:
+                show_first()
+            self.show_folders()
+            self.full_ms = (time.monotonic() - started) * 1000
 
         self.running = self.engine.overview(on_event, on_done)
 
@@ -109,6 +254,8 @@ class OverviewPage(Gtk.Box):
             self.refresh_button.get_parent().remove(self.refresh_button)
         self.rows.clear()
         self.bars.clear()
+        self.groups.clear()
+        self.chart = None
         d = self.data
 
         header = Gtk.Box(spacing=12)
@@ -149,6 +296,18 @@ class OverviewPage(Gtk.Box):
                                      "drive-harddisk-symbolic", disk["device"]))
         self.results.append(storage)
 
+        points = d.get("history", {}).get("points", [])[-HISTORY_POINTS:]
+        history = Adw.PreferencesGroup(title=_("Free space over time"))
+        if len(points) < 2:
+            history.set_description(_("Free space on / is recorded once a day while you use CleanMate; "
+                                      "the chart shows here after a few days."))
+        else:
+            history.set_description(history_trend(points))
+            self.chart = HistoryChart(points)
+            history.add(Gtk.Frame(child=self.chart, css_classes=["view"]))
+        self.groups["history"] = history
+        self.results.append(history)
+
         m = d.get("memory")
         if m:
             memory = Adw.PreferencesGroup(title=_("Memory"))
@@ -178,7 +337,68 @@ class OverviewPage(Gtk.Box):
                 freed.add(self.fact_row("last", _("Last cleanup"), _("{size} on {date}").format(
                     size=human(f["last_bytes"]), date=when)))
         self.results.append(freed)
+
+        # measured last: placeholders until "top_dirs" arrives (show_folders)
+        for key, title in (("outside", _("Space outside your folders")), ("top", _("Largest folders in your home"))):
+            group = Adw.PreferencesGroup(title=title, description=_("Measuring…"),
+                                         header_suffix=Gtk.Spinner(spinning=True, valign=Gtk.Align.CENTER))
+            self.groups[key] = group
+            self.results.append(group)
         self.stack.set_visible_child_name("results")
+
+    def show_folders(self):
+        """Fill the last two groups once the folder sizes are in (or the run ended without them)."""
+        d = self.data
+        if "outside" not in self.groups or self.groups["outside"].get_header_suffix() is None:
+            return  # already filled
+        outside = Adw.PreferencesGroup(
+            title=_("Space outside your folders"),
+            description=_("In use, but in none of your folders. Shown for information: each is a choice, "
+                          "not junk."))
+        items = d.get("outside", [])
+        if not items:
+            outside.set_description(_("No Timeshift snapshots, swap file or reserved space found."))
+        biggest = max([e["bytes"] or 0 for e in items], default=0)
+        for e in items:
+            title, subtitle = outside_text(e)
+            row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False, css_classes=["item-row"])
+            row.add_prefix(Gtk.Image(icon_name=OUTSIDE_ICONS.get(e["kind"], "drive-harddisk-symbolic"),
+                                     pixel_size=24))
+            if e["bytes"] is None:
+                row.add_suffix(Gtk.Label(label="?", width_chars=9, xalign=1, css_classes=["numeric", "dim-label"],
+                                         tooltip_text=_("Measuring its size needs administrator rights")))
+            else:
+                for widget in size_widgets(e["bytes"], biggest):
+                    row.add_suffix(widget)
+            self.rows["outside:" + e["kind"] + ":" + e["path"]] = row
+            outside.add(row)
+
+        top = Adw.PreferencesGroup(title=_("Largest folders in your home"))
+        dirs = d.get("top_dirs", {}).get("dirs")
+        if dirs is None:
+            top.set_description(_("Couldn't measure your home folder."))
+        elif not dirs:
+            top.set_description(_("Your home folder is empty."))
+        else:
+            top.set_description(_("Click a folder to explore it in Space Lens."))
+        biggest = max([e["bytes"] for e in dirs or []], default=0)
+        for e in dirs or []:
+            path = e["path"]
+            row = Adw.ActionRow(title=os.path.basename(path), subtitle=short_path(path), use_markup=False,
+                                subtitle_lines=1, css_classes=["item-row"], activatable=True,
+                                tooltip_text=_("Open in Space Lens"))
+            row.add_prefix(Gtk.Image(icon_name="folder-symbolic", pixel_size=24))
+            for widget in size_widgets(e["bytes"], biggest):
+                row.add_suffix(widget)
+            row.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
+            row.connect("activated", lambda _r, p=path: self.window.open_lens(p))
+            self.rows["top:" + path] = row
+            top.add(row)
+
+        for key, group in (("outside", outside), ("top", top)):
+            self.results.insert_child_after(group, self.groups[key])
+            self.results.remove(self.groups[key])
+            self.groups[key] = group
 
     def fact_row(self, key, label, value):
         row = Adw.ActionRow(title=label, subtitle=value, use_markup=False, subtitle_selectable=True,

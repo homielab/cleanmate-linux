@@ -110,6 +110,17 @@ class SpaceLensPage(Gtk.Box):
         self.cache.clear()
         self.load(path)
 
+    def open_folder(self, path):
+        """Show one folder; inside home the path bar still starts at home, so Up goes back there."""
+        if self.moving:
+            return
+        home = os.path.expanduser("~")
+        root = home if path == home or path.startswith(home + "/") else path
+        if root != self.root:
+            self.root = root
+            self.cache.clear()
+        self.load(path)
+
     def choose_folder(self):
         dialog = Gtk.FileDialog(title=_("Folder to explore"), initial_folder=Gio.File.new_for_path(self.folder))
 

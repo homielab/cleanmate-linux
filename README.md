@@ -79,8 +79,9 @@ them, the folders they leave in your home (to the Trash). **Maintenance** runs t
 tasks (updates, package repair, TRIM, font cache, locate…) with their output in a log window, asking for your
 password once per task, and switches the snap-versions and journal-size limits on or off; a task whose tool
 isn't installed is locked. The app opens on **System Overview**: your system and package counts, each disk
-with a usage bar (in the warning colour over 90 % full), memory and swap, and what CleanMate freed in the
-last 30 days.
+with a usage bar (in the warning colour over 90 % full), a chart of free space over the last 30 days, memory
+and swap, what CleanMate freed in the last 30 days, space in use outside your folders (Timeshift snapshots,
+the swap file, ext4's reserved space) and your largest folders, which open in Space Lens.
 
 | Large & Old Files | Uninstaller |
 | --- | --- |
@@ -134,8 +135,8 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
   refused. Afterwards it offers the app's own folders for the Trash — never folders other apps share.
 - **Maintenance** — update everything (with a list of what will change first), repair packages,
   TRIM, free RAM, and lasting limits so old snap versions and system logs don't pile up again.
-- **System Overview** — storage, free-space history, and space outside your folders: Timeshift
-  snapshots, the swap file, ext4's reserved space (history and hidden space only here).
+- **System Overview** — storage, free-space history, space outside your folders (Timeshift
+  snapshots, the swap file, ext4's reserved space) and your largest folders.
 - Space Lens (browse folders by size), Large & Old Files (here with virtual machine disks),
   Duplicates, Startup Items (login apps) and Settings.
 

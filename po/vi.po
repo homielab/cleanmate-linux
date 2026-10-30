@@ -1639,8 +1639,10 @@ msgid "System Overview"
 msgstr "Tổng quan hệ thống"
 
 #: gui/cleanmate_gui/window.py:59
-msgid "Your system, disks, memory, and the space CleanMate freed."
-msgstr "Hệ thống, ổ đĩa, bộ nhớ của bạn và dung lượng CleanMate đã giải phóng."
+msgid ""
+"Your system, disks, free space over time, memory, the space CleanMate freed, "
+"and your largest folders."
+msgstr "Hệ thống, ổ đĩa, dung lượng trống theo thời gian, bộ nhớ, dung lượng CleanMate đã giải phóng và các thư mục lớn nhất của bạn."
 
 #: gui/cleanmate_gui/window.py:88
 msgid "All tools (terminal)"
@@ -2442,6 +2444,114 @@ msgid ""
 "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). "
 "Downloaded again when you start them."
 msgstr "Emulator mà Firebase CLI đã tải (Firestore, Database, Pub/Sub, UI…). Tải lại khi bạn khởi động chúng."
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid "{start} free on {start_date} → {end} on {end_date}."
+msgstr "Trống {start} ngày {start_date} → {end} ngày {end_date}."
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid ""
+"Losing about {size} a week: at this rate the disk is full in about {n} week."
+msgid_plural ""
+"Losing about {size} a week: at this rate the disk is full in about {n} weeks."
+msgstr[0] "Mất khoảng {size} mỗi tuần: với tốc độ này ổ sẽ đầy sau khoảng {n} tuần."
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid "Gaining about {size} a week."
+msgstr "Trống thêm khoảng {size} mỗi tuần."
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid "Stable over the last {n} day."
+msgid_plural "Stable over the last {n} days."
+msgstr[0] "Ổn định trong {n} ngày qua."
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid "{date}: {free} free"
+msgstr "{date}: trống {free}"
+
+#: gui/cleanmate_gui/overview.py
+msgid "Reserved for the system"
+msgstr "Dành riêng cho hệ thống"
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid ""
+"ext4 keeps about 5 percent of {path} for root, so Ubuntu still runs when the "
+"disk is full"
+msgstr "ext4 giữ khoảng 5 phần trăm của {path} cho root, để Ubuntu vẫn chạy được khi ổ đầy"
+
+#: gui/cleanmate_gui/overview.py
+msgid "Swap file"
+msgstr "Tệp swap"
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid "{path} · extra memory on disk; shrinking it is possible but needs care"
+msgstr "{path} · bộ nhớ phụ trên ổ đĩa; có thể thu nhỏ nhưng cần cẩn thận"
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid "Timeshift: {n} snapshot"
+msgid_plural "Timeshift: {n} snapshots"
+msgstr[0] "Timeshift: {n} bản chụp"
+
+#: gui/cleanmate_gui/overview.py
+#, python-brace-format
+msgid "{path} · delete old ones in Timeshift, never by hand"
+msgstr "{path} · xoá bản cũ trong Timeshift, đừng bao giờ xoá tay"
+
+#: gui/cleanmate_gui/overview.py
+msgid "Free space over time"
+msgstr "Ổ trống theo thời gian"
+
+#: gui/cleanmate_gui/overview.py
+msgid ""
+"Free space on / is recorded once a day while you use CleanMate; the chart "
+"shows here after a few days."
+msgstr "Dung lượng trống của / được ghi mỗi ngày một lần khi bạn dùng CleanMate; biểu đồ sẽ hiện ở đây sau vài ngày."
+
+#: gui/cleanmate_gui/overview.py
+msgid "Space outside your folders"
+msgstr "Ngoài thư mục của bạn"
+
+#: gui/cleanmate_gui/overview.py
+msgid "Largest folders in your home"
+msgstr "Thư mục lớn nhất trong thư mục riêng"
+
+#: gui/cleanmate_gui/overview.py
+msgid ""
+"In use, but in none of your folders. Shown for information: each is a "
+"choice, not junk."
+msgstr "Đang dùng nhưng không nằm trong thư mục nào của bạn. Chỉ để xem: mỗi mục là một lựa chọn, không phải rác."
+
+#: gui/cleanmate_gui/overview.py
+msgid "No Timeshift snapshots, swap file or reserved space found."
+msgstr "Không có bản chụp Timeshift, tệp swap hay dung lượng dành riêng."
+
+#: gui/cleanmate_gui/overview.py
+msgid "Measuring its size needs administrator rights"
+msgstr "Cần quyền quản trị để đo dung lượng"
+
+#: gui/cleanmate_gui/overview.py
+msgid "Couldn't measure your home folder."
+msgstr "Không đo được thư mục riêng."
+
+#: gui/cleanmate_gui/overview.py
+msgid "Your home folder is empty."
+msgstr "Thư mục riêng của bạn trống."
+
+#: gui/cleanmate_gui/overview.py
+msgid "Click a folder to explore it in Space Lens."
+msgstr "Bấm vào một thư mục để xem nó trong Space Lens."
+
+#: gui/cleanmate_gui/overview.py
+msgid "Open in Space Lens"
+msgstr "Mở trong Space Lens"
 
 #
 #~ msgid "System Overview and more in the terminal app"

@@ -4448,11 +4448,18 @@ overview_lines() {
   hidden_space_lines
 
   printf '\n  %sLargest folders in your home%s\n' "$BOLD" "$NC"
-  while IFS=$'\t' read -r b p; do
+  while IFS=$'\t' read -r -d '' b p; do
     ((max == 0)) && max=$b
     size_bar barv "$b" "$max" 24
     printf '  %s %9s  %s\n' "$barv" "$(human "$b")" "${p/#$HOME/\~}"
-  done < <(du -xb --max-depth=1 "$HOME" 2>/dev/null | sort -rn | sed -n '2,13p')
+  done < <(top_home_dirs)
+}
+
+TOP_DIRS=12 # the largest folders System Overview lists
+
+top_home_dirs() { # → bytes<TAB>path, NUL-terminated, of the largest folders right in $HOME (du -x), biggest first
+  du -0 -xb --max-depth=1 -- "$HOME" 2>/dev/null | sort -z -t$'\t' -k1,1rn |
+    while IFS=$'\t' read -r -d '' b p; do [[ $p == "$HOME" ]] || printf '%s\t%s\0' "$b" "$p"; done | head -z -n "$TOP_DIRS"
 }
 
 timeshift_snapshot_dirs() { # rsync-mode Timeshift keeps snapshots in /timeshift on the backup disk
@@ -4465,26 +4472,42 @@ timeshift_snapshot_dirs() { # rsync-mode Timeshift keeps snapshots in /timeshift
 
 # Space that is in use but doesn't show up in any of your folders. Report only:
 # each of these is a choice for the user, not junk.
-hidden_space_lines() {
-  local rows=() s u a fs name type size d n b
+hidden_space_rows() { # → kind<TAB>bytes (- unknown)<TAB>path<TAB>count<TAB>note, kind = reserved|swapfile|timeshift
+  local s u a fs name type size d n b
   read -r s u a fs < <(df -B1 --output=size,used,avail,fstype / 2>/dev/null | tail -n1)
   # ext4 reserves 5% by default; a bigger gap means something else (a quota) limits "free"
-  if [[ $fs == ext[234] ]] && ((s > 0 && s - u - a > 0 && (s - u - a) * 100 / s <= 10)); then
-    rows+=("Reserved on / for the system"$'\t'"$((s - u - a))"$'\t'"ext4 keeps ~5% for root, so Ubuntu still runs when the disk is full")
+  if [[ $fs == ext[234] && $s =~ ^[0-9]+$ && $u =~ ^[0-9]+$ && $a =~ ^[0-9]+$ ]] &&
+    ((s > 0 && s - u - a > 0 && (s - u - a) * 100 / s <= 10)); then
+    printf 'reserved\t%s\t/\t1\t%s\n' "$((s - u - a))" "ext4 keeps ~5% for root, so Ubuntu still runs when the disk is full"
   fi
   while read -r name type size; do
-    [[ $type == file ]] && rows+=("Swap file $name"$'\t'"$size"$'\t'"extra memory on disk; shrinking it is possible but needs care")
+    [[ $type == file && $size =~ ^[0-9]+$ ]] &&
+      printf 'swapfile\t%s\t%s\t1\t%s\n' "$size" "$name" "extra memory on disk; shrinking it is possible but needs care"
   done < <(swapon --show=NAME,TYPE,SIZE --bytes --noheadings 2>/dev/null)
   while IFS= read -r d; do
     n=$(find "$d" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
     ((n > 0)) || continue
     b=$(timeout 30 du -sb -- "$d" 2>/dev/null | cut -f1) # hard-linked files count once
-    rows+=("Timeshift: $(plural "$n" snapshot)"$'\t'"${b:-0}"$'\t'"delete old ones in Timeshift — never by hand$([[ -z $b ]] && echo " (size needs sudo)")")
+    printf 'timeshift\t%s\t%s\t%d\t%s\n' "${b:--}" "$d" "$n" "delete old ones in Timeshift — never by hand$([[ -z $b ]] && echo " (size needs sudo)")"
   done < <(timeshift_snapshot_dirs)
+  return 0
+}
+
+hidden_space_lines() {
+  local rows=() kind b path n note name
+  while IFS=$'\t' read -r kind b path n note; do
+    case $kind in
+      reserved) name="Reserved on / for the system" ;;
+      swapfile) name="Swap file $path" ;;
+      *) name="Timeshift: $(plural "$n" snapshot)" ;;
+    esac
+    [[ $b == - ]] && b=0
+    rows+=("$name"$'\t'"$b"$'\t'"$note")
+  done < <(hidden_space_rows)
   ((${#rows[@]})) || return 0
   printf '\n  %sSpace outside your folders%s\n' "$BOLD" "$NC"
-  printf '%s\n' "${rows[@]}" | while IFS=$'\t' read -r name b d; do
-    printf '  %-30s %9s  %s%s%s\n' "$name" "$( ((b > 0)) && human "$b" || echo "?")" "$DIM" "$d" "$NC"
+  printf '%s\n' "${rows[@]}" | while IFS=$'\t' read -r name b note; do
+    printf '  %-30s %9s  %s%s%s\n' "$name" "$( ((b > 0)) && human "$b" || echo "?")" "$DIM" "$note" "$NC"
   done
 }
 
@@ -6303,7 +6326,7 @@ json_maintain() { # ID [on|off] [--user-steps]
 # as numbers. "freed" comes only once a cleanup was recorded.
 
 json_overview() {
-  local t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 e b cut
+  local t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 e b cut kind path n note top=""
   sys_facts; pkg_counts; mem_facts
   json_str j1 "$OV_OS"; json_str j2 "$OV_KERNEL"; json_str j3 "$OV_CPU"
   printf '{"event":"system","os":%s,"kernel":%s,"cpu":%s,"threads":%d,"uptime":%d,"apt":%s,"snap":%s,"flatpak":%s}\n' \
@@ -6327,7 +6350,38 @@ json_overview() {
     printf '{"event":"freed","days":30,"bytes":%d,"cleanups":%d,"since":%d,"lifetime":%d,"runs":%d,"last_time":%d,"last_bytes":%d}\n' \
       "$b30" "$n30" "$since" "${STATS[lifetime]:-0}" "${STATS[runs]:-0}" "${STATS[last_time]:-0}" "${STATS[last_freed]:-0}"
   fi
+  record_disk_usage # opening the app counts as a use, like a scan in the terminal app
+  json_history
+  # the slow part last (du), so the app shows everything above meanwhile
+  while IFS=$'\t' read -r kind b path n note; do
+    json_str jt "$path"; json_str jd "$note"
+    [[ $b == - ]] && b=null
+    printf '{"event":"outside","kind":"%s","bytes":%s,"path":%s,"count":%d,"note":%s}\n' "$kind" "$b" "$jt" "$n" "$jd"
+  done < <(hidden_space_rows)
+  while IFS=$'\t' read -r -d '' b path; do
+    [[ $path == *[$'\x01'-$'\x1f\x7f']* ]] && continue # only names that round-trip through JSON
+    json_str jt "$path"
+    top+="${top:+,}{\"path\":$jt,\"bytes\":$b}"
+  done < <(top_home_dirs | LC_ALL=C.UTF-8 grep -zax '.*')
+  json_str jt "$HOME"
+  printf '{"event":"top_dirs","home":%s,"dirs":[%s]}\n' "$jt" "$top"
   printf '{"event":"done"}\n'
+}
+
+json_history() { # free space on / for the last 30 recorded days → one "history" event
+  local rows=() epochs=() i d a sz pts="" each=0
+  [[ -f $DISK_HISTORY ]] &&
+    mapfile -t rows < <(grep -E $'^[0-9]{4}-[0-9]{2}-[0-9]{2}\t[0-9]+\t[0-9]+$' "$DISK_HISTORY" | tail -n 30)
+  # one date call for all the days; a day it can't read leaves a gap, so then one call per day
+  ((${#rows[@]})) && mapfile -t epochs < <(printf '%s\n' "${rows[@]}" | cut -f1 | date -f - +%s 2>/dev/null)
+  ((${#epochs[@]} == ${#rows[@]})) || each=1
+  for i in "${!rows[@]}"; do
+    IFS=$'\t' read -r d a sz <<<"${rows[i]}"
+    ((each)) && epochs[i]=$(date -d "$d" +%s 2>/dev/null)
+    [[ ${epochs[i]:-} =~ ^[0-9]+$ ]] || continue
+    pts+="${pts:+,}{\"time\":${epochs[i]},\"avail\":$a,\"size\":$sz}"
+  done
+  printf '{"event":"history","points":[%s]}\n' "$pts"
 }
 
 # ───────────────────────────── desktop app ──────────────────────────────────
