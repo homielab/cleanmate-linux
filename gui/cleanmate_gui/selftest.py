@@ -78,8 +78,20 @@ def run(app, win):
         print("SELFTEST done", flush=True)
         app.quit()
 
+    def check_item_texts():
+        """Item names and descriptions in the app's language; untranslated ones are listed, not failed."""
+        texts = [(e["id"], f, e[f]) for e in page.items.values() for f in ("label", "description") if e[f]]
+        if not i18n.translating():
+            report(all(i18n.item_text(t) == t for _i, _f, t in texts), "item names stay in English")
+            return
+        missing = [(i, f, t) for i, f, t in texts if i18n.untranslated(t)]
+        for i, f, t in missing:
+            print(f"SELFTEST warn untranslated item {f} ({i}): {t}", flush=True)
+        report(len(missing) < len(texts), f"item names translated: {len(texts) - len(missing)} of {len(texts)}")
+
     def after_scan():
         found = [e for e in page.items.values() if e["status"] == "found"]
+        check_item_texts()
         report(page.stack.get_visible_child_name() == "results", "results page shown")
         report(len(page.items) > 0, f"{len(page.items)} items scanned, {len(found)} with junk")
         report(page.bar.get_revealed() == bool(found), "action bar matches the results")

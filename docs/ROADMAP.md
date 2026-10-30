@@ -25,7 +25,8 @@ Where CleanMate is going, and the decisions behind it. Ideas and votes are welco
 - [x] **Launchpad PPA** — `ppa:homielab/clean-my-ubuntu`, uploaded by CI on every release (1.0.1).
 - [ ] **Snap Store** — classic confinement was declined for now (project too new); ask again once
       the project has a track record.
-- [ ] **Translations** — the desktop app is in English and Vietnamese (`po/`); the engine and the terminal app are English only.
+- [ ] **Translations** — the desktop app is in English and Vietnamese (`po/`), cleanup item names and
+      descriptions included; the engine, the terminal app and scan notes are English only.
 
 The desktop app's *All tools (terminal)* entry is a shortcut to `cm`.
 

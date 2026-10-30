@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 10:51+0700\n"
+"POT-Creation-Date: 2026-10-30 11:01+0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -155,7 +155,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: gui/cleanmate_gui/duplicates.py:301 gui/cleanmate_gui/largefiles.py:267
-#: gui/cleanmate_gui/scanpage.py:405 gui/cleanmate_gui/spacelens.py:321
+#: gui/cleanmate_gui/scanpage.py:406 gui/cleanmate_gui/spacelens.py:321
 #: gui/cleanmate_gui/uninstaller.py:303
 #, python-brace-format
 msgid "… and {n} more"
@@ -177,7 +177,7 @@ msgid ""
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:307 gui/cleanmate_gui/largefiles.py:273
-#: gui/cleanmate_gui/maintenance.py:234 gui/cleanmate_gui/scanpage.py:416
+#: gui/cleanmate_gui/maintenance.py:234 gui/cleanmate_gui/scanpage.py:417
 #: gui/cleanmate_gui/settings.py:243 gui/cleanmate_gui/spacelens.py:327
 #: gui/cleanmate_gui/startup.py:221 gui/cleanmate_gui/uninstaller.py:318
 msgid "Cancel"
@@ -480,8 +480,8 @@ msgstr ""
 msgid "Never let system logs grow past {mb} MB (Settings → Journal size limit)"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:193 gui/cleanmate_gui/scanpage.py:209
-#: gui/cleanmate_gui/scanpage.py:226 gui/cleanmate_gui/uninstaller.py:185
+#: gui/cleanmate_gui/maintenance.py:193 gui/cleanmate_gui/scanpage.py:210
+#: gui/cleanmate_gui/scanpage.py:227 gui/cleanmate_gui/uninstaller.py:185
 #: gui/cleanmate_gui/uninstaller.py:299
 msgid "Needs your password"
 msgstr ""
@@ -708,11 +708,11 @@ msgstr ""
 msgid "Scanning…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:417
+#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:418
 msgid "Clear"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:417
+#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:418
 msgid "Clean"
 msgstr ""
 
@@ -785,121 +785,121 @@ msgstr[1] ""
 msgid "clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:207
+#: gui/cleanmate_gui/scanpage.py:208
 #, python-brace-format
 msgid "Close {program} and scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:222
+#: gui/cleanmate_gui/scanpage.py:223
 #, python-brace-format
 msgid "{program} is running — close it, then scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:232
+#: gui/cleanmate_gui/scanpage.py:233
 msgid "Show what's inside"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:246
+#: gui/cleanmate_gui/scanpage.py:247
 msgid "Loading…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:262
+#: gui/cleanmate_gui/scanpage.py:263
 msgid "Nothing to choose one by one — Clean removes it all"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:349
+#: gui/cleanmate_gui/scanpage.py:350
 #, python-brace-format
 msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:351 gui/cleanmate_gui/spacelens.py:298
+#: gui/cleanmate_gui/scanpage.py:352 gui/cleanmate_gui/spacelens.py:298
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:365
+#: gui/cleanmate_gui/scanpage.py:366
 msgid "Collecting details…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:383
+#: gui/cleanmate_gui/scanpage.py:384
 msgid "Nothing more to show."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:408
+#: gui/cleanmate_gui/scanpage.py:409
 #, python-brace-format
 msgid "Clear {n} history list?"
 msgid_plural "Clear {n} history lists?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:409
+#: gui/cleanmate_gui/scanpage.py:410
 msgid "This can't be undone."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:411
+#: gui/cleanmate_gui/scanpage.py:412
 #, python-brace-format
 msgid "Clean {n} item?"
 msgid_plural "Clean {n} items?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:412
+#: gui/cleanmate_gui/scanpage.py:413
 #, python-brace-format
 msgid "About {size} will be removed."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:414
+#: gui/cleanmate_gui/scanpage.py:415
 msgid "Items with a lock need your password."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:436 gui/cleanmate_gui/scanpage.py:474
+#: gui/cleanmate_gui/scanpage.py:437 gui/cleanmate_gui/scanpage.py:475
 #: gui/cleanmate_gui/uninstaller.py:341 gui/cleanmate_gui/uninstaller.py:380
 msgid "waiting"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:442
+#: gui/cleanmate_gui/scanpage.py:443
 msgid "Cleaning…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:453
+#: gui/cleanmate_gui/scanpage.py:454
 msgid "working…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:458
+#: gui/cleanmate_gui/scanpage.py:459
 msgid "done"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:458 gui/cleanmate_gui/uninstaller.py:366
+#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:366
 msgid "skipped"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:458 gui/cleanmate_gui/uninstaller.py:366
+#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:366
 msgid "failed"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:467 gui/cleanmate_gui/scanpage.py:474
+#: gui/cleanmate_gui/scanpage.py:468 gui/cleanmate_gui/scanpage.py:475
 #: gui/cleanmate_gui/uninstaller.py:374 gui/cleanmate_gui/uninstaller.py:380
 msgid "waiting for your password…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:477 gui/cleanmate_gui/uninstaller.py:382
+#: gui/cleanmate_gui/scanpage.py:478 gui/cleanmate_gui/uninstaller.py:382
 msgid "Skipped — no password was entered"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:483
+#: gui/cleanmate_gui/scanpage.py:484
 #, python-brace-format
 msgid "Dry run: {size} would be freed"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:485
+#: gui/cleanmate_gui/scanpage.py:486
 msgid "History cleared"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:487
+#: gui/cleanmate_gui/scanpage.py:488
 #, python-brace-format
 msgid "Freed {size}"
 msgstr ""
@@ -1687,4 +1687,684 @@ msgstr ""
 msgid ""
 "A friendly system cleaner for Ubuntu, inspired by CleanMyMac. Not affiliated "
 "with MacPaw."
+msgstr ""
+
+#. apt_cache label
+msgid "APT package cache"
+msgstr ""
+
+#. apt_cache description
+msgid "Downloaded .deb installers. apt re-downloads them if ever needed."
+msgstr ""
+
+#. orphans label
+msgid "Unused packages & old kernels"
+msgstr ""
+
+#. orphans description
+msgid ""
+"Packages installed as dependencies that nothing needs any more (apt "
+"autoremove)."
+msgstr ""
+
+#. residual label
+msgid "Leftover package configs"
+msgstr ""
+
+#. residual description
+msgid "System config files of packages that were removed but not purged."
+msgstr ""
+
+#. journal label
+msgid "Systemd journal logs"
+msgstr ""
+
+#. journal description
+#, python-brace-format
+msgid "Archived system logs. Keeps the last {0} days and at most {1} MB."
+msgstr ""
+
+#. old_logs label
+msgid "Rotated / archived logs"
+msgstr ""
+
+#. old_logs description
+#, python-brace-format
+msgid "Compressed or rotated log files in /var/log (*.gz, *.{0}, *.old)."
+msgstr ""
+
+#. big_logs label
+msgid "Oversized active logs"
+msgstr ""
+
+#. big_logs description
+#, python-brace-format
+msgid ""
+"Live logs in /var/log over {0} MB, emptied in place — services keep logging "
+"normally."
+msgstr ""
+
+#. app_logs label
+msgid "Old app logs"
+msgstr ""
+
+#. app_logs description
+#, python-brace-format
+msgid "Log files of apps (VS Code, Slack, …) not written for {0}+ days."
+msgstr ""
+
+#. crash label
+msgid "Crash reports"
+msgstr ""
+
+#. crash description
+msgid "Apport crash reports in /var/crash."
+msgstr ""
+
+#. coredump label
+msgid "Core dumps"
+msgstr ""
+
+#. coredump description
+msgid "Memory dumps of crashed programs kept by systemd-coredump."
+msgstr ""
+
+#. snap_old label
+msgid "Old Snap revisions"
+msgstr ""
+
+#. snap_old description
+msgid "Disabled previous versions of snaps, kept only for rollback."
+msgstr ""
+
+#. old_kernels label
+msgid "Extra old kernels"
+msgstr ""
+
+#. old_kernels description
+msgid ""
+"Kernels older than your two newest (never the one running), so a fallback "
+"always stays."
+msgstr ""
+
+#. tmp label
+msgid "Old temporary files"
+msgstr ""
+
+#. tmp description
+#, python-brace-format
+msgid "Your files in /tmp and /var/tmp not touched for {0}+ days."
+msgstr ""
+
+#. thumbs label
+msgid "Thumbnail cache"
+msgstr ""
+
+#. thumbs description
+msgid "Image previews generated by the file manager; rebuilt on demand."
+msgstr ""
+
+#. trash label
+msgid "Trash"
+msgstr ""
+
+#. trash description
+msgid "Files you already deleted. Review before emptying!"
+msgstr ""
+
+#. app_cache label
+#, python-brace-format
+msgid "Stale app caches (>{0} days)"
+msgstr ""
+
+#. app_cache description
+#, python-brace-format
+msgid "Files under ~/.cache not modified or read for {0}+ days."
+msgstr ""
+
+#. node_modules label
+msgid "Stale node_modules"
+msgstr ""
+
+#. node_modules description
+#, python-brace-format
+msgid ""
+"node_modules of projects untouched for {0}+ days. Restore with npm/yarn/pnpm "
+"install."
+msgstr ""
+
+#. npm label
+msgid "npm cache"
+msgstr ""
+
+#. npm description
+msgid "npm's package download cache (~/.npm/_cacache)."
+msgstr ""
+
+#. yarn label
+msgid "Yarn cache"
+msgstr ""
+
+#. yarn description
+msgid "Yarn's package download cache."
+msgstr ""
+
+#. pnpm label
+msgid "pnpm store (unreferenced)"
+msgstr ""
+
+#. pnpm description
+msgid "Packages in the pnpm store no project references (pnpm store prune)."
+msgstr ""
+
+#. bun label
+msgid "Bun cache"
+msgstr ""
+
+#. bun description
+msgid "Bun's package install cache."
+msgstr ""
+
+#. pip label
+msgid "pip cache"
+msgstr ""
+
+#. pip description
+msgid "pip's wheel and HTTP download cache."
+msgstr ""
+
+#. gobuild label
+msgid "Go build cache"
+msgstr ""
+
+#. gobuild description
+msgid "Compiled Go build artifacts (go clean -cache)."
+msgstr ""
+
+#. cargo label
+msgid "Cargo registry cache"
+msgstr ""
+
+#. cargo description
+msgid "Downloaded and extracted crates; re-downloaded on next build."
+msgstr ""
+
+#. gradle label
+msgid "Gradle caches"
+msgstr ""
+
+#. gradle description
+msgid "Gradle dependency and build caches; re-downloaded on next build."
+msgstr ""
+
+#. maven label
+msgid "Maven repository"
+msgstr ""
+
+#. maven description
+msgid "Local Maven repository (~/.m2/repository); re-downloaded on next build."
+msgstr ""
+
+#. conda label
+msgid "Conda package cache"
+msgstr ""
+
+#. conda description
+msgid ""
+"Downloaded package archives, index cache and logs (conda clean --tarballs). "
+"Your environments are kept."
+msgstr ""
+
+#. docker_dangling label
+msgid "Docker: dangling images"
+msgstr ""
+
+#. docker_dangling description
+msgid "Untagged leftover image layers from rebuilds — nothing uses them."
+msgstr ""
+
+#. docker_build label
+msgid "Docker: build cache"
+msgstr ""
+
+#. docker_build description
+msgid "BuildKit cache. Safe to remove; the next build is slower once."
+msgstr ""
+
+#. docker_containers label
+msgid "Docker: stopped containers"
+msgstr ""
+
+#. docker_containers description
+msgid ""
+"Containers that aren't running. Anything stored inside them (not in volumes) "
+"is lost."
+msgstr ""
+
+#. docker_images label
+msgid "Docker: unused images"
+msgstr ""
+
+#. docker_images description
+msgid "Images no container uses. They are pulled again when needed."
+msgstr ""
+
+#. docker_volumes label
+msgid "Docker: unused volumes"
+msgstr ""
+
+#. docker_volumes description
+msgid ""
+"Volumes no container uses — they may hold databases or other data. Review "
+"before removing!"
+msgstr ""
+
+#. podman label
+msgid "Podman: stopped containers & dangling images"
+msgstr ""
+
+#. podman description
+msgid ""
+"podman system prune: stopped containers, untagged image layers and unused "
+"networks. Volumes and tagged images are kept."
+msgstr ""
+
+#. browser_firefox label
+msgid "Firefox"
+msgstr ""
+
+#. browser_firefox description
+msgid ""
+"Web cache of Firefox (pages, images, scripts). Logins, history and bookmarks "
+"are kept."
+msgstr ""
+
+#. browser_chrome label
+msgid "Google Chrome"
+msgstr ""
+
+#. browser_chrome description
+msgid ""
+"Web cache of Google Chrome (pages, images, scripts). Logins, history and "
+"bookmarks are kept."
+msgstr ""
+
+#. browser_chromium label
+msgid "Chromium"
+msgstr ""
+
+#. browser_chromium description
+msgid ""
+"Web cache of Chromium (pages, images, scripts). Logins, history and "
+"bookmarks are kept."
+msgstr ""
+
+#. browser_brave label
+msgid "Brave"
+msgstr ""
+
+#. browser_brave description
+msgid ""
+"Web cache of Brave (pages, images, scripts). Logins, history and bookmarks "
+"are kept."
+msgstr ""
+
+#. browser_edge label
+msgid "Microsoft Edge"
+msgstr ""
+
+#. browser_edge description
+msgid ""
+"Web cache of Microsoft Edge (pages, images, scripts). Logins, history and "
+"bookmarks are kept."
+msgstr ""
+
+#. browser_vivaldi label
+msgid "Vivaldi"
+msgstr ""
+
+#. browser_vivaldi description
+msgid ""
+"Web cache of Vivaldi (pages, images, scripts). Logins, history and bookmarks "
+"are kept."
+msgstr ""
+
+#. browser_opera label
+msgid "Opera"
+msgstr ""
+
+#. browser_opera description
+msgid ""
+"Web cache of Opera (pages, images, scripts). Logins, history and bookmarks "
+"are kept."
+msgstr ""
+
+#. app_steam_shaders label
+msgid "Steam — shader cache"
+msgstr ""
+
+#. app_steam_shaders description
+msgid ""
+"Shaders Steam compiled for your games. Steam rebuilds them; a game may "
+"stutter briefly the first time."
+msgstr ""
+
+#. priv_recent label
+msgid "Recent files list"
+msgstr ""
+
+#. priv_recent description
+msgid ""
+"What Files and Open dialogs show under “Recent”. Only the list is cleared — "
+"your files are not touched."
+msgstr ""
+
+#. priv_zsh label
+msgid "Zsh history"
+msgstr ""
+
+#. priv_zsh description
+msgid "Every command you typed in zsh."
+msgstr ""
+
+#. priv_bash label
+msgid "Bash history"
+msgstr ""
+
+#. priv_bash description
+msgid "Every command you typed in bash (~/.bash_history)."
+msgstr ""
+
+#. priv_fish label
+msgid "Fish history"
+msgstr ""
+
+#. priv_fish description
+msgid "Every command you typed in fish."
+msgstr ""
+
+#. priv_repl label
+msgid "Python, Node & database shells"
+msgstr ""
+
+#. priv_repl description
+msgid ""
+"History of the python, node, irb, mysql, psql, sqlite3 and redis-cli prompts."
+msgstr ""
+
+#. priv_misc label
+msgid "less & wget history"
+msgstr ""
+
+#. priv_misc description
+msgid "Searches typed in less, and wget's list of visited HTTPS sites."
+msgstr ""
+
+#. priv_editor label
+msgid "Vim & Neovim history"
+msgstr ""
+
+#. priv_editor description
+msgid ""
+"Command and search history, marks and registers that Vim (~/.viminfo) and "
+"Neovim (ShaDa) remember."
+msgstr ""
+
+#. priv_zeitgeist label
+msgid "Activity log (Zeitgeist)"
+msgstr ""
+
+#. priv_zeitgeist description
+msgid "The record of files and apps you used, kept by Zeitgeist."
+msgstr ""
+
+#. priv_gsettings label
+msgid "Run dialog & emoji history"
+msgstr ""
+
+#. priv_gsettings description
+msgid "Commands typed in Alt+F2, recently used emoji and characters."
+msgstr ""
+
+#. ai_claude_cache label
+msgid "Claude Code — cache & logs"
+msgstr ""
+
+#. ai_claude_cache description
+msgid ""
+"Claude Code caches, MCP logs, week-old shell snapshots and backups. Memory, "
+"settings and logins are kept."
+msgstr ""
+
+#. ai_claude_history label
+msgid "Claude Code — old sessions"
+msgstr ""
+
+#. ai_claude_history description
+#, python-brace-format
+msgid ""
+"Session transcripts, checkpoints and todos older than {0} days. Memory, "
+"settings and logins are kept."
+msgstr ""
+
+#. ai_claude_desktop_cache label
+msgid "Claude Desktop — old versions"
+msgstr ""
+
+#. ai_claude_desktop_cache description
+msgid ""
+"Previous bundled Claude Code versions and crash dumps of the Claude desktop "
+"app."
+msgstr ""
+
+#. ai_claude_desktop_history label
+msgid "Claude Desktop — old sessions"
+msgstr ""
+
+#. ai_claude_desktop_history description
+#, python-brace-format
+msgid "Agent-mode sessions of the Claude desktop app older than {0} days."
+msgstr ""
+
+#. ai_codex_cache label
+msgid "Codex — cache & logs"
+msgstr ""
+
+#. ai_codex_cache description
+msgid "Codex's temporary plugin cache and log database; both are recreated."
+msgstr ""
+
+#. ai_codex_history label
+msgid "Codex — old sessions"
+msgstr ""
+
+#. ai_codex_history description
+#, python-brace-format
+msgid ""
+"Codex session transcripts older than {0} days. Memories and settings are "
+"kept."
+msgstr ""
+
+#. ai_gemini_cache label
+msgid "Gemini/Antigravity — logs"
+msgstr ""
+
+#. ai_gemini_cache description
+msgid "Logs and crash dumps of Gemini CLI and Antigravity."
+msgstr ""
+
+#. ai_gemini_history label
+msgid "Gemini/Antigravity — old chats"
+msgstr ""
+
+#. ai_gemini_history description
+#, python-brace-format
+msgid ""
+"Antigravity conversations and agent workspaces (brain), and Gemini CLI "
+"checkpoints, older than {0} days."
+msgstr ""
+
+#. ai_opencode_cache label
+msgid "opencode — cache & logs"
+msgstr ""
+
+#. ai_opencode_cache description
+msgid ""
+"opencode's download cache and logs. Sessions (opencode.db) and logins are "
+"kept."
+msgstr ""
+
+#. ai_opencode_history label
+msgid "opencode — old undo snapshots"
+msgstr ""
+
+#. ai_opencode_history description
+#, python-brace-format
+msgid ""
+"Undo snapshots of opencode sessions older than {0} days. Sessions in "
+"opencode.db are kept."
+msgstr ""
+
+#. ai_cursor_cache label
+msgid "Cursor — cache & logs"
+msgstr ""
+
+#. ai_cursor_cache description
+msgid ""
+"Cursor's web caches and logs. Chats, settings, extensions and logins are "
+"kept."
+msgstr ""
+
+#. ai_windsurf_cache label
+msgid "Windsurf — index & browser cache"
+msgstr ""
+
+#. ai_windsurf_cache description
+msgid ""
+"Windsurf's code index (rebuilt on next launch) and the cache of its built-in "
+"browser. Logins and settings are kept."
+msgstr ""
+
+#. ai_cline_cache label
+msgid "Cline — logs"
+msgstr ""
+
+#. ai_cline_cache description
+msgid "Cline's log files. Sessions and settings are kept."
+msgstr ""
+
+#. ai_kilo_cache label
+msgid "Kilo Code — cache & logs"
+msgstr ""
+
+#. ai_kilo_cache description
+msgid ""
+"Kilo Code's model list, downloaded helpers and logs. Sessions and logins are "
+"kept."
+msgstr ""
+
+#. ai_mimocode_cache label
+msgid "MiMoCode — cache & logs"
+msgstr ""
+
+#. ai_mimocode_cache description
+msgid ""
+"MiMoCode's download cache and logs. Sessions (its databases) and logins are "
+"kept."
+msgstr ""
+
+#. ai_zcode_cache label
+msgid "ZCode — logs"
+msgstr ""
+
+#. ai_zcode_cache description
+msgid ""
+"Daily logs of the ZCode app and CLI. Sessions, credentials and settings are "
+"kept."
+msgstr ""
+
+#. ai_zed_cache label
+msgid "Zed — hang traces & old agents"
+msgstr ""
+
+#. ai_zed_cache description
+msgid ""
+"Older versions of AI agents Zed downloaded (the newest is kept), and hang "
+"traces."
+msgstr ""
+
+#. ai_zed_downloads label
+msgid "Zed — agents & language servers"
+msgstr ""
+
+#. ai_zed_downloads description
+msgid ""
+"All AI agents and language servers Zed downloaded. Zed downloads them again "
+"when needed."
+msgstr ""
+
+#. ai_misc_cache label
+msgid "Copilot & Continue — cache"
+msgstr ""
+
+#. ai_misc_cache description
+msgid "Copilot CLI logs and Continue's code index."
+msgstr ""
+
+#. ai_misc_history label
+msgid "Copilot & Continue — sessions"
+msgstr ""
+
+#. ai_misc_history description
+#, python-brace-format
+msgid "Copilot CLI and Continue sessions older than {0} days."
+msgstr ""
+
+#. uv_cache label
+msgid "uv cache"
+msgstr ""
+
+#. uv_cache description
+msgid ""
+"uv's package and wheel cache (~/.cache/uv). Re-downloaded on next use; your "
+"environments are kept."
+msgstr ""
+
+#. rustup_downloads label
+msgid "rustup downloads"
+msgstr ""
+
+#. rustup_downloads description
+msgid ""
+"Leftover rustup downloads and temp files. Your installed toolchains are kept."
+msgstr ""
+
+#. browser_test_cache label
+msgid "Playwright, Puppeteer & Cypress browsers"
+msgstr ""
+
+#. browser_test_cache description
+msgid ""
+"Browsers downloaded for test tools (~/.cache/ms-playwright, puppeteer, "
+"Cypress). Re-downloaded on next install or test run."
+msgstr ""
+
+#. firebase_logs label
+msgid "Firebase CLI logs"
+msgstr ""
+
+#. firebase_logs description
+msgid ""
+"Debug logs of the Firebase CLI (firebase mcp can grow them to gigabytes). A "
+"log still being written is skipped. Your login is kept."
+msgstr ""
+
+#. firebase_emulators label
+msgid "Firebase emulators"
+msgstr ""
+
+#. firebase_emulators description
+msgid ""
+"Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). "
+"Downloaded again when you start them."
 msgstr ""

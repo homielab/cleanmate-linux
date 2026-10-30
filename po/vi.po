@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 10:51+0700\n"
+"POT-Creation-Date: 2026-10-30 11:01+0700\n"
 "PO-Revision-Date: 2026-10-30 16:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -148,7 +148,7 @@ msgid_plural ""
 msgstr[0] "Đã chọn mọi bản của {n} tệp: sẽ không giữ lại bản nào của chúng."
 
 #: gui/cleanmate_gui/duplicates.py:301 gui/cleanmate_gui/largefiles.py:267
-#: gui/cleanmate_gui/scanpage.py:405 gui/cleanmate_gui/spacelens.py:321
+#: gui/cleanmate_gui/scanpage.py:406 gui/cleanmate_gui/spacelens.py:321
 #: gui/cleanmate_gui/uninstaller.py:303
 #, python-brace-format
 msgid "… and {n} more"
@@ -170,7 +170,7 @@ msgstr ""
 "{size}. Bạn có thể hoàn tác ngay, hoặc khôi phục các tệp từ Thùng rác sau."
 
 #: gui/cleanmate_gui/duplicates.py:307 gui/cleanmate_gui/largefiles.py:273
-#: gui/cleanmate_gui/maintenance.py:234 gui/cleanmate_gui/scanpage.py:416
+#: gui/cleanmate_gui/maintenance.py:234 gui/cleanmate_gui/scanpage.py:417
 #: gui/cleanmate_gui/settings.py:243 gui/cleanmate_gui/spacelens.py:327
 #: gui/cleanmate_gui/startup.py:221 gui/cleanmate_gui/uninstaller.py:318
 msgid "Cancel"
@@ -473,8 +473,8 @@ msgstr ""
 "Không để nhật ký hệ thống vượt quá {mb} MB (Cài đặt → Giới hạn dung lượng "
 "journal)"
 
-#: gui/cleanmate_gui/maintenance.py:193 gui/cleanmate_gui/scanpage.py:209
-#: gui/cleanmate_gui/scanpage.py:226 gui/cleanmate_gui/uninstaller.py:185
+#: gui/cleanmate_gui/maintenance.py:193 gui/cleanmate_gui/scanpage.py:210
+#: gui/cleanmate_gui/scanpage.py:227 gui/cleanmate_gui/uninstaller.py:185
 #: gui/cleanmate_gui/uninstaller.py:299
 msgid "Needs your password"
 msgstr "Cần mật khẩu của bạn"
@@ -553,8 +553,8 @@ msgid "{n} minute"
 msgid_plural "{n} minutes"
 msgstr[0] "{n} phút"
 
-#: gui/cleanmate_gui/overview.py:57
 #
+#: gui/cleanmate_gui/overview.py:57
 msgid "Can't measure this system"
 msgstr "Không đo được hệ thống này"
 
@@ -610,8 +610,8 @@ msgid "{cpu} ({n} thread)"
 msgid_plural "{cpu} ({n} threads)"
 msgstr[0] "{cpu} ({n} luồng)"
 
-#: gui/cleanmate_gui/overview.py:135
 #
+#: gui/cleanmate_gui/overview.py:135
 msgid "Packages"
 msgstr "Gói"
 
@@ -619,8 +619,8 @@ msgstr "Gói"
 msgid "Storage"
 msgstr "Ổ đĩa"
 
-#: gui/cleanmate_gui/overview.py:141
 #
+#: gui/cleanmate_gui/overview.py:141
 msgid "No disks found."
 msgstr "Không tìm thấy ổ đĩa nào."
 
@@ -660,8 +660,8 @@ msgstr "Đang dùng {used} / {size}"
 msgid "none"
 msgstr "không có"
 
-#: gui/cleanmate_gui/overview.py:168
 #
+#: gui/cleanmate_gui/overview.py:168
 msgid "Freed by CleanMate"
 msgstr "CleanMate đã giải phóng"
 
@@ -669,8 +669,8 @@ msgstr "CleanMate đã giải phóng"
 msgid "Shows here after your first cleanup."
 msgstr "Hiện ở đây sau lần dọn dẹp đầu tiên."
 
-#: gui/cleanmate_gui/overview.py:172
 #
+#: gui/cleanmate_gui/overview.py:172
 msgid "Last 30 days"
 msgstr "30 ngày qua"
 
@@ -684,8 +684,8 @@ msgstr[0] "{size} trong {n} lần dọn"
 msgid "In total"
 msgstr "Tổng cộng"
 
-#: gui/cleanmate_gui/overview.py:178
 #
+#: gui/cleanmate_gui/overview.py:178
 msgid "Last cleanup"
 msgstr "Lần dọn gần nhất"
 
@@ -702,11 +702,11 @@ msgstr "Quét"
 msgid "Scanning…"
 msgstr "Đang quét…"
 
-#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:417
+#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:418
 msgid "Clear"
 msgstr "Xoá"
 
-#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:417
+#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:418
 msgid "Clean"
 msgstr "Dọn dẹp"
 
@@ -775,117 +775,117 @@ msgstr[0] "{n} mục khác đã sạch"
 msgid "clean"
 msgstr "sạch"
 
-#: gui/cleanmate_gui/scanpage.py:207
+#: gui/cleanmate_gui/scanpage.py:208
 #, python-brace-format
 msgid "Close {program} and scan again"
 msgstr "Đóng {program} rồi quét lại"
 
-#: gui/cleanmate_gui/scanpage.py:222
+#: gui/cleanmate_gui/scanpage.py:223
 #, python-brace-format
 msgid "{program} is running — close it, then scan again"
 msgstr "{program} đang chạy — hãy đóng nó rồi quét lại"
 
-#: gui/cleanmate_gui/scanpage.py:232
+#: gui/cleanmate_gui/scanpage.py:233
 msgid "Show what's inside"
 msgstr "Xem bên trong có gì"
 
-#: gui/cleanmate_gui/scanpage.py:246
+#: gui/cleanmate_gui/scanpage.py:247
 msgid "Loading…"
 msgstr "Đang tải…"
 
-#: gui/cleanmate_gui/scanpage.py:262
+#: gui/cleanmate_gui/scanpage.py:263
 msgid "Nothing to choose one by one — Clean removes it all"
 msgstr "Không có mục nào để chọn riêng — Dọn dẹp sẽ xoá tất cả"
 
-#: gui/cleanmate_gui/scanpage.py:349
+#: gui/cleanmate_gui/scanpage.py:350
 #, python-brace-format
 msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] "Đã chọn {n}"
 
-#: gui/cleanmate_gui/scanpage.py:351 gui/cleanmate_gui/spacelens.py:298
+#: gui/cleanmate_gui/scanpage.py:352 gui/cleanmate_gui/spacelens.py:298
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
 msgstr[0] "Đã chọn <b>{size}</b> trong {n} mục"
 
-#: gui/cleanmate_gui/scanpage.py:365
+#: gui/cleanmate_gui/scanpage.py:366
 msgid "Collecting details…"
 msgstr "Đang thu thập chi tiết…"
 
-#: gui/cleanmate_gui/scanpage.py:383
+#: gui/cleanmate_gui/scanpage.py:384
 msgid "Nothing more to show."
 msgstr "Không còn gì để hiển thị."
 
-#: gui/cleanmate_gui/scanpage.py:408
+#: gui/cleanmate_gui/scanpage.py:409
 #, python-brace-format
 msgid "Clear {n} history list?"
 msgid_plural "Clear {n} history lists?"
 msgstr[0] "Xoá {n} danh sách lịch sử?"
 
-#: gui/cleanmate_gui/scanpage.py:409
+#: gui/cleanmate_gui/scanpage.py:410
 msgid "This can't be undone."
 msgstr "Không thể hoàn tác."
 
-#: gui/cleanmate_gui/scanpage.py:411
+#: gui/cleanmate_gui/scanpage.py:412
 #, python-brace-format
 msgid "Clean {n} item?"
 msgid_plural "Clean {n} items?"
 msgstr[0] "Dọn {n} mục?"
 
-#: gui/cleanmate_gui/scanpage.py:412
+#: gui/cleanmate_gui/scanpage.py:413
 #, python-brace-format
 msgid "About {size} will be removed."
 msgstr "Khoảng {size} sẽ bị xoá."
 
-#: gui/cleanmate_gui/scanpage.py:414
+#: gui/cleanmate_gui/scanpage.py:415
 msgid "Items with a lock need your password."
 msgstr "Mục có ổ khoá cần mật khẩu của bạn."
 
-#: gui/cleanmate_gui/scanpage.py:436 gui/cleanmate_gui/scanpage.py:474
+#: gui/cleanmate_gui/scanpage.py:437 gui/cleanmate_gui/scanpage.py:475
 #: gui/cleanmate_gui/uninstaller.py:341 gui/cleanmate_gui/uninstaller.py:380
 msgid "waiting"
 msgstr "đang chờ"
 
-#: gui/cleanmate_gui/scanpage.py:442
+#: gui/cleanmate_gui/scanpage.py:443
 msgid "Cleaning…"
 msgstr "Đang dọn dẹp…"
 
-#: gui/cleanmate_gui/scanpage.py:453
+#: gui/cleanmate_gui/scanpage.py:454
 msgid "working…"
 msgstr "đang xử lý…"
 
-#: gui/cleanmate_gui/scanpage.py:458
+#: gui/cleanmate_gui/scanpage.py:459
 msgid "done"
 msgstr "xong"
 
-#: gui/cleanmate_gui/scanpage.py:458 gui/cleanmate_gui/uninstaller.py:366
+#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:366
 msgid "skipped"
 msgstr "bỏ qua"
 
-#: gui/cleanmate_gui/scanpage.py:458 gui/cleanmate_gui/uninstaller.py:366
+#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:366
 msgid "failed"
 msgstr "thất bại"
 
-#: gui/cleanmate_gui/scanpage.py:467 gui/cleanmate_gui/scanpage.py:474
+#: gui/cleanmate_gui/scanpage.py:468 gui/cleanmate_gui/scanpage.py:475
 #: gui/cleanmate_gui/uninstaller.py:374 gui/cleanmate_gui/uninstaller.py:380
 msgid "waiting for your password…"
 msgstr "đang chờ mật khẩu của bạn…"
 
-#: gui/cleanmate_gui/scanpage.py:477 gui/cleanmate_gui/uninstaller.py:382
+#: gui/cleanmate_gui/scanpage.py:478 gui/cleanmate_gui/uninstaller.py:382
 msgid "Skipped — no password was entered"
 msgstr "Đã bỏ qua — chưa nhập mật khẩu"
 
-#: gui/cleanmate_gui/scanpage.py:483
+#: gui/cleanmate_gui/scanpage.py:484
 #, python-brace-format
 msgid "Dry run: {size} would be freed"
 msgstr "Chạy thử: sẽ giải phóng {size}"
 
-#: gui/cleanmate_gui/scanpage.py:485
+#: gui/cleanmate_gui/scanpage.py:486
 msgid "History cleared"
 msgstr "Đã xoá lịch sử"
 
-#: gui/cleanmate_gui/scanpage.py:487
+#: gui/cleanmate_gui/scanpage.py:488
 #, python-brace-format
 msgid "Freed {size}"
 msgstr "Đã giải phóng {size}"
@@ -1621,8 +1621,8 @@ msgstr ""
 "Cập nhật mọi thứ, sửa gói, TRIM, dựng lại bộ đệm, và giữ cho bản snap cũ "
 "cùng nhật ký hệ thống không chất đống lại."
 
-#: gui/cleanmate_gui/window.py:58 gui/cleanmate_gui/window.py:126
 #
+#: gui/cleanmate_gui/window.py:58 gui/cleanmate_gui/window.py:126
 msgid "System Overview"
 msgstr "Tổng quan hệ thống"
 
@@ -1634,8 +1634,8 @@ msgstr "Hệ thống, ổ đĩa, bộ nhớ của bạn và dung lượng CleanM
 msgid "All tools (terminal)"
 msgstr "Mọi công cụ (terminal)"
 
-#: gui/cleanmate_gui/window.py:89
 #
+#: gui/cleanmate_gui/window.py:89
 msgid "Open the terminal app (cm)"
 msgstr "Mở app terminal (cm)"
 
@@ -1695,6 +1695,703 @@ msgid ""
 msgstr ""
 "Trình dọn dẹp hệ thống thân thiện cho Ubuntu, lấy cảm hứng từ CleanMyMac. "
 "Không liên kết với MacPaw."
+
+#. apt_cache label
+msgid "APT package cache"
+msgstr "Bộ nhớ đệm gói APT"
+
+#. apt_cache description
+msgid "Downloaded .deb installers. apt re-downloads them if ever needed."
+msgstr "Bộ cài .deb đã tải. apt tải lại nếu cần."
+
+#. orphans label
+msgid "Unused packages & old kernels"
+msgstr "Gói không dùng & kernel cũ"
+
+#. orphans description
+msgid ""
+"Packages installed as dependencies that nothing needs any more (apt "
+"autoremove)."
+msgstr "Gói được cài làm phụ thuộc mà không còn gì cần (apt autoremove)."
+
+#. residual label
+msgid "Leftover package configs"
+msgstr "Cấu hình gói còn sót"
+
+#. residual description
+msgid "System config files of packages that were removed but not purged."
+msgstr "Tệp cấu hình hệ thống của gói đã gỡ nhưng chưa purge."
+
+#. journal label
+#
+msgid "Systemd journal logs"
+msgstr "Nhật ký systemd journal"
+
+#. journal description
+#, python-brace-format
+msgid "Archived system logs. Keeps the last {0} days and at most {1} MB."
+msgstr "Nhật ký hệ thống đã lưu trữ. Giữ {0} ngày gần nhất và tối đa {1} MB."
+
+#. old_logs label
+msgid "Rotated / archived logs"
+msgstr "Nhật ký đã xoay vòng / lưu trữ"
+
+#. old_logs description
+#, python-brace-format
+msgid "Compressed or rotated log files in /var/log (*.gz, *.{0}, *.old)."
+msgstr "Tệp nhật ký đã nén hoặc xoay vòng trong /var/log (*.gz, *.{0}, *.old)."
+
+#. big_logs label
+#
+msgid "Oversized active logs"
+msgstr "Nhật ký đang ghi quá lớn"
+
+#. big_logs description
+#, python-brace-format
+msgid ""
+"Live logs in /var/log over {0} MB, emptied in place — services keep logging "
+"normally."
+msgstr "Nhật ký đang ghi trong /var/log lớn hơn {0} MB, được làm rỗng tại chỗ — dịch vụ vẫn ghi nhật ký bình thường."
+
+#. app_logs label
+#
+msgid "Old app logs"
+msgstr "Nhật ký app cũ"
+
+#. app_logs description
+#, python-brace-format
+msgid "Log files of apps (VS Code, Slack, …) not written for {0}+ days."
+msgstr "Tệp nhật ký của app (VS Code, Slack, …) không được ghi từ {0} ngày trở lên."
+
+#. crash label
+msgid "Crash reports"
+msgstr "Báo cáo lỗi"
+
+#. crash description
+msgid "Apport crash reports in /var/crash."
+msgstr "Báo cáo lỗi Apport trong /var/crash."
+
+#. coredump label
+msgid "Core dumps"
+msgstr "Core dump"
+
+#. coredump description
+msgid "Memory dumps of crashed programs kept by systemd-coredump."
+msgstr "Bản dump bộ nhớ của chương trình bị lỗi, do systemd-coredump giữ."
+
+#. snap_old label
+msgid "Old Snap revisions"
+msgstr "Bản Snap cũ"
+
+#. snap_old description
+msgid "Disabled previous versions of snaps, kept only for rollback."
+msgstr "Phiên bản snap cũ đã tắt, chỉ giữ để quay lại."
+
+#. old_kernels label
+msgid "Extra old kernels"
+msgstr "Kernel cũ thừa"
+
+#. old_kernels description
+msgid ""
+"Kernels older than your two newest (never the one running), so a fallback "
+"always stays."
+msgstr "Kernel cũ hơn hai bản mới nhất (không bao giờ là bản đang chạy), nên luôn còn một bản dự phòng."
+
+#. tmp label
+#
+msgid "Old temporary files"
+msgstr "Tệp tạm cũ"
+
+#. tmp description
+#, python-brace-format
+msgid "Your files in /tmp and /var/tmp not touched for {0}+ days."
+msgstr "Tệp của bạn trong /tmp và /var/tmp không được đụng tới từ {0} ngày trở lên."
+
+#. thumbs label
+msgid "Thumbnail cache"
+msgstr "Bộ nhớ đệm ảnh thu nhỏ"
+
+#. thumbs description
+msgid "Image previews generated by the file manager; rebuilt on demand."
+msgstr "Ảnh xem trước do trình quản lý tệp tạo; tạo lại khi cần."
+
+#. trash label
+msgid "Trash"
+msgstr "Thùng rác"
+
+#. trash description
+msgid "Files you already deleted. Review before emptying!"
+msgstr "Tệp bạn đã xoá. Xem lại trước khi dọn sạch!"
+
+#. app_cache label
+#, python-brace-format
+msgid "Stale app caches (>{0} days)"
+msgstr "Bộ nhớ đệm app cũ (>{0} ngày)"
+
+#. app_cache description
+#, python-brace-format
+msgid "Files under ~/.cache not modified or read for {0}+ days."
+msgstr "Tệp trong ~/.cache không sửa hay đọc từ {0} ngày trở lên."
+
+#. node_modules label
+#
+msgid "Stale node_modules"
+msgstr "node_modules cũ"
+
+#. node_modules description
+#, python-brace-format
+msgid ""
+"node_modules of projects untouched for {0}+ days. Restore with npm/yarn/pnpm "
+"install."
+msgstr "node_modules của dự án không đụng tới từ {0} ngày trở lên. Khôi phục bằng npm/yarn/pnpm install."
+
+#. npm label
+#
+msgid "npm cache"
+msgstr "Bộ nhớ đệm npm"
+
+#. npm description
+msgid "npm's package download cache (~/.npm/_cacache)."
+msgstr "Bộ nhớ đệm tải gói của npm (~/.npm/_cacache)."
+
+#. yarn label
+#
+msgid "Yarn cache"
+msgstr "Bộ nhớ đệm Yarn"
+
+#. yarn description
+msgid "Yarn's package download cache."
+msgstr "Bộ nhớ đệm tải gói của Yarn."
+
+#. pnpm label
+msgid "pnpm store (unreferenced)"
+msgstr "pnpm store (không được tham chiếu)"
+
+#. pnpm description
+msgid "Packages in the pnpm store no project references (pnpm store prune)."
+msgstr "Gói trong pnpm store không dự án nào tham chiếu (pnpm store prune)."
+
+#. bun label
+#
+msgid "Bun cache"
+msgstr "Bộ nhớ đệm Bun"
+
+#. bun description
+msgid "Bun's package install cache."
+msgstr "Bộ nhớ đệm cài gói của Bun."
+
+#. pip label
+#
+msgid "pip cache"
+msgstr "Bộ nhớ đệm pip"
+
+#. pip description
+msgid "pip's wheel and HTTP download cache."
+msgstr "Bộ nhớ đệm wheel và tải HTTP của pip."
+
+#. gobuild label
+#
+msgid "Go build cache"
+msgstr "Bộ nhớ đệm build Go"
+
+#. gobuild description
+msgid "Compiled Go build artifacts (go clean -cache)."
+msgstr "Kết quả build Go đã biên dịch (go clean -cache)."
+
+#. cargo label
+msgid "Cargo registry cache"
+msgstr "Bộ nhớ đệm registry Cargo"
+
+#. cargo description
+msgid "Downloaded and extracted crates; re-downloaded on next build."
+msgstr "Crate đã tải và giải nén; tải lại ở lần build sau."
+
+#. gradle label
+#
+msgid "Gradle caches"
+msgstr "Bộ nhớ đệm Gradle"
+
+#. gradle description
+msgid "Gradle dependency and build caches; re-downloaded on next build."
+msgstr "Bộ nhớ đệm phụ thuộc và build của Gradle; tải lại ở lần build sau."
+
+#. maven label
+msgid "Maven repository"
+msgstr "Kho Maven"
+
+#. maven description
+msgid "Local Maven repository (~/.m2/repository); re-downloaded on next build."
+msgstr "Kho Maven cục bộ (~/.m2/repository); tải lại ở lần build sau."
+
+#. conda label
+msgid "Conda package cache"
+msgstr "Bộ nhớ đệm gói Conda"
+
+#. conda description
+msgid ""
+"Downloaded package archives, index cache and logs (conda clean --tarballs). "
+"Your environments are kept."
+msgstr "Gói nén đã tải, bộ nhớ đệm chỉ mục và nhật ký (conda clean --tarballs). Môi trường của bạn được giữ."
+
+#. docker_dangling label
+msgid "Docker: dangling images"
+msgstr "Docker: image lơ lửng"
+
+#. docker_dangling description
+msgid "Untagged leftover image layers from rebuilds — nothing uses them."
+msgstr "Layer image không tag còn sót sau khi build lại — không gì dùng tới."
+
+#. docker_build label
+#
+msgid "Docker: build cache"
+msgstr "Docker: bộ nhớ đệm build"
+
+#. docker_build description
+msgid "BuildKit cache. Safe to remove; the next build is slower once."
+msgstr "Bộ nhớ đệm BuildKit. Xoá an toàn; lần build sau chậm hơn một lần."
+
+#. docker_containers label
+msgid "Docker: stopped containers"
+msgstr "Docker: container đã dừng"
+
+#. docker_containers description
+msgid ""
+"Containers that aren't running. Anything stored inside them (not in volumes) "
+"is lost."
+msgstr "Container không chạy. Mọi thứ lưu bên trong (không nằm trong volume) sẽ mất."
+
+#. docker_images label
+msgid "Docker: unused images"
+msgstr "Docker: image không dùng"
+
+#. docker_images description
+msgid "Images no container uses. They are pulled again when needed."
+msgstr "Image không container nào dùng. Được pull lại khi cần."
+
+#. docker_volumes label
+msgid "Docker: unused volumes"
+msgstr "Docker: volume không dùng"
+
+#. docker_volumes description
+msgid ""
+"Volumes no container uses — they may hold databases or other data. Review "
+"before removing!"
+msgstr "Volume không container nào dùng — có thể chứa cơ sở dữ liệu hoặc dữ liệu khác. Xem lại trước khi xoá!"
+
+#. podman label
+msgid "Podman: stopped containers & dangling images"
+msgstr "Podman: container đã dừng & image lơ lửng"
+
+#. podman description
+msgid ""
+"podman system prune: stopped containers, untagged image layers and unused "
+"networks. Volumes and tagged images are kept."
+msgstr "podman system prune: container đã dừng, layer image không tag và mạng không dùng. Volume và image có tag được giữ."
+
+#. browser_firefox label
+msgid "Firefox"
+msgstr "Firefox"
+
+#. browser_firefox description
+msgid ""
+"Web cache of Firefox (pages, images, scripts). Logins, history and bookmarks "
+"are kept."
+msgstr "Bộ nhớ đệm web của Firefox (trang, ảnh, script). Đăng nhập, lịch sử và dấu trang được giữ."
+
+#. browser_chrome label
+msgid "Google Chrome"
+msgstr "Google Chrome"
+
+#. browser_chrome description
+msgid ""
+"Web cache of Google Chrome (pages, images, scripts). Logins, history and "
+"bookmarks are kept."
+msgstr "Bộ nhớ đệm web của Google Chrome (trang, ảnh, script). Đăng nhập, lịch sử và dấu trang được giữ."
+
+#. browser_chromium label
+msgid "Chromium"
+msgstr "Chromium"
+
+#. browser_chromium description
+msgid ""
+"Web cache of Chromium (pages, images, scripts). Logins, history and "
+"bookmarks are kept."
+msgstr "Bộ nhớ đệm web của Chromium (trang, ảnh, script). Đăng nhập, lịch sử và dấu trang được giữ."
+
+#. browser_brave label
+msgid "Brave"
+msgstr "Brave"
+
+#. browser_brave description
+msgid ""
+"Web cache of Brave (pages, images, scripts). Logins, history and bookmarks "
+"are kept."
+msgstr "Bộ nhớ đệm web của Brave (trang, ảnh, script). Đăng nhập, lịch sử và dấu trang được giữ."
+
+#. browser_edge label
+msgid "Microsoft Edge"
+msgstr "Microsoft Edge"
+
+#. browser_edge description
+msgid ""
+"Web cache of Microsoft Edge (pages, images, scripts). Logins, history and "
+"bookmarks are kept."
+msgstr "Bộ nhớ đệm web của Microsoft Edge (trang, ảnh, script). Đăng nhập, lịch sử và dấu trang được giữ."
+
+#. browser_vivaldi label
+msgid "Vivaldi"
+msgstr "Vivaldi"
+
+#. browser_vivaldi description
+msgid ""
+"Web cache of Vivaldi (pages, images, scripts). Logins, history and bookmarks "
+"are kept."
+msgstr "Bộ nhớ đệm web của Vivaldi (trang, ảnh, script). Đăng nhập, lịch sử và dấu trang được giữ."
+
+#. browser_opera label
+msgid "Opera"
+msgstr "Opera"
+
+#. browser_opera description
+msgid ""
+"Web cache of Opera (pages, images, scripts). Logins, history and bookmarks "
+"are kept."
+msgstr "Bộ nhớ đệm web của Opera (trang, ảnh, script). Đăng nhập, lịch sử và dấu trang được giữ."
+
+#. app_steam_shaders label
+msgid "Steam — shader cache"
+msgstr "Steam — bộ nhớ đệm shader"
+
+#. app_steam_shaders description
+msgid ""
+"Shaders Steam compiled for your games. Steam rebuilds them; a game may "
+"stutter briefly the first time."
+msgstr "Shader Steam đã biên dịch cho game của bạn. Steam tạo lại chúng; game có thể giật nhẹ lần đầu."
+
+#. priv_recent label
+#
+msgid "Recent files list"
+msgstr "Danh sách tệp gần đây"
+
+#. priv_recent description
+msgid ""
+"What Files and Open dialogs show under “Recent”. Only the list is cleared — "
+"your files are not touched."
+msgstr "Những gì Tệp và hộp thoại Mở hiện ở mục “Gần đây”. Chỉ xoá danh sách — tệp của bạn không bị đụng tới."
+
+#. priv_zsh label
+#
+msgid "Zsh history"
+msgstr "Lịch sử Zsh"
+
+#. priv_zsh description
+msgid "Every command you typed in zsh."
+msgstr "Mọi lệnh bạn đã gõ trong zsh."
+
+#. priv_bash label
+#
+msgid "Bash history"
+msgstr "Lịch sử Bash"
+
+#. priv_bash description
+msgid "Every command you typed in bash (~/.bash_history)."
+msgstr "Mọi lệnh bạn đã gõ trong bash (~/.bash_history)."
+
+#. priv_fish label
+#
+msgid "Fish history"
+msgstr "Lịch sử Fish"
+
+#. priv_fish description
+msgid "Every command you typed in fish."
+msgstr "Mọi lệnh bạn đã gõ trong fish."
+
+#. priv_repl label
+msgid "Python, Node & database shells"
+msgstr "Shell Python, Node & cơ sở dữ liệu"
+
+#. priv_repl description
+msgid ""
+"History of the python, node, irb, mysql, psql, sqlite3 and redis-cli prompts."
+msgstr "Lịch sử dấu nhắc của python, node, irb, mysql, psql, sqlite3 và redis-cli."
+
+#. priv_misc label
+msgid "less & wget history"
+msgstr "Lịch sử less & wget"
+
+#. priv_misc description
+msgid "Searches typed in less, and wget's list of visited HTTPS sites."
+msgstr "Tìm kiếm đã gõ trong less, và danh sách trang HTTPS wget đã truy cập."
+
+#. priv_editor label
+msgid "Vim & Neovim history"
+msgstr "Lịch sử Vim & Neovim"
+
+#. priv_editor description
+msgid ""
+"Command and search history, marks and registers that Vim (~/.viminfo) and "
+"Neovim (ShaDa) remember."
+msgstr "Lịch sử lệnh và tìm kiếm, mark và register mà Vim (~/.viminfo) và Neovim (ShaDa) ghi nhớ."
+
+#. priv_zeitgeist label
+msgid "Activity log (Zeitgeist)"
+msgstr "Nhật ký hoạt động (Zeitgeist)"
+
+#. priv_zeitgeist description
+msgid "The record of files and apps you used, kept by Zeitgeist."
+msgstr "Bản ghi tệp và app bạn đã dùng, do Zeitgeist giữ."
+
+#. priv_gsettings label
+msgid "Run dialog & emoji history"
+msgstr "Lịch sử hộp Chạy & emoji"
+
+#. priv_gsettings description
+msgid "Commands typed in Alt+F2, recently used emoji and characters."
+msgstr "Lệnh đã gõ trong Alt+F2, emoji và ký tự dùng gần đây."
+
+#. ai_claude_cache label
+msgid "Claude Code — cache & logs"
+msgstr "Claude Code — bộ nhớ đệm & nhật ký"
+
+#. ai_claude_cache description
+msgid ""
+"Claude Code caches, MCP logs, week-old shell snapshots and backups. Memory, "
+"settings and logins are kept."
+msgstr "Bộ nhớ đệm, nhật ký MCP, snapshot shell và bản sao lưu đã một tuần của Claude Code. Memory, cài đặt và đăng nhập được giữ."
+
+#. ai_claude_history label
+msgid "Claude Code — old sessions"
+msgstr "Claude Code — phiên cũ"
+
+#. ai_claude_history description
+#, python-brace-format
+msgid ""
+"Session transcripts, checkpoints and todos older than {0} days. Memory, "
+"settings and logins are kept."
+msgstr "Bản ghi phiên, checkpoint và todo cũ hơn {0} ngày. Memory, cài đặt và đăng nhập được giữ."
+
+#. ai_claude_desktop_cache label
+msgid "Claude Desktop — old versions"
+msgstr "Claude Desktop — phiên bản cũ"
+
+#. ai_claude_desktop_cache description
+msgid ""
+"Previous bundled Claude Code versions and crash dumps of the Claude desktop "
+"app."
+msgstr "Các bản Claude Code đi kèm trước đây và crash dump của app Claude desktop."
+
+#. ai_claude_desktop_history label
+msgid "Claude Desktop — old sessions"
+msgstr "Claude Desktop — phiên cũ"
+
+#. ai_claude_desktop_history description
+#, python-brace-format
+msgid "Agent-mode sessions of the Claude desktop app older than {0} days."
+msgstr "Phiên chế độ agent của app Claude desktop cũ hơn {0} ngày."
+
+#. ai_codex_cache label
+msgid "Codex — cache & logs"
+msgstr "Codex — bộ nhớ đệm & nhật ký"
+
+#. ai_codex_cache description
+msgid "Codex's temporary plugin cache and log database; both are recreated."
+msgstr "Bộ nhớ đệm plugin tạm và cơ sở dữ liệu nhật ký của Codex; cả hai được tạo lại."
+
+#. ai_codex_history label
+msgid "Codex — old sessions"
+msgstr "Codex — phiên cũ"
+
+#. ai_codex_history description
+#, python-brace-format
+msgid ""
+"Codex session transcripts older than {0} days. Memories and settings are "
+"kept."
+msgstr "Bản ghi phiên Codex cũ hơn {0} ngày. Memory và cài đặt được giữ."
+
+#. ai_gemini_cache label
+msgid "Gemini/Antigravity — logs"
+msgstr "Gemini/Antigravity — nhật ký"
+
+#. ai_gemini_cache description
+msgid "Logs and crash dumps of Gemini CLI and Antigravity."
+msgstr "Nhật ký và crash dump của Gemini CLI và Antigravity."
+
+#. ai_gemini_history label
+msgid "Gemini/Antigravity — old chats"
+msgstr "Gemini/Antigravity — chat cũ"
+
+#. ai_gemini_history description
+#, python-brace-format
+msgid ""
+"Antigravity conversations and agent workspaces (brain), and Gemini CLI "
+"checkpoints, older than {0} days."
+msgstr "Hội thoại và không gian làm việc agent (brain) của Antigravity, và checkpoint của Gemini CLI, cũ hơn {0} ngày."
+
+#. ai_opencode_cache label
+msgid "opencode — cache & logs"
+msgstr "opencode — bộ nhớ đệm & nhật ký"
+
+#. ai_opencode_cache description
+msgid ""
+"opencode's download cache and logs. Sessions (opencode.db) and logins are "
+"kept."
+msgstr "Bộ nhớ đệm tải về và nhật ký của opencode. Phiên (opencode.db) và đăng nhập được giữ."
+
+#. ai_opencode_history label
+msgid "opencode — old undo snapshots"
+msgstr "opencode — snapshot hoàn tác cũ"
+
+#. ai_opencode_history description
+#, python-brace-format
+msgid ""
+"Undo snapshots of opencode sessions older than {0} days. Sessions in "
+"opencode.db are kept."
+msgstr "Snapshot hoàn tác của phiên opencode cũ hơn {0} ngày. Phiên trong opencode.db được giữ."
+
+#. ai_cursor_cache label
+msgid "Cursor — cache & logs"
+msgstr "Cursor — bộ nhớ đệm & nhật ký"
+
+#. ai_cursor_cache description
+msgid ""
+"Cursor's web caches and logs. Chats, settings, extensions and logins are "
+"kept."
+msgstr "Bộ nhớ đệm web và nhật ký của Cursor. Chat, cài đặt, extension và đăng nhập được giữ."
+
+#. ai_windsurf_cache label
+msgid "Windsurf — index & browser cache"
+msgstr "Windsurf — chỉ mục & bộ nhớ đệm trình duyệt"
+
+#. ai_windsurf_cache description
+msgid ""
+"Windsurf's code index (rebuilt on next launch) and the cache of its built-in "
+"browser. Logins and settings are kept."
+msgstr "Chỉ mục mã của Windsurf (tạo lại ở lần mở sau) và bộ nhớ đệm của trình duyệt tích hợp. Đăng nhập và cài đặt được giữ."
+
+#. ai_cline_cache label
+msgid "Cline — logs"
+msgstr "Cline — nhật ký"
+
+#. ai_cline_cache description
+msgid "Cline's log files. Sessions and settings are kept."
+msgstr "Tệp nhật ký của Cline. Phiên và cài đặt được giữ."
+
+#. ai_kilo_cache label
+msgid "Kilo Code — cache & logs"
+msgstr "Kilo Code — bộ nhớ đệm & nhật ký"
+
+#. ai_kilo_cache description
+msgid ""
+"Kilo Code's model list, downloaded helpers and logs. Sessions and logins are "
+"kept."
+msgstr "Danh sách model, công cụ phụ đã tải và nhật ký của Kilo Code. Phiên và đăng nhập được giữ."
+
+#. ai_mimocode_cache label
+msgid "MiMoCode — cache & logs"
+msgstr "MiMoCode — bộ nhớ đệm & nhật ký"
+
+#. ai_mimocode_cache description
+msgid ""
+"MiMoCode's download cache and logs. Sessions (its databases) and logins are "
+"kept."
+msgstr "Bộ nhớ đệm tải về và nhật ký của MiMoCode. Phiên (cơ sở dữ liệu của nó) và đăng nhập được giữ."
+
+#. ai_zcode_cache label
+msgid "ZCode — logs"
+msgstr "ZCode — nhật ký"
+
+#. ai_zcode_cache description
+msgid ""
+"Daily logs of the ZCode app and CLI. Sessions, credentials and settings are "
+"kept."
+msgstr "Nhật ký hằng ngày của app và CLI ZCode. Phiên, thông tin đăng nhập và cài đặt được giữ."
+
+#. ai_zed_cache label
+msgid "Zed — hang traces & old agents"
+msgstr "Zed — hang trace & agent cũ"
+
+#. ai_zed_cache description
+msgid ""
+"Older versions of AI agents Zed downloaded (the newest is kept), and hang "
+"traces."
+msgstr "Phiên bản cũ của AI agent mà Zed đã tải (giữ bản mới nhất), và hang trace."
+
+#. ai_zed_downloads label
+msgid "Zed — agents & language servers"
+msgstr "Zed — agent & language server"
+
+#. ai_zed_downloads description
+msgid ""
+"All AI agents and language servers Zed downloaded. Zed downloads them again "
+"when needed."
+msgstr "Mọi AI agent và language server mà Zed đã tải. Zed tải lại khi cần."
+
+#. ai_misc_cache label
+msgid "Copilot & Continue — cache"
+msgstr "Copilot & Continue — bộ nhớ đệm"
+
+#. ai_misc_cache description
+msgid "Copilot CLI logs and Continue's code index."
+msgstr "Nhật ký Copilot CLI và chỉ mục mã của Continue."
+
+#. ai_misc_history label
+msgid "Copilot & Continue — sessions"
+msgstr "Copilot & Continue — phiên"
+
+#. ai_misc_history description
+#, python-brace-format
+msgid "Copilot CLI and Continue sessions older than {0} days."
+msgstr "Phiên Copilot CLI và Continue cũ hơn {0} ngày."
+
+#. uv_cache label
+#
+msgid "uv cache"
+msgstr "Bộ nhớ đệm uv"
+
+#. uv_cache description
+msgid ""
+"uv's package and wheel cache (~/.cache/uv). Re-downloaded on next use; your "
+"environments are kept."
+msgstr "Bộ nhớ đệm gói và wheel của uv (~/.cache/uv). Tải lại ở lần dùng sau; môi trường của bạn được giữ."
+
+#. rustup_downloads label
+msgid "rustup downloads"
+msgstr "Bản tải của rustup"
+
+#. rustup_downloads description
+msgid ""
+"Leftover rustup downloads and temp files. Your installed toolchains are kept."
+msgstr "Bản tải và tệp tạm còn sót của rustup. Toolchain đã cài được giữ."
+
+#. browser_test_cache label
+msgid "Playwright, Puppeteer & Cypress browsers"
+msgstr "Trình duyệt của Playwright, Puppeteer & Cypress"
+
+#. browser_test_cache description
+msgid ""
+"Browsers downloaded for test tools (~/.cache/ms-playwright, puppeteer, "
+"Cypress). Re-downloaded on next install or test run."
+msgstr "Trình duyệt tải về cho công cụ test (~/.cache/ms-playwright, puppeteer, Cypress). Tải lại ở lần cài hoặc chạy test sau."
+
+#. firebase_logs label
+msgid "Firebase CLI logs"
+msgstr "Nhật ký Firebase CLI"
+
+#. firebase_logs description
+msgid ""
+"Debug logs of the Firebase CLI (firebase mcp can grow them to gigabytes). A "
+"log still being written is skipped. Your login is kept."
+msgstr "Nhật ký debug của Firebase CLI (firebase mcp có thể làm chúng lên tới hàng GB). Nhật ký đang được ghi sẽ bị bỏ qua. Đăng nhập của bạn được giữ."
+
+#. firebase_emulators label
+msgid "Firebase emulators"
+msgstr "Emulator Firebase"
+
+#. firebase_emulators description
+msgid ""
+"Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). "
+"Downloaded again when you start them."
+msgstr "Emulator mà Firebase CLI đã tải (Firestore, Database, Pub/Sub, UI…). Tải lại khi bạn khởi động chúng."
 
 #
 #~ msgid "System Overview and more in the terminal app"

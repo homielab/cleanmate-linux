@@ -212,6 +212,8 @@ see the [privacy policy](docs/PRIVACY.md).
 Bug reports and pull requests are welcome — [CONTRIBUTING.md](CONTRIBUTING.md) explains how it
 works, how to add a cleaner and how to run the tests. Plans are in
 [docs/ROADMAP.md](docs/ROADMAP.md), releases in [CHANGELOG.md](CHANGELOG.md).
+The desktop app is in English and Vietnamese, cleanup item names and descriptions included; to
+translate it, see *Translations* in CONTRIBUTING.md (`po/`).
 
 ## Support
 

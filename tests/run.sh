@@ -1236,7 +1236,13 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "the page shows in under 300 ms once the engine answers"
     assert_contains "$out" "Refresh shows what was freed in 30 days"
     assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
-    if [[ $lang == vi* ]]; then assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"; fi
+    if [[ $lang == vi* ]]; then
+      assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"
+      assert_contains "$out" "item names translated"
+      ((VERBOSE)) && grep 'SELFTEST warn' <<<"$out" | sed 's/^/      | /'
+    else
+      assert_contains "$out" "item names stay in English"
+    fi
   done
   kill "$srv" 2>/dev/null
 }
@@ -1742,6 +1748,22 @@ done" "system, real filesystems from df, memory; no freed group before the first
   assert_contains "$out" $'\t2048'
   out=$(cm --json overview | python3 -c "$ev" | grep freed)
   assert_eq "$out" "freed 3048 2 8048 3 2048 True" "a cleanup is added to the history"
+}
+
+test_extract_items_for_translation() {
+  command -v msgcat >/dev/null && command -v python3 >/dev/null || { SKIPPED="needs gettext and python3"; return; }
+  local d=$WORK/potest out
+  mkdir -p "$d/po"
+  cp "$ROOT/po/extract-items.sh" "$d/po/" && cp "$ROOT/po/cleanmate.pot" "$d/po/"
+  sed 's/^JSON=0$/reg test_new_item user "Test item 42" 0 "Kept for 9 days, at most 3 MB."\nJSON=0/' "$SCRIPT" >"$d/cleanmate.sh"
+  out=$(bash "$d/po/extract-items.sh" 2>&1) || fail "extract-items.sh failed: $out"
+  out=$(grep -B2 -A1 'Test item' "$d/po/items.pot")
+  assert_contains "$out" "#. test_new_item label"
+  assert_contains "$out" "#, python-brace-format"
+  assert_contains "$out" 'msgid "Test item {0}"'
+  assert_contains "$(cat "$d/po/items.pot")" 'msgid "Kept for {0} days, at most {1} MB."'
+  assert_contains "$(cat "$d/po/cleanmate.pot")" 'msgid "Test item {0}"'
+  assert_contains "$(cat "$d/po/cleanmate.pot")" 'msgid "Move to Trash"' # the app's own strings stay
 }
 
 # ── runner ───────────────────────────────────────────────────────────────────

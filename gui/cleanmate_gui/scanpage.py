@@ -2,7 +2,7 @@
 from gi.repository import Adw, GLib, Gtk, Pango
 
 from .engine import CATEGORY_TITLES, human
-from .i18n import _, ngettext
+from .i18n import _, item_text, ngettext
 
 
 def size_class(n):
@@ -190,7 +190,8 @@ class ScanPage(Gtk.Box):
                                        use_markup=False)
                 more.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"]))
                 for e in clean:
-                    row = Adw.ActionRow(title=e["label"], subtitle=e["note"] or _("clean"), use_markup=False)
+                    row = Adw.ActionRow(title=item_text(e["label"]), subtitle=item_text(e["note"]) or _("clean"),
+                                         use_markup=False)
                     row.add_css_class("dim-label")
                     more.add_row(row)
                 group.add(more)
@@ -202,15 +203,15 @@ class ScanPage(Gtk.Box):
 
     def item_row(self, e, biggest):
         locked = e.get("locked") or ""  # the program that has to be closed first
-        subtitle = e["note"]
+        subtitle = item_text(e["note"])
         if locked:
             subtitle = _("Close {program} and scan again").format(program=locked)
         elif e["root"]:
             subtitle = f"{subtitle} · {_('Needs your password')}" if subtitle else _("Needs your password")
         expander = bool(e.get("entries")) and not locked and not self.privacy
         row_type = Adw.ExpanderRow if expander else Adw.ActionRow
-        row = row_type(title=e["label"], subtitle=subtitle, use_markup=False, subtitle_lines=1,
-                       tooltip_text=e["description"], css_classes=["item-row"])
+        row = row_type(title=item_text(e["label"]), subtitle=subtitle, use_markup=False, subtitle_lines=1,
+                       tooltip_text=item_text(e["description"]), css_classes=["item-row"])
         check = Gtk.CheckButton(active=self.selected.get(e["id"], False), valign=Gtk.Align.CENTER,
                                 css_classes=["big-check"], sensitive=not locked)
         check.connect("toggled", self.on_toggled, e["id"])
@@ -363,14 +364,14 @@ class ScanPage(Gtk.Box):
         text = Gtk.TextView(editable=False, cursor_visible=False, monospace=True,
                             top_margin=12, bottom_margin=12, left_margin=12, right_margin=12)
         text.get_buffer().set_text(_("Collecting details…"))
-        desc = Gtk.Label(label=e["description"], wrap=True, xalign=0,
+        desc = Gtk.Label(label=item_text(e["description"]), wrap=True, xalign=0,
                          margin_start=12, margin_end=12, margin_top=6, css_classes=["dim-label"])
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box.append(desc)
         box.append(Gtk.ScrolledWindow(child=text, vexpand=True))
         toolbar = Adw.ToolbarView(content=box)
         toolbar.add_top_bar(Adw.HeaderBar())
-        dialog = Adw.Dialog(title=e["label"], child=toolbar, content_width=640, content_height=440)
+        dialog = Adw.Dialog(title=item_text(e["label"]), child=toolbar, content_width=640, content_height=440)
         dialog.present(self.window)
 
         lines = []
@@ -395,7 +396,7 @@ class ScanPage(Gtk.Box):
         for i in ids[:12]:
             e = self.items[i]
             row = Gtk.Box(spacing=12)
-            row.append(Gtk.Label(label=e["label"], xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
+            row.append(Gtk.Label(label=item_text(e["label"]), xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
             if e["root"]:
                 row.append(Gtk.Image(icon_name="system-lock-screen-symbolic"))
             if not self.privacy:
@@ -433,7 +434,7 @@ class ScanPage(Gtk.Box):
             self.clean_list.remove(child)
             child = self.clean_list.get_first_child()
         for i in user_ids + root_ids:
-            row = Adw.ActionRow(title=self.items[i]["label"], subtitle=_("waiting"), use_markup=False)
+            row = Adw.ActionRow(title=item_text(self.items[i]["label"]), subtitle=_("waiting"), use_markup=False)
             spinner = Gtk.Image(icon_name="content-loading-symbolic", css_classes=["dim-label"])
             row.add_prefix(spinner)
             row.icon = spinner
