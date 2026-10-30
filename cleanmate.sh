@@ -4370,17 +4370,41 @@ LEGACY_GUI_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/$LEGACY_NAME/gui"
 SELF=$(realpath -- "${BASH_SOURCE[0]}" 2>/dev/null || echo "$0")
 declare -A CFG=()
 
+# The numbers in the settings file: KEY → "MIN MAX DEFAULT". The terminal app's Settings and
+# `--json settings` / `settings-set` (the desktop app) read and write the same file.
+declare -A SETTING_RANGE=(
+  [update_check]="0 1 1" [low_disk_pct]="0 50 10" [journal_days]="1 365 7" [journal_mb]="16 10000 100"
+  [log_max_mb]="10 100000 50" [app_log_days]="1 365 3" [tmp_days]="1 365 10" [cache_days]="1 365 30"
+  [node_modules_days]="7 3650 90" [ai_history_days]="1 3650 30")
+SETTING_KEYS=(update_check low_disk_pct journal_days journal_mb log_max_mb app_log_days tmp_days cache_days
+  node_modules_days ai_history_days) # the order of the Settings screens
+
+setting_valid() { # KEY VALUE → a number within the key's range
+  local -a r
+  [[ -n ${SETTING_RANGE[$1]:-} && $2 =~ ^[0-9]{1,6}$ ]] || return 1
+  read -ra r <<<"${SETTING_RANGE[$1]}"
+  ((10#$2 >= r[0] && 10#$2 <= r[1]))
+}
+
+setting() { # VAR KEY → VAR = the saved value, or the default when it's missing or out of range
+  local -a r
+  read -ra r <<<"${SETTING_RANGE[$2]}"
+  if setting_valid "$2" "${CFG[$2]:-}"; then printf -v "$1" '%d' "$((10#${CFG[$2]}))"
+  else printf -v "$1" '%d' "${r[2]}"; fi
+}
+
 apply_settings() {
-  JOURNAL_KEEP_DAYS=${CFG[journal_days]:-7}
-  JOURNAL_KEEP_MB=${CFG[journal_mb]:-100}
+  setting JOURNAL_KEEP_DAYS journal_days
+  setting JOURNAL_KEEP_MB journal_mb
   JOURNAL_KEEP_BYTES=$((JOURNAL_KEEP_MB * 1024 * 1024))
-  TMP_DAYS=${CFG[tmp_days]:-10}
-  CACHE_DAYS=${CFG[cache_days]:-30}
-  NM_DAYS=${CFG[node_modules_days]:-90}
-  LOW_DISK_PCT=${CFG[low_disk_pct]:-10}
-  LOG_MAX_MB=${CFG[log_max_mb]:-50}
-  APPLOG_DAYS=${CFG[app_log_days]:-3}
-  AI_HISTORY_DAYS=${CFG[ai_history_days]:-30}
+  setting TMP_DAYS tmp_days
+  setting CACHE_DAYS cache_days
+  setting NM_DAYS node_modules_days
+  setting LOW_DISK_PCT low_disk_pct
+  setting LOG_MAX_MB log_max_mb
+  setting APPLOG_DAYS app_log_days
+  setting AI_HISTORY_DAYS ai_history_days
+  setting UPDATE_CHECK update_check
   local _i
   for _i in "${ITEM_IDS[@]}"; do # keep "older than N days" descriptions in sync
     [[ ${ITEM_CAT[$_i]} == ai ]] && ITEM_DESC[$_i]=${ITEM_DESC[$_i]//older than+([0-9]) days/older than $AI_HISTORY_DAYS days}
@@ -4394,11 +4418,23 @@ apply_settings() {
   ITEM_DESC[node_modules]="node_modules of projects untouched for ${NM_DAYS}+ days. Restore with npm/yarn/pnpm install."
 }
 
-save_settings() {
-  local k
+save_setting() { # KEY VALUE — change one line of the settings file; the other app may have changed others
+  local k tmp
+  local -A cur=()
+  CFG[$1]=$2
   ((DRY_RUN)) && return 0
-  mkdir -p "${SETTINGS_FILE%/*}" || return
-  for k in "${!CFG[@]}"; do printf '%s=%s\n' "$k" "${CFG[$k]}"; done | sort >"$SETTINGS_FILE"
+  load_kv "$SETTINGS_FILE" cur '^[0-9]+$'
+  cur[$1]=$2
+  mkdir -p "${SETTINGS_FILE%/*}" && tmp=$(mktemp -p "${SETTINGS_FILE%/*}" .settings.XXXXXX) || return
+  for k in "${!cur[@]}"; do printf '%s=%s\n' "$k" "${cur[$k]}"; done | sort >"$tmp" && mv -f -- "$tmp" "$SETTINGS_FILE" ||
+    { rm -f -- "$tmp"; return 1; }
+}
+
+load_settings() { # the settings file and remembered selections, as saved (by either app)
+  CFG=() PREF=()
+  load_kv "$PREF_FILE" PREF '^[01]$'
+  load_kv "$SETTINGS_FILE" CFG '^[0-9]+$'
+  apply_settings
 }
 
 notify() { # TITLE BODY [ICON] [URGENCY]
@@ -4627,21 +4663,23 @@ cli_uninstall() { # --uninstall: remove commands, launcher, timer; optionally se
   printf '\n  Goodbye 👋  (this copy of the script itself was left in place)\n'
 }
 
-edit_number() { # KEY PROMPT MIN MAX
+edit_number() { # KEY PROMPT — a number within the key's range (SETTING_RANGE)
+  local -a r
+  read -ra r <<<"${SETTING_RANGE[$1]}"
   ui_input "$2" "${CFG[$1]:-}" || return
-  if [[ $REPLY_TEXT =~ ^[0-9]+$ ]] && ((REPLY_TEXT >= $3 && REPLY_TEXT <= $4)); then
-    CFG[$1]=$REPLY_TEXT
-    save_settings
+  if setting_valid "$1" "$REPLY_TEXT"; then
+    save_setting "$1" "$((10#$REPLY_TEXT))" || { toast "${RED}✘${NC} Could not save ${SETTINGS_FILE/#$HOME/\~}."; return; }
     apply_settings
     toast "${GREEN}✔${NC} Saved."
   else
-    toast "${RED}✘${NC} Enter a number from $3 to $4."
+    toast "${RED}✘${NC} Enter a number from ${r[0]} to ${r[1]}."
   fi
 }
 
 settings_menu() {
   local s
   while :; do
+    ((DRY_RUN)) || load_settings # changes made in the desktop app meanwhile
     s=$(schedule_get)
     M_KEY=() M_LABEL=() M_DESC=()
     mh "General"
@@ -4653,7 +4691,7 @@ settings_menu() {
       else echo "Add cleanmate and cm commands and an app-grid entry"; fi)"
     mh "Updates"
     mi 5 "Check for updates now" "You have version $VERSION${UPDATE_LATEST:+ — $UPDATE_LATEST is available}"
-    mi 6 "Daily update check" "$( ((${CFG[update_check]:-1})) && echo "On — a quiet check once a day" || echo "Off")"
+    mi 6 "Daily update check" "$( ((UPDATE_CHECK)) && echo "On — a quiet check once a day" || echo "Off")"
     mh "Keep for"
     mi 7 "Journal logs" "Keep ${JOURNAL_KEEP_DAYS} days"
     mi 8 "Journal size limit" "Keep at most ${JOURNAL_KEEP_MB} MB"
@@ -4677,22 +4715,21 @@ settings_menu() {
         if ui_menu "Automatic cleaning"; then
           case $MENU_IDX in 0) schedule_set off ;; 1) schedule_set daily ;; 2) schedule_set weekly ;; 3) schedule_set monthly ;; esac
         fi ;;
-      "Low disk alert") edit_number low_disk_pct "Warn below this % of free space (0 = off):" 0 50 ;;
+      "Low disk alert") edit_number low_disk_pct "Warn below this % of free space (0 = off):" ;;
       "Recent files history") recent_menu ;;
       "Install app launcher") install_launcher ;;
       "Check for updates now") ui_update ;;
       "Daily update check")
-        CFG[update_check]=$((1 - ${CFG[update_check]:-1}))
-        save_settings
-        toast "${GREEN}✔${NC} Daily update check $( ((CFG[update_check])) && echo on || echo off)." ;;
-      "Journal logs") edit_number journal_days "Keep journal logs for how many days?" 1 365 ;;
-      "Journal size limit") edit_number journal_mb "Maximum journal size in MB:" 16 10000 ;;
-      "Oversized logs") edit_number log_max_mb "Empty live logs larger than how many MB?" 10 100000 ;;
-      "App logs") edit_number app_log_days "Clean app logs not written for how many days?" 1 365 ;;
-      "Temporary files") edit_number tmp_days "Clean temporary files older than how many days?" 1 365 ;;
-      "App caches") edit_number cache_days "Clean app caches older than how many days?" 1 365 ;;
-      "node_modules") edit_number node_modules_days "Clean node_modules idle for how many days?" 7 3650 ;;
-      "AI chat history") edit_number ai_history_days "Clean AI chat sessions older than how many days?" 1 3650 ;;
+        save_setting update_check $((1 - UPDATE_CHECK)) && apply_settings
+        toast "${GREEN}✔${NC} Daily update check $( ((UPDATE_CHECK)) && echo on || echo off)." ;;
+      "Journal logs") edit_number journal_days "Keep journal logs for how many days?" ;;
+      "Journal size limit") edit_number journal_mb "Maximum journal size in MB:" ;;
+      "Oversized logs") edit_number log_max_mb "Empty live logs larger than how many MB?" ;;
+      "App logs") edit_number app_log_days "Clean app logs not written for how many days?" ;;
+      "Temporary files") edit_number tmp_days "Clean temporary files older than how many days?" ;;
+      "App caches") edit_number cache_days "Clean app caches older than how many days?" ;;
+      "node_modules") edit_number node_modules_days "Clean node_modules idle for how many days?" ;;
+      "AI chat history") edit_number ai_history_days "Clean AI chat sessions older than how many days?" ;;
       "Reset selections")
         ui_confirm "Forget remembered selections?" "Smart Scan goes back to its default choices." n || continue
         PREF=()
@@ -4779,7 +4816,7 @@ load_update_state() { # → UPDATE_LATEST (from the last check)
 update_check_bg() { # at most once a day, in the background — never delays the app
   local t=0 v
   packaged && return 0 # apt / Software Updater handle updates
-  ((${CFG[update_check]:-1})) && [[ -z ${CLEANMATE_NO_UPDATE_CHECK:-${CMU_NO_UPDATE_CHECK:-}} ]] && update_configured || return 0
+  ((UPDATE_CHECK)) && [[ -z ${CLEANMATE_NO_UPDATE_CHECK:-${CMU_NO_UPDATE_CHECK:-}} ]] && update_configured || return 0
   [[ -f $UPDATE_STATE ]] && IFS=$'\t' read -r t v <"$UPDATE_STATE"
   ((EPOCHSECONDS - ${t:-0} < 86400)) && return 0
   (
@@ -4904,7 +4941,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|apps|uninstall …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|settings|settings-set|apps|uninstall …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -4976,9 +5013,11 @@ json_main() { # SUBCOMMAND ARGS…
     restore) json_restore "$@" ;;
     startup) json_startup "$@" ;;
     startup-set) json_startup_set "$@" ;;
+    settings) json_settings ;;
+    settings-set) json_settings_set "$@" ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore NAME…|startup|startup-set ID enable|disable|remove|apps|uninstall [--check] ID…"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore NAME…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|apps|uninstall [--check] ID…"; return 2 ;;
   esac
 }
 
@@ -5425,6 +5464,67 @@ json_startup_set() { # ID enable|disable|remove
   printf '{"event":"done"}\n'
 }
 
+# ── Settings for the desktop app ──
+#
+# The same settings file, timer and remembered selections as the terminal app's
+# Settings, with the same ranges; nothing else can be set through here.
+
+SCHEDULES=(off daily weekly monthly)
+
+json_setting() { # KEY → one "setting" event with what is in effect now
+  local -a r
+  local v
+  case $1 in
+    schedule)
+      json_str v "$(schedule_get | head -n 1)"
+      printf '{"event":"setting","key":"schedule","value":%s,"choices":["off","daily","weekly","monthly"],"default":"off"}\n' "$v" ;;
+    selections) printf '{"event":"setting","key":"selections","value":%d}\n' "${#PREF[@]}" ;;
+    *)
+      read -ra r <<<"${SETTING_RANGE[$1]}"
+      setting v "$1"
+      printf '{"event":"setting","key":"%s","value":%d,"min":%d,"max":%d,"default":%d}\n' "$1" "$v" "${r[@]}" ;;
+  esac
+}
+
+json_settings() {
+  ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
+  local k
+  for k in schedule "${SETTING_KEYS[@]}" selections; do json_setting "$k"; done
+  printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool have systemctl)" "$(json_bool packaged)"
+}
+
+json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, selections reset, or a number in range
+  ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
+  (($# == 2)) || { json_error "Usage: --json settings-set KEY VALUE"; return 2; }
+  local key=$1 val=$2 state=ok info
+  local -a r
+  case $key in
+    schedule)
+      [[ " ${SCHEDULES[*]} " == *" $val "* ]] || { json_error "schedule must be one of: ${SCHEDULES[*]}"; return 2; }
+      UI_TOAST=""
+      schedule_set "$val" || state=fail
+      info=${UI_TOAST//$'\e'\[*([0-9;])m/}
+      info=${info#"✔ "} info=${info#"✘ "} ;;
+    selections)
+      [[ $val == reset ]] || { json_error "selections can only be reset"; return 2; }
+      if ((DRY_RUN)); then info="would be forgotten"
+      else PREF=(); rm -f -- "$PREF_FILE" && info="forgotten" || state=fail info="Could not remove ${PREF_FILE/#$HOME/\~}"; fi ;;
+    *)
+      [[ -n ${SETTING_RANGE[$key]:-} ]] || { json_error "Unknown setting: $key"; return 2; }
+      read -ra r <<<"${SETTING_RANGE[$key]}"
+      setting_valid "$key" "$val" || { json_error "$key must be a number from ${r[0]} to ${r[1]}"; return 2; }
+      val=$((10#$val))
+      if ((DRY_RUN)); then info="would be set to $val"
+      elif save_setting "$key" "$val"; then info="set to $val"
+      else state=fail info="Could not save ${SETTINGS_FILE/#$HOME/\~}"; fi ;;
+  esac
+  json_str info "$info"
+  printf '{"event":"task","id":"%s","state":"%s","info":%s}\n' "$key" "$state" "$info"
+  ((DRY_RUN)) && load_settings # show what is saved, not what would be
+  json_setting "$key"
+  printf '{"event":"done"}\n'
+}
+
 # ── Uninstaller for the desktop app ──
 #
 # `apps` lists exactly what the terminal app's Uninstaller offers (parts of
@@ -5704,10 +5804,8 @@ trap 'rm -rf "$SESSION_TMP"' EXIT
 trap 'on_interrupt' INT TERM
 
 migrate_legacy
-load_kv "$PREF_FILE" PREF '^[01]$'
 load_kv "$STATS_FILE" STATS '^[0-9]+$'
-load_kv "$SETTINGS_FILE" CFG '^[0-9]+$'
-apply_settings
+load_settings
 load_scan_cache
 
 case $MODE in

@@ -850,6 +850,91 @@ done 7 true" "autostart entries and systemd user units; the system's are view on
   assert_eq "$out" "done 4 false" "without systemctl --user"
 }
 
+settings_list() { # reads `--json settings` / `settings-set` → one line per event
+  python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "setting":
+        rng = " %d-%d/%d" % (e["min"], e["max"], e["default"]) if "min" in e else ""
+        print(e["key"], e["value"], end=rng + "\n")
+    elif e["event"] == "task": print(e["state"], e["id"], e["info"])
+    elif e["event"] == "done": print("done", str(e.get("systemd", "")).lower(), str(e.get("packaged", "")).lower())
+    else: print(e["event"], e.get("message", ""))'
+}
+
+test_json_settings() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out f=$HOME_DIR/.config/cleanmate/settings u=$HOME_DIR/.config/systemd/user
+  mkdir -p "$HOME_DIR/.local/bin"
+  printf 'journal_days=14\ntmp_days=999\ncache_days=045\nfoo=3\n' >"$f" # out of range → default; leading zero is decimal
+  printf 'apt_cache=1\nthumbs=0\n' >"$HOME_DIR/.config/cleanmate/selection"
+  # a fake `systemctl --user`: enabled units are files in ~/enabled, every call logged — the real one is never run
+  printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift; mkdir -p "$HOME/enabled"' \
+    'case $1 in is-enabled) test -e "$HOME/enabled/$3" ;; enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac' \
+    >"$HOME_DIR/.local/bin/systemctl"
+  chmod +x "$HOME_DIR/.local/bin/systemctl"
+  if ((EUID == 0)); then
+    out=$(cm --json settings 2>&1); assert_contains "$out" "run this as yourself, not as root"
+  fi
+  out=$(user_cm --json settings | settings_list)
+  assert_eq "$out" "schedule off
+update_check 1 0-1/1
+low_disk_pct 10 0-50/10
+journal_days 14 1-365/7
+journal_mb 100 16-10000/100
+log_max_mb 50 10-100000/50
+app_log_days 3 1-365/3
+tmp_days 10 1-365/10
+cache_days 45 1-365/30
+node_modules_days 90 7-3650/90
+ai_history_days 30 1-3650/30
+selections 2
+done true false" "every setting with its range and default; bad values fall back to the default"
+  # the desktop app changes a number → the terminal app (same file) uses it
+  out=$(user_cm --json settings-set journal_days 30 | settings_list)
+  assert_eq "$out" $'ok journal_days set to 30\njournal_days 30 1-365/7\ndone  ' "set a number"
+  assert_contains "$(cat "$f")" $'foo=3\njournal_days=30\ntmp_days=999'
+  assert_contains "$(user_cm --json items)" "Keeps the last 30 days"
+  # …and the other way round: the terminal app's Settings writes the file the desktop app reads
+  in_app 'load_settings; save_setting journal_mb 250'
+  assert_contains "$(user_cm --json settings | settings_list)" "journal_mb 250 16-10000/100"
+  assert_contains "$(cat "$f")" "journal_days=30"
+  # wrong values are refused and change nothing
+  cp "$f" "$WORK/settings.before"
+  out=$(user_cm --json settings-set journal_days 0 2>&1); assert_contains "$out" "journal_days must be a number from 1 to 365"
+  out=$(user_cm --json settings-set journal_days 12abc 2>&1); assert_contains "$out" "must be a number"
+  out=$(user_cm --json settings-set update_check 2 2>&1); assert_contains "$out" "update_check must be a number from 0 to 1"
+  out=$(user_cm --json settings-set foo 3 2>&1); assert_contains "$out" "Unknown setting: foo"
+  out=$(user_cm --json settings-set schedule hourly 2>&1); assert_contains "$out" "schedule must be one of: off daily weekly monthly"
+  out=$(user_cm --json settings-set selections 0 2>&1); assert_contains "$out" "selections can only be reset"
+  out=$(user_cm --json settings-set journal_days 2>&1); assert_contains "$out" "Usage: --json settings-set KEY VALUE"
+  user_cm --json settings-set journal_days 0 >/dev/null; assert_eq "$?" 2 "exit status of a refused value"
+  out=$(user_cm --json --dry-run settings-set journal_days 60 | settings_list)
+  assert_eq "$out" $'ok journal_days would be set to 60\njournal_days 30 1-365/7\ndone  ' "dry run"
+  assert_eq "$(cat "$f")" "$(cat "$WORK/settings.before")" "nothing written"
+  # automatic cleaning: the systemd user timer is written and enabled at once
+  out=$(user_cm --json settings-set schedule weekly | settings_list)
+  assert_contains "$out" "ok schedule Automatic cleaning: weekly"
+  assert_contains "$out" "schedule weekly"
+  assert_contains "$(cat "$u/cleanmate.timer")" "OnCalendar=weekly"
+  assert_contains "$(cat "$u/cleanmate.service")" "--auto"
+  assert_contains "$(cat "$HOME_DIR/systemctl.log")" $'--user daemon-reload\n--user enable --now cleanmate.timer'
+  assert_contains "$(user_cm --json settings | settings_list)" "schedule weekly"
+  out=$(user_cm --json settings-set schedule off | settings_list)
+  assert_contains "$out" "ok schedule Automatic cleaning turned off."
+  assert_missing "$u/cleanmate.timer"; assert_missing "$u/cleanmate.service"
+  assert_contains "$(cat "$HOME_DIR/systemctl.log")" "--user disable --now cleanmate.timer"
+  # remembered selections
+  out=$(user_cm --json settings-set selections reset | settings_list)
+  assert_eq "$out" $'ok selections forgotten\nselections 0\ndone  ' "forget remembered selections"
+  assert_missing "$HOME_DIR/.config/cleanmate/selection"
+  printf '#!/bin/sh\nexit 1\n' >"$HOME_DIR/.local/bin/systemctl" # no systemd user session
+  out=$(user_cm --json settings-set schedule daily | settings_list)
+  assert_contains "$out" "fail schedule Could not enable the systemd timer."
+  assert_contains "$out" "schedule off"
+}
+
 app_fixtures() { # BIN — launchers, package stubs and home folders for gimp (apt), foo (apt) and Spotify (flatpak)
   local bin=$1 sys=$HOME_DIR/sys
   mkdir -p "$bin" "$sys"
@@ -990,6 +1075,8 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "ticking an app ticks its leftover folder"
     assert_contains "$out" "dry run removes nothing"
     ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the app's folder back"
+    ((EUID == 0)) || assert_contains "$out" "a changed number and switch are saved for the terminal app"
+    ((EUID == 0)) || assert_contains "$out" "turning automatic cleaning on enables the weekly timer"
     assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
     if [[ $lang == vi* ]]; then assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"; fi
   done

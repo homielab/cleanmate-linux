@@ -136,6 +136,12 @@ class Engine:
     def startup_set(self, unit_id, action, on_event, on_done):
         return self.run(["startup-set", unit_id, action], on_event, on_done)
 
+    def settings(self, on_event, on_done):
+        return self.run(["settings"], on_event, on_done)
+
+    def settings_set(self, key, value, on_event, on_done):
+        return self.run(["settings-set", key, value], on_event, on_done)
+
     def apps(self, on_event, on_done):
         return self.run(["apps"], on_event, on_done)
 

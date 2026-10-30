@@ -10,6 +10,7 @@ from .engine import SMART_SCAN, Selection, human
 from .i18n import _
 from .largefiles import LargeFilesPage
 from .scanpage import ScanPage
+from .settings import SettingsPage
 from .spacelens import SpaceLensPage
 from .startup import StartupPage
 from .uninstaller import UninstallerPage
@@ -77,7 +78,7 @@ class Window(Adw.ApplicationWindow):
         more = Gtk.Box(spacing=12)
         more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
         more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
-        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Maintenance, System Overview, Settings… "
+        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Maintenance, System Overview… "
                                                             "in the terminal app"))
         more_row.page_id = "terminal"
         self.sidebar_list.append(more_row)
@@ -91,6 +92,7 @@ class Window(Adw.ApplicationWindow):
         disk.append(self.disk_label)
 
         menu = Gio.Menu()
+        menu.append(_("Settings"), "win.settings")
         menu.append(_("Open the terminal app"), "win.terminal")
         menu.append(_("Source code"), "win.source")
         menu.append(_("Report a problem"), "win.issues")
@@ -126,12 +128,15 @@ class Window(Adw.ApplicationWindow):
         self.add_breakpoint(bp)
 
         for name, cb in (("terminal", self.open_terminal), ("about", self.show_about),
+                         ("settings", lambda *_: self.show_settings()),
                          ("source", lambda *_: self._open_url(REPO_URL)),
                          ("issues", lambda *_: self._open_url(REPO_URL + "/issues")),
                          ("homepage", lambda *_: self._open_url("https://homielab.com"))):
             action = Gio.SimpleAction(name=name)
             action.connect("activate", cb)
             self.add_action(action)
+        app.set_accels_for_action("win.settings", ["<Control>comma"])
+        self.settings_page = None
 
         self.refresh_disk()
         self.show_page("smart")
@@ -201,6 +206,16 @@ class Window(Adw.ApplicationWindow):
 
     def _open_url(self, url):
         Gtk.UriLauncher.new(url).launch(self, None, None)
+
+    def show_settings(self):
+        """The terminal app's settings in a dialog; read again each time it opens."""
+        page = SettingsPage(self)
+        dialog = Adw.PreferencesDialog(title=_("Settings"), search_enabled=False)
+        dialog.add(page)
+        dialog.connect("closed", lambda *_: page.flush())
+        self.settings_page = page
+        dialog.present(self)
+        return dialog
 
     def show_about(self, *_):
         about = Adw.AboutDialog(

@@ -115,7 +115,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 **Privacy** (never part of Smart Scan) clears shell history (bash, zsh, fish), *Recent files*,
 Python/Node/database shell history, Vim history, and the Alt+F2 and emoji history.
 
-**More tools in the terminal app** (Space Lens, Large & Old Files, Duplicates, the Uninstaller and Startup Items are in the desktop app too):
+**More tools in the terminal app** (Space Lens, Large & Old Files, Duplicates, the Uninstaller, Startup Items and Settings are in the desktop app too):
 
 - **Uninstaller** — every app you can open (apt, Snap, Flatpak), with its real size (the app *plus*
   its folders in your home) and when you last used it. Sort by size or last use, or show only apps
@@ -149,7 +149,8 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
 *Settings → Automatic cleaning* runs a weekly (or daily, monthly) clean of user and developer
 junk and notifies you: *"Freed 1.2 GB. Worth a look: Docker build cache 2.0 GB, Google Chrome
 1.8 GB."* It never empties the Trash, never touches browsers or apps, never needs your password,
-and can warn you when the disk is almost full.
+and can warn you when the disk is almost full. In the desktop app it's in *Settings* in the main
+menu (Ctrl+,); both apps share the same settings.
 
 ## Command line
 

@@ -2,8 +2,8 @@
 
 Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
-Files, Space Lens, Duplicates and Startup Items checks move files to the Trash for real, but only files they
-made themselves in a throwaway home folder, with the engine pointed at that folder.
+Files, Space Lens, Duplicates and Startup Items checks move files to the Trash for real, and the Settings
+check saves settings for real, but only in a throwaway home folder they made, with the engine pointed at it.
 """
 import os
 import shutil
@@ -593,7 +593,7 @@ def uninstaller_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        settings_test(win, report, wait, finish)
 
     def first_list():  # the real list of this machine, then the stub one
         report(page.stack.get_visible_child_name() in ("results", "empty"), "Uninstaller lists this computer's apps")
@@ -671,6 +671,88 @@ def uninstaller_test(win, report, wait, finish):
         wait(idle, done, 30, "list after restoring")
 
     wait(idle, first_list, 120, "first app list")
+
+
+def settings_test(win, report, wait, finish):
+    """Settings of a throwaway home with a fake `systemctl --user`: show the saved values, change a
+    number, turn automatic cleaning on (the timer is enabled) and forget remembered selections."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
+    conf = os.path.join(home, ".config", "cleanmate")
+    for d in (conf, bin_dir):
+        os.makedirs(d)
+    settings_file, selection = os.path.join(conf, "settings"), os.path.join(conf, "selection")
+    timer = os.path.join(home, ".config", "systemd", "user", "cleanmate.timer")
+    for path, text in ((settings_file, "journal_days=14\n"), (selection, "apt_cache=1\n"),
+                       (os.path.join(bin_dir, "systemctl"),
+                        '#!/bin/sh\nshift\nmkdir -p "$HOME/enabled"\ncase $1 in is-enabled) test -e "$HOME/enabled/$3" ;; '
+                        'enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac\n')):
+        with open(path, "w") as f:
+            f.write(text)
+    os.chmod(os.path.join(bin_dir, "systemctl"), 0o755)
+    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+           "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+
+    dialog = win.show_settings()
+    page = win.settings_page
+    real_engine = page.engine
+
+    def idle():
+        return not page.busy()
+
+    def saved():
+        with open(settings_file) as f:
+            return f.read()
+
+    def done():
+        dialog.close()
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def first():
+        report("schedule" in page.rows or os.geteuid() == 0, "Settings opens from the main menu")
+        page.engine = Engine(real_engine.path, dry_run=True, env=env)
+        page.load()
+        wait(idle, listed, 30, "settings")
+
+    def listed():
+        if os.geteuid() == 0:
+            report("schedule" not in page.rows, "as root the engine refuses settings")
+            return done()
+        row = page.rows.get("journal_days")
+        report(row is not None and row.get_value() == 14 and page.rows["journal_mb"].get_value() == 100
+               and page.rows["schedule"].get_selected() == 0, "settings show the saved values and defaults")
+        row.set_value(30)
+        wait(idle, dry_changed, 30, "dry-run change")
+
+    def dry_changed():
+        report(saved() == "journal_days=14\n" and page.rows["journal_days"].get_value() == 14,
+               "dry run: nothing is saved")
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.rows["journal_days"].set_value(30)
+        page.rows["update_check"].set_active(False)
+        wait(idle, changed, 30, "change")
+
+    def changed():
+        report("journal_days=30" in saved() and "update_check=0" in saved(),
+               "a changed number and switch are saved for the terminal app")
+        page.rows["schedule"].set_selected(2)
+        wait(idle, scheduled, 30, "automatic cleaning")
+
+    def scheduled():
+        text = open(timer).read() if os.path.exists(timer) else ""
+        report("OnCalendar=weekly" in text and os.path.exists(os.path.join(home, "enabled", "cleanmate.timer")),
+               "turning automatic cleaning on enables the weekly timer")
+        page.change("selections", "reset")  # the confirmation itself needs a click
+        wait(idle, reset, 30, "reset selections")
+
+    def reset():
+        report(not os.path.exists(selection) and not page.rows["selections"].reset_button.get_sensitive(),
+               "Reset forgets remembered selections")
+        done()
+
+    wait(idle, first, 30, "first settings")
 
 
 def show_scene_page(win, page_id):
