@@ -35,10 +35,12 @@ NUMBERS = {
                           _("node_modules, Cargo target/, Python .venv/ and Pods/ of projects idle for this "
                             "many days")),
     "installer_days": (_("Old installers"), _("Offer installers in Downloads older than this many days")),
+    "download_days": (_("Old downloads"), _("Offer files and folders in Downloads not opened or changed for this "
+                                            "many days")),
     "ai_history_days": (_("AI chat history"), _("Clean AI sessions older than this many days")),
 }
 KEEP_FOR = ["journal_days", "journal_mb", "log_max_mb", "app_log_days", "tmp_days", "cache_days",
-            "node_modules_days", "installer_days", "ai_history_days"]
+            "node_modules_days", "installer_days", "download_days", "ai_history_days"]
 DELAY_MS = 700  # a number is saved this long after its last change
 
 # why the engine refuses a folder for Never clean (the other reasons name the folder and stay as they are)
@@ -164,9 +166,9 @@ class SettingsPage(Adw.PreferencesPage):
         for key in KEEP_FOR:
             keep.add(self.number_row(key))
 
-        never = self.group(_("Never clean"), _("Large & Old Files, Duplicates, Space Lens, project build folders and "
-                                               "old installers skip these folders, and nothing in them is moved to "
-                                               "the Trash."))
+        never = self.group(_("Never clean"), _("Large & Old Files, Duplicates, Space Lens, project build folders, "
+                                               "old installers and old downloads skip these folders, and nothing in "
+                                               "them is moved to the Trash."))
         add = Gtk.Button(child=Adw.ButtonContent(icon_name="list-add-symbolic", label=_("Add Folder…")),
                          valign=Gtk.Align.CENTER, css_classes=["flat"])
         add.connect("clicked", lambda *_a: self.choose_exclusion())

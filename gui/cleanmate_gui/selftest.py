@@ -1080,18 +1080,24 @@ def drive_trash_test(win, report, wait, finish):
 
 def old_installers_test(win, report, wait, finish):
     """System Junk with two old installers in Downloads: one sub-row per file, none ticked; ticking one
-    half-ticks the item and Clean moves only that file to the Trash (for real, in a throwaway home)."""
+    half-ticks the item and Clean moves only that file to the Trash (for real, in a throwaway home).
+    Then Old downloads: an old file and an old folder, each a sub-row, none ticked, no installer among them."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     downloads = os.path.join(sandbox, "Downloads")
     os.makedirs(os.path.join(downloads, "sub"))
     old = time.time() - 40 * 86400
-    for name, size in (("a.deb", 1000), ("b.iso", 2000), ("c.deb", 500), ("sub/d.deb", 700)):
+    os.makedirs(os.path.join(downloads, "Trip"))
+    for name, size in (("a.deb", 1000), ("b.iso", 2000), ("c.deb", 500), ("sub/d.deb", 700),
+                       ("report.pdf", 3000), ("Trip/a.jpg", 4000)):
         path = os.path.join(downloads, name)
         with open(path, "wb") as f:
             f.write(b"\0" * size)
         if name != "c.deb":  # c.deb was downloaded today
             os.utime(path, (old, old))
+    downloads_old = time.time() - 120 * 86400  # untouched for longer than Old downloads' 90 days
+    for name in ("report.pdf", "Trip/a.jpg", "Trip"):
+        os.utime(os.path.join(downloads, name), (downloads_old, downloads_old))
     env = {"HOME": sandbox, "XDG_CONFIG_HOME": os.path.join(sandbox, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1"}
 
     win.show_page("system")
@@ -1127,7 +1133,7 @@ def old_installers_test(win, report, wait, finish):
                "ticking one file: the item box is half-ticked and the size shows selected / total")
         if os.geteuid() == 0:
             report(True, "real clean skipped: as root the engine refuses home items")
-            return done()
+            return old_downloads()
         page.clean(["old_installers"])
         wait(lambda: page.clean_title.get_text().startswith(lead(_("Freed {size}"))), cleaned, 60, "installer clean")
 
@@ -1136,8 +1142,24 @@ def old_installers_test(win, report, wait, finish):
         report(not os.path.exists(os.path.join(downloads, "a.deb")) and os.path.exists(os.path.join(trash, "a.deb"))
                and os.path.exists(os.path.join(downloads, "b.iso")),
                "Clean moves only the ticked installer to the Trash")
-        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", done, 60,
+        wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", old_downloads, 60,
              "scan after cleaning")
+
+    def old_downloads():
+        box = page.checks.get("old_downloads")
+        row = box and box.get_ancestor(Adw.ExpanderRow)
+        if not row:
+            report(False, "Old downloads has no sub-rows")
+            return done()
+        report(not box.get_active(), "Old downloads is not ticked by default")
+        row.set_expanded(True)
+        wait(lambda: "old_downloads" in page.entries, downloads_listed, 30, "old download entries")
+
+    def downloads_listed():
+        boxes = page.entry_checks.get("old_downloads", {})
+        report(sorted(boxes) == ["Trip", "report.pdf"] and not any(b.get_active() for b in boxes.values()),
+               "one sub-row per old file or folder in Downloads, none ticked, installers left to their own item")
+        done()
 
     page.scan()
     wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,

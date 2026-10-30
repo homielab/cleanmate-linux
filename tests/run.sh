@@ -999,6 +999,101 @@ for l in sys.stdin:
   assert_contains "$out" "Downloads folder is outside your home folder ($HOME_DIR/dl-link)"
 }
 
+test_old_downloads() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local dl=$HOME_DIR/Downloads out f pid hold=()
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  sized "$dl/old.pdf" 1000
+  sized "$dl/Trip/a.jpg" 2000; sized "$dl/Trip/raw/b.jpg" 3000           # a folder untouched inside too
+  sized "$dl/new.pdf" 50                                                 # changed 10 days ago
+  sized "$dl/read.pdf" 60                                                # opened 5 days ago
+  sized "$dl/Work/x.txt" 70; sized "$dl/Work/y.txt" 80                    # y.txt changed 10 days ago
+  sized "$dl/Read/z.txt" 90                                              # z.txt opened 5 days ago
+  sized "$dl/setup.deb" 400                                              # an old installer: listed there
+  sized "$dl/movie.mkv" 0; sized "$dl/movie.mkv.part" 500                # still downloading
+  sized "$dl/file.crdownload" 600                                        # an unfinished download
+  sized "$dl/.hidden" 700                                                # hidden
+  sized "$dl/open.txt" 800                                               # open in a program
+  sized "$dl/Keep/k.bin" 900                                             # Never clean
+  sized "$WORK/elsewhere.bin" 500; ln -s "$WORK/elsewhere.bin" "$dl/link.bin"
+  while IFS= read -r f; do touch -d "120 days ago" "$f"; done < <(find "$dl" -depth -mindepth 1 ! -type l)
+  touch -h -d "120 days ago" "$dl/link.bin"
+  touch -d "10 days ago" "$dl/new.pdf" "$dl/Work/y.txt"
+  touch -a -d "5 days ago" "$dl/read.pdf" "$dl/Read/z.txt"
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])'
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  user_cm --json settings-set exclusions add "$dl/Keep" >/dev/null
+  out=$(in_app 'load_settings; OD_MAX_FILES=1; old_downloads; echo "${OD_NAME[*]}"')
+  assert_eq "$out" "old.pdf open.txt" "a folder with too many files is skipped"
+  "${hold[@]}" sleep 60 <"$dl/open.txt" >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json scan --only system | grep '"id":"old_downloads"' | python3 -c "$list")
+  assert_eq "$out" "old_downloads 6000 2 items untouched for 90+ days False True False" \
+    "old files and folders at the top of Downloads, not ticked"
+  out=$(user_cm --json details old_downloads | python3 -c "$list")
+  assert_eq "$out" "Trip 5000 off Trip/ · untouched for 120 days"$'\n'"old.pdf 1000 off old.pdf · untouched for 120 days" \
+    "one entry per file or folder, biggest first"
+  assert_contains "$(user_cm --json details old_installers | python3 -c "$list")" "setup.deb 400"
+  out=$(user_cm --json --dry-run clean old_downloads | python3 -c "$list")
+  assert_contains "$out" "ok 6000"
+  assert_exists "$dl/old.pdf"
+  out=$(user_cm --json clean old_downloads --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of old_downloads: ../etc"
+  out=$(user_cm --json clean old_downloads --entries "Trip,new.pdf" | python3 -c "$list")
+  assert_eq "$out" "ok 5000 4.9 KB freed" "only the chosen folder"
+  assert_missing "$dl/Trip"; assert_exists "$HOME_DIR/.local/share/Trash/files/Trip/raw/b.jpg"; assert_exists "$dl/old.pdf"
+  out=$(user_cm --json clean old_downloads | python3 -c "$list")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" "ok 1000 1000 B freed" "the rest"
+  assert_missing "$dl/old.pdf"; assert_exists "$HOME_DIR/.local/share/Trash/info/old.pdf.trashinfo"
+  for f in new.pdf read.pdf Work/x.txt Read/z.txt setup.deb movie.mkv movie.mkv.part file.crdownload .hidden open.txt Keep/k.bin link.bin; do
+    assert_exists "$dl/$f"
+  done
+  assert_exists "$WORK/elsewhere.bin"
+  out=$(user_cm --json restore Trip old.pdf | python3 -c "$list")
+  assert_eq "$out" "ok 0 put back"$'\n'"ok 0 put back" "restore puts them back"
+  assert_exists "$dl/Trip/raw/b.jpg"; assert_exists "$dl/old.pdf"
+  # the terminal app: what a cleanup moved to the Trash is the batch z puts back
+  touch -d "120 days ago" "$dl/open.txt" "$dl/Trip"
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  out=$(in_app 'SESSION_TMP=$(mktemp -d) UI_ACTIVE=0 DRY_RUN=0; load_settings
+    new_tasks clean; add_task "Old downloads" task_clean old_downloads; CLEAN_UNDO=()
+    run_tasks Cleaning >/dev/null
+    echo "batch=${#CLEAN_UNDO[@]}"; UNDO_BATCH=("${CLEAN_UNDO[@]}")
+    [[ -e $HOME/Downloads/old.pdf ]] && echo "not trashed"
+    undo_trash; echo "restored=$UNDO_OK"; rm -r "$SESSION_TMP"')
+  assert_eq "$out" "batch=3"$'\n'"restored=3" "z puts back what the cleanup trashed"
+  assert_exists "$dl/Trip/a.jpg"; assert_exists "$dl/old.pdf"; assert_exists "$dl/open.txt"
+  # Settings › Old downloads: how long something stays untouched
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  out=$(user_cm --json settings-set download_days 6 2>&1); assert_contains "$out" "download_days must be a number from 7 to 3650"
+  user_cm --json settings-set download_days 7 >/dev/null
+  out=$(user_cm --json details old_downloads | python3 -c "$list")
+  assert_contains "$out" "new.pdf 50 off new.pdf · untouched for 10 days"
+  assert_contains "$out" "Work 150 off Work/ · untouched for 10 days"
+  assert_contains "$(user_cm --json items)" "opened or changed for more than 7 days"
+  user_cm --json settings-set download_days 90 >/dev/null
+  assert_eq "$(user_cm --json details old_downloads | python3 -c "$list" | cut -d' ' -f1 | sort | paste -sd' ' -)" \
+    "Trip old.pdf open.txt" "download_days 90"
+  # a Downloads folder outside the home folder is never scanned; the item says why
+  mkdir -p "$HOME_DIR/.local/bin" "$WORK/data/dl2"
+  sized "$WORK/data/dl2/x.pdf" 30; touch -d "120 days ago" "$WORK/data/dl2/x.pdf"
+  printf '#!/bin/sh\necho "%s"\n' "$WORK/data/dl2" >"$HOME_DIR/.local/bin/xdg-user-dir"; chmod +x "$HOME_DIR/.local/bin/xdg-user-dir"
+  out=$(user_cm --json scan --only system | grep '"id":"old_downloads"' | python3 -c "$list")
+  assert_eq "$out" "old_downloads 0 Downloads folder is outside your home folder ($WORK/data/dl2); CleanMate only cleans inside it False True False" \
+    "outside the home folder: a note, nothing listed"
+  user_cm --json clean old_downloads >/dev/null 2>&1
+  assert_exists "$WORK/data/dl2/x.pdf"
+}
+
 test_stale_project_build_folders() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -1355,6 +1450,7 @@ tmp_days 10 1-365/10
 cache_days 45 1-365/30
 node_modules_days 90 7-3650/90
 installer_days 30 7-3650/30
+download_days 90 7-3650/90
 ai_history_days 30 1-3650/30
 selections 2
 exclusions []

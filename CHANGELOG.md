@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- **Old downloads** (System Junk, not pre-selected, both apps): files and folders at the top of your Downloads folder that you haven't opened or changed for 90 days — a folder counts as used when anything inside it was. Each one is listed on its own in the desktop app and moved to the Trash, so you can put it back. Old installers, unfinished downloads, open files and *Never clean* folders are skipped. Change the 90 days in Settings › Old downloads.
 - **Desktop app**: keyboard shortcuts — Ctrl+1…9 switch pages, Ctrl+R (or F5) scans, searches or lists again, Ctrl+? opens the shortcut list (also in the main menu). After a clean, the result shows *Free space: before → after*.
 - **Uninstaller (desktop app)**: filter *Unused for 1/3/6/12+ months*. Apps without a last-used date show *Unknown*, stay hidden under the filter and come back with *Show*.
 - **AI Models**: unfinished Ollama downloads (`sha256-…-partial`, also in the folder `OLLAMA_MODELS` points to). Not pre-selected and skipped while Ollama runs; complete models are kept.

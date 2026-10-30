@@ -897,6 +897,7 @@ reg() { ITEM_IDS+=("$1"); ITEM_CAT[$1]=$2; ITEM_LABEL[$1]=$3; ITEM_DEFAULT[$1]=$
 #   id           category label                          default  description
 reg apt_cache    system "APT package cache"                 1 "Downloaded .deb installers. apt re-downloads them if ever needed."
 reg old_installers system "Old installers in Downloads"     0 "Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) at the top of your Downloads folder, downloaded more than 30 days ago. Moved to the Trash."
+reg old_downloads system "Old downloads"                   0 "Files and folders at the top of your Downloads folder that you haven't opened or changed for more than 90 days. Moved to the Trash."
 reg orphans      system "Unused packages & old kernels"     1 "Packages installed as dependencies that nothing needs any more (apt autoremove)."
 reg residual     system "Leftover package configs"          1 "System config files of packages that were removed but not purged."
 reg journal      logs   "Systemd journal logs"              1 "Archived system logs. Keeps the last 7 days and at most 100 MB."
@@ -1305,6 +1306,130 @@ clean_entries_old_installers() { # encoded file names (json_clean_entries only p
   done
   ((${#pick[@]})) || return 0
   trash_installers "${pick[@]}"
+}
+
+# Old downloads: what sits at the top of your Downloads folder (files and folders; no symlinks, no
+# hidden ones) that you haven't opened or changed for OLD_DOWNLOAD_DAYS. A file counts as touched when
+# it changed or was read (atime; relatime still records a read once a day); a folder when it or
+# anything inside it changed, or a file inside it was read. Folders' own read times are left out:
+# listing a folder, as this scan does, updates them. A folder holding more than OD_MAX_FILES files is
+# skipped. Old installers (that item lists them), downloads in progress (.part, .crdownload, .!qB, or
+# one next to it), anything a program has open and Never clean folders are skipped too. They are your
+# files, so cleaning moves them to the Trash; the terminal app's z puts them back. The desktop app
+# lists each one as an entry. A Downloads folder outside your home folder (or a symlink) is never scanned.
+OLD_DOWNLOAD_DAYS=90 # Settings: download_days
+OD_MAX_FILES=20000
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_old_downloads='^[A-Za-z0-9._~%-]+$' # the file or folder name, percent-encoded (urlencode_path)
+
+partial_download() { # DIR NAME — NAME is a download in progress, or has one next to it
+  case $2 in *.part | *.crdownload | *.!qB) return 0 ;; esac
+  [[ -e $1/$2.part || -e $1/$2.crdownload || -e $1/$2.!qB ]]
+}
+
+folder_touched() { # DIR CUTOFF → "NEWEST BYTES": the last change inside DIR (or read of a file in it) and
+  # the size of its files; "new" as soon as something is newer than CUTOFF, "big" past OD_MAX_FILES files
+  find "$1" -xdev -mindepth 1 -printf '%y %T@ %A@ %s\n' 2>/dev/null |
+    awk -v cut="$2" -v max="$OD_MAX_FILES" '
+      { t = $2; if ($1 != "d" && $3 > t) t = $3
+        if (t >= cut) { r = "new"; exit }
+        if (t > newest) newest = t
+        if ($1 != "d") { s += $4; if (++n > max) { r = "big"; exit } } }
+      END { if (r != "") print r; else printf "%.0f %.0f\n", newest, s }'
+}
+
+old_downloads() { # → OD_DIR, and OD_NAME / OD_KIND (f or d) / OD_BYTES / OD_DAYS (days since touched) biggest first
+  local y m a b n name p r t open now cut installers=$'\n'
+  OD_DIR=$(downloads_dir) OD_NAME=() OD_KIND=() OD_BYTES=() OD_DAYS=()
+  ! downloads_outside "$OD_DIR" && [[ -d $OD_DIR ]] || return 0
+  old_installers # listed there, not here
+  for name in "${OI_NAME[@]}"; do installers+=$name$'\n'; done
+  open=$'\n'$(open_files)$'\n'
+  printf -v now '%(%s)T' -1
+  cut=$((now - OLD_DOWNLOAD_DAYS * 86400))
+  while IFS=$'\t' read -r -d '' b n y name; do
+    OD_NAME+=("$name") OD_KIND+=("$y") OD_BYTES+=("$b") OD_DAYS+=("$n")
+  done < <(
+    find "$OD_DIR" -mindepth 1 -maxdepth 1 \( -type f -o -type d \) ! -name '.*' \
+      -printf '%y\t%T@\t%A@\t%s\t%f\0' 2>/dev/null |
+      while IFS=$'\t' read -r -d '' y m a b name; do
+        [[ -n $name && $name != *[[:cntrl:]]* && $installers != *$'\n'"$name"$'\n'* ]] || continue
+        partial_download "$OD_DIR" "$name" && continue
+        p=$OD_DIR/$name
+        touches_exclusion "$p" && continue
+        open_under "$open" "$p" && continue
+        m=${m%.*} a=${a%.*}
+        if [[ $y == f ]]; then
+          ((a > m)) && m=$a
+          ((m < cut)) || continue
+        else
+          ((m < cut)) || continue
+          r=$(folder_touched "$p" "$cut")
+          [[ $r == [0-9]* ]] || continue # something new inside, or too big to check
+          read -r t b <<<"$r"
+          ((t > m)) && m=$t
+        fi
+        printf '%s\t%s\t%s\t%s\0' "$b" "$(((now - m) / 86400))" "$y" "$name"
+      done | sort -z -t $'\t' -k1,1nr
+  )
+}
+
+trash_downloads() { # NAME… — move these of OD_DIR to the Trash; @@undo lines let the terminal app undo it
+  local name e rc=0
+  UNDO_BATCH=()
+  for name; do move_to_trash "$OD_DIR/$name" || rc=1; done
+  for e in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$e"; done
+  return "$rc"
+}
+
+download_label() { # INDEX → "Photos/ · untouched for 120 days"
+  local s=""
+  [[ ${OD_KIND[$1]} == d ]] && s=/
+  printf '%s%s · untouched for %s days' "${OD_NAME[$1]}" "$s" "${OD_DAYS[$1]}"
+}
+
+scan_old_downloads() {
+  local b
+  old_downloads
+  if downloads_outside "$OD_DIR"; then
+    SCAN_NOTE="Downloads folder is outside your home folder (${OD_DIR}); CleanMate only cleans inside it"
+    return 2
+  fi
+  ((${#OD_NAME[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${OD_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#OD_NAME[@]} item) untouched for ${OLD_DOWNLOAD_DAYS}+ days"
+}
+clean_old_downloads() {
+  old_downloads
+  ((${#OD_NAME[@]})) || return 0
+  trash_downloads "${OD_NAME[@]}"
+}
+details_old_downloads() {
+  local i
+  old_downloads
+  for i in "${!OD_NAME[@]}"; do
+    printf '  %s%10s%s  %s\n' "$(size_color "${OD_BYTES[i]}")" "$(human "${OD_BYTES[i]}")" "$NC" \
+      "${OD_DIR/#$HOME/\~}/$(download_label "$i")"
+  done
+}
+entries_old_downloads() {
+  local i
+  old_downloads
+  for i in "${!OD_NAME[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${OD_NAME[i]}")" "${OD_BYTES[i]}" "$(download_label "$i")"
+  done
+}
+clean_entries_old_downloads() { # encoded names (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  old_downloads
+  for id; do
+    for i in "${!OD_NAME[@]}"; do
+      [[ $(urlencode_path "${OD_NAME[i]}") == "$id" ]] && pick+=("${OD_NAME[i]}")
+    done
+  done
+  ((${#pick[@]})) || return 0
+  trash_downloads "${pick[@]}"
 }
 
 # ── User ──
@@ -3177,7 +3302,7 @@ plain_results() {
     ((++i))
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) || [[ $id == old_installers && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -5333,9 +5458,10 @@ declare -A CFG=()
 declare -A SETTING_RANGE=(
   [update_check]="0 1 1" [low_disk_pct]="0 50 10" [journal_days]="1 365 7" [journal_mb]="16 10000 100"
   [log_max_mb]="10 100000 50" [app_log_days]="1 365 3" [tmp_days]="1 365 10" [cache_days]="1 365 30"
-  [node_modules_days]="7 3650 90" [installer_days]="7 3650 30" [ai_history_days]="1 3650 30")
+  [node_modules_days]="7 3650 90" [installer_days]="7 3650 30" [download_days]="7 3650 90"
+  [ai_history_days]="1 3650 30")
 SETTING_KEYS=(update_check low_disk_pct journal_days journal_mb log_max_mb app_log_days tmp_days cache_days
-  node_modules_days installer_days ai_history_days) # the order of the Settings screens
+  node_modules_days installer_days download_days ai_history_days) # the order of the Settings screens
 # Settings with a fixed list of values, the default first. `language` is the desktop app's (the terminal
 # app stays English): it reads the file itself at start-up.
 declare -A SETTING_CHOICES=([language]="system en vi")
@@ -5370,6 +5496,7 @@ apply_settings() {
   setting CACHE_DAYS cache_days
   setting NM_DAYS node_modules_days
   setting OLD_INSTALLER_DAYS installer_days
+  setting OLD_DOWNLOAD_DAYS download_days
   setting LOW_DISK_PCT low_disk_pct
   setting LOG_MAX_MB log_max_mb
   setting APPLOG_DAYS app_log_days
@@ -5380,6 +5507,7 @@ apply_settings() {
     [[ ${ITEM_CAT[$_i]} == ai ]] && ITEM_DESC[$_i]=${ITEM_DESC[$_i]//older than+([0-9]) days/older than $AI_HISTORY_DAYS days}
   done
   ITEM_DESC[old_installers]=${ITEM_DESC[old_installers]//more than +([0-9]) days/more than $OLD_INSTALLER_DAYS days}
+  ITEM_DESC[old_downloads]=${ITEM_DESC[old_downloads]//more than +([0-9]) days/more than $OLD_DOWNLOAD_DAYS days}
   ITEM_DESC[big_logs]="Live logs in /var/log over ${LOG_MAX_MB} MB, emptied in place — services keep logging normally."
   ITEM_DESC[app_logs]="Log files of apps (VS Code, Slack, …) not written for ${APPLOG_DAYS}+ days."
   ITEM_LABEL[app_cache]="Stale app caches (>${CACHE_DAYS} days)"
@@ -5779,9 +5907,10 @@ settings_menu() {
     mi b "App caches" "Clean when older than ${CACHE_DAYS} days"
     mi c "Project build folders" "Clean when the project is idle for ${NM_DAYS} days"
     mi i "Old installers" "Offer installers in Downloads older than ${OLD_INSTALLER_DAYS} days"
+    mi o "Old downloads" "Offer files and folders in Downloads untouched for ${OLD_DOWNLOAD_DAYS} days"
     mi d "AI chat history" "Clean AI sessions older than ${AI_HISTORY_DAYS} days"
     mh "Your data"
-    mi x "Never clean" "$( ((${#EXCLUDES[@]})) && plural ${#EXCLUDES[@]} folder || echo "No folders") that Large & Old Files, Duplicates, Space Lens, build folders and old installers skip"
+    mi x "Never clean" "$( ((${#EXCLUDES[@]})) && plural ${#EXCLUDES[@]} folder || echo "No folders") that Large & Old Files, Duplicates, Space Lens, build folders, old installers and old downloads skip"
     mi e "Reset selections" "$(plural ${#PREF[@]} "remembered choice") for Smart Scan"
     mi f "Activity log" "What was cleaned and when"
     mh "About"
@@ -5810,6 +5939,7 @@ settings_menu() {
       "App caches") edit_number cache_days "Clean app caches older than how many days?" ;;
       "Project build folders") edit_number node_modules_days "Clean build folders of projects idle for how many days?" ;;
       "Old installers") edit_number installer_days "Offer installers in Downloads older than how many days?" ;;
+      "Old downloads") edit_number download_days "Offer files and folders in Downloads untouched for how many days?" ;;
       "AI chat history") edit_number ai_history_days "Clean AI chat sessions older than how many days?" ;;
       "Never clean") exclusions_menu ;;
       "Reset selections")

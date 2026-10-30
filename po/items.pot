@@ -20,6 +20,15 @@ msgstr ""
 msgid "Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) at the top of your Downloads folder, downloaded more than {0} days ago. Moved to the Trash."
 msgstr ""
 
+#. old_downloads label
+msgid "Old downloads"
+msgstr ""
+
+#. old_downloads description
+#, python-brace-format
+msgid "Files and folders at the top of your Downloads folder that you haven't opened or changed for more than {0} days. Moved to the Trash."
+msgstr ""
+
 #. orphans label
 msgid "Unused packages & old kernels"
 msgstr ""
@@ -154,17 +163,6 @@ msgstr ""
 #. node_modules description
 #, python-brace-format
 msgid "node_modules of projects untouched for {0}+ days. Restore with npm/yarn/pnpm install."
-msgstr ""
-
-#. vscode_stale_workspaces label
-msgid "VS Code & forks — data of deleted projects"
-msgstr ""
-
-#. vscode_stale_workspaces description
-msgid ""
-"Per-project storage (extension state, search index) of VS Code, Cursor, "
-"Windsurf and VSCodium for projects that no longer exist. Each is moved to "
-"the Trash; close the editor first."
 msgstr ""
 
 #. stale_build_dirs label
@@ -606,6 +604,14 @@ msgstr ""
 msgid "Copilot CLI and Continue sessions older than {0} days."
 msgstr ""
 
+#. vscode_stale_workspaces label
+msgid "VS Code & forks — data of deleted projects"
+msgstr ""
+
+#. vscode_stale_workspaces description
+msgid "Per-project storage (extension state, search index) of VS Code, Cursor, Windsurf and VSCodium for projects that no longer exist. Each is moved to the Trash; close the editor first."
+msgstr ""
+
 #. uv_cache label
 msgid "uv cache"
 msgstr ""
@@ -646,19 +652,19 @@ msgstr ""
 msgid "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). Downloaded again when you start them."
 msgstr ""
 
-#. ollama_partial label
-msgid "Ollama — unfinished downloads"
-msgstr ""
-
-#. ollama_partial description
-msgid "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again."
-msgstr ""
-
 #. pub_cache label
 msgid "Dart & Flutter pub cache"
 msgstr ""
 
 #. pub_cache description
 msgid "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept."
+msgstr ""
+
+#. ollama_partial label
+msgid "Ollama — unfinished downloads"
+msgstr ""
+
+#. ollama_partial description
+msgid "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again."
 msgstr ""
 

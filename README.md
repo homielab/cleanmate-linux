@@ -117,7 +117,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 
 | | What | Examples |
 |---|---|---|
-| **System Junk** | Package and system leftovers | APT cache, unused packages, extra old kernels (a fallback always stays), leftover configs, old Snap revisions, old temp files; old installers in Downloads (`.deb`, AppImage, `.iso`… over 30 days old by default — change it in Settings › Old installers; only a Downloads folder inside your home folder, not pre-selected, moved to the Trash; each file on its own in the desktop app) |
+| **System Junk** | Package and system leftovers | APT cache, unused packages, extra old kernels (a fallback always stays), leftover configs, old Snap revisions, old temp files; old installers in Downloads (`.deb`, AppImage, `.iso`… over 30 days old by default — change it in Settings › Old installers; only a Downloads folder inside your home folder, not pre-selected, moved to the Trash; each file on its own in the desktop app); old downloads — files and folders at the top of Downloads you haven't opened or changed for 90 days (a folder counts as used when anything inside it was; change it in Settings › Old downloads; not pre-selected, moved to the Trash; each one on its own in the desktop app) |
 | **Logs** | Logs nobody reads | systemd journal (keeps 7 days), rotated logs, oversized live logs (e.g. a 300 MB `syslog`), crash reports, core dumps, old app logs |
 | **User & App Junk** | Your caches | Trash, the Trash on USB and other drives (not pre-selected; each drive on its own in the desktop app), thumbnails, stale caches, and **each browser** and **each app** (VS Code, Slack, Discord, Steam's shader cache, Snap and Flatpak apps) as its own choice |
 | **AI Tools** | AI assistant clutter | caches, logs and *old* sessions of Claude Code, Claude Desktop, Codex, Gemini/Antigravity, Cursor, Windsurf, opencode, Cline, Kilo Code, MiMoCode, ZCode, Zed, Copilot CLI, Continue; data of deleted projects in VS Code, Cursor, Windsurf and VSCodium (`workspaceStorage`, also the Snap and Flatpak builds; not pre-selected, moved to the Trash, skipped while the editor runs; each project on its own in the desktop app) |
@@ -162,8 +162,8 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
 - **System paths are hard-blocked** (`/`, `/usr`, `/etc`, your home folder itself, …), and when it
   runs as root it refuses anything inside a home folder.
 - **Folders you never want touched:** add them in *Settings → Never clean* (both apps). Large & Old
-  Files, Duplicates, Space Lens, stale `node_modules` and project build folders and old installers
-  skip them, and nothing in them is moved to the Trash. Only folders inside your home folder, not
+  Files, Duplicates, Space Lens, stale `node_modules` and project build folders, old installers and old
+  downloads skip them, and nothing in them is moved to the Trash. Only folders inside your home folder, not
   the home folder itself. Smart Scan's caches and logs ignore the list: their apps rebuild them.
 - **Everything is logged** to `~/.local/state/cleanmate/clean.log` (*Settings → Activity log* in both apps).
 
