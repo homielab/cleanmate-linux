@@ -2543,6 +2543,87 @@ $(in_app "urlencode_path '$fv/3.19.0'") $b319 off Flutter 3.19.0" "one entry per
     "Node v14.0.0 Node v18.20.4 Node v22.1.0" "NVM_DIR from the profile"
 }
 
+test_old_pyenv_rbenv_rustup_go_versions() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out pid hold=() f enc
+  local py=$h/.pyenv/versions rb=$h/.rbenv/versions rs=$h/.rustup/toolchains sdk=$h/sdk host=x86_64-unknown-linux-gnu
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  local labels='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["label"], "on" if e["selected"] else "off")
+    elif e["event"] == "item": print(e["note"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"])
+    elif e["event"] == "error": print("error", e["message"])'
+  details() { user_cm --json details old_runtimes | python3 -c "$labels" | LC_ALL=C sort | paste -sd'|' -; }
+  # pyenv: every line of version counts, 3.12 keeps every 3.12.x, a version holding a virtualenv stays
+  for f in 3.12.1 3.12.3 3.11.4 3.10.0 3.9.1 pypy3.10-7.3.15; do sized "$py/$f/bin/python" 1000; done
+  new "$py/3.9.1/envs/work/bin/python"; ln -s "$py/3.9.1/envs/work" "$py/work"
+  printf '# pinned\n3.12 \npypy3.10-7.3.15\n' >"$h/.pyenv/version"; new "$h/.pyenv/shims/python"
+  # rbenv: the first word of the first line, ruby- dropped
+  for f in 3.2.2 3.3.0 3.1.4; do sized "$rb/$f/bin/ruby" 1000; done
+  printf 'ruby-3.3.0 # global\n3.1.4\n' >"$h/.rbenv/version"; new "$h/.rbenv/shims/ruby"
+  # rustup: the default (a short name, no host triple: any host) and the overrides
+  for f in "stable-$host" "beta-$host" "nightly-2024-01-01-$host" "1.70.0-$host"; do sized "$rs/$f/bin/rustc" 1000; done
+  mkdir -p "$WORK/custom-rust"; ln -s "$WORK/custom-rust" "$rs/custom" # rustup toolchain link
+  printf 'version = "12"\ndefault_toolchain = "stable"\nprofile = "default"\n\n[overrides]\n"/home/u/old" = "1.70.0-%s"\n' \
+    "$host" >"$h/.rustup/settings.toml"
+  new "$h/.rustup/downloads/abc.partial"; new "$h/.rustup/update-hashes/stable-$host"
+  # Go: the SDK go env GOROOT reports; a commented profile line names nothing
+  for f in go1.22.0 go1.21.0 go1.20.0; do sized "$sdk/$f/bin/go" 1000; done
+  new "$sdk/notes.txt"; mkdir -p "$sdk/other"
+  mkdir -p "$h/.local/bin"
+  printf '#!/bin/sh\n[ "$1 $2" = "env GOROOT" ] && echo "$HOME/sdk/go1.22.0"\n' >"$h/.local/bin/go"; chmod +x "$h/.local/bin/go"
+  printf '# export PATH=$HOME/sdk/go1.21.0/bin:$PATH\n' >"$h/.bashrc"
+  out=$(details)
+  assert_eq "$out" "Go 1.20.0 off|Go 1.21.0 off|Python 3.10.0 off|Python 3.11.4 off|Ruby 3.1.4 off|Ruby 3.2.2 off|Rust beta-$host off|Rust nightly-2024-01-01-$host off" \
+    "every version but the default, not ticked"
+  # a version a program runs from is skipped, and the scan says so
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  rm "$py/3.11.4/bin/python"; cp "$(command -v sleep)" "$py/3.11.4/bin/python"
+  "${hold[@]}" "$py/3.11.4/bin/python" 60 >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes"' | python3 -c "$labels")
+  assert_eq "$out" "7 versions not your default; skipped while running: Python 3.11.4" "a running version is skipped"
+  enc=$(in_app "urlencode_path '$rs/beta-$host'")
+  out=$(user_cm --json clean old_runtimes --entries "$enc" | python3 -c "$labels")
+  assert_eq "$out" "ok" "one toolchain"
+  assert_missing "$rs/beta-$host"; assert_exists "$rs/nightly-2024-01-01-$host/bin/rustc"
+  out=$(user_cm --json clean old_runtimes | python3 -c "$labels")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" "ok" "the rest"
+  for f in "$py/3.10.0" "$rb/3.2.2" "$rb/3.1.4" "$rs/nightly-2024-01-01-$host" "$sdk/go1.21.0" "$sdk/go1.20.0"; do
+    assert_missing "$f"
+  done
+  for f in "$py/3.11.4/bin/python" "$py/3.12.1/bin/python" "$py/3.12.3/bin/python" "$py/pypy3.10-7.3.15/bin/python" \
+    "$py/3.9.1/envs/work/bin/python" "$py/work" "$h/.pyenv/version" "$h/.pyenv/shims/python" "$rb/3.3.0/bin/ruby" \
+    "$h/.rbenv/version" "$h/.rbenv/shims/ruby" "$rs/stable-$host/bin/rustc" "$rs/1.70.0-$host/bin/rustc" "$rs/custom" \
+    "$h/.rustup/settings.toml" "$h/.rustup/downloads/abc.partial" "$h/.rustup/update-hashes/stable-$host" \
+    "$sdk/go1.22.0/bin/go" "$sdk/notes.txt" "$sdk/other" "$WORK/custom-rust"; do
+    assert_exists "$f"
+  done
+  # a default that can't be told keeps every version of that tool
+  sized "$py/3.8.0/bin/python" 10; sized "$rb/3.0.0/bin/ruby" 10; sized "$rs/beta-$host/bin/rustc" 10; sized "$sdk/go1.19/bin/go" 10
+  printf '3.13\n' >"$h/.pyenv/version"                             # nothing installed matches
+  printf 'profile = "default"\n' >"$h/.rustup/settings.toml"       # rustup default none
+  printf '#!/bin/sh\nexit 1\n' >"$h/.local/bin/go"                  # a go that fails
+  : >"$h/.rbenv/version"
+  assert_eq "$(details)" "" "no default: nothing listed"
+  # system: no pyenv version is the default; PYENV_ROOT from your profile; a Go SDK the profile picks by variable
+  printf 'system\n' >"$h/.pyenv/version"; mv "$h/.pyenv" "$h/pyenv2"; printf 'export PYENV_ROOT="$HOME/pyenv2"\n' >"$h/.profile"
+  rm "$h/.local/bin/go"; printf 'export PATH=$HOME/sdk/$GOVERSION/bin:$PATH\n' >>"$h/.profile"
+  assert_eq "$(details)" "Python 3.11.4 off|Python 3.12.1 off|Python 3.12.3 off|Python 3.8.0 off|Python pypy3.10-7.3.15 off" \
+    "system lists them all, Go keeps every SDK"
+  # the go a profile PATH line names keeps its SDK; no go at all and no SDK named keeps everything
+  printf 'export PATH=$HOME/sdk/go1.19/bin:$PATH\n' >"$h/.profile"
+  assert_eq "$(details)" "Go 1.22.0 off" "the Go SDK on the profile's PATH kept"
+  mkdir -p "$h/.pyenv/versions"; : >"$h/.profile"
+  assert_eq "$(details)" "" "no go command: every Go SDK kept"
+  unset -f details
+}
+
 test_firebase_zcode_mimocode_keep_logins_and_sessions() {
   fresh_home
   local h=$HOME_DIR fb=$HOME_DIR/.cache/firebase out holder

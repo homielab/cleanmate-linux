@@ -2723,14 +2723,20 @@ reg_cache_item pub_cache dev "Dart & Flutter pub cache" 0 \
 $(env_home_paths PUB_CACHE git/cache "$HOME/.pub-cache/git/cache")" "dart|dartaotruntime|flutter"
 
 # Old runtime versions: Node.js versions nvm installed ($NVM_DIR/versions/node/vX.Y.Z), SDKMAN
-# candidates ($SDKMAN_DIR/candidates/<java, gradle…>/<version>) and Flutter versions fvm installed
-# (~/fvm/versions/<version>, $FVM_CACHE_PATH/versions) that aren't your default: nvm's alias/default
-# (followed through alias/lts/… and other aliases; node/stable = the newest), SDKMAN's current, fvm's
-# default (the default link next to versions/), plus the node on PATH and whatever another nvm alias names. A tool whose default can't be
-# told keeps every version. Versions a program runs from (/proc/*/exe, open files) are skipped and
-# the scan says which. Deleted for good (nvm, sdk and fvm install them again); alias/, current,
-# default and .nvmrc are never touched. Not ticked; the desktop app lists each version.
-reg old_runtimes dev "Old Node, SDKMAN & Flutter versions" 0 "Node.js versions nvm installed, SDKMAN candidates (Java, Gradle, Maven…) and Flutter versions fvm installed that aren't your default. Deleted; install one again with nvm, sdk or fvm. A version that is running is skipped."
+# candidates ($SDKMAN_DIR/candidates/<java, gradle…>/<version>), Flutter versions fvm installed
+# (~/fvm/versions/<version>, $FVM_CACHE_PATH/versions), Python versions of pyenv and Ruby versions of
+# rbenv ($PYENV_ROOT|~/.pyenv/versions, $RBENV_ROOT|~/.rbenv/versions), rustup toolchains
+# ($RUSTUP_HOME|~/.rustup/toolchains) and Go SDKs golang.org/dl downloaded (~/sdk/go<version>) that
+# aren't your default: nvm's alias/default (followed through alias/lts/… and other aliases;
+# node/stable = the newest), SDKMAN's current, fvm's default (the default link next to versions/),
+# what pyenv's version file names (every line) and rbenv's (the first), rustup's default_toolchain and
+# overrides in settings.toml, the Go SDK each go command runs from (go env GOROOT) or your profile names,
+# plus the node on PATH, a version your PATH runs from and whatever another nvm alias names; pyenv also
+# keeps a version holding virtualenvs. A tool whose default can't be told keeps every version. Versions
+# a program runs from (/proc/*/exe, open files) are skipped and the scan says which. Deleted for good
+# (the tool installs them again); alias/, current, default, version, settings.toml, shims, downloads and
+# .nvmrc are never touched. Not ticked; the desktop app lists each version.
+reg old_runtimes dev "Old runtime versions" 0 "Node.js (nvm), Python (pyenv), Ruby (rbenv), Rust toolchains (rustup), Go SDKs (~/sdk), SDKMAN candidates (Java, Gradle, Maven…) and Flutter (fvm) versions that aren't your default. Deleted; install one again with the same tool. A version that is running is skipped."
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_old_runtimes='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
 
@@ -2759,8 +2765,119 @@ nvm_version() { # NVM_DIR NAME → the installed version folder name (vX.Y.Z) NA
   printf '%s' "$best" | sort -V | tail -n 1
 }
 
-runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN and fvm that isn't kept
-  local d f c v t keep node
+path_versions() { # FOLDER → names of FOLDER's subfolders a PATH folder (live or from your profile) lies in
+  local base d ds=()
+  base=$(realpath -e -- "$1" 2>/dev/null) || return 0
+  IFS=: read -ra ds <<<"${PATH:-}"
+  mapfile -t -O "${#ds[@]}" ds < <(profile_path_dirs)
+  for d in "${ds[@]}"; do
+    [[ -n $d ]] && d=$(realpath -e -- "$d" 2>/dev/null) && [[ $d == "$base"/* ]] || continue
+    d=${d#"$base"/}
+    printf '%s\n' "${d%%/*}"
+  done
+}
+
+small_text() { # FILE → its text when it is a regular file of at most 64 KB with something in it; fails otherwise
+  local t
+  [[ -f $1 && -r $1 ]] && (($(stat -c %s -- "$1" 2>/dev/null || echo 65537) <= 65536)) || return 1
+  t=$(cat -- "$1" 2>/dev/null) || return 1
+  [[ -n ${t//[[:space:]]/} ]] || return 1
+  printf '%s\n' "$t"
+}
+
+named_versions() { # VERSIONS FILE PREFIX FIRST_ONLY(0|1) → the installed versions a pyenv/rbenv version file keeps
+  # As pyenv and rbenv read it: the first word of each line (rbenv: of the first one), # comments skipped, a
+  # python-/ruby- prefix dropped when no such folder exists, 3.11 keeping every installed 3.11.x, system none.
+  # A name that is a link in VERSIONS (a pyenv-virtualenv env) keeps the version it lives in too. Fails when it
+  # can't be told: no readable file, no version in it, or a name nothing installed matches.
+  local dir=$1 file=$2 prefix=$3 first=$4 text line w name m base t words=() matches=()
+  text=$(small_text "$file") || return 1
+  while IFS= read -r line; do
+    w=${line#"${line%%[![:space:]]*}"} w=${w%%[[:space:]]*}
+    [[ -n $w && $w != \#* ]] && words+=("$w")
+  done <<<"$text"
+  ((first)) && words=("${words[@]:0:1}")
+  ((${#words[@]})) || return 1
+  base=$(realpath -e -- "$dir") || return 1
+  for w in "${words[@]}"; do
+    [[ $w == system ]] && continue
+    [[ $w != . && $w != .. && $w != */* ]] || return 1
+    name=$w
+    [[ ! -e $dir/$w && $w == "$prefix"* ]] && name=${w#"$prefix"}
+    matches=()
+    if [[ -e $dir/$name ]]; then matches=("$name")
+    else
+      for m in "$dir/$name".*; do [[ -e $m ]] && matches+=("${m##*/}"); done
+    fi
+    ((${#matches[@]})) || return 1
+    for m in "${matches[@]}"; do
+      printf '%s\n' "$m"
+      t=$(realpath -e -- "$dir/$m" 2>/dev/null) && [[ $t == "$base"/* ]] && { t=${t#"$base"/}; printf '%s\n' "${t%%/*}"; }
+    done
+  done
+  return 0
+}
+
+rust_kept() { # SETTINGS_TOML → toolchain names rustup keeps: default_toolchain and every [overrides] value, each also
+  # with -<default_host_triple> (stable is installed as stable-x86_64-unknown-linux-gnu), or -* without one (any
+  # host). Fails when it can't be told: no readable file or no default toolchain (rustup default none).
+  local text line section="" key value def="" host="" names=() n
+  local re=$'^("[^"]*"|\'[^\']*\'|[A-Za-z0-9_-]+)[[:space:]]*=[[:space:]]*("([^"]*)"|\'([^\']*)\')[[:space:]]*(#.*)?$'
+  text=$(small_text "$1") || return 1
+  while IFS= read -r line; do
+    line=${line#"${line%%[![:space:]]*}"} line=${line%"${line##*[![:space:]]}"}
+    if [[ $line == \[* ]]; then section=$line; continue; fi
+    [[ $line =~ $re ]] || continue
+    key=${BASH_REMATCH[1]} value=${BASH_REMATCH[3]}${BASH_REMATCH[4]}
+    [[ -n $value ]] || continue
+    [[ $section == "[overrides]" ]] && names+=("$value")
+    [[ -z $section && $key == default_toolchain ]] && def=$value
+    [[ -z $section && $key == default_host_triple ]] && host=$value
+  done <<<"$text"
+  [[ -n $def ]] || return 1
+  for n in "${names[@]}" "$def"; do printf '%s\n%s-%s\n' "$n" "$n" "${host:-*}"; done
+}
+
+rust_keeps() { # KEPT(newline-framed, from rust_kept) NAME — a kept name, or a short one (stable-*) for any host
+  local k
+  [[ $1 == *$'\n'"$2"$'\n'* ]] && return 0
+  while IFS= read -r k; do [[ $k == *-\* && $2 == "${k%\*}"* ]] && return 0; done <<<"$1"
+  return 1
+}
+
+GO_VERSION_RE='^go([0-9]+(\.[0-9]+)*((rc|beta)[0-9]+)?|tip)$' # the folders golang.org/dl downloads to in ~/sdk
+
+go_kept() { # SDK → the SDKs in SDK in use: the one each go command (PATH, your profile's PATH, the usual folders)
+  # runs from or reports as `go env GOROOT`, and every one a line of your profile or Go's env file names
+  # (PATH=$HOME/sdk/go1.21.0/bin, GOROOT=…, alias go=go1.21.0). Fails when it can't be told: a profile line picks
+  # the SDK with a variable ($HOME/sdk/$GOVERSION), a go command that fails, or no go command and no SDK named.
+  local sdk f d g root kept="" found=0 dirs=() gos=$'\n'
+  sdk=$(realpath -e -- "$1") || return 1
+  for f in .profile .bash_profile .bash_login .bashrc .zshenv .zprofile .zshrc .config/fish/config.fish .config/go/env; do
+    [[ -f $HOME/$f && -r $HOME/$f ]] || continue
+    grep -v '^[[:space:]]*#' -- "$HOME/$f" 2>/dev/null | grep -qE 'sdk/(go)?[$`]' && return 1
+    kept+=$(grep -v '^[[:space:]]*#' -- "$HOME/$f" 2>/dev/null | tr -c 'A-Za-z0-9._\n-' '\n' | grep -E "$GO_VERSION_RE")$'\n'
+  done
+  IFS=: read -ra dirs <<<"${PATH:-}"
+  mapfile -t -O "${#dirs[@]}" dirs < <(profile_path_dirs)
+  dirs+=(/usr/local/go/bin "$HOME/go/bin" "$HOME/bin" "$HOME/.local/bin" /usr/lib/go/bin /usr/bin /snap/bin)
+  for d in "${dirs[@]}"; do
+    g=$d/go
+    [[ -n $d && -f $g && -x $g && $gos != *$'\n'"$g"$'\n'* ]] || continue
+    gos+=$g$'\n' found=1
+    for root in "$(realpath -e -- "$g" 2>/dev/null)" \
+      "$(cd / && GOTOOLCHAIN=local GOFLAGS='' timeout 10 "$g" env GOROOT 2>/dev/null)"; do
+      [[ -n $root ]] || return 1 # a go that can't tell where it runs from
+      root=$(realpath -e -- "$root" 2>/dev/null) || continue
+      [[ $root == "$sdk"/* ]] && { root=${root#"$sdk"/}; kept+=${root%%/*}$'\n'; }
+    done
+  done
+  [[ $found == 1 || -n ${kept//$'\n'/} ]] || return 1
+  printf '%s' "$kept"
+}
+
+runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN, fvm, pyenv, rbenv, rustup and ~/sdk that isn't kept
+  local d f c v t n keep node
   # nvm: keep the default, the node on PATH and what any of your own aliases names
   d=$(runtime_dir "$(env_home_dir NVM_DIR)") || d=""
   [[ -n $d ]] || d=$(runtime_dir "$HOME/.nvm")
@@ -2806,6 +2923,43 @@ runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN 
       [[ -d $f && ! -L $f && $v != "$t" ]] && printf 'fvm\tFlutter %s\t%s\n' "$v" "$f"
     done
   done | awk -F '\t' '!seen[$3]++'
+  # pyenv and rbenv: keep what the root's version file names (pyenv: every line) and a version the PATH runs
+  # from; pyenv also keeps a version holding virtualenvs (envs/). Links in versions/ are envs: never listed.
+  for t in pyenv rbenv; do
+    if [[ $t == pyenv ]]; then c=PYENV_ROOT v=Python; else c=RBENV_ROOT v=Ruby; fi
+    d=$(runtime_dir "$(env_home_dir "$c")") || d=""
+    [[ -n $d ]] || d=$(runtime_dir "$HOME/.$t")
+    [[ -n $d && -d $d/versions && ! -L $d/versions ]] || continue
+    if [[ $t == pyenv ]]; then keep=$(named_versions "$d/versions" "$d/version" python- 0) || continue
+    else keep=$(named_versions "$d/versions" "$d/version" ruby- 1) || continue
+    fi
+    keep=$'\n'$keep$'\n'$(path_versions "$d/versions")$'\n'
+    for f in "$d"/versions/*/; do
+      f=${f%/} n=${f##*/}
+      [[ -d $f && ! -L $f && $keep != *$'\n'"$n"$'\n'* ]] || continue
+      [[ $t == pyenv && -d $f/envs ]] && find "$f/envs" -mindepth 1 -maxdepth 1 ! -name '.*' -print -quit 2>/dev/null | grep -q . && continue
+      printf '%s\t%s %s\t%s\n' "$t" "$v" "$n" "$f"
+    done
+  done
+  # rustup: keep the default toolchain and every override in settings.toml, and one the PATH runs from
+  d=$(runtime_dir "$(env_home_dir RUSTUP_HOME)") || d=""
+  [[ -n $d ]] || d=$(runtime_dir "$HOME/.rustup")
+  if [[ -n $d && -d $d/toolchains && ! -L $d/toolchains ]] && keep=$(rust_kept "$d/settings.toml"); then
+    keep=$'\n'$keep$'\n'$(path_versions "$d/toolchains")$'\n'
+    for f in "$d"/toolchains/*/; do
+      f=${f%/} v=${f##*/}
+      [[ -d $f && ! -L $f ]] && ! rust_keeps "$keep" "$v" && printf 'rustup\tRust %s\t%s\n' "$v" "$f"
+    done
+  fi
+  # Go SDKs golang.org/dl downloaded to ~/sdk: keep the ones in use (go_kept)
+  d=$(runtime_dir "$HOME/sdk") || d=""
+  if [[ -n $d ]] && compgen -G "$d/go*" >/dev/null && keep=$(go_kept "$d"); then
+    keep=$'\n'$keep$'\n'
+    for f in "$d"/go*/; do
+      f=${f%/} v=${f##*/}
+      [[ -d $f && ! -L $f && $v =~ $GO_VERSION_RE && $keep != *$'\n'"$v"$'\n'* ]] && printf 'go\tGo %s\t%s\n' "${v#go}" "$f"
+    done
+  fi
   return 0
 }
 
@@ -2826,13 +2980,14 @@ old_runtimes() { # → OR_DIR / OR_BYTES / OR_LABEL of versions to offer, bigges
   done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
 }
 
-runtimes_found() { # nvm, SDKMAN or fvm is there
+runtimes_found() { # nvm, SDKMAN, fvm, pyenv, rbenv, rustup or a Go SDK in ~/sdk is there
   local d
   for d in "$(env_home_dir NVM_DIR)" "$HOME/.nvm" "$(env_home_dir SDKMAN_DIR)" "$HOME/.sdkman" "$HOME/fvm" \
-    "$(env_home_dir FVM_CACHE_PATH)"; do
+    "$(env_home_dir FVM_CACHE_PATH)" "$(env_home_dir PYENV_ROOT)" "$HOME/.pyenv" "$(env_home_dir RBENV_ROOT)" \
+    "$HOME/.rbenv" "$(env_home_dir RUSTUP_HOME)" "$HOME/.rustup"; do
     [[ -n $d && -d $d ]] && return 0
   done
-  return 1
+  compgen -G "$HOME/sdk/go*" >/dev/null
 }
 
 delete_runtimes() { # INDEX… of OR_DIR

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 20:16+0000\n"
+"POT-Creation-Date: 2026-10-30 21:49+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2956,14 +2956,15 @@ msgid ""
 msgstr ""
 
 #. old_runtimes label
-msgid "Old Node, SDKMAN & Flutter versions"
+msgid "Old runtime versions"
 msgstr ""
 
 #. old_runtimes description
 msgid ""
-"Node.js versions nvm installed, SDKMAN candidates (Java, Gradle, Maven…) and "
-"Flutter versions fvm installed that aren't your default. Deleted; install "
-"one again with nvm, sdk or fvm. A version that is running is skipped."
+"Node.js (nvm), Python (pyenv), Ruby (rbenv), Rust toolchains (rustup), Go "
+"SDKs (~/sdk), SDKMAN candidates (Java, Gradle, Maven…) and Flutter (fvm) "
+"versions that aren't your default. Deleted; install one again with the same "
+"tool. A version that is running is skipped."
 msgstr ""
 
 #. android_images label
