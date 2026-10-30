@@ -978,6 +978,14 @@ msgstr ""
 "node_modules, target/ của Cargo, .venv/ của Python và Pods/ của dự án không "
 "được đụng tới trong số ngày này"
 
+#: gui/cleanmate_gui/settings.py:27
+msgid "Old installers"
+msgstr "Bộ cài cũ"
+
+#: gui/cleanmate_gui/settings.py:27
+msgid "Offer installers in Downloads older than this many days"
+msgstr "Gợi ý dọn bộ cài trong Tải về cũ hơn số ngày này"
+
 #: gui/cleanmate_gui/settings.py:25
 msgid "AI chat history"
 msgstr "Lịch sử chat AI"
@@ -2438,3 +2446,10 @@ msgstr "Emulator mà Firebase CLI đã tải (Firestore, Database, Pub/Sub, UI�
 #
 #~ msgid "System Overview and more in the terminal app"
 #~ msgstr "Tổng quan hệ thống và công cụ khác trong app terminal"
+
+#: gui/cleanmate_gui/i18n.py:70
+#, python-brace-format
+msgid ""
+"Downloads folder is outside your home folder ({path}); CleanMate only cleans "
+"inside it"
+msgstr "Thư mục Tải về nằm ngoài thư mục home ({path}); CleanMate chỉ dọn bên trong home"

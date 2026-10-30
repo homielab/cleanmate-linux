@@ -24,10 +24,11 @@ NUMBERS = {
     "node_modules_days": (_("Project build folders"),
                           _("node_modules, Cargo target/, Python .venv/ and Pods/ of projects idle for this "
                             "many days")),
+    "installer_days": (_("Old installers"), _("Offer installers in Downloads older than this many days")),
     "ai_history_days": (_("AI chat history"), _("Clean AI sessions older than this many days")),
 }
 KEEP_FOR = ["journal_days", "journal_mb", "log_max_mb", "app_log_days", "tmp_days", "cache_days",
-            "node_modules_days", "ai_history_days"]
+            "node_modules_days", "installer_days", "ai_history_days"]
 DELAY_MS = 700  # a number is saved this long after its last change
 
 

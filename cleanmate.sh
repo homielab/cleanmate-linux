@@ -1214,7 +1214,8 @@ details_tmp() { tmp_find -printf '%s\t%p\n' | detail_files 30; }
 # no symlinks) last modified more than OLD_INSTALLER_DAYS ago. One still downloading (a .part,
 # .crdownload or .!qB next to it) or open in a program is skipped. They are your files, so cleaning
 # moves them to the Trash; the terminal app's z puts them back. The desktop app lists each file as an entry.
-OLD_INSTALLER_DAYS=30
+# A Downloads folder outside your home folder (or a symlink) is never scanned: the item says so.
+OLD_INSTALLER_DAYS=30 # Settings: installer_days
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_old_installers='^[A-Za-z0-9._~%-]+$' # the file name, percent-encoded (urlencode_path)
 
@@ -1226,10 +1227,14 @@ downloads_dir() { # → your Downloads folder (xdg-user-dir; ~/Downloads when it
   printf '%s' "$d"
 }
 
+downloads_outside() { # DIR → true when your Downloads folder is outside your home folder or a symlink
+  [[ $1 != "$HOME"/* || -L $1 ]]
+}
+
 old_installers() { # → OI_DIR, and OI_NAME / OI_BYTES / OI_DAYS (days since modified) biggest first
   local b m name lower open now
   OI_DIR=$(downloads_dir) OI_NAME=() OI_BYTES=() OI_DAYS=()
-  [[ $OI_DIR == "$HOME"/* && -d $OI_DIR && ! -L $OI_DIR ]] || return 0
+  ! downloads_outside "$OI_DIR" && [[ -d $OI_DIR ]] || return 0
   open=$(open_files)
   printf -v now '%(%s)T' -1
   while IFS=$'\t' read -r -d '' b m name; do
@@ -1257,6 +1262,10 @@ trash_installers() { # NAME… — move these files of OI_DIR to the Trash; @@un
 scan_old_installers() {
   local b
   old_installers
+  if downloads_outside "$OI_DIR"; then
+    SCAN_NOTE="Downloads folder is outside your home folder (${OI_DIR}); CleanMate only cleans inside it"
+    return 2
+  fi
   ((${#OI_NAME[@]})) || return 2
   SCAN_BYTES=0
   for b in "${OI_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
@@ -2980,7 +2989,7 @@ plain_results() {
     ((++i))
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$( ((RES_RC[$id] == 3)) || [[ $id == old_installers && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -4915,9 +4924,9 @@ declare -A CFG=()
 declare -A SETTING_RANGE=(
   [update_check]="0 1 1" [low_disk_pct]="0 50 10" [journal_days]="1 365 7" [journal_mb]="16 10000 100"
   [log_max_mb]="10 100000 50" [app_log_days]="1 365 3" [tmp_days]="1 365 10" [cache_days]="1 365 30"
-  [node_modules_days]="7 3650 90" [ai_history_days]="1 3650 30")
+  [node_modules_days]="7 3650 90" [installer_days]="7 3650 30" [ai_history_days]="1 3650 30")
 SETTING_KEYS=(update_check low_disk_pct journal_days journal_mb log_max_mb app_log_days tmp_days cache_days
-  node_modules_days ai_history_days) # the order of the Settings screens
+  node_modules_days installer_days ai_history_days) # the order of the Settings screens
 
 setting_valid() { # KEY VALUE → a number within the key's range
   local -a r
@@ -4940,6 +4949,7 @@ apply_settings() {
   setting TMP_DAYS tmp_days
   setting CACHE_DAYS cache_days
   setting NM_DAYS node_modules_days
+  setting OLD_INSTALLER_DAYS installer_days
   setting LOW_DISK_PCT low_disk_pct
   setting LOG_MAX_MB log_max_mb
   setting APPLOG_DAYS app_log_days
@@ -4949,6 +4959,7 @@ apply_settings() {
   for _i in "${ITEM_IDS[@]}"; do # keep "older than N days" descriptions in sync
     [[ ${ITEM_CAT[$_i]} == ai ]] && ITEM_DESC[$_i]=${ITEM_DESC[$_i]//older than+([0-9]) days/older than $AI_HISTORY_DAYS days}
   done
+  ITEM_DESC[old_installers]=${ITEM_DESC[old_installers]//more than +([0-9]) days/more than $OLD_INSTALLER_DAYS days}
   ITEM_DESC[big_logs]="Live logs in /var/log over ${LOG_MAX_MB} MB, emptied in place — services keep logging normally."
   ITEM_DESC[app_logs]="Log files of apps (VS Code, Slack, …) not written for ${APPLOG_DAYS}+ days."
   ITEM_LABEL[app_cache]="Stale app caches (>${CACHE_DAYS} days)"
@@ -5241,6 +5252,7 @@ settings_menu() {
     mi a "Temporary files" "Clean when older than ${TMP_DAYS} days"
     mi b "App caches" "Clean when older than ${CACHE_DAYS} days"
     mi c "Project build folders" "Clean when the project is idle for ${NM_DAYS} days"
+    mi i "Old installers" "Offer installers in Downloads older than ${OLD_INSTALLER_DAYS} days"
     mi d "AI chat history" "Clean AI sessions older than ${AI_HISTORY_DAYS} days"
     mh "Your data"
     mi e "Reset selections" "$(plural ${#PREF[@]} "remembered choice") for Smart Scan"
@@ -5270,6 +5282,7 @@ settings_menu() {
       "Temporary files") edit_number tmp_days "Clean temporary files older than how many days?" ;;
       "App caches") edit_number cache_days "Clean app caches older than how many days?" ;;
       "Project build folders") edit_number node_modules_days "Clean build folders of projects idle for how many days?" ;;
+      "Old installers") edit_number installer_days "Offer installers in Downloads older than how many days?" ;;
       "AI chat history") edit_number ai_history_days "Clean AI chat sessions older than how many days?" ;;
       "Reset selections")
         ui_confirm "Forget remembered selections?" "Smart Scan goes back to its default choices." n || continue

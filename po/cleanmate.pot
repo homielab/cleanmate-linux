@@ -989,6 +989,14 @@ msgid ""
 msgstr ""
 
 #: gui/cleanmate_gui/settings.py:27
+msgid "Old installers"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:27
+msgid "Offer installers in Downloads older than this many days"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:27
 msgid "AI chat history"
 msgstr ""
 
@@ -2403,4 +2411,11 @@ msgstr ""
 msgid ""
 "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). "
 "Downloaded again when you start them."
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:70
+#, python-brace-format
+msgid ""
+"Downloads folder is outside your home folder ({path}); CleanMate only cleans "
+"inside it"
 msgstr ""

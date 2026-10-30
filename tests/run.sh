@@ -968,6 +968,33 @@ for l in sys.stdin:
   sized "$HOME_DIR/Tải về/g.flatpakref" 10; touch -d "40 days ago" "$HOME_DIR/Tải về/g.flatpakref"
   out=$(user_cm --json details old_installers | python3 -c "$list")
   assert_eq "$out" "g.flatpakref 10 off g.flatpakref · 40 days old" "the folder xdg-user-dir names"
+  # Settings › Old installers: how old a file has to be
+  sized "$HOME_DIR/Tải về/h.deb" 20; touch -d "10 days ago" "$HOME_DIR/Tải về/h.deb"
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  out=$(user_cm --json settings-set installer_days 6 2>&1); assert_contains "$out" "installer_days must be a number from 7 to 3650"
+  out=$(user_cm --json settings-set installer_days 3651 2>&1); assert_contains "$out" "installer_days must be a number from 7 to 3650"
+  user_cm --json settings-set installer_days 7 >/dev/null
+  out=$(user_cm --json details old_installers | python3 -c "$list")
+  assert_eq "$out" "h.deb 20 off h.deb · 10 days old"$'\n'"g.flatpakref 10 off g.flatpakref · 40 days old" "installer_days 7"
+  assert_contains "$(user_cm --json items)" "downloaded more than 7 days ago"
+  user_cm --json settings-set installer_days 30 >/dev/null
+  out=$(user_cm --json details old_installers | python3 -c "$list")
+  assert_eq "$out" "g.flatpakref 10 off g.flatpakref · 40 days old" "installer_days 30"
+  # a Downloads folder outside the home folder is never scanned; the item says why
+  mkdir -p "$WORK/data/dl"; sized "$WORK/data/dl/x.deb" 30; touch -d "40 days ago" "$WORK/data/dl/x.deb"
+  printf '#!/bin/sh\necho "%s"\n' "$WORK/data/dl" >"$HOME_DIR/.local/bin/xdg-user-dir"
+  out=$(user_cm --json scan --only system | grep '"id":"old_installers"' | python3 -c "$list")
+  assert_eq "$out" "old_installers 0 Downloads folder is outside your home folder ($WORK/data/dl); CleanMate only cleans inside it False True False" \
+    "outside the home folder: a note, nothing listed"
+  out=$(user_cm --json details old_installers 2>&1 | python3 -c "$list")
+  assert_eq "$out" "" "no entries outside the home folder"
+  user_cm --json clean old_installers >/dev/null 2>&1
+  assert_exists "$WORK/data/dl/x.deb"
+  # …and a symlink to it counts as outside
+  ln -s "$WORK/data/dl" "$HOME_DIR/dl-link"
+  printf '#!/bin/sh\necho "%s"\n' "$HOME_DIR/dl-link" >"$HOME_DIR/.local/bin/xdg-user-dir"
+  out=$(user_cm --json scan --only system | grep '"id":"old_installers"' | python3 -c "$list")
+  assert_contains "$out" "Downloads folder is outside your home folder ($HOME_DIR/dl-link)"
 }
 
 test_stale_project_build_folders() {
@@ -1246,6 +1273,7 @@ app_log_days 3 1-365/3
 tmp_days 10 1-365/10
 cache_days 45 1-365/30
 node_modules_days 90 7-3650/90
+installer_days 30 7-3650/30
 ai_history_days 30 1-3650/30
 selections 2
 done true false" "every setting with its range and default; bad values fall back to the default"

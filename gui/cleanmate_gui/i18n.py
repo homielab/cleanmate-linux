@@ -60,8 +60,15 @@ def _lookup(text):
     return None
 
 
+OUTSIDE_HOME = re.compile(r"Downloads folder is outside your home folder \((.*)\); CleanMate only cleans inside it")
+
+
 def item_text(text):
     """A name, description or note from the engine, translated when the catalog has it."""
+    m = OUTSIDE_HOME.fullmatch(text or "")
+    if m:  # the note carries a path, so it can't be a catalog key as it is
+        return _("Downloads folder is outside your home folder ({path}); CleanMate only cleans inside it").format(
+            path=m[1])
     return _lookup(text) or text
 
 
