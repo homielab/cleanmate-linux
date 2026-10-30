@@ -41,7 +41,8 @@ cm() { # run the app non-interactively inside the fake home
   "${AS_USER[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb \
     CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} \
     ${CLEANMATE_APP_DIRS:+CLEANMATE_APP_DIRS=$CLEANMATE_APP_DIRS} \
-    ${CLEANMATE_SYSTEM_AUTOSTART:+CLEANMATE_SYSTEM_AUTOSTART=$CLEANMATE_SYSTEM_AUTOSTART} bash "$SCRIPT" "$@"
+    ${CLEANMATE_SYSTEM_AUTOSTART:+CLEANMATE_SYSTEM_AUTOSTART=$CLEANMATE_SYSTEM_AUTOSTART} \
+    ${CLEANMATE_VOLUME_ROOTS:+CLEANMATE_VOLUME_ROOTS=$CLEANMATE_VOLUME_ROOTS} bash "$SCRIPT" "$@"
 }
 
 # As root, `--json clean` refuses home items (the desktop app elevates only for
@@ -768,6 +769,65 @@ for l in sys.stdin:
   out=$(user_cm --json restore evil | python3 -c "$tasks")
   assert_contains "$out" "fail evil Not in the Trash any more"
   assert_missing "$(dirname "$HOME_DIR")/escaped"; assert_exists "$trash/files/evil"
+}
+
+test_json_trash_on_a_drive() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out key uid=$EUID vol usb f keep
+  ((EUID == 0)) && uid=65534 # user_cm runs as nobody
+  vol=$(mktemp -d -p "$WORK" media.XXXX) # every folder in it counts as a mounted drive
+  usb=$vol/USB
+  f="$usb/Films/big one.mkv" keep=$usb/Films/keep.mkv
+  new "$f"; new "$keep"; new "$vol/RO/sub/disc.iso"; new "$vol/LINK/movie.mkv"; new "$vol/SHARED/a.bin"
+  mkdir -p "$WORK/elsewhere.$uid"; ln -s "$WORK/elsewhere.$uid" "$vol/LINK/.Trash-$uid"
+  mkdir -p "$vol/SHARED/.Trash" && chmod 1777 "$vol/SHARED/.Trash" # an admin's shared Trash (sticky)
+  mkdir -p "$HOME_DIR/.local/bin" # gio would trash elsewhere: here it fails, so only the app's own Trash counts
+  printf '#!/bin/sh\necho "gio could not trash it" >&2\nexit 1\n' >"$HOME_DIR/.local/bin/gio"; chmod +x "$HOME_DIR/.local/bin/gio"
+  ((EUID == 0)) && chown -R 65534:65534 "$vol" "$WORK/elsewhere.$uid" && chown 0:0 "$vol/SHARED/.Trash"
+  chmod 555 "$vol/RO" # read-only drive: no Trash folder can be made there
+  local CLEANMATE_VOLUME_ROOTS=$vol
+  local tasks='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task": print(e["state"], e["trash"] or "-", e["info"])
+    elif e["event"] == "done": print("done", e.get("moved", e.get("restored")), e["failed"])'
+  out=$(user_cm --json --dry-run trash "$f" | python3 -c "$tasks")
+  assert_eq "$out" $'ok - would be moved to the Trash\ndone 1 0' "dry run"
+  assert_exists "$f"; assert_missing "$usb/.Trash-$uid"
+  key=$usb/.Trash-$uid/files/big\ one.mkv
+  out=$(user_cm --json trash "$f" "$vol/RO/sub/disc.iso" "$vol/LINK/movie.mkv" "$vol/SHARED/a.bin" | python3 -c "$tasks")
+  assert_eq "$out" "ok $key moved to the Trash"$'\nfail - gio could not trash it\nfail - gio could not trash it\n'"ok $vol/SHARED/.Trash/$uid/files/a.bin moved to the Trash"$'\ndone 2 2' \
+    "to the drive's own Trash; a read-only drive or a symlinked Trash is left to gio"
+  assert_missing "$f"; assert_exists "$keep"; assert_exists "$key"
+  assert_eq "$(stat -c %a "$usb/.Trash-$uid")" 700 "the drive's Trash is private"
+  assert_eq "$(sed -n 's/^Path=//p' "$usb/.Trash-$uid/info/big one.mkv.trashinfo")" "Films/big%20one.mkv" \
+    "Path= relative to the drive, like GNOME Files"
+  assert_exists "$vol/RO/sub/disc.iso"; assert_missing "$vol/RO/.Trash-$uid"
+  assert_exists "$vol/LINK/movie.mkv"; assert_eq "$(ls -A "$WORK/elsewhere.$uid")" "" "never writes through a symlinked Trash"
+  out=$(cm --json large --min 1 --path "$usb" | python3 -c 'import sys, json
+print(*[e["path"].rsplit("/", 1)[1] for e in map(json.loads, sys.stdin) if e["event"] == "file"])')
+  assert_eq "$out" "keep.mkv" "Large & Old Files skips the drive's Trash"
+  new "$f" # something new took its place: never overwritten
+  out=$(user_cm --json restore "$key" | python3 -c "$tasks")
+  assert_eq "$out" "fail $key A file with this name is already there"$'\ndone 0 1' "restore never overwrites"
+  assert_exists "$key"
+  rm -f "$f"
+  out=$(user_cm --json restore "$key" "$vol/SHARED/.Trash/$uid/files/a.bin" | python3 -c "$tasks")
+  assert_eq "$out" "ok $key put back"$'\n'"ok $vol/SHARED/.Trash/$uid/files/a.bin put back"$'\ndone 2 0' "restore from the drive's Trash"
+  assert_exists "$f"; assert_exists "$vol/SHARED/a.bin"
+  assert_missing "$key"; assert_missing "$usb/.Trash-$uid/info/big one.mkv.trashinfo"
+  # forged keys: outside a drive, through ../, or a Path= that climbs out of the drive
+  mkdir -p "$WORK/.Trash-$uid/files" "$WORK/.Trash-$uid/info"; new "$WORK/.Trash-$uid/files/x"
+  printf '[Trash Info]\nPath=x\nDeletionDate=2026-01-01T00:00:00\n' >"$WORK/.Trash-$uid/info/x.trashinfo"
+  new "$usb/.Trash-$uid/files/evil"
+  printf '[Trash Info]\nPath=../escaped\nDeletionDate=2026-01-01T00:00:00\n' >"$usb/.Trash-$uid/info/evil.trashinfo"
+  ((EUID == 0)) && chown -R 65534:65534 "$vol" "$WORK/.Trash-$uid"
+  out=$(user_cm --json restore "$WORK/.Trash-$uid/files/x" "$usb/.Trash-$uid/files/../../USB/.Trash-$uid/files/evil" \
+    "$usb/.Trash-$uid/files/evil" | python3 -c "$tasks" | cut -d' ' -f1)
+  assert_eq "$out" $'fail\nfail\nfail\ndone' "forged keys are refused"
+  assert_exists "$WORK/.Trash-$uid/files/x"; assert_exists "$usb/.Trash-$uid/files/evil"; assert_missing "$vol/escaped"
+  chmod 755 "$vol/RO" # so the clean-up can remove it
 }
 
 lens_entries() { # reads `--json lens` → "kind count movable name" lines (sizes checked apart), then "done …"

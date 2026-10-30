@@ -81,6 +81,8 @@ Pages live in `gui/cleanmate_gui/scanpage.py` (cleanup), `spacelens.py` (Space L
 deletion logic in the engine: pages only call `--json` commands (see the protocol in `docs/ROADMAP.md`).
 `CLEANMATE_APP_DIRS` (colon-separated) replaces the launcher folders the app list reads, and
 `CLEANMATE_SYSTEM_AUTOSTART` the system's autostart folder (`/etc/xdg/autostart`), for tests.
+`CLEANMATE_VOLUME_ROOTS` (colon-separated) replaces where drives are mounted (`/media/$USER`,
+`/run/media/$USER`, `/mnt`); every folder in it counts as a drive with its own Trash, for tests.
 
 ### Screenshots
 

@@ -702,11 +702,19 @@ empty_dir() { # [--root] DIR — delete the contents of DIR, keep DIR itself
 # ── Trash (freedesktop.org Trash spec, like GNOME Files) ──
 #
 # Files in your home folder are moved into ~/.local/share/Trash by the app
-# itself, so it knows where each one went and can put the last batch back
-# (undo). Anything else goes through `gio trash`. Nothing is ever deleted
-# permanently by these helpers.
+# itself, and files on a drive mounted under /media/$USER (/run/media/$USER) or /mnt into that
+# drive's own Trash ($topdir/.Trash/$uid or $topdir/.Trash-$uid), so it knows
+# where each one went and can put the last batch back (undo) without copying
+# anything across drives. Anything else goes through `gio trash`. Nothing is
+# ever deleted permanently by these helpers.
 
-UNDO_BATCH=() # "<name in Trash><TAB><original path>" of the last trash action
+UNDO_BATCH=() # "<trash key><TAB><original path>" of the last trash action
+# A trash key is the file's name in your Trash, or its full path in a drive's Trash (".../.Trash-1000/files/NAME").
+
+# Drives the desktop mounts for you (udisks) and the classic /mnt. Tests set
+# CLEANMATE_VOLUME_ROOTS (":"-separated); there every folder in a root counts as a drive.
+if [[ -n ${CLEANMATE_VOLUME_ROOTS:-} ]]; then IFS=: read -ra VOLUME_ROOTS <<<"$CLEANMATE_VOLUME_ROOTS"
+else VOLUME_ROOTS=("/media/${USER:-$(id -un)}" "/run/media/${USER:-$(id -un)}" /mnt); fi
 
 urlencode_path() { # PATH → percent-encoded, as the Trash spec wants for Path=
   local LC_ALL=C s=$1 i c out=""
@@ -720,50 +728,137 @@ urlencode_path() { # PATH → percent-encoded, as the Trash spec wants for Path=
   printf '%s' "$out"
 }
 
-trash_put() { # PATH (inside $HOME) → moved to the Trash, recorded for undo
-  local p=$1 base name n=1 files=$TRASH_DIR/files info=$TRASH_DIR/info
-  [[ -e $p || -L $p ]] || return 1
-  if ((DRY_RUN)); then run mv -- "$p" "$files/"; return 0; fi
-  if [[ ! -d $TRASH_DIR ]]; then mkdir -p "$TRASH_DIR" && chmod 700 "$TRASH_DIR" || return 1; fi
-  mkdir -p "$files" "$info" || return 1
+volume_top_ok() { # DIR — DIR is a drive's top folder: right inside a volume root, a real mount point, no symlinks
+  local d=$1 r
+  for r in "${VOLUME_ROOTS[@]}"; do
+    [[ -n $r && $d == "$r"/* && ${d#"$r"/} != */* ]] || continue
+    [[ -d $d && ! -L $d && $(realpath -e -- "$d" 2>/dev/null) == "$d" ]] || return 1
+    [[ -n ${CLEANMATE_VOLUME_ROOTS:-} || $(stat -c %m -- "$d" 2>/dev/null) == "$d" ]]
+    return
+  done
+  return 1
+}
+
+volume_top() { # VAR PATH (absolute, normalised) — the drive PATH is on, when it can use that drive's Trash
+  local -n __vt=$1
+  local __p=$2 __r __top __rest
+  __vt=""
+  for __r in "${VOLUME_ROOTS[@]}"; do
+    [[ -n $__r && $__p == "$__r"/*/* ]] || continue
+    __rest=${__p#"$__r"/} __top=$__r/${__rest%%/*}
+    volume_top_ok "$__top" || return 1
+    case ${__p#"$__top"/} in .Trash | .Trash/* | .Trash-*) return 1 ;; esac # already in a Trash
+    # same file system as the drive, so the move is a rename (nested mounts go through gio)
+    [[ $(stat -c %d -- "$__p" 2>/dev/null) == "$(stat -c %d -- "$__top" 2>/dev/null)" ]] || return 1
+    __vt=$__top
+    return 0
+  done
+  return 1
+}
+
+trash_dir_ok() { # DIR — a Trash folder of yours: a real folder (not a symlink), owned by you, writable
+  [[ -d $1 && ! -L $1 && -O $1 && -w $1 ]]
+}
+
+volume_trash_dir() { # VAR TOP — the drive's Trash for you, created if needed (spec: .Trash/$uid, else .Trash-$uid)
+  local -n __vd=$1
+  local __t
+  __vd=""
+  __t=$2/.Trash
+  if [[ -d $__t && ! -L $__t && -k $__t ]]; then # a shared Trash the admin made (sticky bit)
+    [[ -e $__t/$UID || -L $__t/$UID ]] || mkdir -m 700 -- "$__t/$UID" 2>/dev/null
+    trash_dir_ok "$__t/$UID" && __vd=$__t/$UID
+  fi
+  if [[ -z $__vd ]]; then
+    __t=$2/.Trash-$UID
+    [[ -e $__t || -L $__t ]] || mkdir -m 700 -- "$__t" 2>/dev/null
+    trash_dir_ok "$__t" && __vd=$__t
+  fi
+  [[ -n $__vd ]] || return 1
+  [[ -e $__vd/files || -L $__vd/files ]] || mkdir -m 700 -- "$__vd/files" 2>/dev/null
+  [[ -e $__vd/info || -L $__vd/info ]] || mkdir -m 700 -- "$__vd/info" 2>/dev/null
+  trash_dir_ok "$__vd/files" && trash_dir_ok "$__vd/info"
+}
+
+trash_locate() { # KEY → TL_DIR (Trash folder), TL_NAME, TL_TOP (where its files may go back); 1 if not a valid key
+  local key=$1 dir
+  TL_DIR="" TL_NAME=${key##*/} TL_TOP=""
+  [[ -n $TL_NAME && $TL_NAME != . && $TL_NAME != .. ]] || return 1
+  if [[ $key != */* ]]; then TL_DIR=$TRASH_DIR TL_TOP=$HOME; return 0; fi
+  dir=${key%/*}
+  [[ $dir == */files ]] || return 1
+  dir=${dir%/files}
+  case $dir in
+    */.Trash-"$UID") TL_TOP=${dir%/.Trash-"$UID"} ;;
+    */.Trash/"$UID") TL_TOP=${dir%/.Trash/"$UID"} ;;
+    *) return 1 ;;
+  esac
+  volume_top_ok "$TL_TOP" && trash_dir_ok "$dir" && trash_dir_ok "$dir/files" &&
+    [[ $(realpath -e -- "$dir" 2>/dev/null) == "$dir" ]] || { TL_TOP=""; return 1; }
+  TL_DIR=$dir
+}
+
+trash_into() { # PATH DIR KEY_PREFIX PATH_VALUE — move PATH into the Trash folder DIR, recorded for undo
+  local p=$1 dir=$2 prefix=$3 value=$4 base name n=1 files=$2/files info=$2/info
   base=${p##*/} name=${p##*/}
   while [[ -e $files/$name || -L $files/$name || -e $info/$name.trashinfo ]]; do
     n=$((n + 1)) name="$base.$n"
   done
   # write the .trashinfo first (as the spec asks), then move the file
-  printf '[Trash Info]\nPath=%s\nDeletionDate=%(%Y-%m-%dT%H:%M:%S)T\n' "$(urlencode_path "$p")" -1 \
+  printf '[Trash Info]\nPath=%s\nDeletionDate=%(%Y-%m-%dT%H:%M:%S)T\n' "$(urlencode_path "$value")" -1 \
     >"$info/$name.trashinfo" || return 1
   if mv -- "$p" "$files/$name" 2>/dev/null; then
     log "trash $p"
-    UNDO_BATCH+=("$name"$'\t'"$p")
+    UNDO_BATCH+=("$prefix$name"$'\t'"$p")
     return 0
   fi
   rm -f -- "$info/$name.trashinfo"
   return 1
 }
 
-move_to_trash() { # PATH — never deletes permanently
+trash_put() { # PATH (inside $HOME) → moved to the Trash, recorded for undo
   local p=$1
+  [[ -e $p || -L $p ]] || return 1
+  if ((DRY_RUN)); then run mv -- "$p" "$TRASH_DIR/files/"; return 0; fi
+  if [[ ! -d $TRASH_DIR ]]; then mkdir -p "$TRASH_DIR" && chmod 700 "$TRASH_DIR" || return 1; fi
+  mkdir -p "$TRASH_DIR/files" "$TRASH_DIR/info" || return 1
+  trash_into "$p" "$TRASH_DIR" "" "$p"
+}
+
+volume_trash_put() { # PATH (normalised) TOP → moved to the drive's Trash; 1 if that Trash can't be used
+  local p=$1 top=$2 dir
+  [[ -e $p || -L $p ]] || return 1
+  if ((DRY_RUN)); then run mv -- "$p" "$top/.Trash-$UID/files/"; return 0; fi
+  volume_trash_dir dir "$top" || return 1 # read-only drive or not yours: gio decides
+  # Path= relative to the drive, as the spec suggests for removable media
+  trash_into "$p" "$dir" "$dir/files/" "${p#"$top"/}"
+}
+
+move_to_trash() { # PATH — never deletes permanently
+  local p=$1 np top
   [[ $p == /* ]] || p=$PWD/$p
   if is_protected "$p"; then err "Refusing to touch protected path: $p"; return 1; fi
-  if [[ $p == "$HOME"/* ]]; then trash_put "$p"
-  elif have gio; then run gio trash -- "$p"
+  if [[ $p == "$HOME"/* ]]; then trash_put "$p"; return; fi
+  np=$(realpath -m -s -- "$p")
+  if volume_top top "$np" && volume_trash_put "$np" "$top"; then return 0; fi
+  if have gio; then run gio trash -- "$p"
   else err "Can't move $p to the Trash (it's outside your home folder and gio is missing)"; return 1; fi
 }
 
 undo_trash() { # put the last batch back → UNDO_OK, UNDO_FAILED
-  local e name orig
+  local e orig f
   UNDO_OK=0 UNDO_FAILED=0
   for e in "${UNDO_BATCH[@]}"; do
-    name=${e%%$'\t'*} orig=${e#*$'\t'}
-    if [[ -e $orig || -L $orig || ! (-e $TRASH_DIR/files/$name || -L $TRASH_DIR/files/$name) ]]; then
+    orig=${e#*$'\t'}
+    if ! trash_locate "${e%%$'\t'*}"; then UNDO_FAILED=$((UNDO_FAILED + 1)); continue; fi
+    f=$TL_DIR/files/$TL_NAME
+    if [[ -e $orig || -L $orig || ! (-e $f || -L $f) ]]; then
       UNDO_FAILED=$((UNDO_FAILED + 1)); continue # already back, or emptied from the Trash
     fi
     # -n -T: never replace or move into something that appeared at that path meanwhile;
     # mv -n may exit 0 when it skips, so success = the file left the Trash
-    if mkdir -p -- "${orig%/*}" && mv -n -T -- "$TRASH_DIR/files/$name" "$orig" 2>/dev/null &&
-      [[ ! -e $TRASH_DIR/files/$name && ! -L $TRASH_DIR/files/$name ]]; then
-      rm -f -- "$TRASH_DIR/info/$name.trashinfo"
+    if mkdir -p -- "${orig%/*}" && mv -n -T -- "$f" "$orig" 2>/dev/null && [[ ! -e $f && ! -L $f ]]; then
+      rm -f -- "$TL_DIR/info/$TL_NAME.trashinfo"
       log "restore $orig"
       UNDO_OK=$((UNDO_OK + 1))
     else UNDO_FAILED=$((UNDO_FAILED + 1)); fi
@@ -5084,7 +5179,7 @@ json_main() { # SUBCOMMAND ARGS…
     settings-set) json_settings_set "$@" ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore NAME…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|apps|uninstall [--check] ID…"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|apps|uninstall [--check] ID…"; return 2 ;;
   esac
 }
 
@@ -5226,7 +5321,7 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] — the biggest files fir
   ((days > 0)) && filt+=(-mmin +$((days * 1440)) -amin +$((days * 1440)))
   tmp=$(mktemp -p "$SESSION_TMP") || return 1
   # skip caches (Smart Scan's job), Trash folders and git internals; stay on one file system
-  find "$dir" -xdev \( -type d \( -name .cache -o -name .git -o -name Trash -o -name '.Trash-*' \) \
+  find "$dir" -xdev \( -type d \( -name .cache -o -name .git -o -name Trash -o -name .Trash -o -name '.Trash-*' \) \
     -not -path "$dir" -prune \) -o \( "${filt[@]}" -printf '%s\t%T@\t%A@\t%p\0' \) 2>/dev/null >"$tmp"
   found=$(tr -cd '\0' <"$tmp" | wc -c)
   # only names that are valid UTF-8 without control characters can round-trip through JSON
@@ -5393,26 +5488,29 @@ json_trash() { # [--home-only] PATH… — move these to the Trash; "trash" name
   printf '{"event":"done","moved":%d,"failed":%d,"freed":%d}\n' "$moved" "$failed" "$freed"
 }
 
-json_restore() { # NAME… — put these back from the Trash (names from the "trash" field of `trash`)
+json_restore() { # KEY… — put these back from the Trash (keys from the "trash" field of `trash`)
   ((EUID != 0)) || { json_error "Refusing to restore files as root"; return 2; }
   (($#)) || { json_error "No files given."; return 2; }
-  local name info orig raw ok=0 failed=0
-  for name in "$@"; do
-    info=$TRASH_DIR/info/$name.trashinfo orig=""
-    if [[ -n $name && $name != */* && $name != . && $name != .. && -f $info ]]; then
+  local key info orig raw ok=0 failed=0
+  for key in "$@"; do
+    orig=""
+    if trash_locate "$key" && info=$TL_DIR/info/$TL_NAME.trashinfo && [[ -f $info && ! -L $info ]]; then
       raw=$(sed -n 's/^Path=//p' "$info" | head -n 1)
       urldecode_path orig "$raw"
-      [[ $orig == /* ]] && orig=$(realpath -m -s -- "$orig") # resolve ../ before the home check
+      # a drive's Trash may store the path relative to the drive (the spec allows both)
+      [[ -n $orig && $orig != /* && $TL_DIR != "$TRASH_DIR" ]] && orig=$TL_TOP/$orig
+      [[ $orig == /* ]] && orig=$(realpath -m -s -- "$orig") # resolve ../ before the checks below
     fi
-    if [[ $orig != "$HOME"/* ]] || is_protected "$orig"; then
-      json_file_task "${orig:-$name}" fail "Not in the Trash any more" 0 "$name"; ((++failed)); continue
+    # only back where it can have come from: your home folder, or the same drive (never into a Trash)
+    if [[ -z $TL_TOP || $orig != "$TL_TOP"/* || $orig == "$TL_DIR" || $orig == "$TL_DIR"/* ]] || is_protected "$orig"; then
+      json_file_task "${orig:-$key}" fail "Not in the Trash any more" 0 "$key"; ((++failed)); continue
     fi
-    if ((DRY_RUN)); then json_file_task "$orig" ok "would be put back" 0 "$name"; ((++ok)); continue; fi
-    UNDO_BATCH=("$name"$'\t'"$orig")
+    if ((DRY_RUN)); then json_file_task "$orig" ok "would be put back" 0 "$key"; ((++ok)); continue; fi
+    UNDO_BATCH=("$key"$'\t'"$orig")
     undo_trash
-    if ((UNDO_OK)); then json_file_task "$orig" ok "put back" 0 "$name"; ((++ok))
-    elif [[ -e $orig || -L $orig ]]; then json_file_task "$orig" fail "A file with this name is already there" 0 "$name"; ((++failed))
-    else json_file_task "$orig" fail "Not in the Trash any more" 0 "$name"; ((++failed)); fi
+    if ((UNDO_OK)); then json_file_task "$orig" ok "put back" 0 "$key"; ((++ok))
+    elif [[ -e $orig || -L $orig ]]; then json_file_task "$orig" fail "A file with this name is already there" 0 "$key"; ((++failed))
+    else json_file_task "$orig" fail "Not in the Trash any more" 0 "$key"; ((++failed)); fi
   done
   printf '{"event":"done","restored":%d,"failed":%d}\n' "$ok" "$failed"
 }
@@ -5769,7 +5867,7 @@ For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
                     large [--min BYTES] [--days N] [--path DIR], lens [--path DIR],
                     dupes [--min BYTES] [--path DIR], startup, startup-set ID enable|disable|remove,
-                    trash [--home-only] PATH…, restore NAME…, apps, uninstall [--check] KIND:ID…
+                    trash [--home-only] PATH…, restore KEY…, apps, uninstall [--check] KIND:ID…
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help
 

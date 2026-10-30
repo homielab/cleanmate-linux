@@ -71,7 +71,7 @@ home folder it only shows. **Duplicates** groups identical files (from 1 MB, in 
 pick) and ticks every copy except the newest; you're warned if every copy of a file is ticked.
 **Large & Old Files** lists
 your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
-Trash comes back with **Undo**. **Startup Items** switches the apps and your systemd user services
+Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash). **Startup Items** switches the apps and your systemd user services
 that start at login on or off (the system's own services are only shown); removing one of yours
 moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps and, if you tick
 them, the folders they leave in your home (to the Trash).
