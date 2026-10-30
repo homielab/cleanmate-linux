@@ -1228,6 +1228,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     ((EUID == 0)) || assert_contains "$out" "turning automatic cleaning on enables the weekly timer"
     assert_contains "$out" "unticking one: the item box is half-ticked and the size shows selected / total"
     ((EUID == 0)) || assert_contains "$out" "Clean removes only the ticked image"
+    assert_contains "$out" "a missing tool locks the row with why"
+    ((EUID == 0)) || assert_contains "$out" "Rebuild font cache runs as you; the log shows its output, then done"
+    assert_contains "$out" "Update everything asks for the password once"
     assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
     if [[ $lang == vi* ]]; then assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"; fi
   done
@@ -1625,6 +1628,77 @@ test_update_preview_lists_pending_updates() {
   assert_contains "$out" $'snap\tthunderbird\t128.3'
   assert_contains "$out" $'flatpak\torg.gimp.GIMP\t2.10.38'
   assert_contains "$out" $'flatpak\torg.gnome.Platform\tnew build'
+}
+
+test_json_maintenance() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/maintbin out ev list
+  mkdir -p "$bin"
+  printf '#!/bin/sh\n[ "$1" = -n ] && shift\nexec "$@"\n' >"$bin/sudo" # credentials cached
+  printf '#!/bin/sh\necho "fstrim $*" >>"$HOME/ran.log"\nprintf "/boot/efi: 0 B (0 bytes) trimmed on /dev/sda1\\n\\n/: 2 GiB (2147483648 bytes) trimmed on /dev/sda2\\n"\n' >"$bin/fstrim"
+  printf '#!/bin/sh\necho "fc-cache $*" >>"$HOME/ran.log"\nprintf "step 1\\rstep 2\\nfonts cached\\n"\n' >"$bin/fc-cache"
+  printf '#!/bin/sh\necho "apt-get $*" >>"$HOME/ran.log"\n' >"$bin/apt-get"
+  printf '#!/bin/sh\necho "flatpak $*" >>"$HOME/ran.log"\n' >"$bin/flatpak"
+  chmod +x "$bin"/*
+  local BASE_PATH="$bin:$BASE_PATH"
+  list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "maint":
+        print(e["id"], e["available"], e["root"], e["user"], e["toggle"], e["on"], e["value"] or "-", e["target"] or "-", e["reason"] or "-")
+    else: print(e["event"])'
+  out=$(in_app 'have() { case $1 in snap|updatedb) return 1 ;; esac; return 0; }; JOURNAL_KEEP_MB=100
+    JOURNALD_DROPIN=$HOME/j.conf; printf "[Journal]\nSystemMaxUse=150M\n" >"$JOURNALD_DROPIN"; json_main maintenance' | python3 -c "$list")
+  assert_eq "$out" "update True True True False False - - -
+repair True True False False False - - -
+flatpak_unused True False True False False - - -
+fstrim True True False False False - - -
+free_ram True True False False False - - -
+fonts True False True False False - - -
+locate False True False False False - - locate/plocate is not installed.
+snap_versions False True False True False - 2 Snap is not installed.
+journal_limit True True False True True 150 100 -
+done" "nine items with what they need, their state and why one is locked"
+  ev='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task" and e["state"] != "run": print(e["id"], e["state"], e["info"])
+    elif e["event"] == "log": print("log", e["line"])
+    elif e["event"] == "error": print("error", e["message"])
+    elif e["event"] == "done": print("done", e["ok"], e["failed"], e["skipped"])'
+  out=$(cm --json maintain fstrim | python3 -c "$ev")
+  assert_eq "$out" "log /boot/efi: 0 B (0 bytes) trimmed on /dev/sda1
+log /: 2 GiB (2147483648 bytes) trimmed on /dev/sda2
+fstrim ok 2 filesystems trimmed
+done 1 0 0" "TRIM streams its output, then the result"
+  assert_contains "$(cat "$HOME_DIR/ran.log")" "fstrim -av"
+  out=$(cm --json --dry-run maintain update | python3 -c "$ev")
+  assert_contains "$out" "[dry-run]"
+  assert_contains "$out" "apt-get update"
+  assert_contains "$out" "apt_upgrade ok would run"
+  if ((EUID == 0)); then
+    [[ $out != *flatpak* ]] && ok_ "as root, update skips the flatpak step" || fail "flatpak update should run as you"
+  else
+    assert_contains "$out" "flatpak_update ok would run"
+  fi
+  assert_eq "$(grep -c apt-get "$HOME_DIR/ran.log")" "0" "dry run runs nothing"
+  out=$(user_cm --json maintain update --user-steps | python3 -c "$ev")
+  assert_eq "$out" $'flatpak_update ok done\ndone 1 0 0' "--user-steps runs only the steps that don't need root"
+  out=$(user_cm --json maintain fonts | python3 -c "$ev")
+  assert_eq "$out" $'log step 2\nlog fonts cached\nfc_cache ok done\ndone 1 0 0' "font cache rebuilt as you; a progress line keeps its last part"
+  assert_contains "$(cat "$HOME_DIR/ran.log")" "fc-cache -f"
+  if ((EUID == 0)); then
+    out=$(cm --json maintain fonts | python3 -c "$ev"); assert_eq "$out" "error Rebuild font cache runs as you, not as root" "user-only item refused as root"
+  fi
+  out=$(cm --json maintain journal_limit | python3 -c "$ev"); assert_eq "$out" "error journal_limit needs on or off" "a limit needs on or off"
+  out=$(cm --json maintain fstrim on | python3 -c "$ev"); assert_eq "$out" "error fstrim has no on or off" "only limits switch"
+  out=$(cm --json maintain nope | python3 -c "$ev"); assert_eq "$out" "error Unknown maintenance item: nope" "unknown item"
+  out=$(in_app 'have() { [[ $1 != updatedb ]]; }; json_main maintain locate' | python3 -c "$ev")
+  assert_eq "$out" "error locate/plocate is not installed." "a missing tool is refused"
+  out=$(in_app 'have() { return 0; }; DRY_RUN=1 JOURNAL_KEEP_MB=120 SESSION_TMP=$(mktemp -d); json_main maintain journal_limit on; rm -r "$SESSION_TMP"' | python3 -c "$ev")
+  assert_contains "$out" "SystemMaxUse=%sM"
+  assert_contains "$out" "journal_cap ok would run"
 }
 
 # ── runner ───────────────────────────────────────────────────────────────────

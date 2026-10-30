@@ -795,7 +795,7 @@ def docker_entries_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        maintenance_test(win, report, wait, finish)
 
     def scanned():
         row = page.checks.get("docker_dangling")
@@ -833,6 +833,94 @@ def docker_entries_test(win, report, wait, finish):
     page.scan()
     wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,
          "Developer Junk scan")
+
+
+MAINT_STUBS = {  # tools of Update everything and Rebuild font cache; each logs what it was asked to do
+    "fc-cache": '#!/bin/sh\necho "fc-cache $*" >>"$HOME/ran.log"\necho "fonts cached"\n',
+    "apt-get": '#!/bin/sh\necho "apt-get $*" >>"$HOME/ran.log"\necho "apt-get $1 output"\n',
+    "snap": '#!/bin/sh\n[ "$1" = get ] && exit 0\necho "snap $*" >>"$HOME/ran.log"\n',
+    "flatpak": '#!/bin/sh\necho "flatpak $*" >>"$HOME/ran.log"\n',
+    "sudo": '#!/bin/sh\n[ "$1" = -n ] && shift\nexec "$@"\n',  # credentials cached
+    "pkexec": '#!/bin/sh\necho "pkexec $*" >>"$HOME/pkexec.log"\nexec "$@"\n',  # the password was right
+}
+
+
+def maintenance_test(win, report, wait, finish):
+    """Maintenance with stub tools in a throwaway home: a missing tool locks its row, Rebuild font cache runs
+    as you with its output in the log dialog, Update everything asks for the password once."""
+    from .engine import Engine
+    from .maintenance import MISSING
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
+    for d in (home, bin_dir):
+        os.makedirs(d)
+    for name, text in MAINT_STUBS.items():
+        with open(os.path.join(bin_dir, name), "w") as f:
+            f.write(text)
+        os.chmod(os.path.join(bin_dir, name), 0o755)
+    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+           "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+
+    def read(name):
+        path = os.path.join(home, name)
+        return open(path).read() if os.path.exists(path) else ""
+
+    win.show_page("maintenance")
+    page = win.pages["maintenance"]
+    real_engine = page.engine
+
+    def idle():
+        return not page.busy
+
+    def done():
+        if page.log:
+            page.log.close()
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def first():
+        report(len(page.rows) == 9, f"Maintenance lists the terminal app's 9 tasks: {sorted(page.rows)}")
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.load()
+        wait(idle, listed, 60, "maintenance list")
+
+    def listed():
+        items = [dict(m) for m in page.items.values()]
+        report(all(page.controls[m["id"]].get_sensitive() == m["available"] for m in items),
+               "only items whose tool is installed can run")
+        for m in items:
+            if m["id"] == "locate":
+                m.update(available=False, reason="locate/plocate is not installed.")
+        page.show_results(items)
+        report(not page.controls["locate"].get_sensitive()
+               and page.rows["locate"].get_subtitle() == MISSING["locate"], "a missing tool locks the row with why")
+        page.start(page.items["fonts"])
+        wait(idle, fonts_done, 60, "Rebuild font cache")
+
+    def fonts_done():
+        title = _("Rebuild font cache")
+        if os.geteuid() == 0:
+            report("runs as you" in page.log.text(), "as root the engine refuses the font cache")
+        else:
+            report("fonts cached" in page.log.text() and "fc-cache -f" in read("ran.log")
+                   and page.log.status.get_text() == _("{title}: done").format(title=title)
+                   and page.log.get_can_close() and not read("pkexec.log"),
+                   "Rebuild font cache runs as you; the log shows its output, then done")
+        page.log.close()
+        page.start(page.items["update"])  # the confirmation itself needs a click
+        wait(idle, updated, 60, "Update everything")
+
+    def updated():
+        calls = read("pkexec.log").splitlines()
+        ran = read("ran.log")
+        flatpak = os.geteuid() == 0 or "flatpak update -y --noninteractive" in ran
+        report(len(calls) == 1 and "maintain update" in calls[0] and "apt-get update" in ran and "apt-get upgrade -y" in ran
+               and flatpak and "apt-get update output" in page.log.text(),
+               f"Update everything asks for the password once, then runs your flatpak part: {calls}")
+        wait(idle, done, 30, "list after updating")
+
+    wait(idle, first, 60, "first maintenance list")
 
 
 def show_scene_page(win, page_id):

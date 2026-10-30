@@ -3951,61 +3951,94 @@ m_journal_cap() { # writes a journald drop-in; journald applies it on restart
 }
 m_journal_uncap() { run_root sh -c 'rm -f -- "$1" "$2" && systemctl restart systemd-journald' sh "$JOURNALD_DROPIN" "$LEGACY_JOURNALD_DROPIN"; }
 
+# The nine items, shared by the terminal menu and `--json maintenance|maintain`.
+MAINT_IDS=(update repair flatpak_unused fstrim free_ram fonts locate snap_versions journal_limit)
+declare -A MAINT_LABEL=([update]="Update everything" [repair]="Repair packages" [flatpak_unused]="Unused Flatpak runtimes"
+  [fstrim]="TRIM SSDs" [free_ram]="Free up RAM" [fonts]="Rebuild font cache" [locate]="Update locate database"
+  [snap_versions]="Keep fewer snap versions" [journal_limit]="Limit journal size")
+declare -A MAINT_DESC=([update]="Upgrade apt, snap and flatpak packages"
+  [repair]="Finish interrupted installs, fix broken dependencies" [flatpak_unused]="Remove runtimes no installed app uses"
+  [fstrim]="Tell SSDs which blocks are free (fstrim)" [free_ram]="Drop the page cache — Linux reclaims it anyway"
+  [fonts]="Fix missing or stale fonts (fc-cache)" [locate]="Refresh the index used by locate"
+  [snap_versions]="Keep 2 versions of each snap instead of 3" [journal_limit]="Never let system logs grow past a size")
+MAINT_USER_STEPS=" m_flatpak_update m_flatpak_unused m_fc_cache " # run as you; every other step needs root
+
+maint_user_step() { [[ $MAINT_USER_STEPS == *" $1 "* ]]; }
+
+maint_missing() { # ID → 0 and MAINT_WHY when the item's tool isn't on this system
+  MAINT_WHY=""
+  case $1 in
+    update) have apt-get || MAINT_WHY="apt isn't available on this system." ;;
+    repair) { have dpkg && have apt-get; } || MAINT_WHY="apt isn't available on this system." ;;
+    flatpak_unused) have flatpak || MAINT_WHY="Flatpak is not installed." ;;
+    fstrim) have fstrim || MAINT_WHY="fstrim is not installed." ;;
+    fonts) have fc-cache || MAINT_WHY="fontconfig (fc-cache) is not installed." ;;
+    locate) have updatedb || MAINT_WHY="locate/plocate is not installed." ;;
+    snap_versions) have snap || MAINT_WHY="Snap is not installed." ;;
+    journal_limit) have journalctl || MAINT_WHY="This system doesn't use the systemd journal." ;;
+  esac
+  [[ -n $MAINT_WHY ]]
+}
+
+maint_tasks() { # ID [on|off] → add_task for each step; on|off for the two lasting limits (default on)
+  case $1 in
+    update)
+      add_task "Refresh package lists" m_apt_update
+      add_task "Upgrade apt packages" m_apt_upgrade
+      have snap && add_task "Refresh snaps" m_snap_refresh
+      have flatpak && add_task "Update flatpaks" m_flatpak_update ;;
+    repair) add_task "Configure unpacked packages" m_dpkg_configure; add_task "Fix broken dependencies" m_apt_fix ;;
+    flatpak_unused) add_task "Remove unused Flatpak runtimes" m_flatpak_unused ;;
+    fstrim) add_task "TRIM mounted filesystems" m_fstrim ;;
+    free_ram) add_task "Drop page cache" m_drop_caches ;;
+    fonts) add_task "Rebuild font cache" m_fc_cache ;;
+    locate) add_task "Update locate database" m_updatedb ;;
+    snap_versions)
+      if [[ ${2:-on} == off ]]; then add_task "Use the default number of snap versions" m_snap_unretain
+      else add_task "Keep 2 versions of each snap" m_snap_retain; fi ;;
+    journal_limit)
+      if [[ ${2:-on} == off ]]; then add_task "Remove journal size limit" m_journal_uncap
+      else add_task "Limit journal to ${JOURNAL_KEEP_MB} MB" m_journal_cap; fi ;;
+  esac
+}
+
 maintenance_menu() {
-  local root=1
+  local root id mode fn
   while :; do
     local retain cap
     retain=$(have snap && snap_retain) cap=$(journal_cap)
-    M_KEY=(1 2 3 4 5 6 7 8 9)
-    M_LABEL=("Update everything" "Repair packages" "Unused Flatpak runtimes" "TRIM SSDs" "Free up RAM"
-      "Rebuild font cache" "Update locate database" "Keep fewer snap versions" "Limit journal size")
-    M_DESC=("Upgrade apt, snap and flatpak packages" "Finish interrupted installs, fix broken dependencies"
-      "Remove runtimes no installed app uses" "Tell SSDs which blocks are free (fstrim)"
-      "Drop the page cache — Linux reclaims it anyway" "Fix missing or stale fonts (fc-cache)"
-      "Refresh the index used by locate"
-      "$([[ $retain == 2 ]] && echo "On: 2 versions per snap — choose to go back to the default" || echo "Keep 2 versions of each snap instead of 3${retain:+ (now: $retain)}")"
-      "$([[ -n $cap ]] && echo "On: at most $cap MB — choose to change or remove" || echo "Never let system logs grow past ${JOURNAL_KEEP_MB} MB (Settings → Journal size limit)")")
+    M_KEY=(1 2 3 4 5 6 7 8 9) M_LABEL=() M_DESC=()
+    for id in "${MAINT_IDS[@]}"; do M_LABEL+=("${MAINT_LABEL[$id]}") M_DESC+=("${MAINT_DESC[$id]}"); done
+    M_DESC[7]="$([[ $retain == 2 ]] && echo "On: 2 versions per snap — choose to go back to the default" || echo "Keep 2 versions of each snap instead of 3${retain:+ (now: $retain)}")"
+    M_DESC[8]="$([[ -n $cap ]] && echo "On: at most $cap MB — choose to change or remove" || echo "Never let system logs grow past ${JOURNAL_KEEP_MB} MB (Settings → Journal size limit)")"
     ui_menu "Maintenance" || return
-    new_tasks
-    root=1
-    case $MENU_IDX in
-      0)
-        update_preview || continue
-        add_task "Refresh package lists" m_apt_update
-        add_task "Upgrade apt packages" m_apt_upgrade
-        have snap && add_task "Refresh snaps" m_snap_refresh
-        have flatpak && add_task "Update flatpaks" m_flatpak_update ;;
-      1) add_task "Configure unpacked packages" m_dpkg_configure; add_task "Fix broken dependencies" m_apt_fix ;;
-      2)
-        have flatpak || { toast "${YELLOW}!${NC} Flatpak is not installed."; continue; }
-        add_task "Remove unused Flatpak runtimes" m_flatpak_unused; root=0 ;;
-      3) add_task "TRIM mounted filesystems" m_fstrim ;;
-      4) add_task "Drop page cache" m_drop_caches ;;
-      5) add_task "Rebuild font cache" m_fc_cache; root=0 ;;
-      6)
-        have updatedb || { toast "${YELLOW}!${NC} locate/plocate is not installed."; continue; }
-        add_task "Update locate database" m_updatedb ;;
-      7)
-        have snap || { toast "${YELLOW}!${NC} Snap is not installed."; continue; }
+    id=${MAINT_IDS[MENU_IDX]} mode=""
+    if maint_missing "$id"; then toast "${YELLOW}!${NC} $MAINT_WHY"; continue; fi
+    case $id in
+      update) update_preview || continue ;;
+      snap_versions)
         if [[ $retain == 2 ]]; then
           ui_confirm "Go back to snapd's default?" "Snap keeps its usual number of old versions again (3 on most systems)." n || continue
-          add_task "Use the default number of snap versions" m_snap_unretain
+          mode=off
         else
           ui_confirm "Keep only 2 versions of each snap?" \
             "The running version and one to roll back to. Snap removes the extra ones itself at each refresh." y || continue
-          add_task "Keep 2 versions of each snap" m_snap_retain
+          mode=on
         fi ;;
-      8)
-        have journalctl || { toast "${YELLOW}!${NC} This system doesn't use the systemd journal."; continue; }
+      journal_limit)
         if [[ -n $cap && $cap == "$JOURNAL_KEEP_MB" ]]; then
           ui_confirm "Remove the journal size limit?" "systemd goes back to its default (up to 10% of the disk, at most 4 GB)." n || continue
-          add_task "Remove journal size limit" m_journal_uncap
+          mode=off
         else
           ui_confirm "Limit system logs to ${JOURNAL_KEEP_MB} MB?" \
             "journald deletes its oldest logs to stay under the limit. Change the number in Settings → Journal size limit." y || continue
-          add_task "Limit journal to ${JOURNAL_KEEP_MB} MB" m_journal_cap
+          mode=on
         fi ;;
     esac
+    new_tasks
+    maint_tasks "$id" "$mode"
+    root=0
+    for fn in "${T_FN[@]}"; do maint_user_step "$fn" || root=1; done
     ((root)) && { ensure_sudo "${M_LABEL[MENU_IDX]} needs administrator rights." || continue; }
     run_tasks "${M_LABEL[MENU_IDX]}"
     refresh_sysinfo
@@ -5079,7 +5112,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|settings|settings-set|apps|uninstall …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|settings|settings-set|apps|uninstall|maintenance|maintain …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -5179,7 +5212,9 @@ json_main() { # SUBCOMMAND ARGS…
     settings-set) json_settings_set "$@" ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|apps|uninstall [--check] ID…"; return 2 ;;
+    maintenance) json_maintenance ;;
+    maintain) json_maintain "$@" ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|apps|uninstall [--check] ID…|maintenance|maintain ID [on|off] [--user-steps]"; return 2 ;;
   esac
 }
 
@@ -5786,6 +5821,96 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
     fi
   done
   printf '{"event":"done","removed":%d,"failed":%d}\n' "$gone" "$failed"
+}
+
+# Maintenance: `maintenance` lists the items with their state, `maintain ID` runs
+# one, streaming each step ("task") and its output ("log"). Steps that need root
+# run when the engine is root (pkexec); the others only as you — the desktop app
+# runs an item in two parts when it has both (`--user-steps` = only yours).
+
+json_maint_item() { # ID → one "maint" event
+  local id=$1 fn label desc why root=false user=false toggle=false on=false value="" target=""
+  maint_missing "$id"
+  json_str why "$MAINT_WHY"; json_str label "${MAINT_LABEL[$id]}"; json_str desc "${MAINT_DESC[$id]}"
+  new_tasks; maint_tasks "$id" on
+  for fn in "${T_FN[@]}"; do if maint_user_step "$fn"; then user=true; else root=true; fi; done
+  case $id in
+    snap_versions) toggle=true target=2; [[ -z $MAINT_WHY ]] && value=$(snap_retain); [[ $value == 2 ]] && on=true ;;
+    journal_limit) toggle=true target=$JOURNAL_KEEP_MB value=$(journal_cap); [[ -n $value ]] && on=true ;;
+  esac
+  value=${value//[^0-9]/}
+  printf '{"event":"maint","id":"%s","label":%s,"description":%s,"available":%s,"reason":%s,"root":%s,"user":%s,"toggle":%s,"on":%s,"value":"%s","target":"%s"}\n' \
+    "$id" "$label" "$desc" "$([[ -z $MAINT_WHY ]] && echo true || echo false)" "$why" "$root" "$user" "$toggle" "$on" "$value" "$target"
+}
+
+json_maintenance() {
+  local id
+  for id in "${MAINT_IDS[@]}"; do json_maint_item "$id"; done
+  printf '{"event":"done"}\n'
+}
+
+json_log_lines() { # stdin → one "log" event per non-empty line (a progress line keeps its last \r part)
+  local l
+  while IFS= read -r l || [[ -n $l ]]; do
+    l=${l%$'\r'}; l=${l##*$'\r'}
+    [[ -n ${l//[[:space:]]/} ]] || continue
+    json_str l "$l"
+    printf '{"event":"log","line":%s}\n' "$l"
+  done
+}
+
+json_step() { # INDEX STATE INFO → one "task" event about a step of T_FN
+  local label info
+  json_str label "${T_LABEL[$1]}"; json_str info "${3:-}"
+  printf '{"event":"task","id":"%s","label":%s,"state":"%s","info":%s}\n' "${T_FN[$1]#m_}" "$label" "$2" "$info"
+}
+
+json_maintain() { # ID [on|off] [--user-steps]
+  local id=${1:-} a mode="" user_only=0 i fn out rc n_ok=0 n_fail=0 n_skip=0
+  local -a steps=()
+  shift || true
+  [[ -n ${MAINT_LABEL[$id]:-} ]] || { json_error "Unknown maintenance item: $id"; return 2; }
+  for a in "$@"; do
+    case $a in
+      on | off) mode=$a ;;
+      --user-steps) user_only=1 ;;
+      *) json_error "Unknown option: $a"; return 2 ;;
+    esac
+  done
+  if [[ $id == @(snap_versions|journal_limit) ]]; then
+    [[ -n $mode ]] || { json_error "$id needs on or off"; return 2; }
+  elif [[ -n $mode ]]; then json_error "$id has no on or off"; return 2; fi
+  if maint_missing "$id"; then json_error "$MAINT_WHY"; return 2; fi
+  new_tasks
+  maint_tasks "$id" "$mode"
+  for i in "${!T_FN[@]}"; do
+    if maint_user_step "${T_FN[i]}"; then ((EUID == 0)) || steps+=("$i")
+    elif ((!user_only)); then steps+=("$i"); fi
+  done
+  if ((${#steps[@]} == 0 && EUID == 0)); then json_error "${MAINT_LABEL[$id]} runs as you, not as root"; return 2; fi
+  T_STATE=() T_INFO=()
+  for i in "${steps[@]}"; do
+    fn=${T_FN[i]} T_INFO[i]=""
+    json_step "$i" run
+    if declare -F "${fn}_pre" >/dev/null && ! "${fn}_pre" "${T_ARG[i]}"; then
+      json_step "$i" skip "skipped"; ((++n_skip)); continue
+    fi
+    out=$(mktemp -p "$SESSION_TMP")
+    "$fn" "${T_ARG[i]}" </dev/null 2>&1 | tee "$out" | json_log_lines
+    rc=${PIPESTATUS[0]}
+    ((rc == 0)) || T_INFO[i]="failed (exit $rc)"
+    declare -F "${fn}_post" >/dev/null && "${fn}_post" "${T_ARG[i]}" "$rc" "$i" "$out"
+    if ((rc == 0)); then
+      [[ -n ${T_INFO[i]} ]] || T_INFO[i]=$( ((DRY_RUN)) && echo "would run" || echo "done")
+      json_step "$i" ok "${T_INFO[i]}"; ((++n_ok))
+    else
+      json_step "$i" fail "${T_INFO[i]}"; ((++n_fail))
+      log "json maintain $id: ${T_LABEL[i]} failed (exit $rc)"
+    fi
+    rm -f "$out"
+  done
+  log "GUI maintenance $id finished — $n_ok ok, $n_fail failed, $n_skip skipped (dry-run=$DRY_RUN)"
+  printf '{"event":"done","ok":%d,"failed":%d,"skipped":%d}\n' "$n_ok" "$n_fail" "$n_skip"
 }
 
 # ───────────────────────────── desktop app ──────────────────────────────────

@@ -9,6 +9,7 @@ from .duplicates import DuplicatesPage
 from .engine import SMART_SCAN, Selection, human
 from .i18n import _
 from .largefiles import LargeFilesPage
+from .maintenance import MaintenancePage
 from .scanpage import ScanPage
 from .settings import SettingsPage
 from .spacelens import SpaceLensPage
@@ -16,7 +17,8 @@ from .startup import StartupPage
 from .uninstaller import UninstallerPage
 
 TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "dupes": DuplicatesPage,
-              "uninstall": UninstallerPage, "startup": StartupPage}  # pages with their own engine commands
+              "uninstall": UninstallerPage, "startup": StartupPage,
+              "maintenance": MaintenancePage}  # pages with their own engine commands
 
 # (id, title, icon, categories, description) — same order as the terminal app's menu
 PAGES = [
@@ -49,6 +51,9 @@ PAGES = [
      _("Remove apps from apt, Snap and Flatpak, and the folders they leave in your home.")),
     ("startup", _("Startup Items"), "system-reboot-symbolic", None,
      _("Choose which apps and services start when you log in.")),
+    ("maintenance", _("Maintenance"), "emblem-system-symbolic", None,
+     _("Update everything, repair packages, TRIM, rebuild caches, and keep snap versions and system logs "
+       "from piling up again.")),
 ]
 REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
@@ -78,8 +83,7 @@ class Window(Adw.ApplicationWindow):
         more = Gtk.Box(spacing=12)
         more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
         more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
-        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Maintenance, System Overview… "
-                                                            "in the terminal app"))
+        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("System Overview and more in the terminal app"))
         more_row.page_id = "terminal"
         self.sidebar_list.append(more_row)
         self.sidebar_list.connect("row-activated", self._on_row_activated)

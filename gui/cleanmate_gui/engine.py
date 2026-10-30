@@ -6,6 +6,7 @@ the window never freezes.
 """
 import json
 import os
+import shutil
 
 from gi.repository import Gio, GLib
 
@@ -57,8 +58,8 @@ class Engine:
         through pkexec (the standard Ubuntu password dialog).
         """
         argv = ["bash", self.path, "--json"]
-        if as_root:
-            argv = ["pkexec", self.path, "--json"]
+        if as_root:  # pkexec from the engine's PATH (the self-test's stub), else the system's
+            argv = [shutil.which("pkexec", path=self.env.get("PATH")) or "pkexec", self.path, "--json"]
         if self.dry_run:
             argv.append("--dry-run")
         argv += list(args)
@@ -149,6 +150,14 @@ class Engine:
 
     def uninstall(self, ids, on_event, on_done, check=False, as_root=False):
         return self.run(["uninstall", *(["--check"] if check else []), *ids], on_event, on_done, as_root=as_root)
+
+    def maintenance(self, on_event, on_done):
+        return self.run(["maintenance"], on_event, on_done)
+
+    def maintain(self, item_id, on_event, on_done, mode=None, user_steps=False, as_root=False):
+        """Run one maintenance item; mode on/off for the lasting limits, user_steps = only the steps run as you."""
+        extra = ([mode] if mode else []) + (["--user-steps"] if user_steps else [])
+        return self.run(["maintain", item_id, *extra], on_event, on_done, as_root=as_root)
 
     def version(self):
         try:

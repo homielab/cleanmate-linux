@@ -74,7 +74,10 @@ your biggest files (by minimum size, how long unused, and folder or drive); what
 Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash). **Startup Items** switches the apps and your systemd user services
 that start at login on or off (the system's own services are only shown); removing one of yours
 moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps and, if you tick
-them, the folders they leave in your home (to the Trash).
+them, the folders they leave in your home (to the Trash). **Maintenance** runs the terminal app's maintenance
+tasks (updates, package repair, TRIM, font cache, locate…) with their output in a log window, asking for your
+password once per task, and switches the snap-versions and journal-size limits on or off; a task whose tool
+isn't installed is locked.
 
 | Large & Old Files | Uninstaller |
 | --- | --- |
@@ -115,7 +118,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 **Privacy** (never part of Smart Scan) clears shell history (bash, zsh, fish), *Recent files*,
 Python/Node/database shell history, Vim history, and the Alt+F2 and emoji history.
 
-**More tools in the terminal app** (Space Lens, Large & Old Files, Duplicates, the Uninstaller, Startup Items and Settings are in the desktop app too):
+**More tools in the terminal app** (Space Lens, Large & Old Files, Duplicates, the Uninstaller, Startup Items, Maintenance and Settings are in the desktop app too):
 
 - **Uninstaller** — every app you can open (apt, Snap, Flatpak), with its real size (the app *plus*
   its folders in your home) and when you last used it. Sort by size or last use, or show only apps

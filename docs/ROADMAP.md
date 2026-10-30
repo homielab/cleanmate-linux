@@ -19,7 +19,7 @@ Where CleanMate is going, and the decisions behind it. Ideas and votes are welco
 - [x] **Desktop app: file tools** — Space Lens (drill-down list), Large & Old Files, Duplicates,
       each with an *Undo* toast that uses the engine's Trash code.
 - [ ] **Desktop app: apps & system** — Uninstaller (done), Startup Items (done), Settings (done: automatic
-      cleaning, updates, retention), Maintenance, System Overview with the free-space graph.
+      cleaning, updates, retention), Maintenance (done), System Overview with the free-space graph.
 - [x] **Launchpad PPA** — `ppa:homielab/clean-my-ubuntu`, uploaded by CI on every release (1.0.1).
 - [ ] **Snap Store** — classic confinement was declined for now (project too new); ask again once
       the project has a track record.
@@ -61,4 +61,6 @@ Every line on stdout is one JSON object with an `"event"` field; sizes are bytes
 | `--json apps` | `app` (`id` = KIND:PACKAGE, `kind` apt/snap/flatpak, `name`, `bytes` of the app, `data_bytes` of its folders, `last_used` epoch or 0, `desktop` launcher id, `leftovers` [{`path`, `bytes`}]: folders in your home only this app uses) …, `done` (`hidden`: parts of Ubuntu left out) |
 | `--json uninstall --check ID…` | `check` (`ok`, `message` why not, `extra` number and `extra_text` of other packages apt would remove), `done` |
 | `--json [--dry-run] uninstall ID…` | `task` (`id`, `state` run/ok/fail, `info`) …, `done` (`removed`, `failed`). Only IDs `apps` lists; apt removals that would take a part of Ubuntu are refused. apt and Snap need root (`pkexec`), Flatpak runs as you. Leftover folders: `trash` as you, after the app is gone |
+| `--json maintenance` | `maint` (`id` update/repair/flatpak_unused/fstrim/free_ram/fonts/locate/snap_versions/journal_limit, `label`, `description`, `available`: its tool is installed, `reason` why not, `root`: has steps that need root, `user`: has steps run as you, `toggle`: a lasting limit switched on or off, `on`, `value` now — snap's `refresh.retain` or the journal limit in MB, empty if none — and `target`: what `on` sets) … the terminal app's nine Maintenance items in its order, `done` |
+| `--json [--dry-run] maintain ID [on\|off] [--user-steps]` | per step `task` (`id` step, `label`, `state` run/ok/skip/fail, `info`) with its output as `log` (`line`) in between, `done` (`ok`, `failed`, `skipped`). `on`/`off` only and always for `snap_versions` and `journal_limit`. As root only the steps that need root run (a user-only item: `error`); as you every step runs (root steps via `sudo -n`) — `--user-steps` runs only yours, after the root part through `pkexec`. Unknown item, missing tool: `error`, exit 2 |
 | any error | `error` (`message`), non-zero exit |
