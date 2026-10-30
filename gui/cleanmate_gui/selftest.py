@@ -172,7 +172,32 @@ def run(app, win):
     if app.screenshot:
         return run_scene(app, win, app.scene, app.screenshot, report, wait, finish)
     report(report_default == "overview", "the app opens on System Overview")
-    page.scan()
+    def check_shortcuts():
+        """Ctrl+1…9, Ctrl+R and the shortcuts window."""
+        from .window import SHORTCUT_PAGES
+        accels = [app.get_accels_for_action(f"win.page::{p}") for p in SHORTCUT_PAGES]
+        report(accels == [[f"<Control>{n}"] for n in range(1, 10)], "Ctrl+1…9 are bound to the first nine pages")
+        report("<Control>r" in app.get_accels_for_action("win.reload"), "Ctrl+R is bound to scanning again")
+        report("<Control>question" in app.get_accels_for_action("win.shortcuts"), "Ctrl+? is bound to the shortcuts")
+        ok = True
+        for pid in SHORTCUT_PAGES:
+            win.activate_action("win.page", GLib.Variant("s", pid))
+            row = win.sidebar_list.get_selected_row()
+            ok = ok and win.content_stack.get_visible_child_name() == pid and row and row.page_id == pid
+        report(ok, "the page action opens each page and selects it in the sidebar")
+        win.activate_action("win.page", GLib.Variant("s", "smart"))
+        busy = win.pages["smart"]
+        busy.running = object()  # a scan in progress: Ctrl+R does nothing
+        win.activate_action("win.reload", None)
+        report(busy.stack.get_visible_child_name() != "scanning", "Ctrl+R does nothing while the page is busy")
+        busy.running = None
+        win.activate_action("win.shortcuts", None)
+        report(win.shortcuts_window.get_visible(), "the shortcuts window opens")
+        win.shortcuts_window.destroy()
+
+    check_shortcuts()
+    win.activate_action("win.reload", None)  # Ctrl+R on Smart Scan starts the scan
+    report(page.running is not None, "Ctrl+R scans on the open page")
     wait(lambda: page.running is None and page.stack.get_visible_child_name() != "scanning",
          after_scan, 120, "scan")
 
@@ -977,6 +1002,7 @@ def docker_entries_test(win, report, wait, finish):
         text = open(log).read() if os.path.exists(log) else ""
         removed = [line for line in text.splitlines() if line.startswith("rmi ")]
         report(removed == [f"rmi {drop}"] and "image prune" not in text, "Clean removes only the ticked image")
+        report(" → " in page.clean_title.get_text(), f"a real clean shows free space before → after: {page.clean_title.get_text()}")
         wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", done, 60,
              "scan after cleaning")
 

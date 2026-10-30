@@ -63,7 +63,7 @@ folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app nee
 
 **Desktop app** — open *CleanMate*, press **Scan**, untick anything you want to keep, press
 **Clean**. Click anywhere on a row to tick it; the **All** box on a group ticks or clears the whole
-group. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
+group. **Keyboard:** Ctrl+1…9 open System Overview, Smart Scan, the six cleanup pages and Space Lens, Ctrl+R (or F5) scans, searches or lists again on the open page, and Ctrl+? lists every shortcut. After a clean, the result shows *Free space: before → after*. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
 as you. An item whose program is running is locked until you close it. **Space Lens** lists what
 takes up the space in your home folder (or any folder or drive), biggest first: click a folder to
 dig deeper, tick what you don't need and move it to the Trash, **Undo** puts it back; outside your

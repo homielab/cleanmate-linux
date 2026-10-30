@@ -125,6 +125,11 @@ class LargeFilesPage(Gtk.Box):
         self.folder = path
         self.folder_label.set_text(short_path(path))
 
+    def reload(self):
+        """Ctrl+R: search again, unless a search or a Trash run is going."""
+        if not self.running and not self.moving:
+            self.search()
+
     def search(self):
         if self.moving:
             return

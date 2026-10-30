@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- **Desktop app**: keyboard shortcuts — Ctrl+1…9 switch pages, Ctrl+R (or F5) scans, searches or lists again, Ctrl+? opens the shortcut list (also in the main menu). After a clean, the result shows *Free space: before → after*.
 - **Uninstaller (desktop app)**: filter *Unused for 1/3/6/12+ months*. Apps without a last-used date show *Unknown*, stay hidden under the filter and come back with *Show*.
 - **AI Models**: unfinished Ollama downloads (`sha256-…-partial`, also in the folder `OLLAMA_MODELS` points to). Not pre-selected and skipped while Ollama runs; complete models are kept.
 - **Developer Junk**: the Dart and Flutter pub cache (`hosted`, `git/cache`, also `PUB_CACHE`). Not pre-selected, skipped while dart or flutter runs; your pub login and activated tools are kept.

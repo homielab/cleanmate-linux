@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 10:51+0000\n"
+"POT-Creation-Date: 2026-10-30 11:06+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -55,10 +55,10 @@ msgstr ""
 msgid "Try a smaller size or another folder."
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:103 gui/cleanmate_gui/duplicates.py:320
-#: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:274
-#: gui/cleanmate_gui/spacelens.py:88 gui/cleanmate_gui/spacelens.py:345
-#: gui/cleanmate_gui/uninstaller.py:268 gui/cleanmate_gui/uninstaller.py:304
+#: gui/cleanmate_gui/duplicates.py:103 gui/cleanmate_gui/duplicates.py:325
+#: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:279
+#: gui/cleanmate_gui/spacelens.py:88 gui/cleanmate_gui/spacelens.py:350
+#: gui/cleanmate_gui/uninstaller.py:271 gui/cleanmate_gui/uninstaller.py:307
 msgid "Move to Trash"
 msgstr ""
 
@@ -70,84 +70,84 @@ msgstr ""
 msgid "Folder to search"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:142
+#: gui/cleanmate_gui/duplicates.py:147
 msgid "Listing files…"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:153
+#: gui/cleanmate_gui/duplicates.py:158
 #, python-brace-format
 msgid "Comparing {done} of {total} files of the same size…"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:154
+#: gui/cleanmate_gui/duplicates.py:159
 #, python-brace-format
 msgid "Checking {done} of {total} likely duplicates…"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:198
+#: gui/cleanmate_gui/duplicates.py:203
 #, python-brace-format
 msgid "{n} group of duplicates"
 msgid_plural "{n} groups of duplicates"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:200
+#: gui/cleanmate_gui/duplicates.py:205
 #, python-brace-format
 msgid "{size} can be freed by keeping one copy of each, in {folder}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:203 gui/cleanmate_gui/largefiles.py:185
-#: gui/cleanmate_gui/spacelens.py:234
+#: gui/cleanmate_gui/duplicates.py:208 gui/cleanmate_gui/largefiles.py:190
+#: gui/cleanmate_gui/spacelens.py:239
 #, python-brace-format
 msgid "the {n} biggest of {found}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:207
+#: gui/cleanmate_gui/duplicates.py:212
 msgid "Select automatically"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:208
+#: gui/cleanmate_gui/duplicates.py:213
 msgid "Tick every copy except the oldest one of each group"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:230 gui/cleanmate_gui/duplicates.py:270
+#: gui/cleanmate_gui/duplicates.py:235 gui/cleanmate_gui/duplicates.py:275
 msgid "Every copy is selected: none would be kept"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:245
+#: gui/cleanmate_gui/duplicates.py:250
 #, python-brace-format
 msgid "Oldest · modified {date}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:245
+#: gui/cleanmate_gui/duplicates.py:250
 #, python-brace-format
 msgid "Modified {date}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:249
+#: gui/cleanmate_gui/duplicates.py:254
 msgid "Move this copy to the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:256 gui/cleanmate_gui/largefiles.py:223
-#: gui/cleanmate_gui/spacelens.py:286
+#: gui/cleanmate_gui/duplicates.py:261 gui/cleanmate_gui/largefiles.py:228
+#: gui/cleanmate_gui/spacelens.py:291
 msgid "Show in Files"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:272
+#: gui/cleanmate_gui/duplicates.py:277
 #, python-brace-format
 msgid "{n} copy of {size}, {k} selected"
 msgid_plural "{n} copies of {size}, {k} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:289 gui/cleanmate_gui/largefiles.py:245
+#: gui/cleanmate_gui/duplicates.py:294 gui/cleanmate_gui/largefiles.py:250
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} file"
 msgid_plural "Selected <b>{size}</b> in {n} files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:302
+#: gui/cleanmate_gui/duplicates.py:307
 #, python-brace-format
 msgid "Every copy of {n} file is selected: none of its copies would be kept."
 msgid_plural ""
@@ -155,75 +155,75 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:313 gui/cleanmate_gui/largefiles.py:267
-#: gui/cleanmate_gui/scanpage.py:406 gui/cleanmate_gui/spacelens.py:338
-#: gui/cleanmate_gui/uninstaller.py:442
+#: gui/cleanmate_gui/duplicates.py:318 gui/cleanmate_gui/largefiles.py:272
+#: gui/cleanmate_gui/scanpage.py:411 gui/cleanmate_gui/spacelens.py:343
+#: gui/cleanmate_gui/uninstaller.py:445
 #, python-brace-format
 msgid "… and {n} more"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:315 gui/cleanmate_gui/largefiles.py:269
+#: gui/cleanmate_gui/duplicates.py:320 gui/cleanmate_gui/largefiles.py:274
 #, python-brace-format
 msgid "Move {n} file to the Trash?"
 msgid_plural "Move {n} files to the Trash?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:316 gui/cleanmate_gui/largefiles.py:270
-#: gui/cleanmate_gui/spacelens.py:341
+#: gui/cleanmate_gui/duplicates.py:321 gui/cleanmate_gui/largefiles.py:275
+#: gui/cleanmate_gui/spacelens.py:346
 #, python-brace-format
 msgid ""
 "{size}. You can undo this right away, or restore the files from the Trash "
 "later."
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:319 gui/cleanmate_gui/largefiles.py:273
-#: gui/cleanmate_gui/maintenance.py:234 gui/cleanmate_gui/scanpage.py:417
-#: gui/cleanmate_gui/settings.py:374 gui/cleanmate_gui/spacelens.py:344
-#: gui/cleanmate_gui/startup.py:221 gui/cleanmate_gui/uninstaller.py:457
+#: gui/cleanmate_gui/duplicates.py:324 gui/cleanmate_gui/largefiles.py:278
+#: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:422
+#: gui/cleanmate_gui/settings.py:374 gui/cleanmate_gui/spacelens.py:349
+#: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:460
 msgid "Cancel"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:360 gui/cleanmate_gui/largefiles.py:313
+#: gui/cleanmate_gui/duplicates.py:365 gui/cleanmate_gui/largefiles.py:318
 #, python-brace-format
 msgid "Dry run: {n} file ({size}) would be moved to the Trash"
 msgid_plural "Dry run: {n} files ({size}) would be moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:364 gui/cleanmate_gui/largefiles.py:317
+#: gui/cleanmate_gui/duplicates.py:369 gui/cleanmate_gui/largefiles.py:322
 #, python-brace-format
 msgid "Moved {n} file ({size}) to the Trash"
 msgid_plural "Moved {n} files ({size}) to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:365 gui/cleanmate_gui/largefiles.py:318
-#: gui/cleanmate_gui/spacelens.py:391
+#: gui/cleanmate_gui/duplicates.py:370 gui/cleanmate_gui/largefiles.py:323
+#: gui/cleanmate_gui/spacelens.py:396
 msgid "Nothing was moved"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:367 gui/cleanmate_gui/largefiles.py:320
-#: gui/cleanmate_gui/spacelens.py:393
+#: gui/cleanmate_gui/duplicates.py:372 gui/cleanmate_gui/largefiles.py:325
+#: gui/cleanmate_gui/spacelens.py:398
 #, python-brace-format
 msgid "{n} could not be moved: {reason}"
 msgid_plural "{n} could not be moved: {reason}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:371 gui/cleanmate_gui/largefiles.py:324
-#: gui/cleanmate_gui/spacelens.py:397 gui/cleanmate_gui/startup.py:240
-#: gui/cleanmate_gui/uninstaller.py:337
+#: gui/cleanmate_gui/duplicates.py:376 gui/cleanmate_gui/largefiles.py:329
+#: gui/cleanmate_gui/spacelens.py:402 gui/cleanmate_gui/startup.py:245
+#: gui/cleanmate_gui/uninstaller.py:340
 msgid "Undo"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:407 gui/cleanmate_gui/largefiles.py:360
-#: gui/cleanmate_gui/spacelens.py:430 gui/cleanmate_gui/uninstaller.py:592
+#: gui/cleanmate_gui/duplicates.py:412 gui/cleanmate_gui/largefiles.py:365
+#: gui/cleanmate_gui/spacelens.py:435 gui/cleanmate_gui/uninstaller.py:595
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:410 gui/cleanmate_gui/largefiles.py:363
+#: gui/cleanmate_gui/duplicates.py:415 gui/cleanmate_gui/largefiles.py:368
 #, python-brace-format
 msgid "Put back {n} file from the Trash"
 msgid_plural "Put back {n} files from the Trash"
@@ -313,38 +313,38 @@ msgstr ""
 msgid "Try a smaller size, any age, or another folder."
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:141
+#: gui/cleanmate_gui/largefiles.py:146
 #, python-brace-format
 msgid "Files of {size} or more in {folder}"
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:180
+#: gui/cleanmate_gui/largefiles.py:185
 #, python-brace-format
 msgid "{n} file · {size}"
 msgid_plural "{n} files · {size}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/largefiles.py:183
+#: gui/cleanmate_gui/largefiles.py:188
 #, python-brace-format
 msgid "Biggest first, in {folder}"
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:193 gui/cleanmate_gui/scanpage.py:181
-#: gui/cleanmate_gui/spacelens.py:248
+#: gui/cleanmate_gui/largefiles.py:198 gui/cleanmate_gui/scanpage.py:186
+#: gui/cleanmate_gui/spacelens.py:253
 msgid "All"
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:194
+#: gui/cleanmate_gui/largefiles.py:199
 msgid "Select or deselect every file"
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:209
+#: gui/cleanmate_gui/largefiles.py:214
 #, python-brace-format
 msgid "{folder} · modified {date}"
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:212
+#: gui/cleanmate_gui/largefiles.py:217
 #, python-brace-format
 msgid "Last opened {date}"
 msgstr ""
@@ -449,7 +449,7 @@ msgstr ""
 msgid "This system doesn't use the systemd journal."
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:53 gui/cleanmate_gui/maintenance.py:281
+#: gui/cleanmate_gui/maintenance.py:53 gui/cleanmate_gui/maintenance.py:285
 msgid "Working…"
 msgstr ""
 
@@ -457,93 +457,93 @@ msgstr ""
 msgid "Can't list the maintenance tasks"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:162
+#: gui/cleanmate_gui/maintenance.py:166
 msgid "Tasks"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:163
+#: gui/cleanmate_gui/maintenance.py:167
 msgid "Lasting limits"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:164
+#: gui/cleanmate_gui/maintenance.py:168
 msgid "So the same junk doesn't pile up again after a clean."
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:176
+#: gui/cleanmate_gui/maintenance.py:180
 msgid ""
 "On: 2 versions of each snap are kept. Turn off to go back to snapd's default."
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:178
+#: gui/cleanmate_gui/maintenance.py:182
 #, python-brace-format
 msgid "Keep 2 versions of each snap instead of {now}"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:181
+#: gui/cleanmate_gui/maintenance.py:185
 #, python-brace-format
 msgid "On: system logs stay under {mb} MB"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:182
+#: gui/cleanmate_gui/maintenance.py:186
 #, python-brace-format
 msgid "Never let system logs grow past {mb} MB (Settings → Journal size limit)"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:193 gui/cleanmate_gui/scanpage.py:210
-#: gui/cleanmate_gui/scanpage.py:227 gui/cleanmate_gui/uninstaller.py:221
-#: gui/cleanmate_gui/uninstaller.py:438
+#: gui/cleanmate_gui/maintenance.py:197 gui/cleanmate_gui/scanpage.py:215
+#: gui/cleanmate_gui/scanpage.py:232 gui/cleanmate_gui/uninstaller.py:224
+#: gui/cleanmate_gui/uninstaller.py:441
 msgid "Needs your password"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:197
+#: gui/cleanmate_gui/maintenance.py:201
 #, python-brace-format
 msgid "Use {mb} MB"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:199
+#: gui/cleanmate_gui/maintenance.py:203
 msgid "The limit set in Settings → Journal size limit"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:205
+#: gui/cleanmate_gui/maintenance.py:209
 msgid "Run"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:231
+#: gui/cleanmate_gui/maintenance.py:235
 msgid "Update everything?"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:232
+#: gui/cleanmate_gui/maintenance.py:236
 msgid ""
 "Upgrades your apt packages, snaps and flatpaks. It needs your password once "
 "and can take a while; you can watch it in the log."
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:235
+#: gui/cleanmate_gui/maintenance.py:239
 msgid "Update"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:279
+#: gui/cleanmate_gui/maintenance.py:283
 msgid "Waiting for your password…"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:298
+#: gui/cleanmate_gui/maintenance.py:302
 #, python-brace-format
 msgid "{title}: no password was entered, nothing was changed"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:302
+#: gui/cleanmate_gui/maintenance.py:306
 #, python-brace-format
 msgid "{title}: {n} step failed — see the log"
 msgid_plural "{title}: {n} steps failed — see the log"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/maintenance.py:305
+#: gui/cleanmate_gui/maintenance.py:309
 #, python-brace-format
 msgid "Dry run: {title} — nothing was changed"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:307
+#: gui/cleanmate_gui/maintenance.py:311
 #, python-brace-format
 msgid "{title}: done"
 msgstr ""
@@ -640,187 +640,187 @@ msgstr ""
 msgid "Refresh"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:270 gui/cleanmate_gui/startup.py:141
+#: gui/cleanmate_gui/overview.py:273 gui/cleanmate_gui/startup.py:146
 msgid "System"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:271
+#: gui/cleanmate_gui/overview.py:274
 #, python-brace-format
 msgid "{n} apt package"
 msgid_plural "{n} apt packages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:273
+#: gui/cleanmate_gui/overview.py:276
 #, python-brace-format
 msgid "{n} snap"
 msgid_plural "{n} snaps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:275
+#: gui/cleanmate_gui/overview.py:278
 #, python-brace-format
 msgid "{n} flatpak"
 msgid_plural "{n} flatpaks"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:277
+#: gui/cleanmate_gui/overview.py:280
 msgid "Operating system"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:277 gui/cleanmate_gui/overview.py:281
+#: gui/cleanmate_gui/overview.py:280 gui/cleanmate_gui/overview.py:284
 msgid "unknown"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:278
+#: gui/cleanmate_gui/overview.py:281
 msgid "Kernel"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:279
+#: gui/cleanmate_gui/overview.py:282
 msgid "Uptime"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:280
+#: gui/cleanmate_gui/overview.py:283
 msgid "Processor"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:280
+#: gui/cleanmate_gui/overview.py:283
 #, python-brace-format
 msgid "{cpu} ({n} thread)"
 msgid_plural "{cpu} ({n} threads)"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:282
+#: gui/cleanmate_gui/overview.py:285
 msgid "Packages"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:286
+#: gui/cleanmate_gui/overview.py:289
 msgid "Storage"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:288
+#: gui/cleanmate_gui/overview.py:291
 msgid "No disks found."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:291
+#: gui/cleanmate_gui/overview.py:294
 #, python-brace-format
 msgid "Almost full · {used} of {size} used · {free} free · {fstype}"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:292
+#: gui/cleanmate_gui/overview.py:295
 #, python-brace-format
 msgid "{used} of {size} used · {free} free · {fstype}"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:300
+#: gui/cleanmate_gui/overview.py:303
 msgid "Free space over time"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:302
+#: gui/cleanmate_gui/overview.py:305
 msgid ""
 "Free space on / is recorded once a day while you use CleanMate; the chart "
 "shows here after a few days."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:313
+#: gui/cleanmate_gui/overview.py:316
 msgid "Memory"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:315
+#: gui/cleanmate_gui/overview.py:318
 msgid "RAM"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:315
+#: gui/cleanmate_gui/overview.py:318
 #, python-brace-format
 msgid "{used} of {size} in use · {free} available"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:319 gui/cleanmate_gui/overview.py:323
+#: gui/cleanmate_gui/overview.py:322 gui/cleanmate_gui/overview.py:326
 msgid "Swap"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:319
+#: gui/cleanmate_gui/overview.py:322
 #, python-brace-format
 msgid "{used} of {size} in use"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:323
+#: gui/cleanmate_gui/overview.py:326
 msgid "none"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:327
+#: gui/cleanmate_gui/overview.py:330
 msgid "Freed by CleanMate"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:329
+#: gui/cleanmate_gui/overview.py:332
 msgid "Shows here after your first cleanup."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:331
+#: gui/cleanmate_gui/overview.py:334
 msgid "Last 30 days"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:332 gui/cleanmate_gui/overview.py:334
+#: gui/cleanmate_gui/overview.py:335 gui/cleanmate_gui/overview.py:337
 #, python-brace-format
 msgid "{size} in {n} cleanup"
 msgid_plural "{size} in {n} cleanups"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:333
+#: gui/cleanmate_gui/overview.py:336
 msgid "In total"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:337
+#: gui/cleanmate_gui/overview.py:340
 msgid "Last cleanup"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:337
+#: gui/cleanmate_gui/overview.py:340
 #, python-brace-format
 msgid "{size} on {date}"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:342 gui/cleanmate_gui/overview.py:355
+#: gui/cleanmate_gui/overview.py:345 gui/cleanmate_gui/overview.py:358
 msgid "Space outside your folders"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:342 gui/cleanmate_gui/overview.py:376
+#: gui/cleanmate_gui/overview.py:345 gui/cleanmate_gui/overview.py:379
 msgid "Largest folders in your home"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:343 gui/cleanmate_gui/spacelens.py:75
+#: gui/cleanmate_gui/overview.py:346 gui/cleanmate_gui/spacelens.py:75
 msgid "Measuring…"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:356
+#: gui/cleanmate_gui/overview.py:359
 msgid ""
 "In use, but in none of your folders. Shown for information: each is a "
 "choice, not junk."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:360
+#: gui/cleanmate_gui/overview.py:363
 msgid "No Timeshift snapshots, swap file or reserved space found."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:369
+#: gui/cleanmate_gui/overview.py:372
 msgid "Measuring its size needs administrator rights"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:379
+#: gui/cleanmate_gui/overview.py:382
 msgid "Couldn't measure your home folder."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:381
+#: gui/cleanmate_gui/overview.py:384
 msgid "Your home folder is empty."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:383
+#: gui/cleanmate_gui/overview.py:386
 msgid "Click a folder to explore it in Space Lens."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:389
+#: gui/cleanmate_gui/overview.py:392
 msgid "Open in Space Lens"
 msgstr ""
 
@@ -832,11 +832,11 @@ msgstr ""
 msgid "Scanning…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:418
+#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:423
 msgid "Clear"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:418
+#: gui/cleanmate_gui/scanpage.py:92 gui/cleanmate_gui/scanpage.py:423
 msgid "Clean"
 msgstr ""
 
@@ -844,188 +844,193 @@ msgstr ""
 msgid "Scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:107
+#: gui/cleanmate_gui/scanpage.py:112
 msgid "Starting…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:115
+#: gui/cleanmate_gui/scanpage.py:120
 #, python-brace-format
 msgid "Checking {name}…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:125
+#: gui/cleanmate_gui/scanpage.py:130
 msgid "The scan failed — try the terminal app (cm) for details."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:151
+#: gui/cleanmate_gui/scanpage.py:156
 #, python-brace-format
 msgid "{n} history list with entries"
 msgid_plural "{n} history lists with entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:152
+#: gui/cleanmate_gui/scanpage.py:157
 msgid "Nothing to clear"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:153
+#: gui/cleanmate_gui/scanpage.py:158
 msgid "Pick what to clear — nothing happens until you confirm."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:156
+#: gui/cleanmate_gui/scanpage.py:161
 #, python-brace-format
 msgid "{size} of junk found in {n} item"
 msgid_plural "{size} of junk found in {n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:158
+#: gui/cleanmate_gui/scanpage.py:163
 #, python-brace-format
 msgid "{n} location scanned in {secs}s"
 msgid_plural "{n} locations scanned in {secs}s"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:161
+#: gui/cleanmate_gui/scanpage.py:166
 msgid "Your system is clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:161
+#: gui/cleanmate_gui/scanpage.py:166
 msgid "Nothing worth removing was found."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:182
+#: gui/cleanmate_gui/scanpage.py:187
 msgid "Select or deselect the whole group"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:189
+#: gui/cleanmate_gui/scanpage.py:194
 #, python-brace-format
 msgid "{n} more item is clean"
 msgid_plural "{n} more items are clean"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:193
+#: gui/cleanmate_gui/scanpage.py:198
 msgid "clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:208
+#: gui/cleanmate_gui/scanpage.py:213
 #, python-brace-format
 msgid "Close {program} and scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:223
+#: gui/cleanmate_gui/scanpage.py:228
 #, python-brace-format
 msgid "{program} is running — close it, then scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:233
+#: gui/cleanmate_gui/scanpage.py:238
 msgid "Show what's inside"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:247
+#: gui/cleanmate_gui/scanpage.py:252
 msgid "Loading…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:263
+#: gui/cleanmate_gui/scanpage.py:268
 msgid "Nothing to choose one by one — Clean removes it all"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:350
+#: gui/cleanmate_gui/scanpage.py:355
 #, python-brace-format
 msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:352 gui/cleanmate_gui/spacelens.py:315
+#: gui/cleanmate_gui/scanpage.py:357 gui/cleanmate_gui/spacelens.py:320
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:366
+#: gui/cleanmate_gui/scanpage.py:371
 msgid "Collecting details…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:384
+#: gui/cleanmate_gui/scanpage.py:389
 msgid "Nothing more to show."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:409
+#: gui/cleanmate_gui/scanpage.py:414
 #, python-brace-format
 msgid "Clear {n} history list?"
 msgid_plural "Clear {n} history lists?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:410
+#: gui/cleanmate_gui/scanpage.py:415
 msgid "This can't be undone."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:412
+#: gui/cleanmate_gui/scanpage.py:417
 #, python-brace-format
 msgid "Clean {n} item?"
 msgid_plural "Clean {n} items?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:413
+#: gui/cleanmate_gui/scanpage.py:418
 #, python-brace-format
 msgid "About {size} will be removed."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:415
+#: gui/cleanmate_gui/scanpage.py:420
 msgid "Items with a lock need your password."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:437 gui/cleanmate_gui/scanpage.py:475
-#: gui/cleanmate_gui/uninstaller.py:480 gui/cleanmate_gui/uninstaller.py:519
+#: gui/cleanmate_gui/scanpage.py:443 gui/cleanmate_gui/scanpage.py:485
+#: gui/cleanmate_gui/uninstaller.py:483 gui/cleanmate_gui/uninstaller.py:522
 msgid "waiting"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:443
+#: gui/cleanmate_gui/scanpage.py:449
 msgid "Cleaning…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:454
+#: gui/cleanmate_gui/scanpage.py:464
 msgid "working…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:459
+#: gui/cleanmate_gui/scanpage.py:469
 msgid "done"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:505
+#: gui/cleanmate_gui/scanpage.py:469 gui/cleanmate_gui/uninstaller.py:508
 msgid "skipped"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:459 gui/cleanmate_gui/uninstaller.py:505
+#: gui/cleanmate_gui/scanpage.py:469 gui/cleanmate_gui/uninstaller.py:508
 msgid "failed"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:468 gui/cleanmate_gui/scanpage.py:475
-#: gui/cleanmate_gui/uninstaller.py:513 gui/cleanmate_gui/uninstaller.py:519
+#: gui/cleanmate_gui/scanpage.py:478 gui/cleanmate_gui/scanpage.py:485
+#: gui/cleanmate_gui/uninstaller.py:516 gui/cleanmate_gui/uninstaller.py:522
 msgid "waiting for your password…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:478 gui/cleanmate_gui/uninstaller.py:521
+#: gui/cleanmate_gui/scanpage.py:488 gui/cleanmate_gui/uninstaller.py:524
 msgid "Skipped — no password was entered"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:484
+#: gui/cleanmate_gui/scanpage.py:494
 #, python-brace-format
 msgid "Dry run: {size} would be freed"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:486
+#: gui/cleanmate_gui/scanpage.py:496
 msgid "History cleared"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:488
+#: gui/cleanmate_gui/scanpage.py:498
 #, python-brace-format
 msgid "Freed {size}"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:500
+#, python-brace-format
+msgid "Free space: {before} → {after}"
 msgstr ""
 
 #: gui/cleanmate_gui/settings.py:19
@@ -1144,8 +1149,8 @@ msgstr ""
 msgid "Folders reached through a symbolic link can't be excluded"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:63 gui/cleanmate_gui/window.py:104
-#: gui/cleanmate_gui/window.py:236
+#: gui/cleanmate_gui/settings.py:63 gui/cleanmate_gui/window.py:108
+#: gui/cleanmate_gui/window.py:221 gui/cleanmate_gui/window.py:289
 msgid "Settings"
 msgstr ""
 
@@ -1157,7 +1162,7 @@ msgstr ""
 msgid "The cleaning engine didn't answer."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:128
+#: gui/cleanmate_gui/settings.py:128 gui/cleanmate_gui/window.py:220
 msgid "General"
 msgstr ""
 
@@ -1339,7 +1344,7 @@ msgstr ""
 msgid "Open the log folder"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:55
+#: gui/cleanmate_gui/spacelens.py:55 gui/cleanmate_gui/window.py:224
 msgid "Up one folder"
 msgstr ""
 
@@ -1363,77 +1368,77 @@ msgstr ""
 msgid "Home"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:187
+#: gui/cleanmate_gui/spacelens.py:192
 #, python-brace-format
 msgid "Adding up {folder}"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:229
+#: gui/cleanmate_gui/spacelens.py:234
 #, python-brace-format
 msgid "{folder} · {size}"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:232
+#: gui/cleanmate_gui/spacelens.py:237
 #, python-brace-format
 msgid "{n} item, biggest first"
 msgid_plural "{n} items, biggest first"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:239
+#: gui/cleanmate_gui/spacelens.py:244
 msgid "View only: you never clean this folder (Settings › Never clean)."
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:242
+#: gui/cleanmate_gui/spacelens.py:247
 msgid ""
 "View only: things outside your home folder can't be moved to the Trash here."
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:249
+#: gui/cleanmate_gui/spacelens.py:254
 msgid "Select or deselect every item"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:265
+#: gui/cleanmate_gui/spacelens.py:270
 #, python-brace-format
 msgid "{n} item · {percent}"
 msgid_plural "{n} items · {percent}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:273
+#: gui/cleanmate_gui/spacelens.py:278
 msgid ""
 "Can't be moved to the Trash: you never clean it, or a folder in it (Settings "
 "› Never clean)"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:276
+#: gui/cleanmate_gui/spacelens.py:281
 msgid ""
 "Can't be moved to the Trash here: it's outside your home folder, or your "
 "system needs it"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:340
+#: gui/cleanmate_gui/spacelens.py:345
 #, python-brace-format
 msgid "Move {n} item to the Trash?"
 msgid_plural "Move {n} items to the Trash?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:385
+#: gui/cleanmate_gui/spacelens.py:390
 #, python-brace-format
 msgid "Dry run: {n} item ({size}) would be moved to the Trash"
 msgid_plural "Dry run: {n} items ({size}) would be moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:390
+#: gui/cleanmate_gui/spacelens.py:395
 #, python-brace-format
 msgid "Moved {n} item ({size}) to the Trash"
 msgid_plural "Moved {n} items ({size}) to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:433
+#: gui/cleanmate_gui/spacelens.py:438
 #, python-brace-format
 msgid "Put back {n} item from the Trash"
 msgid_plural "Put back {n} items from the Trash"
@@ -1452,99 +1457,99 @@ msgstr ""
 msgid "Parts of Ubuntu that start for every user"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:110
+#: gui/cleanmate_gui/startup.py:115
 msgid ""
 "Fewer apps at login means a faster start. Turning one off doesn't uninstall "
 "it."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:115
+#: gui/cleanmate_gui/startup.py:120
 msgid "Apps"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:115
+#: gui/cleanmate_gui/startup.py:120
 msgid "No app starts when you log in."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:116
+#: gui/cleanmate_gui/startup.py:121
 msgid "Services and timers"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:116
+#: gui/cleanmate_gui/startup.py:121
 msgid "No service or timer of yours starts when you log in."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:120
+#: gui/cleanmate_gui/startup.py:125
 msgid "systemd user services aren't available here."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:129
+#: gui/cleanmate_gui/startup.py:134
 #, python-brace-format
 msgid "{n} part of Ubuntu that starts for every user"
 msgid_plural "{n} parts of Ubuntu that start for every user"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/startup.py:144
+#: gui/cleanmate_gui/startup.py:149
 msgid "Remove (to the Trash)"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:149
+#: gui/cleanmate_gui/startup.py:154
 msgid "Comes with the system: only shown here"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:161
+#: gui/cleanmate_gui/startup.py:166
 #, python-brace-format
 msgid "{on} of {n} starts when you log in"
 msgid_plural "{on} of {n} start when you log in"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/startup.py:194
+#: gui/cleanmate_gui/startup.py:199
 msgid "Could not change it"
-msgstr ""
-
-#: gui/cleanmate_gui/startup.py:198
-#, python-brace-format
-msgid "Dry run: {name} would be changed"
 msgstr ""
 
 #: gui/cleanmate_gui/startup.py:203
 #, python-brace-format
+msgid "Dry run: {name} would be changed"
+msgstr ""
+
+#: gui/cleanmate_gui/startup.py:208
+#, python-brace-format
 msgid "{name} will start when you log in"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:204
+#: gui/cleanmate_gui/startup.py:209
 #, python-brace-format
 msgid "{name} won't start when you log in"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:218
+#: gui/cleanmate_gui/startup.py:223
 #, python-brace-format
 msgid "Remove {name}?"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:219
+#: gui/cleanmate_gui/startup.py:224
 msgid ""
 "It won't start when you log in any more, and its startup file goes to the "
 "Trash. The app itself stays installed. You can undo this right away."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:222
+#: gui/cleanmate_gui/startup.py:227
 msgid "Remove"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:240 gui/cleanmate_gui/startup.py:243
+#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/startup.py:248
 #, python-brace-format
 msgid "Removed {name}"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:262
+#: gui/cleanmate_gui/startup.py:267
 #, python-brace-format
 msgid "Could not restore {name}: {reason}"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:267 gui/cleanmate_gui/startup.py:269
+#: gui/cleanmate_gui/startup.py:272 gui/cleanmate_gui/startup.py:274
 #, python-brace-format
 msgid "{name} is back"
 msgstr ""
@@ -1646,7 +1651,7 @@ msgstr ""
 msgid "Only apps with a launcher are listed."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:123 gui/cleanmate_gui/uninstaller.py:458
+#: gui/cleanmate_gui/uninstaller.py:123 gui/cleanmate_gui/uninstaller.py:461
 msgid "Uninstall"
 msgstr ""
 
@@ -1654,18 +1659,18 @@ msgstr ""
 msgid "List apps again"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:187
+#: gui/cleanmate_gui/uninstaller.py:190
 #, python-brace-format
 msgid "{n} app · {size}"
 msgid_plural "{n} apps · {size}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:190
+#: gui/cleanmate_gui/uninstaller.py:193
 msgid "Size = the app + its folders in your home."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:192
+#: gui/cleanmate_gui/uninstaller.py:195
 #, python-brace-format
 msgid "{n} part of Ubuntu itself can't be removed safely and isn't listed."
 msgid_plural ""
@@ -1673,162 +1678,162 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:218
+#: gui/cleanmate_gui/uninstaller.py:221
 #, python-brace-format
 msgid ""
 "{kind} package {package}\n"
 "App {size} · your data {data}"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:248
+#: gui/cleanmate_gui/uninstaller.py:251
 msgid "Moved to the Trash after uninstalling"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:252
+#: gui/cleanmate_gui/uninstaller.py:255
 msgid "Also move this folder to the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:265
+#: gui/cleanmate_gui/uninstaller.py:268
 msgid "Leftovers of removed apps"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:266
+#: gui/cleanmate_gui/uninstaller.py:269
 msgid ""
 "Folders in your home that no installed app uses. Nothing is ticked; they go "
 "to the Trash, so you can put them back."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:276
+#: gui/cleanmate_gui/uninstaller.py:279
 msgid "No app with this name is installed"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:304
+#: gui/cleanmate_gui/uninstaller.py:307
 #, python-brace-format
 msgid "Move {size} to Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:333
+#: gui/cleanmate_gui/uninstaller.py:336
 #, python-brace-format
 msgid "Dry run: {n} folder would be moved to the Trash"
 msgid_plural "Dry run: {n} folders would be moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:336
+#: gui/cleanmate_gui/uninstaller.py:339
 #, python-brace-format
 msgid "Moved {n} folder to the Trash"
 msgid_plural "Moved {n} folders to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:358
+#: gui/cleanmate_gui/uninstaller.py:361
 #, python-brace-format
 msgid "{n} app has no last-used date — Show"
 msgid_plural "{n} apps have no last-used date — Show"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:399
+#: gui/cleanmate_gui/uninstaller.py:402
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} app"
 msgid_plural "Selected <b>{size}</b> in {n} apps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:402
+#: gui/cleanmate_gui/uninstaller.py:405
 #, python-brace-format
 msgid "{n} folder"
 msgid_plural "{n} folders"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:427
+#: gui/cleanmate_gui/uninstaller.py:430
 msgid "Couldn't check what removing these apps does."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:443
+#: gui/cleanmate_gui/uninstaller.py:446
 #, python-brace-format
 msgid "Uninstall {n} app?"
 msgid_plural "Uninstall {n} apps?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:446
+#: gui/cleanmate_gui/uninstaller.py:449
 #, python-brace-format
 msgid "Also removes {n} other package!"
 msgid_plural "Also removes {n} other packages!"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:447
+#: gui/cleanmate_gui/uninstaller.py:450
 #, python-brace-format
 msgid "apt will also remove: {packages}."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:449
+#: gui/cleanmate_gui/uninstaller.py:452
 #, python-brace-format
 msgid "{n} folder ({size}) will go to the Trash — you can undo that."
 msgid_plural "{n} folders ({size}) will go to the Trash — you can undo that."
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:453
+#: gui/cleanmate_gui/uninstaller.py:456
 msgid "Your folders in your home are kept."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:455
+#: gui/cleanmate_gui/uninstaller.py:458
 msgid "Apps with a lock need your password."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:485
+#: gui/cleanmate_gui/uninstaller.py:488
 msgid "Uninstalling…"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:502 gui/cleanmate_gui/uninstaller.py:519
+#: gui/cleanmate_gui/uninstaller.py:505 gui/cleanmate_gui/uninstaller.py:522
 msgid "removing…"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:505
+#: gui/cleanmate_gui/uninstaller.py:508
 msgid "removed"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:523
+#: gui/cleanmate_gui/uninstaller.py:526
 msgid "Not removed"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:550
+#: gui/cleanmate_gui/uninstaller.py:553
 #, python-brace-format
 msgid "Dry run: {n} app would be uninstalled"
 msgid_plural "Dry run: {n} apps would be uninstalled"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:552
+#: gui/cleanmate_gui/uninstaller.py:555
 #, python-brace-format
 msgid ", {n} folder would be moved to the Trash"
 msgid_plural ", {n} folders would be moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:555
+#: gui/cleanmate_gui/uninstaller.py:558
 #, python-brace-format
 msgid "Uninstalled {n} app"
 msgid_plural "Uninstalled {n} apps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:557
+#: gui/cleanmate_gui/uninstaller.py:560
 #, python-brace-format
 msgid "; moved {n} folder to the Trash"
 msgid_plural "; moved {n} folders to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:561
+#: gui/cleanmate_gui/uninstaller.py:564
 msgid "Restore folders"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:595
+#: gui/cleanmate_gui/uninstaller.py:598
 #, python-brace-format
 msgid "Put back {n} folder from the Trash"
 msgid_plural "Put back {n} folders from the Trash"
@@ -1882,7 +1887,7 @@ msgstr ""
 msgid "Terminal history, recent files, run dialog and emoji history."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:44
+#: gui/cleanmate_gui/window.py:44 gui/cleanmate_gui/window.py:224
 msgid "Space Lens"
 msgstr ""
 
@@ -1940,7 +1945,7 @@ msgid ""
 "versions and system logs from piling up again."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:59 gui/cleanmate_gui/window.py:128
+#: gui/cleanmate_gui/window.py:59 gui/cleanmate_gui/window.py:133
 msgid "System Overview"
 msgstr ""
 
@@ -1950,64 +1955,81 @@ msgid ""
 "and your largest folders."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:90
+#: gui/cleanmate_gui/window.py:94
 msgid "All tools (terminal)"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:91
+#: gui/cleanmate_gui/window.py:95
 msgid "Open the terminal app (cm)"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:105
+#: gui/cleanmate_gui/window.py:109 gui/cleanmate_gui/window.py:216
+#: gui/cleanmate_gui/window.py:222
+msgid "Keyboard Shortcuts"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:110
 msgid "Open the terminal app"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:106
+#: gui/cleanmate_gui/window.py:111
 msgid "Source code"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:107
+#: gui/cleanmate_gui/window.py:112
 msgid "Report a problem"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:109
+#: gui/cleanmate_gui/window.py:114
 msgid "About CleanMate"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:112
+#: gui/cleanmate_gui/window.py:117
 msgid "Main menu"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:126
+#: gui/cleanmate_gui/window.py:131
 msgid "Dry run — nothing will be deleted"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:156
+#: gui/cleanmate_gui/window.py:173
 msgid "Cleanup"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:156
+#: gui/cleanmate_gui/window.py:173
 msgid "Tools"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:156
+#: gui/cleanmate_gui/window.py:173
 msgid "More"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:217
+#: gui/cleanmate_gui/window.py:218
+msgid "Pages"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:220
+msgid "Scan, search or list again"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:223
+msgid "Quit"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:270
 #, python-brace-format
 msgid "{free} free of {total}"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:228
+#: gui/cleanmate_gui/window.py:281
 msgid "No terminal app found — run cm in a terminal."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:249
+#: gui/cleanmate_gui/window.py:302
 msgid "translator-credits"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:250
+#: gui/cleanmate_gui/window.py:303
 msgid ""
 "A friendly system cleaner for Ubuntu, inspired by CleanMyMac. Not affiliated "
 "with MacPaw."

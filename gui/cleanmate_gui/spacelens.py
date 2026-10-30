@@ -166,6 +166,11 @@ class SpaceLensPage(Gtk.Box):
         self.up_button.set_sensitive(self.folder != self.root)
 
     # ── measuring ──
+    def reload(self):
+        """Ctrl+R: measure the open folder again, unless a measurement or a Trash run is going."""
+        if not self.running and not self.moving:
+            self.load(self.folder, fresh=True)
+
     def load(self, path, fresh=False):
         if self.moving:
             return

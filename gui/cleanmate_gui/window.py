@@ -60,6 +60,8 @@ PAGES = [
      _("Your system, disks, free space over time, memory, the space CleanMate freed, and your largest "
        "folders.")),
 ]
+# Ctrl+1…9: the System Overview (where the app opens) first, then the sidebar from the top
+SHORTCUT_PAGES = ["overview", "smart", "system", "logs", "user", "ai", "dev", "privacy", "lens"]
 REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
 
@@ -83,6 +85,8 @@ class Window(Adw.ApplicationWindow):
             box.append(Gtk.Image(icon_name=icon))
             box.append(Gtk.Label(label=title, xalign=0))
             row = Gtk.ListBoxRow(child=box)
+            if pid in SHORTCUT_PAGES:
+                row.set_tooltip_text(f"{title} (Ctrl+{SHORTCUT_PAGES.index(pid) + 1})")
             row.page_id = pid
             self.sidebar_list.append(row)
         more = Gtk.Box(spacing=12)
@@ -102,6 +106,7 @@ class Window(Adw.ApplicationWindow):
 
         menu = Gio.Menu()
         menu.append(_("Settings"), "win.settings")
+        menu.append(_("Keyboard Shortcuts"), "win.shortcuts")
         menu.append(_("Open the terminal app"), "win.terminal")
         menu.append(_("Source code"), "win.source")
         menu.append(_("Report a problem"), "win.issues")
@@ -145,6 +150,18 @@ class Window(Adw.ApplicationWindow):
             action.connect("activate", cb)
             self.add_action(action)
         app.set_accels_for_action("win.settings", ["<Control>comma"])
+        go = Gio.SimpleAction(name="page", parameter_type=GLib.VariantType.new("s"))
+        go.connect("activate", lambda _a, p: self.go_to(p.get_string()))
+        self.add_action(go)
+        for n, pid in enumerate(SHORTCUT_PAGES, 1):
+            app.set_accels_for_action(f"win.page::{pid}", [f"<Control>{n}"])
+        for name, cb, accels in (("reload", lambda *_: self.reload_page(), ["<Control>r", "F5"]),
+                                 ("shortcuts", lambda *_: self.show_shortcuts(),
+                                  ["<Control>question", "<Control>slash"])):
+            action = Gio.SimpleAction(name=name)
+            action.connect("activate", cb)
+            self.add_action(action)
+            app.set_accels_for_action(f"win.{name}", accels)
         self.settings_page = None
 
         self.refresh_disk()
@@ -180,6 +197,42 @@ class Window(Adw.ApplicationWindow):
             self.content_stack.add_named(page, pid)
         self.content_stack.set_visible_child_name(pid)
         self.content_page.set_title(spec[1])
+
+    def go_to(self, pid):
+        """Ctrl+1…9: open a page and select it in the sidebar."""
+        if self.get_visible_dialog():
+            return
+        self.show_page(pid)
+        self.select_sidebar(pid)
+        self.split.set_show_content(True)
+
+    def reload_page(self):
+        """Ctrl+R: scan, search or list again on the open page; nothing while it is busy or a dialog is open."""
+        page = self.content_stack.get_visible_child()
+        if page and not self.get_visible_dialog() and hasattr(page, "reload"):
+            page.reload()
+
+    def show_shortcuts(self):
+        section = Gtk.ShortcutsSection(section_name="shortcuts", title=_("Keyboard Shortcuts"))
+        groups = [
+            (_("Pages"), [(f"<Control>{n}", next(s[1] for s in PAGES if s and s[0] == pid))
+                          for n, pid in enumerate(SHORTCUT_PAGES, 1)]),
+            (_("General"), [("<Control>r F5", _("Scan, search or list again")),
+                            ("<Control>comma", _("Settings")),
+                            ("<Control>question", _("Keyboard Shortcuts")),
+                            ("<Control>q", _("Quit"))]),
+            (_("Space Lens"), [("<Alt>Up BackSpace", _("Up one folder"))]),
+        ]
+        for title, rows in groups:
+            group = Gtk.ShortcutsGroup(title=title)
+            for accel, text in rows:
+                group.add_shortcut(Gtk.ShortcutsShortcut(accelerator=accel, title=text))
+            section.add_group(group)
+        win = Gtk.ShortcutsWindow(transient_for=self, modal=True)
+        win.add_section(section)
+        win.present()
+        self.shortcuts_window = win
+        return win
 
     def select_sidebar(self, pid):
         row = self.sidebar_list.get_first_child()

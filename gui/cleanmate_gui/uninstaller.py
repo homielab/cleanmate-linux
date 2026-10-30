@@ -130,6 +130,9 @@ class UninstallerPage(Gtk.Box):
         self.load()
 
     # ── listing ──
+    def reload(self):
+        self.load()  # no-op while busy
+
     def load(self):
         if self.busy:
             return

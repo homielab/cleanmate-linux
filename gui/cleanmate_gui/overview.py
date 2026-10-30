@@ -199,6 +199,9 @@ class OverviewPage(Gtk.Box):
         return self.running is not None
 
     # ── loading ──
+    def reload(self):
+        self.load()  # no-op while loading
+
     def load(self):
         if self.running:
             return

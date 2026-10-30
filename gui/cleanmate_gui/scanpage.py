@@ -99,6 +99,11 @@ class ScanPage(Gtk.Box):
         self.append(self.bar)
 
     # ── scanning ──
+    def reload(self):
+        """Ctrl+R: scan again, unless a scan or a clean is running."""
+        if not self.running and self.stack.get_visible_child_name() != "cleaning":
+            self.scan()
+
     def scan(self):
         if self.running:
             return
@@ -427,6 +432,7 @@ class ScanPage(Gtk.Box):
         root_ids = [i for i in ids if self.items[i]["root"]]
         self.task_rows = {}
         self.freed = 0
+        self.avail = [None, None]  # free space before the first and after the last run
         self.done_count = 0
         self.total_count = len(ids)
         child = self.clean_list.get_first_child()
@@ -447,6 +453,10 @@ class ScanPage(Gtk.Box):
         self.window.set_busy(True)
 
         def on_event(e):
+            if e["event"] == "done" and "avail_before" in e:
+                if self.avail[0] is None:
+                    self.avail[0] = e["avail_before"]
+                self.avail[1] = e["avail_after"]
             if e["event"] != "task" or e["id"] not in self.task_rows:
                 return
             row = self.task_rows[e["id"]]
@@ -486,6 +496,9 @@ class ScanPage(Gtk.Box):
                 msg = _("History cleared")
             else:
                 msg = _("Freed {size}").format(size=human(self.freed))
+                if None not in self.avail:
+                    msg += " · " + _("Free space: {before} → {after}").format(
+                        before=human(self.avail[0]), after=human(self.avail[1]))
             self.clean_title.set_text(msg)
             self.window.toast(msg)
             self.window.refresh_disk()

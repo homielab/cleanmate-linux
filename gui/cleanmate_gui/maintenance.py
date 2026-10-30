@@ -121,6 +121,10 @@ class MaintenancePage(Gtk.Box):
         self.load()
 
     # ── loading ──
+    def reload(self):
+        if not self.busy:
+            self.load()
+
     def load(self):
         items, info = [], {}
         if not self.items:

@@ -57,6 +57,11 @@ class StartupPage(Gtk.Box):
         self.load()
 
     # ── loading ──
+    def reload(self):
+        """Ctrl+R: list again, unless a switch, removal or undo is running."""
+        if not self.running and not self.changing:
+            self.load()
+
     def load(self):
         if self.running:
             self.running.cancel()
