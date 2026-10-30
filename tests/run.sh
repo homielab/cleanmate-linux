@@ -2035,6 +2035,40 @@ test_ai_coding_tool_caches_keep_sessions_and_logins() {
   done
 }
 
+test_ollama_partial_downloads_and_pub_cache() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/pubbin
+  new "$h/.ollama/models/blobs/sha256-aaaa"; new "$h/.ollama/models/blobs/sha256-bbbb-partial"
+  new "$h/.ollama/models/blobs/sha256-cccc-partial-0"; new "$h/.ollama/models/manifests/m"
+  new "$h/oll/blobs/sha256-dddd-partial"; new "$h/oll/blobs/sha256-eeee"; new "$WORK/outside/blobs/sha256-ffff-partial"
+  new "$h/.pub-cache/hosted/pub.dev/http-1.0.0/a.dart"; new "$h/.pub-cache/git/cache/repo/x"
+  new "$h/.pub-cache/git/repo-abc/src"; new "$h/.pub-cache/credentials.json"; new "$h/.pub-cache/bin/tool"
+  new "$h/.pub-cache/global_packages/g/p"; new "$h/pc/hosted/pub.dev/p-1/a.dart"; new "$h/pc/credentials.json"
+  printf 'export OLLAMA_MODELS=$HOME/oll\nexport PUB_CACHE="$HOME/pc"\n' >"$h/.bashrc"
+  out=$(cm --scan 2>&1)
+  assert_contains "$out" "Ollama — unfinished downloads"
+  assert_contains "$out" "Dart & Flutter pub cache"
+  select_only ollama_partial pub_cache
+  cm --clean --yes --dry-run --only models,dev >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.ollama/models/blobs/sha256-bbbb-partial"; assert_exists "$h/.pub-cache/hosted/pub.dev/http-1.0.0/a.dart"
+  # a running ollama / dart / flutter skips its item
+  running_stub "$bin" ollama
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only models 2>&1 </dev/null)
+  assert_contains "$out" "Skipping"; assert_exists "$h/.ollama/models/blobs/sha256-bbbb-partial"
+  running_stub "$bin" flutter
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev 2>&1 </dev/null)
+  assert_contains "$out" "Skipping"; assert_exists "$h/.pub-cache/hosted/pub.dev/http-1.0.0/a.dart"
+  cm --clean --yes --only models,dev >/dev/null 2>&1 </dev/null
+  assert_missing "$h/.ollama/models/blobs/sha256-bbbb-partial"; assert_missing "$h/.ollama/models/blobs/sha256-cccc-partial-0"
+  assert_missing "$h/oll/blobs/sha256-dddd-partial"
+  assert_exists "$h/.ollama/models/blobs/sha256-aaaa"; assert_exists "$h/.ollama/models/manifests/m"
+  assert_exists "$h/oll/blobs/sha256-eeee"; assert_exists "$WORK/outside/blobs/sha256-ffff-partial"
+  assert_missing "$h/.pub-cache/hosted/pub.dev/http-1.0.0/a.dart"; assert_missing "$h/.pub-cache/git/cache/repo/x"
+  assert_missing "$h/pc/hosted/pub.dev/p-1/a.dart"
+  assert_exists "$h/.pub-cache/credentials.json"; assert_exists "$h/.pub-cache/bin/tool"
+  assert_exists "$h/.pub-cache/global_packages/g/p"; assert_exists "$h/.pub-cache/git/repo-abc/src"; assert_exists "$h/pc/credentials.json"
+}
+
 test_firebase_zcode_mimocode_keep_logins_and_sessions() {
   fresh_home
   local h=$HOME_DIR fb=$HOME_DIR/.cache/firebase out holder

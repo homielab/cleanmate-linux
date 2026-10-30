@@ -8,6 +8,8 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- **AI Models**: unfinished Ollama downloads (`sha256-…-partial`, also in the folder `OLLAMA_MODELS` points to). Not pre-selected and skipped while Ollama runs; complete models are kept.
+- **Developer Junk**: the Dart and Flutter pub cache (`hosted`, `git/cache`, also `PUB_CACHE`). Not pre-selected, skipped while dart or flutter runs; your pub login and activated tools are kept.
 - **AI Tools**: data VS Code, VS Code Insiders, VSCodium, Cursor and Windsurf keep for projects you deleted (`workspaceStorage`, also the Snap and Flatpak builds). Each project is listed on its own, not pre-selected, moved to the Trash, and skipped while the editor runs.
 
 ### Changed

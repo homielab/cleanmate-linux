@@ -646,3 +646,19 @@ msgstr ""
 msgid "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). Downloaded again when you start them."
 msgstr ""
 
+#. ollama_partial label
+msgid "Ollama — unfinished downloads"
+msgstr ""
+
+#. ollama_partial description
+msgid "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again."
+msgstr ""
+
+#. pub_cache label
+msgid "Dart & Flutter pub cache"
+msgstr ""
+
+#. pub_cache description
+msgid "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept."
+msgstr ""
+

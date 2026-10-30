@@ -2819,5 +2819,21 @@ msgstr ""
 "Emulator mà Firebase CLI đã tải (Firestore, Database, Pub/Sub, UI…). Tải lại "
 "khi bạn khởi động chúng."
 
+#. ollama_partial label
+msgid "Ollama — unfinished downloads"
+msgstr "Bản tải dở của Ollama"
+
+#. ollama_partial description
+msgid "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again."
+msgstr "Các phần tải dở của Ollama do bị gián đoạn (sha256-…-partial). Model đã tải xong được giữ; lệnh pull sẽ tải lại từ đầu."
+
+#. pub_cache label
+msgid "Dart & Flutter pub cache"
+msgstr "Cache pub của Dart & Flutter"
+
+#. pub_cache description
+msgid "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept."
+msgstr "Các gói Dart và Flutter đã tải (~/.pub-cache/hosted, git/cache). 'pub get' tải lại; công cụ đã kích hoạt và đăng nhập pub được giữ."
+
 #~ msgid "System Overview and more in the terminal app"
 #~ msgstr "Tổng quan hệ thống và công cụ khác trong app terminal"

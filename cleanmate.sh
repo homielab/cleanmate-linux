@@ -2480,6 +2480,13 @@ LIST_CAT=dev reg_list_item firebase_emulators "Firebase emulators" 0 item \
   "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). Downloaded again when you start them." \
   firebase_emulators "$HOME/.cache/firebase"
 
+# Flutter/Dart's pub cache: downloaded packages and git checkouts, fetched again by `pub get`.
+# Never credentials.json, bin/ or global_packages/ (activated tools).
+reg_cache_item pub_cache dev "Dart & Flutter pub cache" 0 \
+  "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept." \
+  "$(env_home_paths PUB_CACHE hosted "$HOME/.pub-cache/hosted")
+$(env_home_paths PUB_CACHE git/cache "$HOME/.pub-cache/git/cache")" "dart|dartaotruntime|flutter"
+
 si_to_bytes() { local v=${1%B}; v=${v/k/K}; numfmt --from=si "$v" 2>/dev/null || echo 0; }
 # Docker: one item per kind of leftover, sized from `docker system df`.
 docker_ok() { have docker && timeout 5 docker info >/dev/null 2>&1; }
@@ -2746,6 +2753,22 @@ reg_model_item() { # KIND REF LABEL DESCRIPTION
         precheck_$id() { model_precheck $id; }
         lockedby_$id() { lockedby_model $id; }"
 }
+
+# Ollama keeps an interrupted download as blobs/sha256-<hash>-partial[-N]; no model uses it.
+ollama_blob_dirs() { env_home_paths OLLAMA_MODELS blobs "$HOME/.ollama/models/blobs"; }
+ollama_partial() {
+  local d f
+  while IFS= read -r d; do
+    [[ -d $d && ! -L $d ]] || continue
+    for f in "$d"/sha256-*-partial "$d"/sha256-*-partial-*; do
+      [[ -f $f && ! -L $f ]] && printf '%s\n' "$f"
+    done
+  done < <(ollama_blob_dirs)
+  return 0
+}
+LIST_CAT=models reg_list_item ollama_partial "Ollama — unfinished downloads" 0 download \
+  "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again." \
+  ollama_partial "$(ollama_blob_dirs)" "ollama"
 
 discover_models() {
   local n _b d m name
