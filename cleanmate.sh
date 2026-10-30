@@ -899,6 +899,7 @@ reg apt_cache    system "APT package cache"                 1 "Downloaded .deb i
 reg old_installers system "Old installers in Downloads"     0 "Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) at the top of your Downloads folder, downloaded more than 30 days ago. Moved to the Trash."
 reg old_downloads system "Old downloads"                   0 "Files and folders at the top of your Downloads folder that you haven't opened or changed for more than 90 days. Moved to the Trash."
 reg old_screenshots system "Old screenshots"                 0 "Screenshots and screen recordings in your Pictures folder and its Screenshots folder that you haven't opened or changed for more than 90 days. Moved to the Trash."
+reg abandoned_downloads system "Abandoned downloads"         0 "Unfinished downloads (.crdownload, .part, .aria2, .!qB) at the top of your Downloads folder that haven't changed or been opened for more than 7 days. Moved to the Trash."
 reg orphans      system "Unused packages & old kernels"     1 "Packages installed as dependencies that nothing needs any more (apt autoremove)."
 reg residual     system "Leftover package configs"          1 "System config files of packages that were removed but not purged."
 reg journal      logs   "Systemd journal logs"              1 "Archived system logs. Keeps the last 7 days and at most 100 MB."
@@ -936,7 +937,7 @@ reg podman       dev    "Podman: stopped containers & dangling images" 0 "podman
 for _id in apt_cache orphans residual journal old_logs big_logs crash coredump snap_old old_kernels; do ITEM_ROOT[$_id]=1; done
 unset _id
 # items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
-declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1)
+declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1)
 
 # ── detail helpers ──
 
@@ -1219,7 +1220,7 @@ details_tmp() { tmp_find -printf '%s\t%p\n' | detail_files 30; }
 
 # Old installers in your Downloads folder: .deb, AppImage, .iso… files at its top level (no subfolders,
 # no symlinks) last modified more than OLD_INSTALLER_DAYS ago. One still downloading (a .part,
-# .crdownload or .!qB next to it) or open in a program is skipped. They are your files, so cleaning
+# .crdownload, .!qB or .aria2 next to it) or open in a program is skipped. They are your files, so cleaning
 # moves them to the Trash; the terminal app's z puts them back. The desktop app lists each file as an entry.
 # A Downloads folder outside your home folder (or a symlink) is never scanned: the item says so.
 OLD_INSTALLER_DAYS=30 # Settings: installer_days
@@ -1251,7 +1252,7 @@ old_installers() { # → OI_DIR, and OI_NAME / OI_BYTES / OI_DAYS (days since mo
       *.deb | *.appimage | *.iso | *.img | *.run | *.snap | *.flatpakref | *.flatpak) ;;
       *) continue ;;
     esac
-    [[ -e $OI_DIR/$name.part || -e $OI_DIR/$name.crdownload || -e $OI_DIR/$name.!qB ]] && continue # still downloading
+    partial_download "$OI_DIR" "$name" && continue # still downloading
     grep -qxF -- "$OI_DIR/$name" <<<"$open" && continue
     in_exclusion "$OI_DIR/$name" && continue
     OI_NAME+=("$name") OI_BYTES+=("$b") OI_DAYS+=($(((now - ${m%.*}) / 86400)))
@@ -1316,18 +1317,19 @@ clean_entries_old_installers() { # encoded file names (json_clean_entries only p
 # it changed or was read (atime; relatime still records a read once a day); a folder when it or
 # anything inside it changed, or a file inside it was read. Folders' own read times are left out:
 # listing a folder, as this scan does, updates them. A folder holding more than OD_MAX_FILES files is
-# skipped. Old installers (that item lists them), downloads in progress (.part, .crdownload, .!qB, or
-# one next to it), anything a program has open and Never clean folders are skipped too. They are your
-# files, so cleaning moves them to the Trash; the terminal app's z puts them back. The desktop app
-# lists each one as an entry. A Downloads folder outside your home folder (or a symlink) is never scanned.
+# skipped. Old installers (that item lists them), downloads in progress (.part, .crdownload, .!qB,
+# .aria2, or one next to it: Abandoned downloads lists them), anything a program has open and Never
+# clean folders are skipped too. They are your files, so cleaning moves them to the Trash; the terminal
+# app's z puts them back. The desktop app lists each one as an entry. A Downloads folder outside your
+# home folder (or a symlink) is never scanned.
 OLD_DOWNLOAD_DAYS=90 # Settings: download_days
 OD_MAX_FILES=20000
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_old_downloads='^[A-Za-z0-9._~%-]+$' # the file or folder name, percent-encoded (urlencode_path)
 
 partial_download() { # DIR NAME — NAME is a download in progress, or has one next to it
-  case $2 in *.part | *.crdownload | *.!qB) return 0 ;; esac
-  [[ -e $1/$2.part || -e $1/$2.crdownload || -e $1/$2.!qB ]]
+  case ${2,,} in *.part | *.crdownload | *.!qb | *.aria2) return 0 ;; esac
+  [[ -e $1/$2.part || -e $1/$2.crdownload || -e $1/$2.!qB || -e $1/$2.aria2 ]]
 }
 
 folder_touched() { # DIR CUTOFF → "NEWEST BYTES": the last change inside DIR (or read of a file in it) and
@@ -1534,6 +1536,113 @@ clean_entries_old_screenshots() { # encoded paths (json_clean_entries only passe
   done
   ((${#pick[@]})) || return 0
   trash_screenshots "${pick[@]}"
+}
+
+# Abandoned downloads: unfinished downloads at the top of your Downloads folder (no symlinks) — Chrome's
+# .crdownload, Firefox's .part, aria2's .aria2 and qBittorrent's .!qB (any case) — neither changed nor
+# opened for ABANDONED_DAYS. Firefox makes an empty file of the real name next to its .part, and aria2
+# keeps the data in the file of the real name next to its .aria2: such a file goes along as one entry,
+# and when it was used lately (or is open) the download isn't abandoned. A file a program has open
+# (still downloading) and Never clean folders are skipped. Old installers and Old downloads skip these.
+# Moved to the Trash; the terminal app's z puts them back; the desktop app lists each one as an entry.
+ABANDONED_DAYS=7
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_abandoned_downloads='^[A-Za-z0-9._~%-]+$' # the unfinished file's name, percent-encoded
+
+abandoned_downloads() { # → AD_DIR, and AD_NAME / AD_MATE (moved along, or empty) / AD_BYTES / AD_DAYS biggest first
+  local b m a n name mate mb mm ma open now cut
+  AD_DIR=$(downloads_dir) AD_NAME=() AD_MATE=() AD_BYTES=() AD_DAYS=()
+  ! downloads_outside "$AD_DIR" && [[ -d $AD_DIR ]] || return 0
+  open=$'\n'$(open_files)$'\n'
+  printf -v now '%(%s)T' -1
+  cut=$((now - ABANDONED_DAYS * 86400))
+  while IFS=$'\t' read -r -d '' b n name mate; do
+    AD_NAME+=("$name") AD_MATE+=("$mate") AD_BYTES+=("$b") AD_DAYS+=("$n")
+  done < <(
+    find "$AD_DIR" -mindepth 1 -maxdepth 1 -type f -mmin +$((ABANDONED_DAYS * 1440)) -amin +$((ABANDONED_DAYS * 1440)) \
+      -printf '%s\t%T@\t%A@\t%f\0' 2>/dev/null |
+      while IFS=$'\t' read -r -d '' b m a name; do
+        [[ -n $name && $name != *[[:cntrl:]]* ]] || continue
+        mate=""
+        case ${name,,} in
+          *.crdownload | *.!qb) ;;
+          *.part | *.aria2) mate=${name%.*} ;;
+          *) continue ;;
+        esac
+        in_exclusion "$AD_DIR/$name" && continue
+        open_under "$open" "$AD_DIR/$name" && continue
+        m=${m%.*} a=${a%.*}
+        ((a > m)) && m=$a
+        [[ -n $mate && -f $AD_DIR/$mate && ! -L $AD_DIR/$mate ]] &&
+          read -r mb mm ma < <(stat -c '%s %Y %X' -- "$AD_DIR/$mate" 2>/dev/null) || mb=-1
+        # aria2's holds the data; Firefox's is empty (a full one is a file of its own)
+        if ((mb > 0)) && [[ ${name,,} == *.aria2 ]] || ((mb == 0)); then
+          ((mm < cut && ma < cut)) || continue # used lately: still downloading
+          open_under "$open" "$AD_DIR/$mate" && continue
+          ((mm > m)) && m=$mm
+          ((ma > m)) && m=$ma
+          b=$((b + mb))
+        else
+          mate=""
+        fi
+        printf '%s\t%s\t%s\t%s\0' "$b" "$(((now - m) / 86400))" "$name" "$mate"
+      done | sort -z -t $'\t' -k1,1nr
+  )
+}
+
+trash_abandoned() { # INDEX… — move these of AD_NAME (and the file next to each) to the Trash; @@undo lines for z
+  local i e rc=0
+  UNDO_BATCH=()
+  for i; do
+    move_to_trash "$AD_DIR/${AD_NAME[i]}" || rc=1
+    [[ -z ${AD_MATE[i]} ]] || move_to_trash "$AD_DIR/${AD_MATE[i]}" || rc=1
+  done
+  for e in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$e"; done
+  return "$rc"
+}
+
+abandoned_label() { # INDEX → "movie.mkv.part · untouched for 12 days"
+  printf '%s · untouched for %s days' "${AD_NAME[$1]}" "${AD_DAYS[$1]}"
+}
+
+scan_abandoned_downloads() {
+  local b
+  abandoned_downloads
+  ((${#AD_NAME[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${AD_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#AD_NAME[@]} download) untouched for ${ABANDONED_DAYS}+ days"
+}
+clean_abandoned_downloads() {
+  abandoned_downloads
+  ((${#AD_NAME[@]})) || return 0
+  trash_abandoned "${!AD_NAME[@]}"
+}
+details_abandoned_downloads() {
+  local i
+  abandoned_downloads
+  for i in "${!AD_NAME[@]}"; do
+    printf '  %s%10s%s  %s%s\n' "$(size_color "${AD_BYTES[i]}")" "$(human "${AD_BYTES[i]}")" "$NC" \
+      "${AD_DIR/#$HOME/\~}/$(abandoned_label "$i")" "${AD_MATE[i]:+ (with ${AD_MATE[i]})}"
+  done
+}
+entries_abandoned_downloads() {
+  local i
+  abandoned_downloads
+  for i in "${!AD_NAME[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${AD_NAME[i]}")" "${AD_BYTES[i]}" "$(abandoned_label "$i")"
+  done
+}
+clean_entries_abandoned_downloads() { # encoded names (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  abandoned_downloads
+  for id; do
+    for i in "${!AD_NAME[@]}"; do
+      [[ $(urlencode_path "${AD_NAME[i]}") == "$id" ]] && pick+=("$i")
+    done
+  done
+  ((${#pick[@]})) || return 0
+  trash_abandoned "${pick[@]}"
 }
 
 # ── User ──

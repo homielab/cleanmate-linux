@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 21:49+0000\n"
+"POT-Creation-Date: 2026-10-30 22:14+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -2280,6 +2280,20 @@ msgid ""
 msgstr ""
 "Ảnh chụp và video quay màn hình trong thư mục Ảnh và thư mục Screenshots của "
 "nó mà bạn không mở hay sửa hơn {0} ngày. Chuyển vào Thùng rác."
+
+#. abandoned_downloads label
+msgid "Abandoned downloads"
+msgstr "Tải về bỏ dở"
+
+#. abandoned_downloads description
+#, python-brace-format
+msgid ""
+"Unfinished downloads (.crdownload, .part, .aria2, .!qB) at the top of your "
+"Downloads folder that haven't changed or been opened for more than {0} days. "
+"Moved to the Trash."
+msgstr ""
+"Tệp tải chưa xong (.crdownload, .part, .aria2, .!qB) ngay trong thư mục Tải "
+"về mà không được sửa hay mở hơn {0} ngày. Chuyển vào Thùng rác."
 
 #. orphans label
 msgid "Unused packages & old kernels"

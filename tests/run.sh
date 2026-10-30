@@ -878,8 +878,8 @@ for l in sys.stdin:
     if e["event"] == "done": print(json.dumps(e.get("trash"), sort_keys=True))
     elif e["event"] == "item": print(e["id"], e["trash"])
     elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["id"], e.get("trash", ""))'
-  out=$(cm --json items | python3 -c "$done_" | grep -E '^(old_installers|old_downloads|old_screenshots|stale_build_dirs|vscode_stale_workspaces|thumbs|node_modules) ' | sort)
-  assert_eq "$out" $'node_modules False\nold_downloads True\nold_installers True\nold_screenshots True\nstale_build_dirs True\nthumbs False\nvscode_stale_workspaces True' \
+  out=$(cm --json items | python3 -c "$done_" | grep -E '^(abandoned_downloads|old_installers|old_downloads|old_screenshots|stale_build_dirs|vscode_stale_workspaces|thumbs|node_modules) ' | sort)
+  assert_eq "$out" $'abandoned_downloads True\nnode_modules False\nold_downloads True\nold_installers True\nold_screenshots True\nstale_build_dirs True\nthumbs False\nvscode_stale_workspaces True' \
     "items say which ones go to the Trash"
   out=$(user_cm --json --dry-run clean old_installers thumbs | python3 -c "$done_")
   assert_eq "$out" $'ok old_installers \nok thumbs \n{}' "dry run: nothing to undo"
@@ -1314,6 +1314,104 @@ Screenshots/$(in_app "urlencode_path '$vi'") 200 off $vi · untouched for 120 da
   assert_eq "$(user_cm --json details old_screenshots | python3 -c "$list")" "" "Pictures outside the home folder"
   user_cm --json clean old_screenshots >/dev/null 2>&1
   assert_exists "$WORK/data/pics/$gnome"
+}
+
+test_abandoned_downloads() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local dl=$HOME_DIR/Downloads out f pid qb hold=()
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  sized "$dl/a.crdownload" 1000                                          # Chrome
+  sized "$dl/film.mkv.part" 2000; sized "$dl/film.mkv" 0                 # Firefox: .part + empty real name
+  sized "$dl/disk.iso.aria2" 50; sized "$dl/disk.iso" 5000               # aria2: control file + the data
+  sized "$dl/movie.!qB" 3000                                             # qBittorrent
+  sized "$dl/Upper.CRDOWNLOAD" 100                                       # any case
+  sized "$dl/full.part" 400; sized "$dl/full" 700                        # a full file of that name: its own
+  sized "$dl/new.crdownload" 60                                          # changed 3 days ago
+  sized "$dl/read.part" 70                                               # opened 2 days ago
+  sized "$dl/busy.iso.aria2" 80; sized "$dl/busy.iso" 800                # aria2 wrote the data yesterday
+  sized "$dl/open.crdownload" 90                                         # open: still downloading
+  sized "$dl/sub/deep.crdownload" 110                                    # one folder deeper
+  sized "$dl/notes.txt" 120                                              # not a download in progress
+  sized "$WORK/elsewhere.part" 130; ln -s "$WORK/elsewhere.part" "$dl/link.part"
+  while IFS= read -r f; do touch -d "120 days ago" "$f"; done < <(find "$dl" -depth -mindepth 1 ! -type l)
+  touch -d "3 days ago" "$dl/new.crdownload"
+  touch -a -d "2 days ago" "$dl/read.part"
+  touch -d "1 day ago" "$dl/busy.iso"
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
+    elif e["event"] == "done" and "trash" in e: print("trash", " ".join(sorted(sum(e["trash"].values(), []))))
+    elif e["event"] == "error": print("error", e["message"])'
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  "${hold[@]}" sleep 60 <"$dl/open.crdownload" >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  qb=$(in_app "urlencode_path 'movie.!qB'")
+  out=$(user_cm --json scan --only system | grep '"id":"abandoned_downloads"' | python3 -c "$list")
+  assert_eq "$out" "abandoned_downloads 11550 6 downloads untouched for 7+ days False True False" \
+    "unfinished downloads at the top of Downloads, not ticked"
+  out=$(user_cm --json details abandoned_downloads | python3 -c "$list")
+  assert_eq "$out" "disk.iso.aria2 5050 off disk.iso.aria2 · untouched for 120 days
+$qb 3000 off movie.!qB · untouched for 120 days
+film.mkv.part 2000 off film.mkv.part · untouched for 120 days
+a.crdownload 1000 off a.crdownload · untouched for 120 days
+full.part 400 off full.part · untouched for 120 days
+Upper.CRDOWNLOAD 100 off Upper.CRDOWNLOAD · untouched for 120 days" "one entry per download, the file next to it counted in"
+  # Old installers and Old downloads leave them (and the file of the real name) to this item
+  out=$(user_cm --json details old_downloads | python3 -c "$list" | cut -d' ' -f1 | sort | paste -sd' ' -)
+  assert_eq "$out" "notes.txt sub" "old downloads skips unfinished downloads"
+  # Never clean
+  user_cm --json settings-set exclusions add "$dl" >/dev/null
+  assert_eq "$(user_cm --json details abandoned_downloads | python3 -c "$list")" "" "an excluded Downloads folder is skipped"
+  user_cm --json settings-set exclusions remove "$dl" >/dev/null
+  # automatic cleaning leaves them alone even when ticked
+  select_only abandoned_downloads
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$dl/a.crdownload"; assert_exists "$dl/disk.iso.aria2"
+  out=$(user_cm --json --dry-run clean abandoned_downloads | python3 -c "$list")
+  assert_contains "$out" "ok 11550"
+  assert_exists "$dl/film.mkv.part"
+  out=$(user_cm --json clean abandoned_downloads --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of abandoned_downloads: ../etc"
+  out=$(user_cm --json clean abandoned_downloads --entries "film.mkv.part,disk.iso.aria2,notes.txt" | python3 -c "$list")
+  assert_eq "$out" $'ok 7050 6.9 KB freed\ntrash disk.iso disk.iso.aria2 film.mkv film.mkv.part' \
+    "only the chosen downloads, each with the file next to it"
+  for f in film.mkv.part film.mkv disk.iso.aria2 disk.iso; do
+    assert_missing "$dl/$f"; assert_exists "$HOME_DIR/.local/share/Trash/files/$f"
+  done
+  out=$(user_cm --json clean abandoned_downloads | python3 -c "$list")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" $'ok 4500 4.4 KB freed\ntrash Upper.CRDOWNLOAD a.crdownload full.part movie.!qB' "the rest"
+  for f in new.crdownload read.part busy.iso.aria2 busy.iso open.crdownload sub/deep.crdownload notes.txt full link.part; do
+    assert_exists "$dl/$f"
+  done
+  assert_exists "$WORK/elsewhere.part"
+  out=$(user_cm --json restore film.mkv.part film.mkv | python3 -c "$list")
+  assert_eq "$out" "ok 0 put back"$'\n'"ok 0 put back" "restore puts both back"
+  assert_exists "$dl/film.mkv.part"; assert_exists "$dl/film.mkv"
+  # the terminal app: what a cleanup moved to the Trash is the batch z puts back
+  touch -d "120 days ago" "$dl/film.mkv.part" "$dl/film.mkv"
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  out=$(in_app 'SESSION_TMP=$(mktemp -d) UI_ACTIVE=0 DRY_RUN=0; load_settings
+    new_tasks clean; add_task "Abandoned downloads" task_clean abandoned_downloads; CLEAN_UNDO=()
+    run_tasks Cleaning >/dev/null
+    echo "batch=${#CLEAN_UNDO[@]}"; UNDO_BATCH=("${CLEAN_UNDO[@]}")
+    undo_trash; echo "restored=$UNDO_OK"; rm -r "$SESSION_TMP"')
+  assert_eq "$out" "batch=3"$'\n'"restored=3" "z puts back what the cleanup trashed"
+  assert_exists "$dl/film.mkv.part"; assert_exists "$dl/film.mkv"; assert_exists "$dl/open.crdownload"
+  # a Downloads folder outside the home folder is never scanned
+  mkdir -p "$HOME_DIR/.local/bin" "$WORK/data/dl3"
+  sized "$WORK/data/dl3/x.crdownload" 10; touch -d "120 days ago" "$WORK/data/dl3/x.crdownload"
+  printf '#!/bin/sh\necho "%s"\n' "$WORK/data/dl3" >"$HOME_DIR/.local/bin/xdg-user-dir"
+  chmod +x "$HOME_DIR/.local/bin/xdg-user-dir"
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  assert_eq "$(user_cm --json details abandoned_downloads | python3 -c "$list")" "" "Downloads outside the home folder"
+  user_cm --json clean abandoned_downloads >/dev/null 2>&1
+  assert_exists "$WORK/data/dl3/x.crdownload"
 }
 
 test_stale_project_build_folders() {

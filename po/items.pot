@@ -38,6 +38,15 @@ msgstr ""
 msgid "Screenshots and screen recordings in your Pictures folder and its Screenshots folder that you haven't opened or changed for more than {0} days. Moved to the Trash."
 msgstr ""
 
+#. abandoned_downloads label
+msgid "Abandoned downloads"
+msgstr ""
+
+#. abandoned_downloads description
+#, python-brace-format
+msgid "Unfinished downloads (.crdownload, .part, .aria2, .!qB) at the top of your Downloads folder that haven't changed or been opened for more than {0} days. Moved to the Trash."
+msgstr ""
+
 #. orphans label
 msgid "Unused packages & old kernels"
 msgstr ""
