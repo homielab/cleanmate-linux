@@ -1259,6 +1259,8 @@ test_json_settings() {
     'case $1 in is-enabled) test -e "$HOME/enabled/$3" ;; enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac' \
     >"$HOME_DIR/.local/bin/systemctl"
   chmod +x "$HOME_DIR/.local/bin/systemctl"
+  printf '#!/bin/sh\nexit 1\n' >"$HOME_DIR/.local/bin/gsettings" # no GNOME settings: no recent_files
+  chmod +x "$HOME_DIR/.local/bin/gsettings"
   if ((EUID == 0)); then
     out=$(cm --json settings 2>&1); assert_contains "$out" "run this as yourself, not as root"
   fi
@@ -1333,6 +1335,44 @@ done true false" "every setting with its range and default; bad values fall back
   out=$(user_cm --json settings-set schedule daily | settings_list)
   assert_contains "$out" "fail schedule Could not enable the systemd timer."
   assert_contains "$out" "schedule off"
+}
+
+test_json_recent_files_and_activity() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out g=$HOME_DIR/.local/bin/gsettings log=$HOME_DIR/.local/state/cleanmate/clean.log
+  mkdir -p "$HOME_DIR/.local/bin" "${log%/*}"
+  # a fake gsettings keeping remember-recent-files in ~/recent
+  printf '%s\n' '#!/bin/sh' 'f=$HOME/recent; [ -e "$f" ] || echo true >"$f"' \
+    'case $1 in get) cat "$f" ;; set) echo "$4" >"$f" ;; esac' >"$g"
+  chmod +x "$g"
+  assert_contains "$(user_cm --json settings | settings_list)" $'selections 0\nrecent_files 1\ndone'
+  out=$(user_cm --json settings-set recent_files 0 | settings_list)
+  assert_eq "$out" $'ok recent_files set to 0\nrecent_files 0\ndone  ' "stop remembering recent files"
+  assert_eq "$(cat "$HOME_DIR/recent")" false "gsettings changed"
+  out=$(user_cm --json --dry-run settings-set recent_files 1 | settings_list)
+  assert_eq "$out" $'ok recent_files would be set to 1\nrecent_files 0\ndone  ' "dry run of recent files"
+  out=$(user_cm --json settings-set recent_files 2 2>&1); assert_contains "$out" "recent_files must be 0 or 1"
+  rm -f "$g"
+  if ! command -v gsettings >/dev/null; then
+    out=$(user_cm --json settings | settings_list)
+    assert_eq "${out//recent_files/}" "$out" "no recent_files without gsettings"
+    out=$(user_cm --json settings-set recent_files 1 2>&1); assert_contains "$out" "gsettings is not available"
+  fi
+  # the activity log, newest first
+  out=$(user_cm --json activity | tail -n 1)
+  assert_contains "$out" '"count":0'
+  printf '%s\n' '2026-01-02 03:04:05 trash /home/x/a b' 'not a log line' '2026-01-03 10:00:00 Cleanup finished — 1.0 MB freed (dry-run=0)' >"$log"
+  out=$(user_cm --json activity | python3 -c 'import sys, json, time
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "activity": print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(e["epoch"])), e["text"])
+    else: print(e["event"], e.get("count"), e.get("path", "").endswith("/cleanmate/clean.log"))')
+  assert_eq "$out" "2026-01-03 10:00:00 Cleanup finished — 1.0 MB freed (dry-run=0)
+2026-01-02 03:04:05 trash /home/x/a b
+done 2 True" "activity events, newest first"
+  assert_contains "$(user_cm --json activity --limit 1 | tail -n 1)" '"count":1'
+  out=$(user_cm --json activity --limit x 2>&1); assert_contains "$out" "Invalid limit: x"
 }
 
 app_fixtures() { # BIN — launchers, package stubs and home folders for gimp (apt), foo (apt) and Spotify (flatpak)

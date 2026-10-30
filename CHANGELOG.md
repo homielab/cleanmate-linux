@@ -14,6 +14,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- Desktop app, Settings › Your data: **Remember recent files** turns GNOME's recent-files list on or off (as in the terminal app), and **Activity log** shows what was cleaned and when, newest first, with a button to open the log folder.
 - Desktop app, Settings › **Language**: run CleanMate in English or Tiếng Việt whatever your system's language is, or keep *Same as system*. A **Restart** button next to it reopens the app in the new language; the terminal app stays in English.
 - Desktop app, **System Overview**: a chart of free space over the last 30 days (hover a day for its date and value) with the trend in words, space in use outside your folders (Timeshift snapshots, the swap file, ext4's reserved space) and the largest folders in your home — click one to explore it in Space Lens. The system and disks still show at once; folder sizes fill in when measured. Opening the page also records the day's free space, so the chart grows without the terminal app.
 - Settings › **Old installers** (both apps): choose how many days an installer stays in Downloads before CleanMate offers to clean it (7–3650, default 30). If your Downloads folder is outside your home folder, the item now says so instead of staying silent.

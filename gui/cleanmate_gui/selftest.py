@@ -710,11 +710,21 @@ def settings_test(win, report, wait, finish):
     for path, text in ((settings_file, "journal_days=14\n"), (selection, "apt_cache=1\n"),
                        (os.path.join(bin_dir, "systemctl"),
                         '#!/bin/sh\nshift\nmkdir -p "$HOME/enabled"\ncase $1 in is-enabled) test -e "$HOME/enabled/$3" ;; '
-                        'enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac\n')):
+                        'enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac\n'),
+                       (os.path.join(bin_dir, "gsettings"),  # remember-recent-files kept in ~/recent
+                        '#!/bin/sh\nf=$HOME/recent\n[ -e "$f" ] || echo true >"$f"\n'
+                        'case $1 in get) cat "$f" ;; set) echo "$4" >"$f" ;; esac\n')):
         with open(path, "w") as f:
             f.write(text)
-    os.chmod(os.path.join(bin_dir, "systemctl"), 0o755)
-    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+    for name in ("systemctl", "gsettings"):
+        os.chmod(os.path.join(bin_dir, name), 0o755)
+    state = os.path.join(home, ".local", "state")
+    log = os.path.join(state, "cleanmate", "clean.log")
+    os.makedirs(os.path.dirname(log))
+    with open(log, "w") as f:
+        f.write("2026-01-02 03:04:05 trash /home/alex/old.iso\n2026-01-03 10:00:00 Cleanup finished — 1.0 MB freed\n")
+    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "XDG_STATE_HOME": state,
+           "CLEANMATE_NO_UPDATE_CHECK": "1",
            "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
 
     dialog = win.show_settings()
@@ -800,6 +810,33 @@ def settings_test(win, report, wait, finish):
     def reset():
         report(not os.path.exists(selection) and not page.rows["selections"].reset_button.get_sensitive(),
                "Reset forgets remembered selections")
+        row = page.rows["recent_files"]
+        report(row.get_sensitive() and row.get_active(), "Remember recent files reads gsettings")
+        row.set_active(False)
+        wait(idle, recent_off, 30, "recent files")
+
+    def recent_off():
+        with open(os.path.join(home, "recent")) as f:
+            report(f.read().strip() == "false", "turning Remember recent files off sets it in gsettings")
+        page.rows["activity"].emit("activated")
+        wait(lambda: not page.activity.loading, activity_shown, 30, "activity log")
+
+    def activity_shown():
+        act = page.activity
+        titles = []
+        child = act.list.get_first_child()
+        while child:
+            titles.append(child.get_title())
+            child = child.get_next_sibling()
+        report(act.stack.get_visible_child_name() == "list" and len(titles) == 2
+               and titles[0].startswith("Cleanup finished") and "old.iso" in titles[1],
+               "Activity log lists the log, newest first")
+        os.remove(log)
+        page.show_activity()
+        wait(lambda: not page.activity.loading, activity_empty, 30, "empty activity log")
+
+    def activity_empty():
+        report(page.activity.stack.get_visible_child_name() == "empty", "an empty activity log says so")
         done()
 
     wait(idle, first, 30, "first settings")

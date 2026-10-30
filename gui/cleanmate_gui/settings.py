@@ -3,9 +3,13 @@
 These are the terminal app's settings. The engine reads them (`--json settings`) and changes them
 (`--json settings-set KEY VALUE`) in the same file and systemd user timer, with the same ranges;
 this page only shows them. A change is saved at once (numbers a moment after you stop typing).
-The language is the desktop app's own (the terminal app stays English); it shows after a restart.
+"Remember recent files" is GNOME's own setting (gsettings), as in the terminal app; the activity log is
+the engine's (`--json activity`). The language is the desktop app's own (the terminal app stays English); it shows after a restart.
 """
-from gi.repository import Adw, GLib, Gtk
+import datetime
+import os
+
+from gi.repository import Adw, Gio, GLib, Gtk
 
 from . import i18n
 from .i18n import _, ngettext
@@ -154,6 +158,22 @@ class SettingsPage(Adw.PreferencesPage):
         self.rows["selections"] = selections
         data.add(selections)
 
+        recent = Adw.SwitchRow(title=_("Remember recent files"),
+                               subtitle=_("Files and Open dialogs list the files you used lately"))
+        if "recent_files" not in self.settings:
+            recent.set_sensitive(False)
+            recent.set_subtitle(_("Needs GNOME's gsettings, which isn't available here"))
+        recent.connect("notify::active", self.on_switch, "recent_files")
+        self.rows["recent_files"] = recent
+        data.add(recent)
+
+        activity = Adw.ActionRow(title=_("Activity log"), subtitle=_("What was cleaned and when"),
+                                 activatable=True)
+        activity.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
+        activity.connect("activated", lambda *_a: self.show_activity())
+        self.rows["activity"] = activity
+        data.add(activity)
+
         for key in self.settings:
             self.show_value(key)
 
@@ -190,7 +210,7 @@ class SettingsPage(Adw.PreferencesPage):
             row.restart_button.set_visible(pending)
             row.set_subtitle(_("Restart CleanMate to use the new language. The system's language does not change.")
                              if pending else "")
-        elif key == "update_check":
+        elif key in ("update_check", "recent_files"):
             row.set_active(bool(s["value"]))
         elif key == "selections":
             row.set_subtitle(ngettext("{n} remembered choice for Smart Scan", "{n} remembered choices for Smart Scan",
@@ -292,9 +312,69 @@ class SettingsPage(Adw.PreferencesPage):
         dialog.connect("response", lambda d, r: r == "reset" and self.change("selections", "reset"))
         dialog.present(self)
 
+    # ── activity log ──
+    def show_activity(self):
+        """The engine's activity log, newest first, as a sub-page of the dialog."""
+        self.activity = ActivityPage(self)
+        dialog = self.get_ancestor(Adw.PreferencesDialog)
+        if dialog:
+            dialog.push_subpage(self.activity)
+        return self.activity
+
     def toast(self, text):
         dialog = self.get_ancestor(Adw.PreferencesDialog)
         if dialog:
             dialog.add_toast(Adw.Toast(title=GLib.markup_escape_text(text)))
         else:
             self.window.toast(text)
+
+
+class ActivityPage(Adw.NavigationPage):
+    """What the terminal app shows under Settings › Activity log: every line, newest first."""
+
+    def __init__(self, settings):
+        super().__init__(title=_("Activity log"))
+        self.settings = settings
+        self.lines = []  # (epoch, text)
+        self.path = None
+        self.loading = True
+        self.stack = Gtk.Stack()
+        self.stack.add_named(Adw.StatusPage(title=_("Reading the log…"),
+                                            child=Gtk.Spinner(spinning=True, width_request=32, height_request=32,
+                                                              halign=Gtk.Align.CENTER)), "loading")
+        self.empty = Adw.StatusPage(icon_name="document-open-recent-symbolic", title=_("Nothing yet"),
+                                    description=_("Nothing has been cleaned yet."))
+        self.stack.add_named(self.empty, "empty")
+        self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"],
+                                margin_start=12, margin_end=12, margin_top=12, margin_bottom=12)
+        self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(child=self.list), vexpand=True), "list")
+
+        self.folder = Gtk.Button(icon_name="folder-open-symbolic", tooltip_text=_("Open the log folder"),
+                                 sensitive=False)
+        self.folder.connect("clicked", lambda *_a: self.open_folder())
+        header = Adw.HeaderBar()
+        header.pack_end(self.folder)
+        view = Adw.ToolbarView(content=self.stack)
+        view.add_top_bar(header)
+        self.set_child(view)
+
+        def on_event(e):
+            if e["event"] == "activity":
+                self.lines.append((e["epoch"], e["text"]))
+            elif e["event"] == "done":
+                self.path = e.get("path")
+
+        self.settings.engine.activity(on_event, self.loaded)
+
+    def loaded(self, ok, status):
+        self.loading = False
+        for epoch, text in self.lines:
+            when = datetime.datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M") if epoch else ""
+            row = Adw.ActionRow(title=GLib.markup_escape_text(text), subtitle=when, title_lines=3)
+            self.list.append(row)
+        self.stack.set_visible_child_name("list" if self.lines else "empty")
+        self.folder.set_sensitive(bool(self.path) and os.path.isdir(os.path.dirname(self.path)))
+
+    def open_folder(self):
+        Gtk.FileLauncher.new(Gio.File.new_for_path(os.path.dirname(self.path))).launch(
+            self.get_root(), None, None)

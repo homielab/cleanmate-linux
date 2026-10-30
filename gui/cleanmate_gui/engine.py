@@ -145,6 +145,9 @@ class Engine:
     def settings_set(self, key, value, on_event, on_done):
         return self.run(["settings-set", key, value], on_event, on_done)
 
+    def activity(self, on_event, on_done, limit=1000):
+        return self.run(["activity", "--limit", str(limit)], on_event, on_done)
+
     def apps(self, on_event, on_done):
         return self.run(["apps"], on_event, on_done)
 

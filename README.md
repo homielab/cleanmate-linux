@@ -153,7 +153,7 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
   removed; apps that are running are asked about (and skipped when unattended).
 - **System paths are hard-blocked** (`/`, `/usr`, `/etc`, your home folder itself, …), and when it
   runs as root it refuses anything inside a home folder.
-- **Everything is logged** to `~/.local/state/cleanmate/clean.log` (*Settings → Activity log*).
+- **Everything is logged** to `~/.local/state/cleanmate/clean.log` (*Settings → Activity log* in both apps).
 
 ## Automatic cleaning
 

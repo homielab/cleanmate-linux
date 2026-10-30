@@ -5628,12 +5628,13 @@ json_main() { # SUBCOMMAND ARGS…
     startup-set) json_startup_set "$@" ;;
     settings) json_settings ;;
     settings-set) json_settings_set "$@" ;;
+    activity) json_activity "$@" ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
     maintenance) json_maintenance ;;
     maintain) json_maintain "$@" ;;
     overview) json_overview ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|apps|uninstall [--check] ID…|maintenance|maintain ID [on|off] [--user-steps]|overview"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|apps|uninstall [--check] ID…|maintenance|maintain ID [on|off] [--user-steps]|overview"; return 2 ;;
   esac
 }
 
@@ -6132,6 +6133,12 @@ json_setting() { # KEY → one "setting" event with what is in effect now
       json_str v "$(schedule_get | head -n 1)"
       printf '{"event":"setting","key":"schedule","value":%s,"choices":["off","daily","weekly","monthly"],"default":"off"}\n' "$v" ;;
     selections) printf '{"event":"setting","key":"selections","value":%d}\n' "${#PREF[@]}" ;;
+    recent_files) # GNOME's own setting, as in the terminal app; nothing when gsettings can't read it
+      have gsettings || return 0
+      case $(gsettings get org.gnome.desktop.privacy remember-recent-files 2>/dev/null) in
+        true) v=1 ;; false) v=0 ;; *) return 0 ;;
+      esac
+      printf '{"event":"setting","key":"recent_files","value":%d}\n' "$v" ;;
     language)
       setting_choice v language
       printf '{"event":"setting","key":"language","value":"%s","choices":["system","en","vi"],"default":"system"}\n' "$v" ;;
@@ -6145,11 +6152,11 @@ json_setting() { # KEY → one "setting" event with what is in effect now
 json_settings() {
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   local k
-  for k in language schedule "${SETTING_KEYS[@]}" selections; do json_setting "$k"; done
+  for k in language schedule "${SETTING_KEYS[@]}" selections recent_files; do json_setting "$k"; done
   printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool have systemctl)" "$(json_bool packaged)"
 }
 
-json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, selections reset, or a number in range
+json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, selections reset, recent_files 0|1, or a number in range
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   (($# == 2)) || { json_error "Usage: --json settings-set KEY VALUE"; return 2; }
   local key=$1 val=$2 state=ok info
@@ -6171,6 +6178,13 @@ json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, languag
       [[ $val == reset ]] || { json_error "selections can only be reset"; return 2; }
       if ((DRY_RUN)); then info="would be forgotten"
       else PREF=(); rm -f -- "$PREF_FILE" && info="forgotten" || state=fail info="Could not remove ${PREF_FILE/#$HOME/\~}"; fi ;;
+    recent_files)
+      [[ $val == [01] ]] || { json_error "recent_files must be 0 or 1"; return 2; }
+      have gsettings || { json_error "gsettings is not available"; return 2; }
+      local on=false; ((val)) && on=true
+      if ((DRY_RUN)); then info="would be set to $val"
+      elif gsettings set org.gnome.desktop.privacy remember-recent-files "$on" 2>/dev/null; then info="set to $val"
+      else state=fail info="gsettings could not change it"; fi ;;
     *)
       [[ -n ${SETTING_RANGE[$key]:-} ]] || { json_error "Unknown setting: $key"; return 2; }
       read -ra r <<<"${SETTING_RANGE[$key]}"
@@ -6185,6 +6199,36 @@ json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, languag
   ((DRY_RUN)) && load_settings # show what is saved, not what would be
   json_setting "$key"
   printf '{"event":"done"}\n'
+}
+
+json_activity() { # [--limit N] — the activity log the terminal app shows, newest first
+  local limit=1000 n=0 epoch text
+  while (($#)); do
+    case $1 in
+      --limit) (($# >= 2)) || { json_error "--limit needs a value."; return 2; }; limit=$2 ;;
+      *) json_error "Unknown option for activity: $1"; return 2 ;;
+    esac
+    shift 2
+  done
+  [[ $limit =~ ^[0-9]{1,6}$ ]] || { json_error "Invalid limit: $limit"; return 2; }
+  if [[ -s $LOG_FILE ]] && ((limit > 0)); then
+    # each line is "YYYY-MM-DD HH:MM:SS text"; one `date -f` turns all the times into epochs
+    local re='^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} '
+    local -a lines epochs
+    mapfile -t lines < <(tac -- "$LOG_FILE" | grep -aE "$re" | head -n "$limit")
+    if ((${#lines[@]})); then
+      mapfile -t epochs < <(printf '%s\n' "${lines[@]}" | cut -c1-19 | date -f - +%s 2>/dev/null)
+      ((${#epochs[@]} == ${#lines[@]})) || epochs=()
+      for text in "${lines[@]}"; do
+        epoch=${epochs[n]:-0}
+        json_str text "${text:20}"
+        printf '{"event":"activity","epoch":%d,"text":%s}\n' "$epoch" "$text"
+        n=$((n + 1))
+      done
+    fi
+  fi
+  json_str text "$LOG_FILE"
+  printf '{"event":"done","count":%d,"path":%s}\n' "$n" "$text"
 }
 
 # ── Uninstaller for the desktop app ──

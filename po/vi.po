@@ -2578,6 +2578,42 @@ msgid "Open in Space Lens"
 msgstr "Mở trong Space Lens"
 
 #
+#: gui/cleanmate_gui/settings.py
+msgid "Remember recent files"
+msgstr "Ghi nhớ tệp gần đây"
+
+#: gui/cleanmate_gui/settings.py
+msgid "Files and Open dialogs list the files you used lately"
+msgstr "Tệp và hộp thoại Mở liệt kê các tệp bạn mới dùng"
+
+#: gui/cleanmate_gui/settings.py
+msgid "Needs GNOME's gsettings, which isn't available here"
+msgstr "Cần gsettings của GNOME, máy này không có"
+
+#: gui/cleanmate_gui/settings.py
+msgid "Activity log"
+msgstr "Nhật ký hoạt động"
+
+#: gui/cleanmate_gui/settings.py
+msgid "What was cleaned and when"
+msgstr "Đã dọn gì và khi nào"
+
+#: gui/cleanmate_gui/settings.py
+msgid "Reading the log…"
+msgstr "Đang đọc nhật ký…"
+
+#: gui/cleanmate_gui/settings.py
+msgid "Nothing yet"
+msgstr "Chưa có gì"
+
+#: gui/cleanmate_gui/settings.py
+msgid "Nothing has been cleaned yet."
+msgstr "Chưa dọn gì cả."
+
+#: gui/cleanmate_gui/settings.py
+msgid "Open the log folder"
+msgstr "Mở thư mục nhật ký"
+
 #~ msgid "System Overview and more in the terminal app"
 #~ msgstr "Tổng quan hệ thống và công cụ khác trong app terminal"
 
