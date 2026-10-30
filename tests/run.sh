@@ -252,6 +252,27 @@ test_stale_node_modules_rules() {
   assert_exists "$HOME_DIR/Applications/ide/resources/app/node_modules"
 }
 
+# pnpm and Bun hard-link node_modules files to their store: only what deleting frees is counted
+test_hard_linked_store_files_not_counted() {
+  fresh_home
+  local h=$HOME_DIR p=$HOME_DIR/code/web r=$HOME_DIR/code/rs out total
+  sized "$h/.local/share/pnpm/store/v3/files/ab/big" 100000
+  mkdir -p "$p/node_modules/.pnpm/lib" "$r/target/debug"
+  ln "$h/.local/share/pnpm/store/v3/files/ab/big" "$p/node_modules/.pnpm/lib/index.js"
+  sized "$p/node_modules/own.js" 3000
+  sized "$p/node_modules/a.js" 2000; ln "$p/node_modules/a.js" "$p/node_modules/b.js" # both links inside: once
+  new "$p/package.json"; new "$p/pnpm-lock.yaml"
+  ln "$h/.local/share/pnpm/store/v3/files/ab/big" "$r/target/debug/dep"; sized "$r/target/debug/app" 4000
+  new "$r/Cargo.toml"
+  touch -d '200 days ago' "$p"/* "$p" "$r"/* "$r"
+  total=$(du -sb "$p/node_modules" | cut -f1)
+  out=$(in_app 'find_stale_node_modules' | cut -f1)
+  assert_eq "$out" "$((total - 100000))" "node_modules: the store's file left out, a link pair inside counted once"
+  total=$(du -sb "$r/target" | cut -f1)
+  out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
+  assert_eq "$out" "$((total - 100000))" "target/: the store's file left out"
+}
+
 test_ai_tools_keep_memory_and_logins() {
   fresh_home
   local P=$HOME_DIR/.claude/projects/-home-x-proj
@@ -524,6 +545,7 @@ test_docker_items_prune_only_what_is_selected() {
 echo "\$*" >>"$log"
 case "\$*" in
   info*) exit 0 ;;
+  version*) echo '1.41 1.41' ;; # Docker 22: volume prune removes named volumes too
   "system df --format"*) printf 'Images\t1.5GB (60%%)\nContainers\t200MB (100%%)\nLocal Volumes\t50MB (10%%)\nBuild Cache\t2GB\n' ;;
   "images -f dangling=true --format {{.Size}}") printf '120MB\n80MB\n' ;;
   "ps -aq"*) printf 'a1\nb2\n' ;;
@@ -557,6 +579,7 @@ docker_entries_stub() { # DIR LOG — a docker with dangling, unused and used im
 echo "\$*" >>"$2"
 case "\$*" in
   info*) exit 0 ;;
+  version*) cat "$1/api" 2>/dev/null || echo '1.43 1.45' ;;
   "context inspect"*) echo unix:///var/run/docker.sock ;;
   "system df --format"*) printf 'Images\t200MB (10%%)\nLocal Volumes\t1.6GB (80%%)\nBuild Cache\t3.5GB\n' ;;
   "system df -v --format {{range .BuildCache}}"*) printf '%s\n' \\
@@ -676,6 +699,13 @@ test_docker_volumes_and_images_one_by_one() {
 ffffffffffffffff 20000000 anonymous ffffffffffff · local
 scratch 5000000 anonymous scratch · local
 nfs-share 0 data nfs-share · nfs" "unused volumes: biggest first, anonymous or may hold data, the one in use left out"
+  # Docker 23+ prunes only anonymous volumes: the scan counts those and names the named ones it keeps
+  out=$(cm --json scan --only dev | grep '"id":"docker_volumes"')
+  assert_contains "$out" '"bytes":25000000,"note":"2 anonymous volumes — may contain data; 2 named volumes kept"'
+  echo '1.41 1.45' >"$WORK/dockervolumes/api" # an older client: prune removes them all
+  out=$(cm --json scan --only dev | grep '"id":"docker_volumes"')
+  assert_contains "$out" '"bytes":1600000000,"note":"4 volumes — may contain data"'
+  rm "$WORK/dockervolumes/api"
   [[ $(cm --json details docker_volumes) == *'"selected":true'* ]] && fail "volumes must not be ticked" || ok_ "volumes not ticked"
   out=$(cm --json details docker_images | entry_notes)
   assert_eq "$out" "sha256:ccccccccc 900000000 - postgres:16 · created 3 weeks ago

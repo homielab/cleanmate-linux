@@ -2537,6 +2537,15 @@ nm_is_stale() { # NODE_MODULES_DIR
   ((has_lock)) || return 1
   [[ -z $(find "$p" -mindepth 1 -maxdepth 1 -not -name node_modules -mtime -"$NM_DAYS" -print -quit 2>/dev/null) ]]
 }
+own_bytes() { # PATH… → bytes deleting them frees, like du -sbx, but a file hard-linked from elsewhere (the
+  # pnpm store, Bun's cache) counts only when all its links are inside: then each inode once. Folders
+  # count 0, as du -b does.
+  find "$@" -xdev -printf '%y %D:%i %n %s\n' 2>/dev/null | awk '
+    $1 == "d" { next }
+    $1 == "f" && $3 > 1 { if (!($2 in seen)) { size[$2] = $4; links[$2] = $3 } seen[$2]++; next }
+    { t += $4 }
+    END { for (k in seen) if (seen[k] >= links[k]) t += size[k]; printf "%.0f\n", t }'
+}
 find_stale_node_modules() { # bytes<TAB>path of stale node_modules, outside your excluded folders
   local d
   exclusion_prune
@@ -2544,7 +2553,7 @@ find_stale_node_modules() { # bytes<TAB>path of stale node_modules, outside your
     -o -path '*/resources/app' -o -name .git \) -prune -o -type d -name node_modules -prune -print 2>/dev/null |
     while IFS= read -r d; do
       touches_exclusion "$d" && continue
-      nm_is_stale "$d" && printf '%s\t%s\n' "$(du -sb -- "$d" 2>/dev/null | cut -f1)" "$d"
+      nm_is_stale "$d" && printf '%s\t%s\n' "$(own_bytes "$d")" "$d"
     done
   return 0 # unreadable folders make find fail; the list is still valid
 }
@@ -2640,7 +2649,7 @@ stale_build_dirs() { # → SB_DIR (project) / SB_WHAT (its build folders, space-
         ((now - changed >= NM_DAYS * 86400)) || continue
         grep -qxF -e "$p" <<<"$busy" && continue
         grep -qF -e "$p/" <<<"$busy" && continue # in use (a path containing it elsewhere only errs on the safe side)
-        b=$(cd -- "$p" && du -scbx -- "${BD_DIRS[@]}" 2>/dev/null | tail -n1 | cut -f1)
+        b=$(cd -- "$p" && own_bytes "${BD_DIRS[@]}")
         printf '%s\t%s\t%s\t%s\n' "${b:-0}" "$changed" "${BD_DIRS[*]}" "$p"
       done | sort -t $'\t' -k1,1nr
   )
@@ -3568,8 +3577,7 @@ clean_entries_docker_images() { # by all of its tags: an image with two tags nee
   done
   return "$rc"
 }
-entries_docker_volumes() { # volumes no container uses, biggest first; note: anonymous, or data (a named one)
-  docker_ok && docker_local || return 1
+docker_unused_volumes() { # volumes no container uses, biggest first, as entries; note: anonymous, or data (a named one)
   docker system df -v --format \
     '{{range .Volumes}}{{.Name}}|{{.Links}}|{{.Size}}|{{.Driver}}|{{.Labels}}{{println}}{{end}}' \
     2>/dev/null | awk -F'|' "$DOCKER_AWK_BYTES"'
@@ -3580,6 +3588,7 @@ entries_docker_volumes() { # volumes no container uses, biggest first; note: ano
         printf "%s\t%.0f\t0\t%s · %s\t%s\n", $1, bytes($3), (hex ? substr($1, 1, 12) : $1), $4, (anon ? "anonymous" : "data")
       }' | sort -t $'\t' -k2,2nr
 }
+entries_docker_volumes() { docker_ok && docker_local || return 1; docker_unused_volumes; }
 clean_entries_docker_volumes() { local v rc=0; for v; do run docker volume rm "$v" || rc=1; done; return "$rc"; }
 
 scan_docker_containers() {
@@ -3600,15 +3609,40 @@ scan_docker_images() { docker_ok || return 1; docker_scan "$(docker_reclaimable 
 clean_docker_images() { run docker image prune -a -f; }
 details_docker_images() { docker images --format '  {{.Size}}\t{{.Repository}}:{{.Tag}}' 2>/dev/null; return 0; }
 
+# `docker volume prune -f` removes only anonymous volumes since Docker 23 (API 1.42; the API version both
+# sides speak decides), so then the scan counts only those and names the named ones it keeps; the desktop
+# app removes a named volume when you tick it. An API version that can't be read counts as 1.42 or newer.
+docker_prunes_named_volumes() {
+  local c s
+  read -r c s < <(timeout 5 docker version --format '{{.Client.APIVersion}} {{.Server.APIVersion}}' 2>/dev/null)
+  [[ $c =~ ^([0-9]+)\.([0-9]+) ]] && c=$((BASH_REMATCH[1] * 1000 + 10#${BASH_REMATCH[2]})) || return 1
+  [[ $s =~ ^([0-9]+)\.([0-9]+) ]] && s=$((BASH_REMATCH[1] * 1000 + 10#${BASH_REMATCH[2]})) || return 1
+  ((c < s ? c < 1042 : s < 1042))
+}
 scan_docker_volumes() {
   docker_ok || return 1
-  local n
-  n=$(docker volume ls -qf dangling=true 2>/dev/null | wc -l)
-  docker_scan "$(docker_reclaimable "Local Volumes")" "$(plural "$n" volume) — may contain data"
-  ((n > 0)) && return 0 || return 2
+  local n named=0 b=0 _id vb _sel _label note
+  if docker_prunes_named_volumes; then
+    n=$(docker volume ls -qf dangling=true 2>/dev/null | wc -l)
+    docker_scan "$(docker_reclaimable "Local Volumes")" "$(plural "$n" volume) — may contain data"
+    ((n > 0)) && return 0 || return 2
+  fi
+  n=0
+  while IFS=$'\t' read -r _id vb _sel _label note; do
+    if [[ $note == anonymous ]]; then n=$((n + 1)) b=$((b + vb)); else named=$((named + 1)); fi
+  done < <(docker_unused_volumes)
+  docker_scan "$b" "$(plural "$n" "anonymous volume") — may contain data$( ((named)) && printf '; %s kept' "$(plural "$named" "named volume")")"
+  ((n + named > 0)) && return 0 || return 2
 }
 clean_docker_volumes() { run docker volume prune -f; }
-details_docker_volumes() { docker volume ls -f dangling=true --format '  {{.Name}}  ({{.Driver}})' 2>/dev/null; return 0; }
+details_docker_volumes() {
+  if docker_prunes_named_volumes; then
+    docker volume ls -f dangling=true --format '  {{.Name}}  ({{.Driver}})' 2>/dev/null
+  else
+    docker_unused_volumes | awk -F'\t' '{ print "  " $4 ($5 == "anonymous" ? "" : "  (named, kept)") }'
+  fi
+  return 0
+}
 
 # Conda: downloaded archives in pkgs/ plus the index cache — what `conda clean --tarballs
 # --index-cache` frees. Extracted packages stay: removing them can break softlinked envs.
