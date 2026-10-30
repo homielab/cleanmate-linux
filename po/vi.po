@@ -967,12 +967,16 @@ msgid "Clean when not used for this many days"
 msgstr "Dọn khi không được dùng trong số ngày này"
 
 #: gui/cleanmate_gui/settings.py:24
-msgid "node_modules"
-msgstr "node_modules"
+msgid "Project build folders"
+msgstr "Thư mục build của dự án"
 
-#: gui/cleanmate_gui/settings.py:24
-msgid "Clean when the project is idle for this many days"
-msgstr "Dọn khi dự án không được đụng tới trong số ngày này"
+#: gui/cleanmate_gui/settings.py:25
+msgid ""
+"node_modules, Cargo target/, Python .venv/ and Pods/ of projects idle for "
+"this many days"
+msgstr ""
+"node_modules, target/ của Cargo, .venv/ của Python và Pods/ của dự án không "
+"được đụng tới trong số ngày này"
 
 #: gui/cleanmate_gui/settings.py:25
 msgid "AI chat history"
@@ -1542,11 +1546,11 @@ msgstr ""
 
 #: gui/cleanmate_gui/window.py:39
 msgid ""
-"Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, "
-"Firebase CLI logs."
+"Stale node_modules and project build folders, npm, pip, Go, Cargo, Conda, "
+"Docker and Podman leftovers, Firebase CLI logs."
 msgstr ""
-"node_modules cũ, phần còn sót của npm, pip, Go, Cargo, Conda, Docker và "
-"Podman, nhật ký Firebase CLI."
+"node_modules và thư mục build cũ của dự án, phần còn sót của npm, pip, Go, "
+"Cargo, Conda, Docker và Podman, nhật ký Firebase CLI."
 
 #: gui/cleanmate_gui/window.py:41
 msgid "Terminal history, recent files, run dialog and emoji history."
@@ -1870,6 +1874,18 @@ msgid ""
 "node_modules of projects untouched for {0}+ days. Restore with npm/yarn/pnpm "
 "install."
 msgstr "node_modules của dự án không đụng tới từ {0} ngày trở lên. Khôi phục bằng npm/yarn/pnpm install."
+
+#. stale_build_dirs label
+msgid "Stale project build folders"
+msgstr "Thư mục build cũ của dự án"
+
+#. stale_build_dirs description
+#, python-brace-format
+msgid ""
+"Cargo target/, Python .venv/ and CocoaPods Pods/ folders of projects "
+"untouched for {0}+ days. Moved to the Trash; rebuilt by cargo build, pip/uv "
+"install or pod install."
+msgstr "Thư mục target/ của Cargo, .venv/ của Python và Pods/ của CocoaPods trong dự án không đụng tới từ {0} ngày trở lên. Chuyển vào Thùng rác; tạo lại bằng cargo build, pip/uv install hoặc pod install."
 
 #. npm label
 #

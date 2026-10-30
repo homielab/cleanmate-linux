@@ -970,6 +970,71 @@ for l in sys.stdin:
   assert_eq "$out" "g.flatpakref 10 off g.flatpakref · 40 days old" "the folder xdg-user-dir names"
 }
 
+test_stale_project_build_folders() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local c=$HOME_DIR/code out f p pids=() hold=() rusty py pods enc
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  rusty=$c/rusty py=$c/py pods=$c/app/ios
+  new "$rusty/Cargo.toml"; new "$rusty/Cargo.lock"; sized "$rusty/target/debug/app" 500000; new "$rusty/.git/index"
+  new "$py/pyproject.toml"; new "$py/.venv/pyvenv.cfg"; sized "$py/.venv/lib/site.so" 200000
+  new "$pods/Podfile"; new "$pods/Podfile.lock"; sized "$pods/Pods/Lib/lib.a" 50000
+  new "$c/fresh-lock/Cargo.toml"; new "$c/fresh-lock/Cargo.lock"; sized "$c/fresh-lock/target/x" 10      # lockfile 10 days old
+  new "$HOME_DIR/work/repo/.git/index"; new "$HOME_DIR/work/repo/sub/Cargo.toml"; sized "$HOME_DIR/work/repo/sub/target/x" 10 # repo in use
+  sized "$c/no-manifest/target/x" 10                                                     # target/ without Cargo.toml
+  new "$c/plain-venv/requirements-dev.txt"; sized "$c/plain-venv/venv/lib/x" 10          # no pyvenv.cfg: not a virtual environment
+  new "$c/linked/Cargo.toml"; sized "$WORK/elsewhere/x" 10; ln -s "$WORK/elsewhere" "$c/linked/target"
+  new "$c/web/node_modules/dep/Cargo.toml"; sized "$c/web/node_modules/dep/target/x" 10 # never inside node_modules
+  new "$c/building/Cargo.toml"; sized "$c/building/target/x" 10                        # cargo works in it
+  new "$c/open/setup.py"; new "$c/open/.venv/pyvenv.cfg"; sized "$c/open/.venv/lib/x.so" 10 # a file in it is open
+  while IFS= read -r -d '' f; do touch -h -d "100 days ago" "$f"; done < <(find "$HOME_DIR" -print0)
+  touch -d "10 days ago" "$c/fresh-lock/Cargo.lock"
+  touch "$HOME_DIR/work/repo/.git/index"
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])'
+  local b_rusty b_py b_pods
+  b_rusty=$(du -sb "$rusty/target" | cut -f1) b_py=$(du -sb "$py/.venv" | cut -f1) b_pods=$(du -sb "$pods/Pods" | cut -f1)
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  mkdir -p "$WORK/buildbin"; cp "$(command -v sleep)" "$WORK/buildbin/cargo"; chmod 755 "$WORK/buildbin" "$WORK/buildbin/cargo"
+  "${hold[@]}" sh -c 'cd "$1" && exec "$2" 60' _ "$c/building" "$WORK/buildbin/cargo" >/dev/null 2>&1 &
+  pids+=($!)
+  "${hold[@]}" sleep 60 <"$c/open/.venv/lib/x.so" >/dev/null 2>&1 &
+  pids+=($!)
+  sleep 0.3
+  out=$(user_cm --json scan --only dev | grep '"id":"stale_build_dirs"' | python3 -c "$list")
+  assert_eq "$out" "stale_build_dirs $((b_rusty + b_py + b_pods)) 3 projects idle for 90+ days False True False" \
+    "three idle projects, not ticked"
+  out=$(user_cm --json details stale_build_dirs | python3 -c "$list")
+  enc=$(in_app "urlencode_path '$py'")
+  assert_eq "$out" "$(in_app "urlencode_path '$rusty'") $b_rusty off ~/code/rusty — target/ · 100 days idle
+$enc $b_py off ~/code/py — .venv/ · 100 days idle
+$(in_app "urlencode_path '$pods'") $b_pods off ~/code/app/ios — Pods/ · 100 days idle" "one entry per project, biggest first"
+  select_only stale_build_dirs # automatic cleaning leaves them alone even when ticked
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$py/.venv"
+  out=$(user_cm --json clean stale_build_dirs --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of stale_build_dirs: ../etc"
+  out=$(user_cm --json clean stale_build_dirs --entries "$enc" | python3 -c "$list")
+  assert_eq "$out" "ok $b_py $(in_app "human $b_py") freed" "only the chosen project"
+  assert_missing "$py/.venv"; assert_exists "$py/pyproject.toml"; assert_exists "$rusty/target"
+  assert_exists "$HOME_DIR/.local/share/Trash/files/.venv/pyvenv.cfg"
+  out=$(user_cm --json restore .venv | python3 -c "$list")
+  assert_eq "$out" "ok 0 put back" "restore puts it back"
+  assert_exists "$py/.venv/pyvenv.cfg"
+  out=$(user_cm --json clean stale_build_dirs | python3 -c "$list")
+  kill "${pids[@]}" 2>/dev/null; wait "${pids[@]}" 2>/dev/null
+  assert_contains "$out" "ok $((b_rusty + b_py + b_pods))"
+  for p in "$rusty/target" "$py/.venv" "$pods/Pods"; do assert_missing "$p"; done
+  for p in fresh-lock/target no-manifest/target plain-venv/venv linked/target web/node_modules/dep/target \
+    building/target open/.venv; do assert_exists "$c/$p"; done
+  assert_exists "$HOME_DIR/work/repo/sub/target"; assert_exists "$WORK/elsewhere/x"
+}
+
 lens_entries() { # reads `--json lens` → "kind count movable name" lines (sizes checked apart), then "done …"
   python3 -c 'import sys, json
 for l in sys.stdin:

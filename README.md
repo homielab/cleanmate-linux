@@ -120,7 +120,7 @@ Your choices are remembered by both apps: untick something once and it stays unt
 | **User & App Junk** | Your caches | Trash, the Trash on USB and other drives (not pre-selected; each drive on its own in the desktop app), thumbnails, stale caches, and **each browser** and **each app** (VS Code, Slack, Discord, Steam's shader cache, Snap and Flatpak apps) as its own choice |
 | **AI Tools** | AI assistant clutter | caches, logs and *old* sessions of Claude Code, Claude Desktop, Codex, Gemini/Antigravity, Cursor, Windsurf, opencode, Cline, Kilo Code, MiMoCode, ZCode, Zed, Copilot CLI, Continue |
 | **AI Models** | Downloaded models | **each** Ollama, Hugging Face and LM Studio model on its own — never pre-selected, never cleaned automatically |
-| **Developer Junk** | Build and package caches | npm, Yarn, pnpm, Bun, pip, uv, Go, Cargo, rustup downloads, Gradle, Maven, Conda; Docker images, build cache, containers and volumes (each separately; in the desktop app single dangling images and build-cache records too); Podman; Playwright, Puppeteer and Cypress browsers (never pre-selected); Firebase CLI logs and downloaded emulators (not pre-selected); `node_modules` of projects idle for 90 days |
+| **Developer Junk** | Build and package caches | npm, Yarn, pnpm, Bun, pip, uv, Go, Cargo, rustup downloads, Gradle, Maven, Conda; Docker images, build cache, containers and volumes (each separately; in the desktop app single dangling images and build-cache records too); Podman; Playwright, Puppeteer and Cypress browsers (never pre-selected); Firebase CLI logs and downloaded emulators (not pre-selected); `node_modules` of projects idle for 90 days; build folders of projects idle for 90 days — Cargo `target/`, Python `.venv/`, CocoaPods `Pods/` (not pre-selected, moved to the Trash; each project on its own in the desktop app) |
 
 **Privacy** (never part of Smart Scan) clears shell history (bash, zsh, fish), *Recent files*,
 Python/Node/database shell history, Vim history, and the Alt+F2 and emoji history.
@@ -158,8 +158,8 @@ Python/Node/database shell history, Vim history, and the Alt+F2 and emoji histor
 
 *Settings → Automatic cleaning* runs a weekly (or daily, monthly) clean of user and developer
 junk and notifies you: *"Freed 1.2 GB. Worth a look: Docker build cache 2.0 GB, Google Chrome
-1.8 GB."* It never empties the Trash, never touches browsers or apps, never needs your password,
-and can warn you when the disk is almost full. In the desktop app it's in *Settings* in the main
+1.8 GB."* It never empties the Trash, never touches browsers, apps or Cargo, Python and CocoaPods
+build folders, never needs your password, and can warn you when the disk is almost full. In the desktop app it's in *Settings* in the main
 menu (Ctrl+,); both apps share the same settings.
 
 ## Command line

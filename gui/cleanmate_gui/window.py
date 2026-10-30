@@ -36,7 +36,8 @@ PAGES = [
      _("Caches, logs and old chat sessions of Claude, Codex, Gemini/Antigravity, opencode, ZCode, Zed and more — "
        "and downloaded Ollama, Hugging Face and LM Studio models, each on its own.")),
     ("dev", _("Developer Junk"), "applications-engineering-symbolic", ["dev"],
-     _("Stale node_modules, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, Firebase CLI logs.")),
+     _("Stale node_modules and project build folders, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, "
+       "Firebase CLI logs.")),
     ("privacy", _("Privacy"), "security-high-symbolic", ["privacy"],
      _("Terminal history, recent files, run dialog and emoji history.")),
     None,  # section: Tools

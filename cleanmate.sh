@@ -910,6 +910,7 @@ reg trash        user   "Trash"                             1 "Files you already
 reg trash_drives user   "Trash on external drives"          0 "Files you deleted on USB sticks and other drives stay in that drive's own Trash and keep using its space. Emptying deletes them for good."
 reg app_cache    user   "Stale app caches (>30 days)"       1 "Files under ~/.cache not modified or read for 30+ days."
 reg node_modules dev    "Stale node_modules"                0 "node_modules of projects untouched for 90+ days. Restore with npm/yarn/pnpm install."
+reg stale_build_dirs dev "Stale project build folders"      0 "Cargo target/, Python .venv/ and CocoaPods Pods/ folders of projects untouched for 90+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install or pod install."
 reg npm          dev    "npm cache"                         1 "npm's package download cache (~/.npm/_cacache)."
 reg yarn         dev    "Yarn cache"                        1 "Yarn's package download cache."
 reg pnpm         dev    "pnpm store (unreferenced)"         1 "Packages in the pnpm store no project references (pnpm store prune)."
@@ -2085,6 +2086,134 @@ clean_node_modules() {
   done <"$NM_LIST"
 }
 details_node_modules() { [[ -f $NM_LIST ]] && detail_files 100 <"$NM_LIST"; }
+
+# Build folders of projects left alone: Cargo's target/, a Python virtual environment (.venv/ or
+# venv/ with a pyvenv.cfg) and CocoaPods' Pods/, each only next to the project file that makes it.
+# Found like stale node_modules (same folders, never inside node_modules, build folders, symlinks or
+# other file systems). A project is left alone when its project files, lockfiles and the .git/index
+# of its repository (in the project or a folder above it in your home) haven't changed for NM_DAYS.
+# A project a cargo, rustc, python, uv or pod process works in, or with a file open in it, is
+# skipped. Rebuilding can take long, so cleaning moves them to the Trash (z puts them back); the
+# desktop app lists each project as an entry.
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_stale_build_dirs='^/[A-Za-z0-9/._~%-]+$' # the project folder's full path, percent-encoded (urlencode_path)
+
+build_dirs_of() { # PROJECT → BD_DIRS: names of its build folders
+  local p=$1 f py=0
+  BD_DIRS=()
+  [[ -f $p/Cargo.toml && -d $p/target && ! -L $p/target ]] && BD_DIRS+=(target)
+  [[ -f $p/pyproject.toml || -f $p/setup.py ]] && py=1
+  for f in "$p"/requirements*.txt; do [[ -f $f ]] && py=1; done
+  if ((py)); then
+    for f in .venv venv; do [[ -d $p/$f && ! -L $p/$f && -f $p/$f/pyvenv.cfg ]] && BD_DIRS+=("$f"); done
+  fi
+  [[ -f $p/Podfile && -d $p/Pods && ! -L $p/Pods ]] && BD_DIRS+=(Pods)
+  return 0
+}
+
+project_changed() { # PROJECT → when (epoch) its project files, lockfiles or its repository's .git/index last changed
+  local p=$1 d=$1 g files=()
+  files=("$p"/{Cargo.toml,Cargo.lock,pyproject.toml,setup.py,setup.cfg,Pipfile,Pipfile.lock,poetry.lock,uv.lock,pdm.lock,Podfile,Podfile.lock}
+    "$p"/requirements*.txt)
+  while [[ $d == "$HOME"/* ]]; do
+    if [[ -f $d/.git ]]; then # a worktree or submodule: "gitdir: PATH"
+      { read -r g <"$d/.git"; } 2>/dev/null && g=${g#gitdir: } && { [[ $g == /* ]] || g=$d/$g; } && files+=("$g/index")
+    else files+=("$d/.git/index"); fi
+    d=${d%/*}
+  done
+  { stat -c %Y -- "${files[@]}" 2>/dev/null; echo 0; } | sort -n | tail -n1
+}
+
+busy_paths() { # files your processes have open, and the folders cargo, rustc, python, uv or pod work in
+  local d c
+  open_files
+  for d in /proc/[0-9]*; do
+    { read -r c <"$d/comm"; } 2>/dev/null || continue
+    case $c in cargo | rustc | python* | uv | pod) readlink -- "$d/cwd" 2>/dev/null ;; esac
+  done
+  return 0
+}
+
+stale_build_dirs() { # → SB_DIR (project) / SB_WHAT (its build folders, space-separated) / SB_BYTES / SB_DAYS, biggest first
+  local d p busy now changed b
+  local -A seen=()
+  SB_DIR=() SB_WHAT=() SB_BYTES=() SB_DAYS=()
+  busy=$(busy_paths)
+  printf -v now '%(%s)T' -1
+  while IFS=$'\t' read -r b changed d p; do
+    SB_BYTES+=("$b") SB_DAYS+=($(((now - changed) / 86400))) SB_WHAT+=("$d") SB_DIR+=("$p")
+  done < <(
+    find "$HOME" -xdev \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
+      -o -path '*/resources/app' -o -name .git -o -name node_modules \) -prune -o \
+      -type d \( -name target -o -name .venv -o -name venv -o -name Pods \) -prune -print 2>/dev/null |
+      while IFS= read -r d; do
+        p=${d%/*}
+        [[ $p == "$HOME"/* && $p != *[[:cntrl:]]* && -z ${seen[$p]:-} ]] || continue
+        seen[$p]=1
+        build_dirs_of "$p"
+        ((${#BD_DIRS[@]})) || continue
+        changed=$(project_changed "$p")
+        ((now - changed >= NM_DAYS * 86400)) || continue
+        grep -qxF -e "$p" <<<"$busy" && continue
+        grep -qF -e "$p/" <<<"$busy" && continue # in use (a path containing it elsewhere only errs on the safe side)
+        b=$(cd -- "$p" && du -scbx -- "${BD_DIRS[@]}" 2>/dev/null | tail -n1 | cut -f1)
+        printf '%s\t%s\t%s\t%s\n' "${b:-0}" "$changed" "${BD_DIRS[*]}" "$p"
+      done | sort -t $'\t' -k1,1nr
+  )
+}
+
+trash_build_dirs() { # INDEX… of SB_DIR — move their build folders to the Trash; @@undo lines let the terminal app undo it
+  local i d rc=0 what
+  UNDO_BATCH=()
+  for i; do
+    read -ra what <<<"${SB_WHAT[i]}"
+    for d in "${what[@]}"; do move_to_trash "${SB_DIR[i]}/$d" || rc=1; done
+  done
+  for d in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$d"; done
+  return "$rc"
+}
+
+build_dirs_label() { # INDEX → "~/code/api — target/, .venv/ · 120 days idle"
+  local w=${SB_WHAT[$1]}/
+  printf '%s — %s · %s days idle' "${SB_DIR[$1]/#$HOME/\~}" "${w// //, }" "${SB_DAYS[$1]}"
+}
+
+scan_stale_build_dirs() {
+  local b
+  stale_build_dirs
+  ((${#SB_DIR[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${SB_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#SB_DIR[@]} project) idle for ${NM_DAYS}+ days"
+}
+clean_stale_build_dirs() {
+  stale_build_dirs
+  ((${#SB_DIR[@]})) || return 0
+  trash_build_dirs "${!SB_DIR[@]}"
+}
+details_stale_build_dirs() {
+  local i
+  stale_build_dirs
+  for i in "${!SB_DIR[@]}"; do
+    printf '  %s%10s%s  %s\n' "$(size_color "${SB_BYTES[i]}")" "$(human "${SB_BYTES[i]}")" "$NC" "$(build_dirs_label "$i")"
+  done
+}
+entries_stale_build_dirs() {
+  local i
+  stale_build_dirs
+  for i in "${!SB_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${SB_DIR[i]}")" "${SB_BYTES[i]}" "$(build_dirs_label "$i")"
+  done
+}
+clean_entries_stale_build_dirs() { # encoded project folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  stale_build_dirs
+  for id; do
+    for i in "${!SB_DIR[@]}"; do [[ $(urlencode_path "${SB_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  trash_build_dirs "${pick[@]}"
+}
 
 dev_scan() { # NOTE PATH...
   local note=$1; shift
@@ -4827,6 +4956,7 @@ apply_settings() {
   ITEM_DESC[journal]="Archived system logs. Keeps the last ${JOURNAL_KEEP_DAYS} days and at most ${JOURNAL_KEEP_MB} MB."
   ITEM_DESC[tmp]="Your files in /tmp and /var/tmp not touched for ${TMP_DAYS}+ days."
   ITEM_DESC[node_modules]="node_modules of projects untouched for ${NM_DAYS}+ days. Restore with npm/yarn/pnpm install."
+  ITEM_DESC[stale_build_dirs]="Cargo target/, Python .venv/ and CocoaPods Pods/ folders of projects untouched for ${NM_DAYS}+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install or pod install."
 }
 
 save_setting() { # KEY VALUE — change one line of the settings file; the other app may have changed others
@@ -5110,7 +5240,7 @@ settings_menu() {
     mi 0 "App logs" "Clean when not written for ${APPLOG_DAYS} days"
     mi a "Temporary files" "Clean when older than ${TMP_DAYS} days"
     mi b "App caches" "Clean when older than ${CACHE_DAYS} days"
-    mi c "node_modules" "Clean when the project is idle for ${NM_DAYS} days"
+    mi c "Project build folders" "Clean when the project is idle for ${NM_DAYS} days"
     mi d "AI chat history" "Clean AI sessions older than ${AI_HISTORY_DAYS} days"
     mh "Your data"
     mi e "Reset selections" "$(plural ${#PREF[@]} "remembered choice") for Smart Scan"
@@ -5139,7 +5269,7 @@ settings_menu() {
       "App logs") edit_number app_log_days "Clean app logs not written for how many days?" ;;
       "Temporary files") edit_number tmp_days "Clean temporary files older than how many days?" ;;
       "App caches") edit_number cache_days "Clean app caches older than how many days?" ;;
-      "node_modules") edit_number node_modules_days "Clean node_modules idle for how many days?" ;;
+      "Project build folders") edit_number node_modules_days "Clean build folders of projects idle for how many days?" ;;
       "AI chat history") edit_number ai_history_days "Clean AI chat sessions older than how many days?" ;;
       "Reset selections")
         ui_confirm "Forget remembered selections?" "Smart Scan goes back to its default choices." n || continue
@@ -5324,6 +5454,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 # never empty a Trash behind the user's back
+  SEL[stale_build_dirs]=0 # the user picks which projects to rebuild
   plain_results
   printf '\n'
   start_cleanup

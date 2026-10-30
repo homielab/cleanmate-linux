@@ -21,7 +21,9 @@ NUMBERS = {
     "app_log_days": (_("App logs"), _("Clean when not written for this many days")),
     "tmp_days": (_("Temporary files"), _("Clean when older than this many days")),
     "cache_days": (_("App caches"), _("Clean when not used for this many days")),
-    "node_modules_days": (_("node_modules"), _("Clean when the project is idle for this many days")),
+    "node_modules_days": (_("Project build folders"),
+                          _("node_modules, Cargo target/, Python .venv/ and Pods/ of projects idle for this "
+                            "many days")),
     "ai_history_days": (_("AI chat history"), _("Clean AI sessions older than this many days")),
 }
 KEEP_FOR = ["journal_days", "journal_mb", "log_max_mb", "app_log_days", "tmp_days", "cache_days",
