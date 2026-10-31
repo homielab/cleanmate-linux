@@ -974,23 +974,67 @@ scan_apt_cache() {
 clean_apt_cache() { run_root apt-get clean; }
 details_apt_cache() { find /var/cache/apt/archives -name '*.deb' -printf '%s\t%f\n' 2>/dev/null | detail_files 30; }
 
-orphan_pkgs() { apt-get -s autoremove 2>/dev/null | awk '/^Remv / {print $2}'; }
+# apt decides what autoremove would take from the installed packages only: the package lists don't
+# change that choice, and loading them is most of apt's time (seconds while its saved cache is out
+# of date, which only root rebuilds). Nothing is written to apt's cache, also as root.
+orphan_pkgs() {
+  apt-get -s -o Dir::State::Lists=/nonexistent -o Dir::Cache::pkgcache= -o Dir::Cache::srcpkgcache= \
+    autoremove 2>/dev/null | awk '/^Remv / {print $2}'
+}
+# The answer is kept in CACHE_DIR while the package database, the auto/manual marks, apt's settings
+# and the running kernel (apt keeps it) stay the same, for a day at most. Cleaning runs
+# apt-get autoremove, which decides again, so an outdated list never removes anything.
+ORPHAN_CACHE_SECS=86400
+orphan_key() { # → what the answer depends on; fails without a package database
+  local f out kernel
+  f=$SYSROOT/var/lib/dpkg/status
+  [[ -r $f ]] || return 1
+  out=$(stat -L -c '%n %i %s %y' "$f" "$SYSROOT/var/lib/apt/extended_states" "$SYSROOT/etc/apt/apt.conf" \
+    "$SYSROOT/etc/apt/apt.conf.d" 2>/dev/null)
+  kernel=$(uname -r 2>/dev/null)
+  printf '%s\n' "${out//$'\n'/ | } | $kernel"
+}
+orphan_list() { # → ORPHAN_N packages apt autoremove would remove, ORPHAN_SIZES lines "KB<TAB>package"
+  local key file now head n t pkgs=()
+  ORPHAN_N=0 ORPHAN_SIZES=()
+  file=$CACHE_DIR/orphans.tsv
+  key=$(orphan_key) || key=""
+  printf -v now '%(%s)T' -1
+  if [[ -n $key && -f $file && ! -L $file ]]; then
+    { IFS= read -r head; mapfile -t ORPHAN_SIZES; } <"$file"
+    IFS=$'\t' read -r _ t n <<<"$head"
+    if [[ ${head%%$'\t'*} == "$key" && $t =~ ^[0-9]+$ && $n =~ ^[0-9]+$ ]] && ((t <= now && now - t < ORPHAN_CACHE_SECS)); then
+      ORPHAN_N=$n
+      return 0
+    fi
+    ORPHAN_SIZES=()
+  fi
+  mapfile -t pkgs < <(orphan_pkgs)
+  ORPHAN_N=${#pkgs[@]}
+  ((ORPHAN_N)) && mapfile -t ORPHAN_SIZES < <(dpkg-query -W -f='${Installed-Size}\t${Package}\n' "${pkgs[@]}" 2>/dev/null)
+  [[ -n $key ]] || return 0
+  mkdir -p "$CACHE_DIR" 2>/dev/null &&
+    printf '%s\t%s\t%s\n' "$key" "$now" "$ORPHAN_N" >"$file.$BASHPID" 2>/dev/null &&
+    printf '%s\n' "${ORPHAN_SIZES[@]}" >>"$file.$BASHPID" && mv -f "$file.$BASHPID" "$file" 2>/dev/null
+  return 0
+}
 scan_orphans() {
   have apt-get || return 1
-  local pkgs kb
-  mapfile -t pkgs < <(orphan_pkgs)
-  ((${#pkgs[@]})) || return 2
-  kb=$(dpkg-query -W -f='${Installed-Size}\n' "${pkgs[@]}" 2>/dev/null | sum_lines)
-  SCAN_BYTES=$((kb * 1024))
-  SCAN_NOTE="$(plural ${#pkgs[@]} package)"
+  orphan_list
+  ((ORPHAN_N)) || return 2
+  SCAN_BYTES=$(($(printf '%s\n' "${ORPHAN_SIZES[@]}" | sum_lines) * 1024))
+  SCAN_NOTE="$(plural "$ORPHAN_N" package)"
 }
-clean_orphans() { run_root apt-get autoremove --purge -y; }
+clean_orphans() {
+  run_root apt-get autoremove --purge -y
+  local rc=$?
+  rm -f -- "$CACHE_DIR/orphans.tsv"
+  return $rc
+}
 details_orphans() {
-  local pkgs
-  mapfile -t pkgs < <(orphan_pkgs)
-  ((${#pkgs[@]})) || return 0
-  dpkg-query -W -f='${Installed-Size}\t${Package}\n' "${pkgs[@]}" 2>/dev/null |
-    awk -F'\t' '{print $1 * 1024 "\t" $2}' | detail_files 200
+  orphan_list
+  ((ORPHAN_N)) || return 0
+  printf '%s\n' "${ORPHAN_SIZES[@]}" | awk -F'\t' '$2 != "" {print $1 * 1024 "\t" $2}' | detail_files 200
 }
 
 # Bootloader packages are skipped: their purge scripts can remove boot configuration.

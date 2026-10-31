@@ -242,8 +242,8 @@ filter hides them until you press *Show* under the list.
 **Does it work over SSH?** Yes — use the terminal app; colours and the mouse work in any modern terminal.
 
 **Where does it keep its data?** `~/.config/cleanmate` (choices, settings, Never clean folders) and
-`~/.local/state/cleanmate` (activity log, last scan, stats), plus the sizes of your project folders in
-`~/.cache/cleanmate` for faster scans. Nothing is sent anywhere —
+`~/.local/state/cleanmate` (activity log, last scan, stats), plus the sizes of your project folders and the list of unused
+packages in `~/.cache/cleanmate` for faster scans. Nothing is sent anywhere —
 see the [privacy policy](docs/PRIVACY.md).
 
 ## Contributing

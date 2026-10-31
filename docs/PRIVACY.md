@@ -12,8 +12,8 @@ accounts, no analytics, no ads and no tracking.**
 - **Your choices and settings** — `~/.config/cleanmate/`.
 - **An activity log** of what was cleaned and when, the last scan results and a daily free-space
   reading — `~/.local/state/cleanmate/`. You can view the log in *Settings → Activity log*.
-- **Sizes of your project folders** (paths and bytes), so the next scan doesn't measure them
-  again — `~/.cache/cleanmate/`.
+- **Sizes of your project folders** (paths and bytes) and the **list of unused packages** with their
+  sizes, so the next scan doesn't measure them again — `~/.cache/cleanmate/`.
 
 You can delete these folders at any time (`cm --uninstall` offers to).
 

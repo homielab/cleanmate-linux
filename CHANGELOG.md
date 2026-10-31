@@ -18,6 +18,8 @@ All notable changes are listed here. The format follows
 - **App icon**: the same broom and sparkles as the macOS app, on a white tile with a gray-to-black glyph.
 - **Smart Scan** is faster on a computer with many projects: idle `node_modules`, project build folders and editor data of deleted projects are measured several at a time (up to one per CPU) and their sizes are kept in `~/.cache/cleanmate` until the folder changes (a week at most). On 50 projects these items take 0.17 s instead of 0.38 s, and 0.07 s on the next scan.
 
+- **Smart Scan** no longer waits about a second for **Unused packages** on a computer with many packages: apt now works out the list from the installed packages alone, without loading the package lists, and the answer is kept in `~/.cache/cleanmate` until a package is installed, removed or marked, apt's settings change or another kernel runs (a day at most). With 2700 packages (Ubuntu 24.04 container) this item takes 0.09 s instead of 1.25 s, under 0.02 s on the next scan, and a whole Smart Scan 0.64 s instead of 1.44 s; the packages found and what cleaning removes are unchanged.
+
 ### Fixed
 
 - **Project build folders** could leave out a project at random during Smart Scan, when another item was reading a folder of it at the same moment.

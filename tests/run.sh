@@ -629,6 +629,72 @@ test_kernel_rules_keep_a_fallback() {
   r=$(in_app 'printf "6.8.0-9\n6.8.0-10\n6.8.0-11\n" | kernel_extras 6.8.0-11 | paste -sd" " -'); assert_eq "$r" "6.8.0-9" "version sort, not text sort"
 }
 
+test_unused_packages_cached_until_packages_change() {
+  fresh_home
+  local bin=$WORK/orphbin r=$WORK/orphroot cache
+  cache=$HOME_DIR/.cache/cleanmate/orphans.tsv
+  mkdir -p "$bin" "$r/var/lib/dpkg" "$r/var/lib/apt" "$r/etc/apt/apt.conf.d"
+  # apt-get lists the packages in $bin/orphans and counts its runs; dpkg-query sizes them from $bin/sizes
+  printf '#!/bin/sh\necho run >>"%s/runs"\nsed "s/.*/Remv & [1.0]/" "%s/orphans"\n' "$bin" "$bin" >"$bin/apt-get"
+  printf '#!/bin/sh\nshift 2\nfor p; do awk -v p="$p" '"'"'$2 == p {print $1 "\\t" $2}'"'"' "%s/sizes"; done\n' "$bin" >"$bin/dpkg-query"
+  printf '#!/bin/sh\ncat "%s/kernel"\n' "$bin" >"$bin/uname"
+  chmod +x "$bin/"*
+  printf '100 libfoo\n50 libbar\n' >"$bin/sizes"
+  printf 'libfoo\nlibbar\n' >"$bin/orphans"
+  echo 6.8.0-40-generic >"$bin/kernel"
+  echo "Package: base" >"$r/var/lib/dpkg/status"
+  echo "Package: libfoo" >"$r/var/lib/apt/extended_states"
+  local BASE_PATH="$bin:$BASE_PATH"
+  scan() { in_app "SYSROOT='$r'; scan_orphans; echo \"\$? \${SCAN_BYTES:-0} \$SCAN_NOTE\""; }
+  runs() { wc -l <"$bin/runs" | tr -d ' '; }
+  assert_eq "$(scan)" "0 153600 2 packages" "both unused packages and their size"
+  assert_eq "$(runs)" 1 "apt asked once"
+  assert_eq "$(scan)" "0 153600 2 packages" "the same again"
+  assert_eq "$(runs)" 1 "again: from the cache, apt not asked"
+  local details
+  details=$(in_app "SYSROOT='$r'; details_orphans")
+  assert_eq "$(grep -c 'lib' <<<"$details")" 2 "details list the packages the scan counted"
+  assert_contains "$details" "libfoo"
+  assert_contains "$details" "100.0 KB"
+  assert_eq "$(runs)" 1 "details use the scan's answer"
+  # a package installed or removed: dpkg replaces its status file
+  echo libfoo >"$bin/orphans"
+  printf 'Package: base\n\nPackage: new\n' >"$r/var/lib/dpkg/status.new" && mv "$r/var/lib/dpkg/status.new" "$r/var/lib/dpkg/status"
+  assert_eq "$(scan)" "0 102400 1 package" "packages changed: asked again"
+  assert_eq "$(runs)" 2 "apt asked after the change"
+  assert_contains "$(in_app "SYSROOT='$r'; details_orphans")" "libfoo"
+  assert_eq "$(in_app "SYSROOT='$r'; details_orphans" | grep -c libbar)" 0 "details follow the new answer"
+  # marked as installed by hand (apt-mark manual)
+  : >"$bin/orphans"
+  echo "Package: other" >"$r/var/lib/apt/extended_states"
+  assert_eq "$(scan)" "2 0 " "nothing unused after apt-mark"
+  assert_eq "$(scan)" "2 0 " "nothing unused, from the cache"
+  assert_eq "$(runs)" 3 "an empty answer is cached too"
+  # another kernel running: apt keeps the running one
+  echo libbar >"$bin/orphans"
+  echo 6.8.0-41-generic >"$bin/kernel"
+  assert_eq "$(scan)" "0 51200 1 package" "rebooted into another kernel: asked again"
+  # apt's settings (a NeverAutoRemove rule)
+  echo libfoo >"$bin/orphans"
+  echo 'APT::NeverAutoRemove { "^libbar$"; };' >"$r/etc/apt/apt.conf.d/99keep"
+  assert_eq "$(scan)" "0 102400 1 package" "apt settings changed: asked again"
+  assert_eq "$(runs)" 5 "one apt run per change"
+  # a day old: asked again even if nothing changed
+  sed -i '1s/\t[0-9]*\t/\t1\t/' "$cache"
+  scan >/dev/null
+  assert_eq "$(runs)" 6 "a cached answer is used for a day at most"
+  # cleaning forgets the answer (apt decides again when it removes them)
+  in_app "SYSROOT='$r'; clean_orphans" >/dev/null 2>&1
+  assert_missing "$cache"
+  # no package database to watch: never cached
+  rm "$r/var/lib/dpkg/status"
+  local before
+  before=$(runs) # as root, clean_orphans itself ran apt-get
+  scan >/dev/null; scan >/dev/null
+  assert_eq "$(runs)" $((before + 2)) "without a package database apt is asked every time"
+  assert_missing "$cache"
+}
+
 test_docker_items_prune_only_what_is_selected() {
   fresh_home
   local log=$WORK/docker.log out

@@ -79,6 +79,10 @@ scan and a repeat scan, both the whole `--json scan` and the three items that me
 Run it in a container limited to the CPUs you want to compare
 (`docker run --cpuset-cpus 0-3 … bash tests/bench-projects.sh`); `CLEANMATE_SCRIPT=old.sh` times
 another copy. A whole scan waits for its slowest item, so compare medians.
+`tests/bench-scan.sh [ROUNDS [SLOWEST]]` times a whole Smart Scan of the machine it runs on (a throwaway
+home, the real system): the first scan with nothing cached and a repeat scan, then the slowest items
+on their own, and checks the unused packages against `apt-get -s autoremove`. Run it as an ordinary
+user on a machine with many packages; `CLEANMATE_SCRIPT=old.sh` times another copy.
 CI runs everything on Ubuntu 22.04 and 24.04 for every pull request.
 
 ## Desktop app
