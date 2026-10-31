@@ -13,6 +13,7 @@ All notable changes are listed here. The format follows
 
 ### Changed
 
+- **App icon**: the same broom and sparkles as the macOS app, on a white tile with a gray-to-black glyph.
 - **Smart Scan** is faster on a computer with many projects: idle `node_modules`, project build folders and editor data of deleted projects are measured several at a time (up to one per CPU) and their sizes are kept in `~/.cache/cleanmate` until the folder changes (a week at most). On 50 projects these items take 0.17 s instead of 0.38 s, and 0.07 s on the next scan.
 
 ### Fixed
