@@ -59,6 +59,8 @@ folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app nee
   or `sudo apt install ./cleanmate_*_all.deb`.
 - **Just try it:** `bash cleanmate.sh --dry-run` — everything works, nothing is deleted.
 
+Also available for macOS: [CleanMate for macOS](https://github.com/homielab/cleanmate-macos).
+
 ## Use it
 
 **Desktop app** — open *CleanMate*, press **Scan**, untick anything you want to keep, press
