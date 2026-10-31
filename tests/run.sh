@@ -3312,6 +3312,98 @@ $(in_app "urlencode_path '$c/WebStorm2023.9'") $bw off WebStorm 2023.9" "one ent
   assert_eq "$out" "jetbrains_old_versions clean 0" "nothing left"
 }
 
+test_old_editor_extension_versions() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/extbin f e
+  local v=$h/.vscode/extensions c=$h/.cursor/extensions w=$h/.windsurf/extensions
+  local fv=$h/.var/app/com.visualstudio.code/data/vscode/extensions
+  local bpy bcpp bjava bgo bcop bflat bcur encpy enccur
+  assert_eq "$(user_cm --json scan --only dev | grep -c '"id":"vscode_old_extensions"')" "0" "no editor: not shown"
+  sized "$v/ms-python.python-2024.1.0/a" 6000; sized "$v/ms-python.python-2024.2.0/a" 6000
+  sized "$v/ms-python.python-2024.10.1/a" 10                              # newest (10 > 2): kept
+  sized "$v/esbenp.prettier-vscode-10.4.0/a" 10                           # the only version: kept
+  sized "$v/ms-vscode.cpptools-1.19.0-linux-x64/a" 9000; sized "$v/ms-vscode.cpptools-1.20.5-linux-x64/a" 10
+  sized "$v/foo.bar-0.9.0/a" 10; sized "$v/foo.bar-1.0.0-beta/a" 10       # unknown suffix: not a version
+  sized "$v/redhat.java-1.30.0/a" 2000                                    # uninstalled: in .obsolete
+  sized "$v/golang.go-0.41.0/a" 10; sized "$v/golang.go-0.42.0/a" 5000    # downgraded: 0.42.0 obsolete, 0.41.0 in use
+  sized "$v/dbaeumer.vscode-eslint-2.4.0/a" 10; sized "$v/dbaeumer.vscode-eslint-2.4.4/a" 10 # 2.4.0 named in extensions.json
+  sized "$v/GitHub.copilot-1.0.0/a" 6000; sized "$v/github.copilot-1.1.0/a" 10 # same extension, other case
+  sized "$h/elsewhere/ms-python.python-2023.1.0/a" 10
+  ln -s "$h/elsewhere/ms-python.python-2023.1.0" "$v/ms-python.python-2023.1.0" # a symlink: never
+  printf '{"redhat.java-1.30.0": true, "golang.go-0.42.0": true, "esbenp.prettier-vscode-10.4.0": false}' >"$v/.obsolete"
+  printf '[{"identifier":{"id":"golang.go"},"relativeLocation":"golang.go-0.41.0"},
+    {"identifier":{"id":"dbaeumer.vscode-eslint"},"location":{"$mid":1,"path":"%s/dbaeumer.vscode-eslint-2.4.0","scheme":"file"}}]' \
+    "$v" >"$v/extensions.json"
+  sized "$c/anysphere.cursorpyright-1.0.0/a" 7000; sized "$c/anysphere.cursorpyright-1.0.2/a" 10
+  sized "$fv/ms-python.python-2024.1.0/a" 8000; sized "$fv/ms-python.python-2024.2.0/a" 10 # Flatpak: on its own
+  sized "$w/codeium.windsurf-1.0.0/a" 10; sized "$w/codeium.windsurf-1.1.0/a" 10
+  printf '{"codeium.windsurf-1.1.0": tr' >"$w/.obsolete"                 # can't be read: Windsurf left alone
+  bpy=$(du -sbc "$v/ms-python.python-2024.1.0" "$v/ms-python.python-2024.2.0" | tail -n1 | cut -f1)
+  bcpp=$(du -sb "$v/ms-vscode.cpptools-1.19.0-linux-x64" | cut -f1) bjava=$(du -sb "$v/redhat.java-1.30.0" | cut -f1)
+  bgo=$(du -sb "$v/golang.go-0.42.0" | cut -f1) bcop=$(du -sb "$v/GitHub.copilot-1.0.0" | cut -f1)
+  bflat=$(du -sb "$fv/ms-python.python-2024.1.0" | cut -f1) bcur=$(du -sb "$c/anysphere.cursorpyright-1.0.0" | cut -f1)
+  encpy=$(in_app "urlencode_path '$v/ms-python.python-2024.2.0'") enccur=$(in_app "urlencode_path '$c/anysphere.cursorpyright-1.0.0'")
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["status"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"])
+    elif e["event"] == "error": print("error", e["message"])'
+  local all=$((bpy + bcpp + bjava + bgo + bcop + bflat + bcur))
+  out=$(user_cm --json scan --only dev | grep '"id":"vscode_old_extensions"' | python3 -c "$list")
+  assert_eq "$out" "vscode_old_extensions found $all 8 versions replaced by a newer one False True False" "old versions, not ticked"
+  local want
+  want="$encpy $bpy off ms-python.python · VS Code  (2 versions)
+$(in_app "urlencode_path '$v/ms-vscode.cpptools-1.19.0-linux-x64'") $bcpp off ms-vscode.cpptools · VS Code  (1 version)
+$(in_app "urlencode_path '$fv/ms-python.python-2024.1.0'") $bflat off ms-python.python · VS Code · Flatpak  (1 version)
+$enccur $bcur off anysphere.cursorpyright · Cursor  (1 version)
+$(in_app "urlencode_path '$v/GitHub.copilot-1.0.0'") $bcop off GitHub.copilot · VS Code  (1 version)
+$(in_app "urlencode_path '$v/golang.go-0.42.0'") $bgo off golang.go · VS Code  (1 version)
+$(in_app "urlencode_path '$v/redhat.java-1.30.0'") $bjava off redhat.java · VS Code  (1 version)"
+  out=$(user_cm --json details vscode_old_extensions | python3 -c "$list")
+  assert_eq "$out" "$want" "one entry per extension and editor, biggest first"
+  if command -v jq >/dev/null; then # the same without jq (python3 reads the JSON)
+    out=$(BASE_PATH=$(path_without jq) user_cm --json details vscode_old_extensions | python3 -c "$list")
+    assert_eq "$out" "$want" "same entries without jq"
+  fi
+  out=$(cm --scan --only dev 2>&1)
+  assert_contains "$out" "Old editor extension versions"
+  # automatic cleaning leaves them alone even when ticked
+  select_only vscode_old_extensions
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$v/ms-python.python-2024.1.0"
+  # Cursor running: its extensions are skipped, the others are not
+  running_stub "$bin" cursor
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json scan --only dev | grep '"id":"vscode_old_extensions"' | python3 -c "$list" | cut -d' ' -f4-)
+  assert_eq "$out" "7 versions replaced by a newer one; skipped while running: Cursor True True False" \
+    "a running editor's extensions are skipped and named (ticked: select_only above)"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean vscode_old_extensions --entries "$enccur,$encpy" | python3 -c "$list")
+  assert_contains "$out" "ok $bpy"
+  assert_exists "$c/anysphere.cursorpyright-1.0.0/a"
+  assert_missing "$v/ms-python.python-2024.1.0"; assert_missing "$v/ms-python.python-2024.2.0"
+  assert_exists "$v/ms-vscode.cpptools-1.19.0-linux-x64/a"
+  assert_eq "$(find "$h/.local/share/Trash" -mindepth 2 2>/dev/null | wc -l)" "0" "deleted, not moved to the Trash"
+  out=$(user_cm --json clean vscode_old_extensions --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of vscode_old_extensions: ../etc"
+  out=$(user_cm --json clean vscode_old_extensions | python3 -c "$list")
+  assert_contains "$out" "ok $((all - bpy))"
+  for f in ms-vscode.cpptools-1.19.0-linux-x64 redhat.java-1.30.0 golang.go-0.42.0 GitHub.copilot-1.0.0; do assert_missing "$v/$f"; done
+  assert_missing "$fv/ms-python.python-2024.1.0"; assert_missing "$c/anysphere.cursorpyright-1.0.0"
+  for f in ms-python.python-2024.10.1 esbenp.prettier-vscode-10.4.0 ms-vscode.cpptools-1.20.5-linux-x64 foo.bar-0.9.0 \
+    foo.bar-1.0.0-beta golang.go-0.41.0 dbaeumer.vscode-eslint-2.4.0 dbaeumer.vscode-eslint-2.4.4 github.copilot-1.1.0 \
+    ms-python.python-2023.1.0 .obsolete extensions.json; do
+    assert_exists "$v/$f"
+  done
+  assert_exists "$h/elsewhere/ms-python.python-2023.1.0/a"
+  for e in "$fv/ms-python.python-2024.2.0" "$c/anysphere.cursorpyright-1.0.2" "$w/codeium.windsurf-1.0.0" "$w/codeium.windsurf-1.1.0"; do
+    assert_exists "$e"
+  done
+  out=$(user_cm --json scan --only dev | grep '"id":"vscode_old_extensions"' | python3 -c "$list" | cut -d' ' -f1-3)
+  assert_eq "$out" "vscode_old_extensions clean 0" "nothing left"
+}
+
 test_old_runtime_versions() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -3964,6 +4056,7 @@ details = {
     "Photos/ · untouched for 120 days": "Photos/ · không đụng tới 120 ngày",
     "~/code/api — target/, .venv/ · 120 days idle": "~/code/api — target/, .venv/ · không dùng 120 ngày",
     "             Node 18  (running, skipped)": "             Node 18  (đang chạy, bỏ qua)",
+    "ms-python.python · VS Code  (2 versions)": "ms-python.python · VS Code  (2 phiên bản)",
     "  6.8.0-45  ← running (kept)": "  6.8.0-45  ← đang chạy (giữ lại)",
     "  6.8.0-40  ← kept as a fallback": "  6.8.0-40  ← giữ làm dự phòng",
     "  6.8.0-31  ← will be removed: linux-image-6.8.0-31": "  6.8.0-31  ← sẽ bị xoá: linux-image-6.8.0-31",

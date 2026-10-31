@@ -4015,6 +4015,186 @@ clean_entries_jetbrains_old_versions() { # encoded first folders (json_clean_ent
   trash_ide_versions "${pick[@]}"
 }
 
+# Old versions of VS Code extensions (also Insiders, VSCodium, Cursor, Windsurf and the Flatpak
+# builds). An update installs the new version next to the old one in <editor>/extensions, named
+# <publisher>.<name>-<x.y.z>[-<platform>], and the old folder often stays: 100–500 MB a version for
+# the large ones (Pylance, C/C++, Copilot). Old = a higher version of the same extension (any case)
+# is there and not marked obsolete, or the editor marked it obsolete in .obsolete. A version
+# extensions.json names is never old; when .obsolete or extensions.json can't be read, that editor is
+# left alone. One entry per extension and editor (its old versions together, found again right
+# before deleting); deleted for good (the editor installs any version again); skipped while that
+# editor runs, a version with a file open is skipped. Never extensions.json, .obsolete, the newest
+# version, symlinks or folders named otherwise. Not ticked; automatic cleaning leaves them alone.
+reg vscode_old_extensions dev "Old editor extension versions" 0 "Versions of VS Code, Cursor, Windsurf and VSCodium extensions that an update left behind, often 100–500 MB each. The version in use is kept. Deleted; the editor downloads any version again. Skipped while that editor runs."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_vscode_old_extensions='^/[A-Za-z0-9/._~%-]+$' # the highest old version's folder, full path percent-encoded
+
+EDITOR_EXT_PLATFORMS='darwin-x64|darwin-arm64|linux-x64|linux-arm64|linux-armhf|alpine-x64|alpine-arm64|win32-x64|win32-arm64|win32-ia32|web|universal'
+EDITOR_EXT_RE="^([A-Za-z0-9][A-Za-z0-9-]*\.[A-Za-z0-9][A-Za-z0-9-]*)-([0-9]{1,9})\.([0-9]{1,9})\.([0-9]{1,9})(-($EDITOR_EXT_PLATFORMS))?$"
+EDITOR_EXT_JSON_MAX=$((8 << 20)) # largest .obsolete or extensions.json read (a few KB in practice)
+
+editor_extension_roots() { # → lines "editor<TAB>process names (ERE)<TAB>extensions folder"
+  printf '%s\t%s\t%s\n' \
+    "VS Code" code "$HOME/.vscode/extensions" \
+    "VS Code Insiders" code-insiders "$HOME/.vscode-insiders/extensions" \
+    "VSCodium" 'codium|vscodium|code-oss' "$HOME/.vscode-oss/extensions" \
+    "Cursor" cursor "$HOME/.cursor/extensions" \
+    "Windsurf" windsurf "$HOME/.windsurf/extensions" \
+    "VS Code · Flatpak" code "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions" \
+    "VS Code Insiders · Flatpak" code-insiders "$HOME/.var/app/com.visualstudio.code.insiders/data/vscode/extensions" \
+    "VSCodium · Flatpak" 'codium|vscodium' "$HOME/.var/app/com.vscodium.codium/data/codium/extensions"
+}
+
+editor_ext_names() { # o|i FILE → folder names .obsolete marks true (o) or extensions.json names (i); fails when FILE can't be read
+  local kind=$1 f=$2 s
+  [[ -e $f || -L $f ]] || return 0
+  [[ -f $f && ! -L $f ]] || return 1
+  s=$(stat -c %s -- "$f" 2>/dev/null) && ((s <= EDITOR_EXT_JSON_MAX)) || return 1
+  if have jq; then
+    if [[ $kind == o ]]; then
+      jq -r 'if type == "object" then to_entries[] | select(.value == true) | .key else empty end
+        | select(test("^[A-Za-z0-9.-]+$"))' -- "$f" 2>/dev/null
+    else
+      jq -r 'if type == "array" then .[] | objects
+          | (.relativeLocation | strings), (.location | strings), (.location | objects | (.path, .fsPath) | strings)
+        else empty end
+        | sub("/+$"; "") | split("/") | last | select(type == "string" and test("^[A-Za-z0-9.-]+$"))' -- "$f" 2>/dev/null
+    fi
+  elif have python3; then
+    python3 -I -c 'import json, os, re, sys
+d = json.load(open(sys.argv[2], encoding="utf-8"))
+names = []
+if sys.argv[1] == "o":
+    names = [k for k, v in d.items() if v is True] if isinstance(d, dict) else []
+else:
+    for e in d if isinstance(d, list) else []:
+        if not isinstance(e, dict):
+            continue
+        loc = e.get("location")
+        for p in (e.get("relativeLocation"), loc) + ((loc.get("path"), loc.get("fsPath")) if isinstance(loc, dict) else ()):
+            if isinstance(p, str):
+                names.append(os.path.basename(p.rstrip("/")))
+for n in names:
+    if re.fullmatch(r"[A-Za-z0-9.-]+", n):
+        print(n)' "$kind" "$f" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+editor_old_extensions() { # → EX_ID / EX_DIRS (newline-separated) / EX_BYTES / EX_LABEL to offer, biggest first; EX_COUNT (old versions), EX_BUSY, EX_FOUND
+  local editor procs root d name key ver n b open="" lines=() dirs=() old=()
+  local -A vid=() vkey=() vver=() newest=() obsolete=() installed=() kdirs=() kname=() kbest=() kbestv=() kn=() size=() running=()
+  EX_ID=() EX_DIRS=() EX_BYTES=() EX_LABEL=() EX_BUSY=() EX_COUNT=0 EX_FOUND=0
+  while IFS=$'\t' read -r editor procs root; do
+    runtime_dir "$root" >/dev/null || continue
+    EX_FOUND=1
+    vid=() vkey=() vver=() newest=() obsolete=() installed=() dirs=()
+    for d in "$root"/*/; do
+      d=${d%/} name=${d##*/}
+      [[ -d $d && ! -L $d && $name =~ $EDITOR_EXT_RE ]] || continue
+      printf -v ver '%09d%09d%09d' "$((10#${BASH_REMATCH[2]}))" "$((10#${BASH_REMATCH[3]}))" "$((10#${BASH_REMATCH[4]}))"
+      dirs+=("$d") vid[$d]=${BASH_REMATCH[1]} vkey[$d]=${BASH_REMATCH[1],,} vver[$d]=$ver
+    done
+    ((${#dirs[@]})) || continue
+    # what the editor says about its folders; unreadable → this editor is left alone
+    n=$(editor_ext_names o "$root/.obsolete") || continue
+    while IFS= read -r name; do [[ -n $name ]] && obsolete[${name,,}]=1; done <<<"$n"
+    n=$(editor_ext_names i "$root/extensions.json") || continue
+    while IFS= read -r name; do [[ -n $name ]] && installed[${name,,}]=1; done <<<"$n"
+    for d in "${dirs[@]}"; do # the highest version of each extension not marked obsolete
+      name=${d##*/} key=${vkey[$d]}
+      [[ -z ${obsolete[${name,,}]:-} ]] || continue
+      [[ -n ${newest[$key]:-} && ! ${vver[$d]} > ${newest[$key]} ]] || newest[$key]=${vver[$d]}
+    done
+    old=()
+    for d in "${dirs[@]}"; do
+      name=${d##*/} key=${vkey[$d]}
+      [[ -z ${installed[${name,,}]:-} ]] || continue
+      [[ -n ${obsolete[${name,,}]:-} || ( -n ${newest[$key]:-} && ${newest[$key]} > ${vver[$d]} ) ]] || continue
+      old+=("$d")
+    done
+    ((${#old[@]})) || continue
+    [[ -n ${running[$procs]:-} ]] || { running_proc -x "($procs)" >/dev/null && running[$procs]=1 || running[$procs]=0; }
+    if [[ ${running[$procs]} == 1 ]]; then EX_BUSY+=("$editor"); continue; fi
+    [[ -n $open ]] || open=$'\n'$(open_files)$'\n'
+    for d in "${old[@]}"; do
+      touches_exclusion "$d" && continue
+      open_under "$open" "$d" && continue
+      key=$root/${vkey[$d]}
+      kdirs[$key]+=$d$'\n' kn[$key]=$((${kn[$key]:-0} + 1))
+      if [[ -z ${kbest[$key]:-} || ${vver[$d]} > ${kbestv[$key]} || ( ${vver[$d]} == "${kbestv[$key]}" && $d > ${kbest[$key]} ) ]]; then
+        kbest[$key]=$d kbestv[$key]=${vver[$d]} kname[$key]="${vid[$d]} · $editor"
+      fi
+    done
+  done < <(editor_extension_roots)
+  ((${#kdirs[@]})) || return 0
+  while IFS=$'\t' read -r b d; do size[$d]=$b; done < <(printf '%s' "${kdirs[@]}" | tr '\n' '\0' | xargs -0 du -sbx -- 2>/dev/null)
+  for key in "${!kdirs[@]}"; do
+    b=0
+    while IFS= read -r d; do b=$((b + ${size[$d]:-0})); done <<<"${kdirs[$key]%$'\n'}"
+    lines+=("$b"$'\t'"$key"$'\t'"${kname[$key]}  ($(plural "${kn[$key]}" version))")
+    EX_COUNT=$((EX_COUNT + ${kn[$key]}))
+  done
+  ((${#EX_BUSY[@]})) && mapfile -t EX_BUSY < <(printf '%s\n' "${EX_BUSY[@]}" | LC_ALL=C sort)
+  while IFS=$'\t' read -r b key name; do
+    EX_BYTES+=("$b") EX_DIRS+=("${kdirs[$key]%$'\n'}") EX_LABEL+=("$name") EX_ID+=("$(urlencode_path "${kbest[$key]}")")
+  done < <(printf '%s\n' "${lines[@]}" | LC_ALL=C sort -t $'\t' -k1,1nr -k3,3)
+}
+
+delete_editor_extensions() { # INDEX… of EX_ID — delete their old version folders, each checked again first
+  local i d rc=0
+  for i; do
+    while IFS= read -r d; do
+      [[ ${d##*/} =~ $EDITOR_EXT_RE && -d $d && ! -L $d ]] && runtime_dir "${d%/*}" >/dev/null || continue
+      is_protected "$d" && { err "Refusing to touch protected path: $d"; rc=1; continue; }
+      run rm -rf -- "$d" || rc=1
+    done <<<"${EX_DIRS[i]}"
+  done
+  return "$rc"
+}
+
+scan_vscode_old_extensions() {
+  local b busy=""
+  editor_old_extensions
+  ((EX_FOUND)) || return 1
+  ((${#EX_BUSY[@]})) && busy="skipped while running: $(printf '%s, ' "${EX_BUSY[@]}")" busy=${busy%, }
+  if ((${#EX_ID[@]} == 0)); then
+    SCAN_NOTE=$busy
+    return 2
+  fi
+  SCAN_BYTES=0
+  for b in "${EX_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural "$EX_COUNT" version) replaced by a newer one${busy:+; $busy}"
+}
+clean_vscode_old_extensions() {
+  editor_old_extensions
+  ((${#EX_ID[@]})) || return 0
+  delete_editor_extensions "${!EX_ID[@]}"
+}
+details_vscode_old_extensions() {
+  local i
+  editor_old_extensions
+  for i in "${!EX_ID[@]}"; do
+    printf '  %s%10s%s  %s\n' "$(size_color "${EX_BYTES[i]}")" "$(human "${EX_BYTES[i]}")" "$NC" "${EX_LABEL[i]}"
+  done
+  for i in "${EX_BUSY[@]}"; do printf '  %s%10s  %s  (running, skipped)%s\n' "$DIM" "" "$i" "$NC"; done
+}
+entries_vscode_old_extensions() {
+  local i
+  editor_old_extensions
+  for i in "${!EX_ID[@]}"; do printf '%s\t%s\t0\t%s\n' "${EX_ID[i]}" "${EX_BYTES[i]}" "${EX_LABEL[i]}"; done
+}
+clean_entries_vscode_old_extensions() { # encoded folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  editor_old_extensions
+  for id; do
+    for i in "${!EX_ID[@]}"; do [[ ${EX_ID[i]} == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_editor_extensions "${pick[@]}"
+}
+
 si_to_bytes() { local v=${1%B}; v=${v/k/K}; numfmt --from=si "$v" 2>/dev/null || echo 0; }
 # Docker: one item per kind of leftover, sized from `docker system df`.
 docker_ok() { have docker && timeout 5 docker info >/dev/null 2>&1; }
@@ -4875,7 +5055,7 @@ plain_results() {
     ((++i))
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == jetbrains_old_versions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -8067,7 +8247,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 # never empty a Trash behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 # the user picks which projects to rebuild, images or runtimes to download again and IDE versions to let go
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes or extension versions to download again and IDE versions to let go
   plain_results
   printf '\n'
   start_cleanup

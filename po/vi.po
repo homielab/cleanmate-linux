@@ -4019,5 +4019,20 @@ msgstr ""
 "cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi chương "
 "trình cần. Model đang dùng được bỏ qua."
 
+#. vscode_old_extensions label
+msgid "Old editor extension versions"
+msgstr "Phiên bản cũ của extension trình soạn mã"
+
+#. vscode_old_extensions description
+#, python-brace-format
+msgid ""
+"Versions of VS Code, Cursor, Windsurf and VSCodium extensions that an update "
+"left behind, often {0}–{1} MB each. The version in use is kept. Deleted; the "
+"editor downloads any version again. Skipped while that editor runs."
+msgstr ""
+"Bản extension của VS Code, Cursor, Windsurf và VSCodium còn lại sau khi cập "
+"nhật, thường {0}–{1} MB mỗi bản. Bản đang dùng được giữ. Xoá hẳn; trình soạn "
+"mã tải lại được bất kỳ bản nào. Bỏ qua khi trình soạn mã đó đang chạy."
+
 #~ msgid "System Overview and more in the terminal app"
 #~ msgstr "Tổng quan hệ thống và công cụ khác trong app terminal"

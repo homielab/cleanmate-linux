@@ -3831,3 +3831,15 @@ msgid ""
 "cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a "
 "program needs one. A model in use is skipped."
 msgstr ""
+
+#. vscode_old_extensions label
+msgid "Old editor extension versions"
+msgstr ""
+
+#. vscode_old_extensions description
+#, python-brace-format
+msgid ""
+"Versions of VS Code, Cursor, Windsurf and VSCodium extensions that an update "
+"left behind, often {0}–{1} MB each. The version in use is kept. Deleted; the "
+"editor downloads any version again. Skipped while that editor runs."
+msgstr ""
