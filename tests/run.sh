@@ -2134,8 +2134,10 @@ for l in sys.stdin:
   rm -- "$HOME_DIR/removed.log" "$HOME_DIR/snaps-gone"
   touch "$HOME_DIR/zoom-fails"
   out=$(cm --json uninstall snap:obs snap:zoom snap:vlc | python3 -c "$ev")
-  assert_eq "$out" $'snap:obs ok uninstalled\nsnap:zoom fail error: cannot remove "zoom": snap is busy\nsnap:vlc fail error: cannot remove "zoom": snap is busy\ndone 1 2 0' \
-    "a failed batch: what is gone counts as removed, the rest says why"
+  assert_eq "$out" $'snap:obs ok uninstalled\nsnap:zoom fail error: cannot remove "zoom": snap is busy\nsnap:vlc ok uninstalled\ndone 2 1 0' \
+    "a failed batch: what is gone counts as removed, the app at fault gets its own error, the others are retried"
+  assert_eq "$(cat "$HOME_DIR/removed.log")" $'snap remove --purge obs zoom vlc\nsnap remove --purge zoom\nsnap remove --purge vlc' \
+    "after a failed batch, each app still installed is removed on its own in the same run"
   rm -- "$HOME_DIR/removed.log"
   touch "$HOME_DIR/spotify-runs"
   out=$(user_cm --json uninstall flatpak:com.spotify.Client | python3 -c "$ev")

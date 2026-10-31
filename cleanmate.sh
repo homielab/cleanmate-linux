@@ -8477,6 +8477,12 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
     else
       out=$(uninstall_batch "$src" "${ids[@]}" 2>&1 </dev/null); rc=$?
       for id in "${ids[@]}"; do out_of[$id]=$out rc_of[$id]=$rc; done
+      if ((rc != 0 && !DRY_RUN && ${#ids[@]} > 1)); then # one app stopped the batch: retry each one still
+        for id in "${ids[@]}"; do # installed on its own (same root session), so each gets its own error
+          app_installed "$src" "$id" || continue
+          out_of[$id]=$(uninstall_batch "$src" "$id" 2>&1 </dev/null); rc_of[$id]=$?
+        done
+      fi
     fi
     for id in "${ids[@]}"; do
       rc=${rc_of[$id]}
