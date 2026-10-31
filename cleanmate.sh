@@ -1801,9 +1801,16 @@ clean_entries_trash_drives() { # encoded drive folders (json_clean_entries only 
 
 declare -A ITEM_PATHS=() ITEM_PROCS=()
 
+declare -A ITEM_OPEN=() ITEM_ARGS=() # ITEM_OPEN: skip folders with a file open; ITEM_ARGS: running when a command line has this
+
 cache_item_dirs() { # ID → existing cache folders, one per line
-  local p
-  while IFS= read -r p; do [[ -n $p && -d $p && ! -L $p ]] && printf '%s\n' "$p"; done <<<"${ITEM_PATHS[$1]}"
+  local p open=""
+  [[ -n ${ITEM_OPEN[$1]:-} ]] && open=$'\n'$(open_files)$'\n'
+  while IFS= read -r p; do
+    [[ -n $p && -d $p && ! -L $p ]] || continue
+    [[ -z $open ]] || ! open_under "$open" "$p" || continue
+    printf '%s\n' "$p"
+  done <<<"${ITEM_PATHS[$1]}"
 }
 
 cache_item_scan() {
@@ -1847,7 +1854,10 @@ cache_item_precheck() { # ask (or skip when unattended) if the program is runnin
   ui_confirm "${ITEM_LABEL[$1]} is running" "Close it first for best results. Clean its cache anyway?" n
 }
 
-lockedby_cache_item() { running_proc -xi "${ITEM_PROCS[$1]}"; }
+lockedby_cache_item() {
+  running_proc -xi "${ITEM_PROCS[$1]}" ||
+    { [[ -n ${ITEM_ARGS[$1]:-} ]] && running_proc -f "${ITEM_ARGS[$1]}"; }
+}
 
 reg_cache_item() { # ID CATEGORY LABEL DEFAULT DESCRIPTION PATHS [PROCESS_REGEX]
   local id=$1
@@ -2833,6 +2843,73 @@ LIST_CAT=dev reg_list_item firebase_emulators "Firebase emulators" 0 item \
   "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). Downloaded again when you start them." \
   firebase_emulators "$HOME/.cache/firebase"
 
+# Build tool caches (not ticked, skipped while the tool runs, deleted for good). Each item lists only the
+# cache folders of its tool, also under a folder set by the tool's variable or XDG_CACHE_HOME, so a wrong
+# value deletes nothing else. Never Deno's location_data, Poetry's virtualenvs, pipx's venvs and py,
+# ccache.conf, Bazel's output bases or ~/.nuget/packages.
+sub_paths() { # "NAME NAME…" BASE… → BASE/NAME for each (NAME "." = BASE itself), one per line, no duplicates
+  local subs=$1 b n
+  shift
+  for b; do
+    [[ -n $b ]] || continue
+    for n in $subs; do [[ $n == . ]] && printf '%s\n' "$b" || printf '%s\n' "$b/$n"; done
+  done | awk '!seen[$0]++'
+}
+xdg_cache() { env_home_dir XDG_CACHE_HOME; }
+HEX_NAMES="0 1 2 3 4 5 6 7 8 9 a b c d e f"
+reg_cache_item deno_cache dev "Deno cache" 0 \
+  "Modules and npm packages Deno downloaded, plus its compiled code. Downloaded again on the next run; localStorage data of scripts (location_data) is kept." \
+  "$(sub_paths "remote npm gen registries dl deps" "$HOME/.cache/deno" "$(xdg_cache)/deno" "$(env_home_dir DENO_DIR)")" "deno"
+reg_cache_item zig_cache dev "Zig cache" 0 \
+  "Build outputs and fetched packages of Zig. Made again by the next build." \
+  "$(sub_paths "o h z p tmp" "$HOME/.cache/zig" "$(xdg_cache)/zig" "$(env_home_dir ZIG_GLOBAL_CACHE_DIR)")" "zig|zls"
+reg_cache_item bazel_cache dev "Bazel cache" 0 \
+  "Dependencies Bazel downloaded and its unpacked install. Made again by the next build; the output folders of your workspaces are kept." \
+  "$(sub_paths "cache install" "$HOME/.cache/bazel/_bazel_${USER:-$(id -un)}" "$(xdg_cache)/bazel/_bazel_${USER:-$(id -un)}")" "bazel.*|bazelisk"
+reg_cache_item ccache_cache dev "ccache cache" 0 \
+  "Compiler outputs ccache saved. Made again by the next build; ccache.conf is kept." \
+  "$(sub_paths "$HEX_NAMES tmp" "$HOME/.cache/ccache" "$HOME/.ccache" "$(xdg_cache)/ccache" "$(env_home_dir CCACHE_DIR)")" "ccache"
+reg_cache_item sccache_cache dev "sccache cache" 0 \
+  "Compiler outputs sccache saved. Made again by the next build." \
+  "$(sub_paths "$HEX_NAMES" "$HOME/.cache/sccache" "$(xdg_cache)/sccache" "$(env_home_dir SCCACHE_DIR)")" "sccache"
+reg_cache_item nuget_cache dev "NuGet cache" 0 \
+  "Package metadata and downloads NuGet cached (HTTP caches). Downloaded again by the next restore; ~/.nuget/packages is kept." \
+  "$HOME/.local/share/NuGet/v3-cache
+$HOME/.local/share/NuGet/http-cache
+$HOME/.nuget/v3-cache" "dotnet|nuget"
+reg_cache_item poetry_cache dev "Poetry cache" 0 \
+  "Packages Poetry downloaded. Downloaded again by poetry install; your virtualenvs are kept." \
+  "$(sub_paths "cache artifacts" "$HOME/.cache/pypoetry" "$(xdg_cache)/pypoetry" "$(env_home_dir POETRY_CACHE_DIR)")" "poetry"
+reg_cache_item pipx_cache dev "pipx run cache" 0 \
+  "Environments of apps started with pipx run. Made again on the next run; apps installed with pipx install and its Pythons are kept." \
+  "$(sub_paths . "$HOME/.cache/pipx" "$(xdg_cache)/pipx"; sub_paths .cache "$HOME/.local/pipx" "$(env_home_dir PIPX_HOME)")" "pipx"
+
+for _id in deno zig bazel ccache sccache nuget poetry pipx; do ITEM_OPEN[${_id}_cache]=1; done
+ITEM_ARGS[bazel_cache]="_bazel_${USER:-$(id -un)}" # the Bazel server is a java process
+unset _id
+
+# pre-commit keeps hook repositories and their environments in one folder (PRE_COMMIT_HOME); only those names go,
+# and only in a folder that has pre-commit's db.db.
+precommit_entries() {
+  local b n open kept
+  open=$'\n'$(open_files)$'\n'
+  for b in "$HOME/.cache/pre-commit" "$(xdg_cache)/pre-commit" "$(env_home_dir PRE_COMMIT_HOME)"; do
+    [[ -n $b && -d $b && ! -L $b && -f $b/db.db && ! -L $b/db.db ]] || continue # only pre-commit's own folder
+    kept=0
+    for n in "$b"/repo* "$b"/patch* "$b/README" "$b/.lock" "$b/db.db"; do
+      [[ -e $n && ! -L $n ]] || continue
+      # db.db (the marker, and the list of repos) goes last, and only when everything else could go
+      if touches_exclusion "$n" || open_under "$open" "$n" || { [[ $n == "$b/db.db" ]] && ((kept)); }; then kept=1
+      else printf '%s\n' "$n"; fi
+    done
+  done | awk '!seen[$0]++'
+}
+LIST_CAT=dev reg_list_item precommit_cache "pre-commit cache" 0 item \
+  "Hook repositories and environments pre-commit made. Installed again on the next commit (slower once)." \
+  precommit_entries "$HOME/.cache/pre-commit
+$(xdg_cache)/pre-commit
+$(env_home_dir PRE_COMMIT_HOME)" "pre-commit"
+
 # Cloud sync clients: Dropbox (its logs and the .dropbox.cache of each Dropbox folder named in
 # ~/.dropbox/info.json — what changed in the last 7 days stays, it may still wait to upload),
 # Nextcloud / ownCloud (logs and ~/.cache) and MEGAsync (logs). Never the synced folders, settings,
@@ -2859,7 +2936,7 @@ for e in (d.values() if isinstance(d, dict) else []):
 }
 cloud_free() { # [DAYS] — paths on stdin that are not excluded, not open and (with DAYS) untouched for DAYS days
   local p open
-  open=$(open_files)
+  open=$'\n'$(open_files)$'\n'
   while IFS= read -r p; do
     [[ -n $p ]] || continue
     touches_exclusion "$p" && continue

@@ -2637,6 +2637,78 @@ msgid ""
 "stutter briefly the first time."
 msgstr ""
 
+#. deno_cache label
+msgid "Deno cache"
+msgstr ""
+
+#. deno_cache description
+msgid "Modules and npm packages Deno downloaded, plus its compiled code. Downloaded again on the next run; localStorage data of scripts (location_data) is kept."
+msgstr ""
+
+#. zig_cache label
+msgid "Zig cache"
+msgstr ""
+
+#. zig_cache description
+msgid "Build outputs and fetched packages of Zig. Made again by the next build."
+msgstr ""
+
+#. bazel_cache label
+msgid "Bazel cache"
+msgstr ""
+
+#. bazel_cache description
+msgid "Dependencies Bazel downloaded and its unpacked install. Made again by the next build; the output folders of your workspaces are kept."
+msgstr ""
+
+#. ccache_cache label
+msgid "ccache cache"
+msgstr ""
+
+#. ccache_cache description
+msgid "Compiler outputs ccache saved. Made again by the next build; ccache.conf is kept."
+msgstr ""
+
+#. sccache_cache label
+msgid "sccache cache"
+msgstr ""
+
+#. sccache_cache description
+msgid "Compiler outputs sccache saved. Made again by the next build."
+msgstr ""
+
+#. nuget_cache label
+msgid "NuGet cache"
+msgstr ""
+
+#. nuget_cache description
+msgid "Package metadata and downloads NuGet cached (HTTP caches). Downloaded again by the next restore; ~/.nuget/packages is kept."
+msgstr ""
+
+#. poetry_cache label
+msgid "Poetry cache"
+msgstr ""
+
+#. poetry_cache description
+msgid "Packages Poetry downloaded. Downloaded again by poetry install; your virtualenvs are kept."
+msgstr ""
+
+#. pipx_cache label
+msgid "pipx run cache"
+msgstr ""
+
+#. pipx_cache description
+msgid "Environments of apps started with pipx run. Made again on the next run; apps installed with pipx install and its Pythons are kept."
+msgstr ""
+
+#. precommit_cache label
+msgid "pre-commit cache"
+msgstr ""
+
+#. precommit_cache description
+msgid "Hook repositories and environments pre-commit made. Installed again on the next commit (slower once)."
+msgstr ""
+
 #. cloud_dropbox label
 msgid "Dropbox — cache & logs"
 msgstr ""

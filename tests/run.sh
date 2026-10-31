@@ -2499,6 +2499,47 @@ test_cloud_sync_client_caches() {
   rm -r "$(dirname "$h")/outside2"
 }
 
+test_build_tool_caches() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/btbin c=$HOME_DIR/.cache
+  new "$c/deno/remote/https/a"; new "$c/deno/npm/n"; new "$c/deno/gen/g"; new "$c/deno/location_data/ls/data"
+  new "$c/zig/o/x"; new "$c/zig/z/y"; new "$c/zig/keep-me"
+  new "$c/bazel/_bazel_$(id -un)/cache/repos/r"; new "$c/bazel/_bazel_$(id -un)/install/i"
+  new "$c/bazel/_bazel_$(id -un)/abc123/execroot/out"
+  new "$c/ccache/a/b"; new "$c/ccache/tmp/t"; new "$c/ccache/ccache.conf"; new "$h/.ccache/f/z"
+  new "$c/sccache/0/s"; new "$h/.nuget/packages/pkg/1.0/lib.dll"; new "$h/.nuget/v3-cache/v"; new "$h/.local/share/NuGet/http-cache/h"
+  new "$c/pypoetry/cache/c"; new "$c/pypoetry/artifacts/a"; new "$c/pypoetry/virtualenvs/proj/bin/python"
+  new "$c/pre-commit/repoabc/hook"; new "$c/pre-commit/db.db"; new "$h/mine/README"; new "$h/mine/repo-notes/n"; new "$c/pre-commit/other/keep"
+  new "$c/pipx/e/run"; new "$h/.local/share/pipx/venvs/tool/bin/t"; new "$h/.local/pipx/.cache/e2/r"
+  # a wrong value must not reach anything outside the tool's cache folders
+  new "$h/mine/documents/important"; new "$h/mine/o/ok"
+  printf 'export DENO_DIR="$HOME/mine"\nexport ZIG_GLOBAL_CACHE_DIR="$HOME/mine"\nexport CCACHE_DIR="$HOME/mine"\nexport PRE_COMMIT_HOME="$HOME/mine"\n' >"$h/.bashrc"
+  out=$(cm --scan --only dev 2>&1)
+  for n in "Deno cache" "Zig cache" "Bazel cache" "ccache cache" "sccache cache" "NuGet cache" "Poetry cache" "pre-commit cache" "pipx run cache"; do
+    assert_contains "$out" "$n"
+  done
+  # deno and a Bazel server (a java process) run; a file open in a folder keeps that folder
+  running_stub "$bin" deno "_bazel_$(id -un)"
+  sleep 60 3>>"$c/zig/o/x" & holder=$!
+  sleep 60 3>>"$c/pre-commit/repoabc/hook" & holder2=$!
+  select_only deno_cache zig_cache bazel_cache ccache_cache sccache_cache nuget_cache poetry_cache precommit_cache pipx_cache
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  assert_exists "$c/deno/remote/https/a"; assert_exists "$c/bazel/_bazel_$(id -un)/cache/repos/r"
+  assert_exists "$c/zig/o/x"; assert_exists "$c/pre-commit/repoabc/hook"; assert_missing "$c/zig/z/y"
+  kill "$holder" "$holder2" 2>/dev/null; wait "$holder" "$holder2" 2>/dev/null
+  cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  for f in deno/remote/https/a deno/npm/n deno/gen/g zig/o/x zig/z/y "bazel/_bazel_$(id -un)/cache/repos/r" "bazel/_bazel_$(id -un)/install/i" \
+    ccache/a/b ccache/tmp/t sccache/0/s pypoetry/cache/c pypoetry/artifacts/a pre-commit/repoabc pre-commit/db.db pipx/e/run; do
+    assert_missing "$c/$f"
+  done
+  for f in .ccache/f/z .nuget/v3-cache/v .local/share/NuGet/http-cache/h .local/pipx/.cache/e2/r; do assert_missing "$h/$f"; done
+  for f in "$c/deno/location_data/ls/data" "$c/zig/keep-me" "$c/bazel/_bazel_$(id -un)/abc123/execroot/out" "$c/ccache/ccache.conf" \
+    "$c/pypoetry/virtualenvs/proj/bin/python" "$c/pre-commit/other/keep" "$h/.nuget/packages/pkg/1.0/lib.dll" \
+    "$h/.local/share/pipx/venvs/tool/bin/t" "$h/mine/documents/important"; do assert_exists "$f"; done
+  assert_exists "$h/mine/README"; assert_exists "$h/mine/repo-notes/n" # PRE_COMMIT_HOME without db.db
+  assert_missing "$h/mine/o/ok" # zig's own cache folder under a custom ZIG_GLOBAL_CACHE_DIR
+}
+
 test_uv_rustup_and_browser_test_caches() {
   fresh_home
   local out
