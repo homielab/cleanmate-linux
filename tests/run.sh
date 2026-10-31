@@ -434,74 +434,6 @@ test_update_flow() {
   kill "$srv" 2>/dev/null
 }
 
-# Clean My Ubuntu 1.x installed with --install: everything moves over to CleanMate.
-test_install_replaces_clean_my_ubuntu() {
-  fresh_home
-  rmdir "$HOME_DIR/.config/cleanmate"
-  local out bin=$HOME_DIR/.local/bin cfg=$HOME_DIR/.config share=$HOME_DIR/.local/share
-  local units=$cfg/systemd/user stubs=$WORK/systemctlbin
-  mkdir -p "$bin" "$cfg/clean-my-ubuntu" "$HOME_DIR/.local/state/clean-my-ubuntu" "$units" \
-    "$share/applications" "$share/icons/hicolor/scalable/apps" "$share/clean-my-ubuntu/gui/cmu_gui" "$stubs"
-  printf '#!/usr/bin/env bash\n# clean-my-ubuntu.sh 1.1.1\n' >"$bin/clean-my-ubuntu"
-  chmod +x "$bin/clean-my-ubuntu"
-  ln -s clean-my-ubuntu "$bin/cmu"
-  echo "thumbs=0" >"$cfg/clean-my-ubuntu/selection"
-  echo "old run" >"$HOME_DIR/.local/state/clean-my-ubuntu/clean.log"
-  : >"$share/applications/com.homielab.CleanMyUbuntu.desktop"
-  : >"$share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg"
-  : >"$share/clean-my-ubuntu/gui/cmu-gui"
-  printf '[Timer]\nOnCalendar=weekly\n' >"$units/clean-my-ubuntu.timer"
-  : >"$units/clean-my-ubuntu.service"
-  printf '#!/bin/sh\nexit 0\n' >"$stubs/systemctl"; chmod +x "$stubs/systemctl"
-  out=$(BASE_PATH="$stubs:$BASE_PATH" cm --install 2>&1)
-  assert_contains "$out" "Replaced Clean My Ubuntu"
-  assert_eq "$(<"$cfg/cleanmate/selection")" "thumbs=0" "selection moved"
-  assert_eq "$(<"$HOME_DIR/.local/state/cleanmate/clean.log")" "old run" "log moved"
-  assert_missing "$cfg/clean-my-ubuntu"; assert_missing "$HOME_DIR/.local/state/clean-my-ubuntu"
-  assert_eq "$(readlink "$bin/clean-my-ubuntu")" "cleanmate" "clean-my-ubuntu points to cleanmate"
-  assert_eq "$(readlink "$bin/cmu")" "cleanmate" "cmu points to cleanmate"
-  assert_missing "$share/applications/com.homielab.CleanMyUbuntu.desktop"
-  assert_missing "$share/icons/hicolor/scalable/apps/com.homielab.CleanMyUbuntu.svg"
-  assert_missing "$share/clean-my-ubuntu"
-  assert_missing "$units/clean-my-ubuntu.timer"; assert_missing "$units/clean-my-ubuntu.service"
-  assert_contains "$(cat "$units/cleanmate.timer" 2>/dev/null)" "OnCalendar=weekly"
-  assert_contains "$(cat "$units/cleanmate.service" 2>/dev/null)" "ExecStart=\"$bin/cleanmate\" --auto"
-  printf 'y\nn\n' | BASE_PATH="$stubs:$BASE_PATH" cm --uninstall >/dev/null 2>&1
-  assert_missing "$bin/clean-my-ubuntu"; assert_missing "$bin/cmu"
-}
-
-# Clean My Ubuntu 1.x updates itself from clean-my-ubuntu.sh, which hands over to CleanMate.
-test_clean_my_ubuntu_hands_over() {
-  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
-  command -v curl >/dev/null || command -v wget >/dev/null || { SKIPPED="neither curl nor wget installed"; return; }
-  local shim=$ROOT/clean-my-ubuntu.sh www=$WORK/handover port srv out bin
-  fresh_home
-  assert_eq "$(in_app "script_version '$shim'")" "$(cm --version | awk '{print $2}')" "shim VERSION = script VERSION"
-  grep -q 'clean-my-ubuntu' "$shim" && bash -n "$shim" && ok_ "1.x accepts it as an update" || fail "1.x would reject the shim"
-  fresh_home
-  bin=$HOME_DIR/.local/bin
-  mkdir -p "$www" "$bin"
-  cp "$SCRIPT" "$www/cleanmate.sh"
-  install -m 755 "$shim" "$bin/clean-my-ubuntu" # what a 1.x --update leaves behind
-  port=$((20000 + RANDOM % 20000))
-  (cd "$www" && exec python3 -m http.server "$port" --bind 127.0.0.1) >/dev/null 2>&1 &
-  srv=$!
-  for _ in 1 2 3 4 5 6 7 8 9 10; do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.3; done
-  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_NO_UPDATE_CHECK=1 \
-    CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/cleanmate.sh" CLEANMATE_BUNDLE_URL="http://127.0.0.1:9/x.tar.gz" \
-    bash "$bin/clean-my-ubuntu" --version 2>&1)
-  kill "$srv" 2>/dev/null
-  assert_eq "$out" "$(cm --version)" "runs CleanMate"
-  assert_exists "$bin/cleanmate"
-  assert_eq "$(readlink "$bin/clean-my-ubuntu")" "cleanmate" "clean-my-ubuntu points to cleanmate"
-  # offline and not installed yet: says where to get it
-  fresh_home
-  install -m 755 -D "$shim" "$HOME_DIR/.local/bin/clean-my-ubuntu"
-  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" CLEANMATE_UPDATE_URL="http://127.0.0.1:9/x.sh" \
-    bash "$HOME_DIR/.local/bin/clean-my-ubuntu" 2>&1)
-  assert_contains "$out" "github.com/homielab/cleanmate-linux"
-}
-
 test_trash_and_undo() {
   fresh_home
   local f="$HOME_DIR/Docs/sub dir/Tài liệu 50%.pdf" out info expected
@@ -2374,7 +2306,6 @@ test_deb_package() {
     assert_contains "$contents" "$f"
   done
   assert_eq "$(head -n 1 <<<"$contents" | cut -c1-10)" "drwxr-xr-x" "package root is 755"
-  assert_eq "$(dpkg-deb --field "$deb" Breaks)" "clean-my-ubuntu (<< 2.0.0~)" "replaces the Clean My Ubuntu package"
   assert_eq "$(dpkg-deb --field "$deb" Version)" "$(cm --version | awk '{print $2}')" "package version = script VERSION"
   dpkg-deb -x "$deb" "$x"
   msg=$(env -i HOME="$HOME_DIR" PATH="$x/usr/bin:$BASE_PATH" LANG=C.UTF-8 cm --install 2>&1)
@@ -3654,7 +3585,6 @@ test_extract_items_for_translation() {
 
 real_dirs() { # the real user's app folders and Trash — tests must never touch them
   find "$HOME/.config/cleanmate" "${XDG_STATE_HOME:-$HOME/.local/state}/cleanmate" \
-    "$HOME/.config/clean-my-ubuntu" "${XDG_STATE_HOME:-$HOME/.local/state}/clean-my-ubuntu" \
     "${XDG_DATA_HOME:-$HOME/.local/share}/Trash" \
     -printf '%p %s %T@\n' 2>/dev/null | sort
 }

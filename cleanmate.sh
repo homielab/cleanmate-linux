@@ -5629,7 +5629,7 @@ app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<
 # items for), folders with programs in them, changed in the last ORPHAN_DAYS
 # days, or with a file a program has open.
 
-ORPHAN_SHARED='^(applications|autostart|desktop-directories|menus|mime|icons|themes|fonts|sounds|backgrounds|wallpapers|templates|color|icc|keyrings|password-store|gnupg|ssh|pki|nss|certs|trash|recently-used.*|user-dirs.*|dconf|gconf|glib-2\.0|gtk.*|qt[0-9]*ct|pulse|pipewire|wireplumber|systemd|environment\.d|user-tmpfiles\.d|dbus-1|xdg-.*|fontconfig|ibus.*|fcitx.*|enchant|hunspell|aspell|thumbnails|mesa_shader_cache.*|nvidia|vulkan|radv.*|gstreamer-.*|babl|gegl-.*|webkitgtk|xorg|session|sessions|tracker.*|gvfs.*|evolution|folks|geoclue|goa-.*|gnome.*|org\.gnome\..*|org\.freedesktop\..*|org\.kde\..*|kde.*|plasma.*|ubuntu.*|canonical.*|snap|snapd|flatpak|containers|docker|google|microsoft|mozilla|jetbrains|unity3d|electron|cleanmate|clean-my-ubuntu|claude.*|codex|gemini|opencode|cursor|windsurf|codeium|kilo|mimocode|zed|zcode|cline|continue|github-copilot|copilot|lm-studio|lmstudio|huggingface|ollama|firebase|ms-playwright|puppeteer|cypress|pip|uv|go-build|yarn|npm|pnpm|node-gyp)$'
+ORPHAN_SHARED='^(applications|autostart|desktop-directories|menus|mime|icons|themes|fonts|sounds|backgrounds|wallpapers|templates|color|icc|keyrings|password-store|gnupg|ssh|pki|nss|certs|trash|recently-used.*|user-dirs.*|dconf|gconf|glib-2\.0|gtk.*|qt[0-9]*ct|pulse|pipewire|wireplumber|systemd|environment\.d|user-tmpfiles\.d|dbus-1|xdg-.*|fontconfig|ibus.*|fcitx.*|enchant|hunspell|aspell|thumbnails|mesa_shader_cache.*|nvidia|vulkan|radv.*|gstreamer-.*|babl|gegl-.*|webkitgtk|xorg|session|sessions|tracker.*|gvfs.*|evolution|folks|geoclue|goa-.*|gnome.*|org\.gnome\..*|org\.freedesktop\..*|org\.kde\..*|kde.*|plasma.*|ubuntu.*|canonical.*|snap|snapd|flatpak|containers|docker|google|microsoft|mozilla|jetbrains|unity3d|electron|cleanmate|claude.*|codex|gemini|opencode|cursor|windsurf|codeium|kilo|mimocode|zed|zcode|cline|continue|github-copilot|copilot|lm-studio|lmstudio|huggingface|ollama|firebase|ms-playwright|puppeteer|cypress|pip|uv|go-build|yarn|npm|pnpm|node-gyp)$'
 ORPHAN_DAYS=30
 ORPHAN_SYSTEM_DIRS=(/usr/share /usr/local/share /usr/lib /usr/local/lib /usr/libexec /etc /etc/xdg)
 ORPHAN_BIN_DIRS=(.local/bin bin .cargo/bin go/bin .go/bin .npm-global/bin .bun/bin .deno/bin .volta/bin .pyenv/shims
@@ -6137,15 +6137,14 @@ m_snap_unretain() { run_root snap unset system refresh.retain; }
 m_snap_retain_post() { (($2 == 0)) && T_INFO[$3]="older versions go at the next snap refresh — or clean them now in System Junk"; return 0; }
 
 JOURNALD_DROPIN=/etc/systemd/journald.conf.d/60-cleanmate.conf
-LEGACY_JOURNALD_DROPIN=/etc/systemd/journald.conf.d/60-clean-my-ubuntu.conf # Clean My Ubuntu's
 journal_cap() { # MB, empty = no limit of ours
-  sed -n 's/^SystemMaxUse=\([0-9]*\)M$/\1/p' "$JOURNALD_DROPIN" "$LEGACY_JOURNALD_DROPIN" 2>/dev/null | head -n 1
+  sed -n 's/^SystemMaxUse=\([0-9]*\)M$/\1/p' "$JOURNALD_DROPIN" 2>/dev/null | head -n 1
 }
 m_journal_cap() { # writes a journald drop-in; journald applies it on restart
-  run_root sh -c 'mkdir -p "${1%/*}" && printf "# Written by CleanMate (Maintenance)\n[Journal]\nSystemMaxUse=%sM\n" "$2" >"$1" && rm -f -- "$3" && systemctl restart systemd-journald' \
-    sh "$JOURNALD_DROPIN" "$JOURNAL_KEEP_MB" "$LEGACY_JOURNALD_DROPIN"
+  run_root sh -c 'mkdir -p "${1%/*}" && printf "# Written by CleanMate (Maintenance)\n[Journal]\nSystemMaxUse=%sM\n" "$2" >"$1" && systemctl restart systemd-journald' \
+    sh "$JOURNALD_DROPIN" "$JOURNAL_KEEP_MB"
 }
-m_journal_uncap() { run_root sh -c 'rm -f -- "$1" "$2" && systemctl restart systemd-journald' sh "$JOURNALD_DROPIN" "$LEGACY_JOURNALD_DROPIN"; }
+m_journal_uncap() { run_root sh -c 'rm -f -- "$1" && systemctl restart systemd-journald' sh "$JOURNALD_DROPIN"; }
 
 # The nine items, shared by the terminal menu and `--json maintenance|maintain`.
 MAINT_IDS=(update repair flatpak_unused fstrim free_ram fonts locate snap_versions journal_limit)
@@ -6937,13 +6936,6 @@ ALIAS_PATH="$HOME/.local/bin/cm" # shorthand
 APP_ID="com.homielab.CleanMate" # also the desktop app's GApplication id — GNOME matches them
 APP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/applications/$APP_ID.desktop"
 ICON_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/$APP_ID.svg"
-# Before 2.0 the app was Clean My Ubuntu: its commands stay as links to cleanmate, its settings,
-# logs and timer move over (migrate_legacy) and its launcher, icon and desktop app go (do_install)
-LEGACY_NAME=clean-my-ubuntu
-LEGACY_APP_ID=com.homielab.CleanMyUbuntu
-LEGACY_CMDS=("${BIN_PATH%/*}/$LEGACY_NAME" "${BIN_PATH%/*}/cmu")
-LEGACY_FILES=("${APP_FILE%/*}/$LEGACY_APP_ID.desktop" "${APP_FILE%/*}/$LEGACY_NAME.desktop" "${ICON_FILE%/*}/$LEGACY_APP_ID.svg")
-LEGACY_GUI_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/$LEGACY_NAME/gui"
 SELF=$(realpath -- "${BASH_SOURCE[0]}" 2>/dev/null || echo "$0")
 declare -A CFG=()
 
@@ -7193,27 +7185,6 @@ EOF
   else toast "${GREEN}✔${NC} Automatic cleaning: $1 — runs ${exe/#$HOME/\~}; install the launcher so moving it won't break this."; fi
 }
 
-legacy_cmd_ours() { # FILE → a Clean My Ubuntu command: its script, or a link to it or to us
-  if [[ -L $1 ]]; then [[ $(readlink "$1") == @("$LEGACY_NAME"|cleanmate) ]]
-  else [[ -f $1 ]] && grep -q "$LEGACY_NAME" "$1" 2>/dev/null; fi
-}
-
-migrate_legacy() { # Clean My Ubuntu → CleanMate: settings, logs and the timer, once
-  local base cal unit=$SYSTEMD_USER_DIR/$LEGACY_NAME
-  ((DRY_RUN)) && return 0
-  for base in "${XDG_CONFIG_HOME:-$HOME/.config}" "${XDG_STATE_HOME:-$HOME/.local/state}"; do
-    [[ -d $base/$LEGACY_NAME && ! -e $base/cleanmate ]] && mv -- "$base/$LEGACY_NAME" "$base/cleanmate"
-  done
-  if [[ -f $unit.timer ]] && have systemctl; then
-    cal=$(sed -n 's/^OnCalendar=//p' "$unit.timer")
-    systemctl --user disable --now "$LEGACY_NAME.timer" >/dev/null 2>&1
-    rm -f -- "$unit.timer" "$unit.service"
-    if [[ $cal == @(daily|weekly|monthly) && ! -f $SYSTEMD_USER_DIR/cleanmate.timer ]]; then schedule_set "$cal"
-    else systemctl --user daemon-reload 2>/dev/null; fi
-  fi
-  return 0
-}
-
 # The desktop app (gui/) and the icon (data/) ship in the repository. A clone has
 # them next to the script; a script downloaded on its own fetches them from GitHub.
 BUNDLE_URL=${CLEANMATE_BUNDLE_URL:-https://github.com/$UPDATE_REPO/archive/refs/heads/$UPDATE_BRANCH.tar.gz}
@@ -7286,13 +7257,6 @@ do_install() { # copy to ~/.local/bin, add the `cm` shorthand and an app-grid en
   fi
   [[ -f $ICON_FILE ]] && icon=$APP_ID
   [[ -f $GUI_HOME/cleanmate-gui ]] && gui_supported && gui=1
-  local f moved=0
-  for f in "${LEGACY_CMDS[@]}"; do
-    legacy_cmd_ours "$f" && [[ $(readlink "$f") != cleanmate ]] && ln -sfn cleanmate "$f" && moved=1
-  done
-  for f in "${LEGACY_FILES[@]}" "$LEGACY_GUI_HOME"; do [[ -e $f ]] && rm -rf -- "$f" && moved=1; done
-  rmdir -- "${LEGACY_GUI_HOME%/gui}" 2>/dev/null
-  ((moved)) && INSTALL_LOG+=("${GREEN}✔${NC} Replaced Clean My Ubuntu — ${BOLD}$LEGACY_NAME${NC} still works")
   if ((gui)); then # app grid opens the desktop app; right-click offers the terminal app
     printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=CleanMate" \
       "Comment=Free up disk space and keep Ubuntu tidy" "Exec=$BIN_PATH --gui" "Icon=$icon" \
@@ -7347,13 +7311,12 @@ cli_uninstall() { # --uninstall: remove commands, launcher, timer; optionally se
   if have systemctl && ((!DRY_RUN)); then
     systemctl --user disable --now cleanmate.timer >/dev/null 2>&1
   fi
-  for f in "$BIN_PATH" "$ALIAS_PATH" "$APP_FILE" "$ICON_FILE" "${LEGACY_FILES[@]}" \
+  for f in "$BIN_PATH" "$ALIAS_PATH" "$APP_FILE" "$ICON_FILE" \
     "$SYSTEMD_USER_DIR/cleanmate.timer" "$SYSTEMD_USER_DIR/cleanmate.service"; do
     [[ -e $f || -L $f ]] || continue
     [[ $f == "$ALIAS_PATH" && $(readlink "$f") != cleanmate ]] && continue # not ours
     run rm -f -- "$f" && ok "Removed ${f/#$HOME/\~}"
   done
-  for f in "${LEGACY_CMDS[@]}"; do legacy_cmd_ours "$f" && run rm -f -- "$f" && ok "Removed ${f/#$HOME/\~}"; done
   if [[ -d $GUI_HOME && $GUI_HOME == */cleanmate/gui ]]; then
     run rm -rf -- "$GUI_HOME" && ok "Removed the desktop app"
   fi
@@ -8899,7 +8862,6 @@ SESSION_TMP=$(mktemp -d -t cleanmate.XXXXXX) || exit 1
 trap 'rm -rf "$SESSION_TMP"' EXIT
 trap 'on_interrupt' INT TERM
 
-migrate_legacy
 load_kv "$STATS_FILE" STATS '^[0-9]+$'
 load_settings
 load_scan_cache

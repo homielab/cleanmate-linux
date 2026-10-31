@@ -25,8 +25,6 @@ Depends: ${misc:Depends},
          gir1.2-adw-1 (>= 1.5),
          pkexec | policykit-1
 Recommends: curl | wget, libglib2.0-bin, libnotify-bin, desktop-file-utils
-Breaks: clean-my-ubuntu (<< 2.0.0~)
-Replaces: clean-my-ubuntu (<< 2.0.0~)
 Description: free up disk space and keep Ubuntu tidy
  CleanMate finds caches, old logs, leftovers from removed packages,
  developer and AI tool caches, and more, and removes them safely after you
@@ -35,12 +33,3 @@ Description: free up disk space and keep Ubuntu tidy
  It comes as a desktop app (GTK 4) and a terminal app (cm) that share one
  engine. System items use the standard password dialog; everything else runs
  as you.
-
-Package: clean-my-ubuntu
-Architecture: all
-Section: oldlibs
-Depends: ${misc:Depends}, cleanmate (= ${binary:Version})
-Description: transitional package for CleanMate
- Clean My Ubuntu is now called CleanMate. This package moves existing
- installs over and keeps the old clean-my-ubuntu and cmu commands working;
- it can be removed safely.

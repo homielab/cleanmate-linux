@@ -8,7 +8,6 @@ to clean, and how to check your change. Questions: open an
 
 ```
 cleanmate.sh                the engine + terminal app (one Bash script, the source of truth)
-clean-my-ubuntu.sh          hands Clean My Ubuntu 1.x installs over to CleanMate (their update URL)
 gui/                        the desktop app (Python, GTK 4 + libadwaita) — talks to the engine
 po/                         translations of the desktop app (gettext)
 data/                       launcher, AppStream metainfo, icon
@@ -139,6 +138,6 @@ stay in English.
 
 ## Releasing
 
-Bump `VERSION` in `cleanmate.sh`, `clean-my-ubuntu.sh` and `snap/snapcraft.yaml`, update
+Bump `VERSION` in `cleanmate.sh` and `snap/snapcraft.yaml`, update
 `CHANGELOG.md` and the metainfo release notes, merge to `main`, push a `vX.Y.Z` tag — CI tests,
 builds the `.deb` and creates the GitHub release with the `.deb` and the snap.

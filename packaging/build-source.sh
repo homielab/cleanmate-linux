@@ -7,7 +7,7 @@
 #
 # The upstream tarball holds every file git knows about (tracked, plus new files
 # that aren't ignored) except debian/. Then:
-#   dput ppa:homielab/clean-my-ubuntu dist/ppa/cleanmate_<version>_source.changes
+#   dput ppa:homielab/cleanmate dist/ppa/cleanmate_<version>_source.changes
 #
 set -euo pipefail
 

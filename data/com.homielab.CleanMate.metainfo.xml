@@ -40,9 +40,6 @@
     <binary>cleanmate</binary>
     <binary>cm</binary>
   </provides>
-  <replaces>
-    <id>com.homielab.CleanMyUbuntu</id>
-  </replaces>
 
   <url type="homepage">https://github.com/homielab/cleanmate-linux</url>
   <url type="bugtracker">https://github.com/homielab/cleanmate-linux/issues</url>
@@ -133,40 +130,7 @@
   <releases>
     <release version="2.0.0" date="2026-10-25">
       <description>
-        <p>Clean My Ubuntu is now CleanMate. Your settings, logs and automatic cleaning move over by themselves, and the old clean-my-ubuntu command keeps working. The short command is now cm.</p>
-      </description>
-    </release>
-    <release version="1.1.1" date="2026-10-17">
-      <description>
-        <p>Scanning no longer creates Podman's folders for people who never used Podman.</p>
-      </description>
-    </release>
-    <release version="1.1.0" date="2026-10-17">
-      <description>
-        <p>Uninstaller rebuilt: every app with its real size and when you last used it, sorted by size or last use. Parts of Ubuntu are protected from removal.</p>
-        <ul>
-          <li>AI models (Ollama, Hugging Face, LM Studio) listed one by one, never removed automatically</li>
-          <li>Conda, Podman and Steam shader caches</li>
-          <li>Lasting limits for old snap versions and system logs</li>
-          <li>A list of pending updates before Update everything</li>
-          <li>Space outside your folders: Timeshift, swap file, reserved space</li>
-        </ul>
-      </description>
-    </release>
-    <release version="1.0.1" date="2026-10-15">
-      <description>
-        <p>Now available from a PPA, with updates through Software Updater.</p>
-      </description>
-    </release>
-    <release version="1.0.0" date="2026-10-13">
-      <description>
-        <p>First release.</p>
-        <ul>
-          <li>Desktop app with Smart Scan and six cleanup sections</li>
-          <li>Terminal app with Space Lens, Duplicates, Uninstaller, Startup Items and Maintenance</li>
-          <li>Undo for files moved to the Trash</li>
-          <li>Automatic weekly cleaning with notifications</li>
-        </ul>
+        <p>First public release of CleanMate for Linux.</p>
       </description>
     </release>
   </releases>

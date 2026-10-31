@@ -22,7 +22,7 @@ Where CleanMate is going, and the decisions behind it. Ideas and votes are welco
       retention, recent files, activity log), Maintenance, System Overview (the app opens on it).
 - [x] **Desktop app: System Overview extras** — the free-space history chart, space outside your folders
       (Timeshift, swap file, reserved space) and your largest folders (a click opens Space Lens there).
-- [x] **Launchpad PPA** — `ppa:homielab/clean-my-ubuntu`, uploaded by CI on every release (1.0.1).
+- [x] **Launchpad PPA** — `ppa:homielab/cleanmate`, uploaded by CI on every release.
 - [ ] **Snap Store** — classic confinement was declined for now (project too new); ask again once
       the project has a track record.
 - [ ] **Translations** — the desktop app is in English and Vietnamese (`po/`), cleanup item names and

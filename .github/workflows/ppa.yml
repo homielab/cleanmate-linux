@@ -1,6 +1,6 @@
 name: PPA
 
-# Uploads a release to the Launchpad PPA (ppa:homielab/clean-my-ubuntu).
+# Uploads a release to the Launchpad PPA (ppa:homielab/cleanmate).
 # Runs on every v* tag, or by hand for an existing tag:
 #   gh workflow run ppa.yml -f tag=v1.0.1
 # Skipped until the PPA_GPG_PRIVATE_KEY secret is set; see docs/PUBLISHING.md §2.
@@ -24,7 +24,7 @@ jobs:
   ppa:
     runs-on: ubuntu-24.04
     env:
-      PPA: ppa:homielab/clean-my-ubuntu
+      PPA: ppa:homielab/cleanmate
       TAG: ${{ inputs.tag || github.ref_name }}
       PPA_GPG_PRIVATE_KEY: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
       PPA_GPG_PASSPHRASE: ${{ secrets.PPA_GPG_PASSPHRASE }}
@@ -75,7 +75,7 @@ jobs:
         id: new
         if: steps.gate.outputs.on == 'true'
         run: |
-          n=$(curl -fsS "https://api.launchpad.net/devel/~homielab/+archive/ubuntu/clean-my-ubuntu?ws.op=getPublishedSources&source_name=cleanmate&version=$DEB_VERSION&exact_match=true" |
+          n=$(curl -fsS "https://api.launchpad.net/devel/~homielab/+archive/ubuntu/cleanmate?ws.op=getPublishedSources&source_name=cleanmate&version=$DEB_VERSION&exact_match=true" |
             python3 -c 'import json,sys; print(json.load(sys.stdin)["total_size"])')
           if [ "$n" = 0 ]; then echo "yes=true" >> "$GITHUB_OUTPUT"
           else echo "::notice::$DEB_VERSION is already in the PPA; nothing to upload. For a packaging-only fix, bump the suffix in debian/changelog (e.g. -0ppa2)."; fi

@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: ShellCheck (warnings and errors)
-        run: shellcheck --version && shellcheck -S warning cleanmate.sh clean-my-ubuntu.sh tests/run.sh packaging/build-deb.sh packaging/build-source.sh packaging/make-screenshots.sh
+        run: shellcheck --version && shellcheck -S warning cleanmate.sh tests/run.sh packaging/build-deb.sh packaging/build-source.sh packaging/make-screenshots.sh
       - name: Python syntax (desktop app)
         run: python3 -m py_compile gui/cleanmate-gui gui/cleanmate_gui/*.py tests/tui_smoke.py
       - name: Store metadata (AppStream, launcher)
@@ -58,9 +58,8 @@ jobs:
         run: lintian --fail-on error --suppress-tags no-manual-page build/*.changes dist/ppa/*.dsc
       - name: Install it and run it
         run: |
-          sudo apt-get install -y -qq ./build/cleanmate_*_all.deb ./build/clean-my-ubuntu_*_all.deb
+          sudo apt-get install -y -qq ./build/cleanmate_*_all.deb
           cm --version
-          clean-my-ubuntu --version && cmu --version # the transitional package keeps the old commands
 
   snap:
     name: Snap build
