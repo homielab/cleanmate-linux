@@ -2674,7 +2674,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "the app opens on System Overview"
     assert_contains "$out" "a disk over 90 % full gets the warning colour"
     assert_contains "$out" "the page shows in under 300 ms once the engine answers"
-    assert_contains "$out" "Refresh shows what was freed in 30 days"
+    assert_contains "$out" "Refresh shows what was freed: 30 days, in total, the last cleanup"
+    assert_contains "$out" "freed per day: 30 days, a bar for yesterday's cleanup"
+    assert_contains "$out" "Refresh doesn't count up again"
     assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
     if [[ $lang == vi* ]]; then
       assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"
@@ -3933,6 +3935,29 @@ $(date -d "$(date +%F)" +%s) 5000000000 100000000000" "history points: epoch of 
   assert_contains "$out" $'\t2048'
   out=$(cm --json overview | python3 -c "$ev" | grep freed)
   assert_eq "$out" "freed 3048 2 8048 3 2048 True" "a cleanup is added to the history"
+  # freed per calendar day for the chart: 30 days up to today, 0 on a day without a cleanup
+  local by_day='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "freed":
+        d = e["freed_by_day"]
+        print(len(d), d[-1]["date"] if d else "-", sum(x["bytes"] == 0 and x["cleanups"] == 0 for x in d),
+              " ".join("%s=%d/%d" % (x["date"], x["bytes"], x["cleanups"]) for x in d if x["cleanups"]))'
+  local today d5
+  today=$(date +%F) d5=$(date -d "@$(($(date +%s) - 5 * 86400))" +%F)
+  out=$(cm --json overview | python3 -c "$by_day")
+  assert_eq "$out" "30 $today 28 $d5=1000/1 $today=2048/1" \
+    "freed_by_day: 30 days ending today, the cleanup 40 days ago left out, other days 0"
+  printf '%s\t0\n' "$(date +%s)" >>"$state/cleanups.tsv"
+  out=$(cm --json overview | python3 -c "$by_day")
+  assert_eq "$out" "30 $today 28 $d5=1000/1 $today=2048/2" "a cleanup that freed nothing counts as a cleanup"
+  printf 'keep' >"$HOME_DIR/note.txt"
+  cm --json trash "$HOME_DIR/note.txt" >/dev/null
+  out=$(cm --json overview | python3 -c "$by_day")
+  assert_eq "$out" "30 $today 28 $d5=1000/1 $today=2048/2" "moving a file to the Trash is not a cleanup"
+  rm "$state/cleanups.tsv"
+  out=$(cm --json overview | python3 -c "$by_day")
+  assert_eq "$out" "0 - 0 " "no cleanup history (only the totals): no days"
 }
 
 test_system_protection() {

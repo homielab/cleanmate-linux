@@ -1588,6 +1588,7 @@ def overview_test(win, report, wait, finish):
     Space Lens, and System protection (a fake /etc and /sys) shows each check last, with a command to copy
     when one is off."""
     from .engine import Engine, human
+    from .overview import FreedPanel
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
     videos, projects = os.path.join(home, "Videos"), os.path.join(home, "Projects")
@@ -1640,7 +1641,8 @@ def overview_test(win, report, wait, finish):
         report(page.first_before_folders and page.full_ms - page.first_ms >= 900,
                f"system and disks show before the folder sizes: after {page.first_ms:.0f} ms, "
                f"folder sizes after {page.full_ms:.0f} ms (du takes 1 s here)")
-        report("freed30" not in page.rows, "no Freed numbers before the first cleanup")
+        report(page.freed is None and bool(page.groups["freed"].get_description()),
+               "no Freed numbers before the first cleanup, only a note")
         report(page.chart is None and "history" in page.groups, "one day of free-space history: a note, no chart yet")
         report("outside:reserved:/" in page.rows and "outside:swapfile:/swap.img" in page.rows,
                "space outside your folders: ext4 reserved space and the swap file")
@@ -1690,11 +1692,40 @@ def overview_test(win, report, wait, finish):
         days = [time.strftime("%Y-%m-%d", time.localtime(time.time() - n * 86400)) for n in (14, 7)]
         with open(os.path.join(state, "disk-history.tsv"), "w") as f:
             f.write(f"{days[0]}\t9000000000\t100000000000\n{days[1]}\t7000000000\t100000000000\n")
+        page.freed_shown = False  # the self-test's own cleanup may have shown the numbers already
         page.refresh_button.emit("clicked")
-        wait(lambda: idle() and "freed30" in page.rows and "top:" + videos in page.rows, refreshed, 60, "refresh")
+        wait(lambda: idle() and page.freed is not None and "top:" + videos in page.rows, refreshed, 60, "refresh")
 
     def refreshed():
-        report(human(2147483648) in page.rows["freed30"].get_subtitle(), "Refresh shows what was freed in 30 days")
+        animated = page.freed.animated
+        report(animated == Gtk.Settings.get_default().get_property("gtk-enable-animations"),
+               f"the Freed numbers count up the first time they show, when animations are on ({animated})")
+        wait(lambda: not page.freed.animating, counted, 10, "count up")
+
+    def counted():
+        freed = page.freed
+        numbers = {k: label.get_label() for k, (label, _v) in freed.numbers.items()}
+        report(numbers == {"freed30": human(2147483648), "lifetime": human(2147483648), "last": human(2147483648)},
+               f"Refresh shows what was freed: 30 days, in total, the last cleanup ({numbers})")
+        days = freed.chart.days if freed.chart else []
+        report(len(days) == 30 and [i for i, d in enumerate(days) if d["cleanups"]] == [28]
+               and human(2147483648) in freed.chart.day_text(28) and freed.chart.day_text(0) != freed.chart.day_text(28)
+               and freed.chart.bars(300, 120)[28] is not None and freed.chart.bars(300, 120)[0] is None,
+               "freed per day: 30 days, a bar for yesterday's cleanup with its date and size")
+        settings = Gtk.Settings.get_default()
+        was = settings.get_property("gtk-enable-animations")
+        settings.set_property("gtk-enable-animations", False)
+        still = FreedPanel(page.data["freed"], animate=True)
+        settings.set_property("gtk-enable-animations", was)
+        report(not still.animated and still.numbers["lifetime"][0].get_label() == human(2147483648),
+               "with animations off the Freed numbers show their value at once")
+        page.refresh_button.emit("clicked")
+        wait(lambda: idle() and page.freed is not None and "top:" + videos in page.rows, refreshed_again, 60,
+             "second refresh")
+
+    def refreshed_again():
+        report(not page.freed.animated and page.freed.numbers["freed30"][0].get_label() == human(2147483648),
+               "Refresh doesn't count up again")
         chart = page.chart
         report(chart is not None and [p["avail"] for p in chart.points] == [9000000000, 7000000000, 5000000000]
                and human(7000000000) in chart.point_text(1), "free-space history: a chart of three days with a "

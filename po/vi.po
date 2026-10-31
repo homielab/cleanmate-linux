@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 17:39+0000\n"
+"POT-Creation-Date: 2026-10-31 23:09+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -953,30 +953,30 @@ msgstr "Chạy thử: {title} — không có gì thay đổi"
 msgid "{title}: done"
 msgstr "{title}: xong"
 
-#: gui/cleanmate_gui/overview.py:41
+#: gui/cleanmate_gui/overview.py:44
 #, python-brace-format
 msgid "{n} day"
 msgid_plural "{n} days"
 msgstr[0] "{n} ngày"
 
-#: gui/cleanmate_gui/overview.py:41 gui/cleanmate_gui/overview.py:43
+#: gui/cleanmate_gui/overview.py:44 gui/cleanmate_gui/overview.py:46
 #, python-brace-format
 msgid "{n} hour"
 msgid_plural "{n} hours"
 msgstr[0] "{n} giờ"
 
-#: gui/cleanmate_gui/overview.py:43 gui/cleanmate_gui/overview.py:44
+#: gui/cleanmate_gui/overview.py:46 gui/cleanmate_gui/overview.py:47
 #, python-brace-format
 msgid "{n} minute"
 msgid_plural "{n} minutes"
 msgstr[0] "{n} phút"
 
-#: gui/cleanmate_gui/overview.py:50
+#: gui/cleanmate_gui/overview.py:53
 #, python-brace-format
 msgid "{start} free on {start_date} → {end} on {end_date}."
 msgstr "Trống {start} ngày {start_date} → {end} ngày {end_date}."
 
-#: gui/cleanmate_gui/overview.py:59
+#: gui/cleanmate_gui/overview.py:62
 #, python-brace-format
 msgid ""
 "Losing about {size} a week: at this rate the disk is full in about {n} week."
@@ -985,27 +985,55 @@ msgid_plural ""
 msgstr[0] ""
 "Mất khoảng {size} mỗi tuần: với tốc độ này ổ sẽ đầy sau khoảng {n} tuần."
 
-#: gui/cleanmate_gui/overview.py:63
+#: gui/cleanmate_gui/overview.py:66
 #, python-brace-format
 msgid "Gaining about {size} a week."
 msgstr "Trống thêm khoảng {size} mỗi tuần."
 
-#: gui/cleanmate_gui/overview.py:65
+#: gui/cleanmate_gui/overview.py:68
 #, python-brace-format
 msgid "Stable over the last {n} day."
 msgid_plural "Stable over the last {n} days."
 msgstr[0] "Ổn định trong {n} ngày qua."
 
-#: gui/cleanmate_gui/overview.py:104
+#: gui/cleanmate_gui/overview.py:107
 #, python-brace-format
 msgid "{date}: {free} free"
 msgstr "{date}: trống {free}"
 
-#: gui/cleanmate_gui/overview.py:153
+#: gui/cleanmate_gui/overview.py:191
+#, python-brace-format
+msgid "{date}: no cleanup"
+msgstr "{date}: không dọn"
+
+#: gui/cleanmate_gui/overview.py:192
+#, python-brace-format
+msgid "{date}: {size} freed in {n} cleanup"
+msgid_plural "{date}: {size} freed in {n} cleanups"
+msgstr[0] "{date}: giải phóng {size} trong {n} lần dọn"
+
+#: gui/cleanmate_gui/overview.py:250
+#, python-brace-format
+msgid "Last 30 days · {n} cleanup"
+msgid_plural "Last 30 days · {n} cleanups"
+msgstr[0] "30 ngày qua · {n} lần dọn"
+
+#: gui/cleanmate_gui/overview.py:252
+#, python-brace-format
+msgid "In total · {n} cleanup"
+msgid_plural "In total · {n} cleanups"
+msgstr[0] "Tổng cộng · {n} lần dọn"
+
+#: gui/cleanmate_gui/overview.py:256
+#, python-brace-format
+msgid "Last cleanup · {date}"
+msgstr "Lần gần nhất · {date}"
+
+#: gui/cleanmate_gui/overview.py:319
 msgid "Reserved for the system"
 msgstr "Dành riêng cho hệ thống"
 
-#: gui/cleanmate_gui/overview.py:154
+#: gui/cleanmate_gui/overview.py:320
 #, python-brace-format
 msgid ""
 "ext4 keeps about 5 percent of {path} for root, so Ubuntu still runs when the "
@@ -1014,93 +1042,93 @@ msgstr ""
 "ext4 giữ khoảng 5 phần trăm của {path} cho root, để Ubuntu vẫn chạy được khi "
 "ổ đầy"
 
-#: gui/cleanmate_gui/overview.py:156
+#: gui/cleanmate_gui/overview.py:322
 msgid "Swap file"
 msgstr "Tệp swap"
 
-#: gui/cleanmate_gui/overview.py:156
+#: gui/cleanmate_gui/overview.py:322
 #, python-brace-format
 msgid "{path} · extra memory on disk; shrinking it is possible but needs care"
 msgstr "{path} · bộ nhớ phụ trên ổ đĩa; có thể thu nhỏ nhưng cần cẩn thận"
 
-#: gui/cleanmate_gui/overview.py:159
+#: gui/cleanmate_gui/overview.py:325
 #, python-brace-format
 msgid "Timeshift: {n} snapshot"
 msgid_plural "Timeshift: {n} snapshots"
 msgstr[0] "Timeshift: {n} bản chụp"
 
-#: gui/cleanmate_gui/overview.py:160
+#: gui/cleanmate_gui/overview.py:326
 #, python-brace-format
 msgid "{path} · delete old ones in Timeshift, never by hand"
 msgstr "{path} · xoá bản cũ trong Timeshift, đừng bao giờ xoá tay"
 
-#: gui/cleanmate_gui/overview.py:174
+#: gui/cleanmate_gui/overview.py:340
 msgid "Firewall"
 msgstr "Tường lửa"
 
-#: gui/cleanmate_gui/overview.py:174
+#: gui/cleanmate_gui/overview.py:340
 msgid "AppArmor"
 msgstr "AppArmor"
 
-#: gui/cleanmate_gui/overview.py:174
+#: gui/cleanmate_gui/overview.py:340
 msgid "Automatic security updates"
 msgstr "Cập nhật bảo mật tự động"
 
-#: gui/cleanmate_gui/overview.py:175
+#: gui/cleanmate_gui/overview.py:341
 msgid "Secure Boot"
 msgstr "Secure Boot"
 
-#: gui/cleanmate_gui/overview.py:176
+#: gui/cleanmate_gui/overview.py:342
 msgid "On"
 msgstr "Bật"
 
-#: gui/cleanmate_gui/overview.py:176 gui/cleanmate_gui/settings.py:22
+#: gui/cleanmate_gui/overview.py:342 gui/cleanmate_gui/settings.py:22
 msgid "Off"
 msgstr "Tắt"
 
-#: gui/cleanmate_gui/overview.py:176
+#: gui/cleanmate_gui/overview.py:342
 msgid "Not applicable"
 msgstr "Không áp dụng"
 
-#: gui/cleanmate_gui/overview.py:177
+#: gui/cleanmate_gui/overview.py:343
 msgid "Unknown"
 msgstr "Không rõ"
 
-#: gui/cleanmate_gui/overview.py:179
+#: gui/cleanmate_gui/overview.py:345
 msgid "ufw is turned on."
 msgstr "ufw đang bật."
 
-#: gui/cleanmate_gui/overview.py:180
+#: gui/cleanmate_gui/overview.py:346
 msgid "firewalld is turned on."
 msgstr "firewalld đang bật."
 
-#: gui/cleanmate_gui/overview.py:181
+#: gui/cleanmate_gui/overview.py:347
 msgid "ufw is turned off. To turn it on, run in a terminal:"
 msgstr "ufw đang tắt. Để bật, chạy trong terminal:"
 
-#: gui/cleanmate_gui/overview.py:182
+#: gui/cleanmate_gui/overview.py:348
 msgid "ufw is set to start but isn't running. To start it, run in a terminal:"
 msgstr ""
 "ufw được đặt để chạy nhưng đang không chạy. Để chạy, gõ trong terminal:"
 
-#: gui/cleanmate_gui/overview.py:183
+#: gui/cleanmate_gui/overview.py:349
 msgid ""
 "No firewall is installed. To install ufw and turn it on, run in a terminal:"
 msgstr "Chưa cài tường lửa nào. Để cài ufw và bật, chạy trong terminal:"
 
-#: gui/cleanmate_gui/overview.py:184
+#: gui/cleanmate_gui/overview.py:350
 msgid "Can't read /etc/ufw/ufw.conf."
 msgstr "Không đọc được /etc/ufw/ufw.conf."
 
-#: gui/cleanmate_gui/overview.py:185
+#: gui/cleanmate_gui/overview.py:351
 msgid "Apps with an AppArmor profile are confined."
 msgstr "Các ứng dụng có hồ sơ AppArmor bị giới hạn quyền."
 
-#: gui/cleanmate_gui/overview.py:186
+#: gui/cleanmate_gui/overview.py:352
 msgid "AppArmor's profiles aren't loaded. To load them, run in a terminal:"
 msgstr "Các hồ sơ AppArmor chưa được nạp. Để nạp, chạy trong terminal:"
 
-#: gui/cleanmate_gui/overview.py:187
+#: gui/cleanmate_gui/overview.py:353
 msgid ""
 "Turned off when the computer starts: remove apparmor=0 from the kernel "
 "options in /etc/default/grub, then run sudo update-grub."
@@ -1108,136 +1136,136 @@ msgstr ""
 "Bị tắt khi máy khởi động: xoá apparmor=0 khỏi tuỳ chọn kernel trong /etc/"
 "default/grub, rồi chạy sudo update-grub."
 
-#: gui/cleanmate_gui/overview.py:189
+#: gui/cleanmate_gui/overview.py:355
 msgid "Can't read AppArmor's state from the kernel."
 msgstr "Không đọc được trạng thái AppArmor từ kernel."
 
-#: gui/cleanmate_gui/overview.py:190
+#: gui/cleanmate_gui/overview.py:356
 msgid "unattended-upgrades installs security updates every day."
 msgstr "unattended-upgrades cài cập nhật bảo mật mỗi ngày."
 
-#: gui/cleanmate_gui/overview.py:191
+#: gui/cleanmate_gui/overview.py:357
 msgid "unattended-upgrades isn't installed. To install it, run in a terminal:"
 msgstr "Chưa cài unattended-upgrades. Để cài, chạy trong terminal:"
 
-#: gui/cleanmate_gui/overview.py:192
+#: gui/cleanmate_gui/overview.py:358
 msgid "Turned off in APT's settings. To turn it on, run in a terminal:"
 msgstr "Đang tắt trong cài đặt của APT. Để bật, chạy trong terminal:"
 
-#: gui/cleanmate_gui/overview.py:193
+#: gui/cleanmate_gui/overview.py:359
 msgid "The daily upgrade timer is off. To turn it on, run in a terminal:"
 msgstr "Bộ hẹn giờ nâng cấp hằng ngày đang tắt. Để bật, chạy trong terminal:"
 
-#: gui/cleanmate_gui/overview.py:194
+#: gui/cleanmate_gui/overview.py:360
 msgid "This system doesn't use APT."
 msgstr "Hệ thống này không dùng APT."
 
-#: gui/cleanmate_gui/overview.py:195
+#: gui/cleanmate_gui/overview.py:361
 msgid "Couldn't read APT's settings."
 msgstr "Không đọc được cài đặt của APT."
 
-#: gui/cleanmate_gui/overview.py:196
+#: gui/cleanmate_gui/overview.py:362
 msgid "Only signed boot loaders and kernels start."
 msgstr "Chỉ trình khởi động và kernel có chữ ký mới chạy được."
 
-#: gui/cleanmate_gui/overview.py:197
+#: gui/cleanmate_gui/overview.py:363
 msgid "Turn it on in your computer's firmware (UEFI) settings."
 msgstr "Bật trong phần cài đặt firmware (UEFI) của máy."
 
-#: gui/cleanmate_gui/overview.py:198
+#: gui/cleanmate_gui/overview.py:364
 msgid "This computer starts without UEFI, so there is no Secure Boot."
 msgstr "Máy này khởi động không qua UEFI nên không có Secure Boot."
 
-#: gui/cleanmate_gui/overview.py:199
+#: gui/cleanmate_gui/overview.py:365
 msgid "Can't read the Secure Boot state."
 msgstr "Không đọc được trạng thái Secure Boot."
 
 #
-#: gui/cleanmate_gui/overview.py:228
+#: gui/cleanmate_gui/overview.py:396
 msgid "Can't measure this system"
 msgstr "Không đo được hệ thống này"
 
-#: gui/cleanmate_gui/overview.py:234
+#: gui/cleanmate_gui/overview.py:402
 msgid "Refresh"
 msgstr "Làm mới"
 
-#: gui/cleanmate_gui/overview.py:314 gui/cleanmate_gui/startup.py:146
+#: gui/cleanmate_gui/overview.py:485 gui/cleanmate_gui/startup.py:146
 msgid "System"
 msgstr "Hệ thống"
 
-#: gui/cleanmate_gui/overview.py:315
+#: gui/cleanmate_gui/overview.py:486
 #, python-brace-format
 msgid "{n} apt package"
 msgid_plural "{n} apt packages"
 msgstr[0] "{n} gói apt"
 
-#: gui/cleanmate_gui/overview.py:317
+#: gui/cleanmate_gui/overview.py:488
 #, python-brace-format
 msgid "{n} snap"
 msgid_plural "{n} snaps"
 msgstr[0] "{n} snap"
 
-#: gui/cleanmate_gui/overview.py:319
+#: gui/cleanmate_gui/overview.py:490
 #, python-brace-format
 msgid "{n} flatpak"
 msgid_plural "{n} flatpaks"
 msgstr[0] "{n} flatpak"
 
-#: gui/cleanmate_gui/overview.py:321
+#: gui/cleanmate_gui/overview.py:492
 msgid "Operating system"
 msgstr "Hệ điều hành"
 
-#: gui/cleanmate_gui/overview.py:321 gui/cleanmate_gui/overview.py:325
+#: gui/cleanmate_gui/overview.py:492 gui/cleanmate_gui/overview.py:496
 msgid "unknown"
 msgstr "không rõ"
 
-#: gui/cleanmate_gui/overview.py:322
+#: gui/cleanmate_gui/overview.py:493
 msgid "Kernel"
 msgstr "Kernel"
 
-#: gui/cleanmate_gui/overview.py:323
+#: gui/cleanmate_gui/overview.py:494
 msgid "Uptime"
 msgstr "Thời gian chạy"
 
-#: gui/cleanmate_gui/overview.py:324
+#: gui/cleanmate_gui/overview.py:495
 msgid "Processor"
 msgstr "Bộ xử lý"
 
-#: gui/cleanmate_gui/overview.py:324
+#: gui/cleanmate_gui/overview.py:495
 #, python-brace-format
 msgid "{cpu} ({n} thread)"
 msgid_plural "{cpu} ({n} threads)"
 msgstr[0] "{cpu} ({n} luồng)"
 
 #
-#: gui/cleanmate_gui/overview.py:326
+#: gui/cleanmate_gui/overview.py:497
 msgid "Packages"
 msgstr "Gói"
 
-#: gui/cleanmate_gui/overview.py:330
+#: gui/cleanmate_gui/overview.py:501
 msgid "Storage"
 msgstr "Ổ đĩa"
 
 #
-#: gui/cleanmate_gui/overview.py:332
+#: gui/cleanmate_gui/overview.py:503
 msgid "No disks found."
 msgstr "Không tìm thấy ổ đĩa nào."
 
-#: gui/cleanmate_gui/overview.py:335
+#: gui/cleanmate_gui/overview.py:506
 #, python-brace-format
 msgid "Almost full · {used} of {size} used · {free} free · {fstype}"
 msgstr "Sắp đầy · đã dùng {used} / {size} · còn trống {free} · {fstype}"
 
-#: gui/cleanmate_gui/overview.py:336
+#: gui/cleanmate_gui/overview.py:507
 #, python-brace-format
 msgid "{used} of {size} used · {free} free · {fstype}"
 msgstr "Đã dùng {used} / {size} · còn trống {free} · {fstype}"
 
-#: gui/cleanmate_gui/overview.py:344
+#: gui/cleanmate_gui/overview.py:515
 msgid "Free space over time"
 msgstr "Ổ trống theo thời gian"
 
-#: gui/cleanmate_gui/overview.py:346
+#: gui/cleanmate_gui/overview.py:517
 msgid ""
 "Free space on / is recorded once a day while you use CleanMate; the chart "
 "shows here after a few days."
@@ -1245,83 +1273,62 @@ msgstr ""
 "Dung lượng trống của / được ghi mỗi ngày một lần khi bạn dùng CleanMate; "
 "biểu đồ sẽ hiện ở đây sau vài ngày."
 
-#: gui/cleanmate_gui/overview.py:357
+#: gui/cleanmate_gui/overview.py:528
 msgid "Memory"
 msgstr "Bộ nhớ"
 
-#: gui/cleanmate_gui/overview.py:359
+#: gui/cleanmate_gui/overview.py:530
 msgid "RAM"
 msgstr "RAM"
 
-#: gui/cleanmate_gui/overview.py:359
+#: gui/cleanmate_gui/overview.py:530
 #, python-brace-format
 msgid "{used} of {size} in use · {free} available"
 msgstr "Đang dùng {used} / {size} · còn {free}"
 
-#: gui/cleanmate_gui/overview.py:363 gui/cleanmate_gui/overview.py:367
+#: gui/cleanmate_gui/overview.py:534 gui/cleanmate_gui/overview.py:538
 msgid "Swap"
 msgstr "Swap"
 
-#: gui/cleanmate_gui/overview.py:363
+#: gui/cleanmate_gui/overview.py:534
 #, python-brace-format
 msgid "{used} of {size} in use"
 msgstr "Đang dùng {used} / {size}"
 
-#: gui/cleanmate_gui/overview.py:367
+#: gui/cleanmate_gui/overview.py:538
 msgid "none"
 msgstr "không có"
 
 #
-#: gui/cleanmate_gui/overview.py:371
+#: gui/cleanmate_gui/overview.py:542
 msgid "Freed by CleanMate"
 msgstr "CleanMate đã giải phóng"
 
-#: gui/cleanmate_gui/overview.py:373
+#: gui/cleanmate_gui/overview.py:544
 msgid "Shows here after your first cleanup."
 msgstr "Hiện ở đây sau lần dọn dẹp đầu tiên."
 
-#
-#: gui/cleanmate_gui/overview.py:375
-msgid "Last 30 days"
-msgstr "30 ngày qua"
+#: gui/cleanmate_gui/overview.py:549
+msgid "No cleanups in the last 30 days."
+msgstr "Không có lần dọn nào trong 30 ngày qua."
 
-#: gui/cleanmate_gui/overview.py:376 gui/cleanmate_gui/overview.py:378
-#, python-brace-format
-msgid "{size} in {n} cleanup"
-msgid_plural "{size} in {n} cleanups"
-msgstr[0] "{size} trong {n} lần dọn"
-
-#: gui/cleanmate_gui/overview.py:377
-msgid "In total"
-msgstr "Tổng cộng"
-
-#
-#: gui/cleanmate_gui/overview.py:381
-msgid "Last cleanup"
-msgstr "Lần dọn gần nhất"
-
-#: gui/cleanmate_gui/overview.py:381
-#, python-brace-format
-msgid "{size} on {date}"
-msgstr "{size} ngày {date}"
-
-#: gui/cleanmate_gui/overview.py:386 gui/cleanmate_gui/overview.py:410
+#: gui/cleanmate_gui/overview.py:555 gui/cleanmate_gui/overview.py:579
 msgid "Space outside your folders"
 msgstr "Ngoài thư mục của bạn"
 
-#: gui/cleanmate_gui/overview.py:386 gui/cleanmate_gui/overview.py:431
+#: gui/cleanmate_gui/overview.py:555 gui/cleanmate_gui/overview.py:600
 msgid "Largest folders in your home"
 msgstr "Thư mục lớn nhất trong thư mục riêng"
 
-#: gui/cleanmate_gui/overview.py:387 gui/cleanmate_gui/spacelens.py:76
+#: gui/cleanmate_gui/overview.py:556 gui/cleanmate_gui/spacelens.py:76
 msgid "Measuring…"
 msgstr "Đang đo…"
 
-#: gui/cleanmate_gui/overview.py:393
+#: gui/cleanmate_gui/overview.py:562
 msgid "System protection"
 msgstr "Bảo vệ hệ thống"
 
-#: gui/cleanmate_gui/overview.py:394
+#: gui/cleanmate_gui/overview.py:563
 msgid ""
 "Read only: CleanMate doesn't change these. To turn one on, run the command "
 "shown in a terminal."
@@ -1329,11 +1336,11 @@ msgstr ""
 "Chỉ xem: CleanMate không thay đổi các mục này. Để bật một mục, chạy lệnh "
 "hiện bên dưới trong terminal."
 
-#: gui/cleanmate_gui/overview.py:397
+#: gui/cleanmate_gui/overview.py:566
 msgid "Couldn't read the system's protection."
 msgstr "Không đọc được trạng thái bảo vệ của hệ thống."
 
-#: gui/cleanmate_gui/overview.py:411
+#: gui/cleanmate_gui/overview.py:580
 msgid ""
 "In use, but in none of your folders. Shown for information: each is a "
 "choice, not junk."
@@ -1341,35 +1348,35 @@ msgstr ""
 "Đang dùng nhưng không nằm trong thư mục nào của bạn. Chỉ để xem: mỗi mục là "
 "một lựa chọn, không phải rác."
 
-#: gui/cleanmate_gui/overview.py:415
+#: gui/cleanmate_gui/overview.py:584
 msgid "No Timeshift snapshots, swap file or reserved space found."
 msgstr "Không có bản chụp Timeshift, tệp swap hay dung lượng dành riêng."
 
-#: gui/cleanmate_gui/overview.py:424
+#: gui/cleanmate_gui/overview.py:593
 msgid "Measuring its size needs administrator rights"
 msgstr "Cần quyền quản trị để đo dung lượng"
 
-#: gui/cleanmate_gui/overview.py:434
+#: gui/cleanmate_gui/overview.py:603
 msgid "Couldn't measure your home folder."
 msgstr "Không đo được thư mục riêng."
 
-#: gui/cleanmate_gui/overview.py:436
+#: gui/cleanmate_gui/overview.py:605
 msgid "Your home folder is empty."
 msgstr "Thư mục riêng của bạn trống."
 
-#: gui/cleanmate_gui/overview.py:438
+#: gui/cleanmate_gui/overview.py:607
 msgid "Click a folder to explore it in Space Lens."
 msgstr "Bấm vào một thư mục để xem nó trong Space Lens."
 
-#: gui/cleanmate_gui/overview.py:444
+#: gui/cleanmate_gui/overview.py:613
 msgid "Open in Space Lens"
 msgstr "Mở trong Space Lens"
 
-#: gui/cleanmate_gui/overview.py:468 gui/cleanmate_gui/overview.py:469
+#: gui/cleanmate_gui/overview.py:637 gui/cleanmate_gui/overview.py:638
 msgid "Copy the command"
 msgstr "Sao chép lệnh"
 
-#: gui/cleanmate_gui/overview.py:478
+#: gui/cleanmate_gui/overview.py:647
 msgid "Command copied. Paste it in a terminal to run it."
 msgstr "Đã sao chép lệnh. Dán vào terminal để chạy."
 
@@ -2543,7 +2550,8 @@ msgstr ""
 #: gui/cleanmate_gui/uninstaller.py:744
 #, python-brace-format
 msgid "{name} keeps no data in your home: nothing to reset."
-msgstr "{name} không lưu dữ liệu nào trong thư mục nhà: không có gì để đặt lại."
+msgstr ""
+"{name} không lưu dữ liệu nào trong thư mục nhà: không có gì để đặt lại."
 
 #: gui/cleanmate_gui/uninstaller.py:755
 #, python-brace-format
@@ -3993,6 +4001,21 @@ msgstr ""
 "IDEA, PyCharm, WebStorm…) và Android Studio đã được phiên bản mới hơn của "
 "cùng IDE thay thế. Chuyển vào Thùng rác; bỏ qua khi IDE đó đang chạy."
 
+#. vscode_old_extensions label
+msgid "Old editor extension versions"
+msgstr "Phiên bản cũ của extension trình soạn mã"
+
+#. vscode_old_extensions description
+#, python-brace-format
+msgid ""
+"Versions of VS Code, Cursor, Windsurf and VSCodium extensions that an update "
+"left behind, often {0}–{1} MB each. The version in use is kept. Deleted; the "
+"editor downloads any version again. Skipped while that editor runs."
+msgstr ""
+"Bản extension của VS Code, Cursor, Windsurf và VSCodium còn lại sau khi cập "
+"nhật, thường {0}–{1} MB mỗi bản. Bản đang dùng được giữ. Xoá hẳn; trình soạn "
+"mã tải lại được bất kỳ bản nào. Bỏ qua khi trình soạn mã đó đang chạy."
+
 #. ollama_partial label
 msgid "Ollama — unfinished downloads"
 msgstr "Bản tải dở của Ollama"
@@ -4018,21 +4041,6 @@ msgstr ""
 "Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải (~/."
 "cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi chương "
 "trình cần. Model đang dùng được bỏ qua."
-
-#. vscode_old_extensions label
-msgid "Old editor extension versions"
-msgstr "Phiên bản cũ của extension trình soạn mã"
-
-#. vscode_old_extensions description
-#, python-brace-format
-msgid ""
-"Versions of VS Code, Cursor, Windsurf and VSCodium extensions that an update "
-"left behind, often {0}–{1} MB each. The version in use is kept. Deleted; the "
-"editor downloads any version again. Skipped while that editor runs."
-msgstr ""
-"Bản extension của VS Code, Cursor, Windsurf và VSCodium còn lại sau khi cập "
-"nhật, thường {0}–{1} MB mỗi bản. Bản đang dùng được giữ. Xoá hẳn; trình soạn "
-"mã tải lại được bất kỳ bản nào. Bỏ qua khi trình soạn mã đó đang chạy."
 
 #~ msgid "System Overview and more in the terminal app"
 #~ msgstr "Tổng quan hệ thống và công cụ khác trong app terminal"

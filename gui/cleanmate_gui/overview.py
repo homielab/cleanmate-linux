@@ -5,7 +5,9 @@ The engine measures it all (`--json overview`), the same facts as the terminal a
 this page only shows them. A disk over 90 % full gets the warning colour. The engine sends the quick facts
 first and measures folders (du) last: the page shows as soon as the quick part is there, and the last two
 groups fill in when the rest arrives. System protection is read only: when one is off the page shows the
-command that turns it on, to copy and run in a terminal; the app never runs it.
+command that turns it on, to copy and run in a terminal; the app never runs it. What CleanMate freed shows as
+three numbers and a bar per day over the last 30 days; they count up and grow once per app session, unless
+the system turns animations off.
 """
 import os
 import time
@@ -20,6 +22,7 @@ from .scanpage import size_widgets
 FULL = 0.9  # a disk fuller than this is shown in the warning colour
 HISTORY_POINTS = 30  # days in the free-space chart
 WEEK_CHANGE = 100 << 20  # free space changing less than this a week counts as stable
+ANIMATION_MS = 600  # the Freed numbers count up and the bars grow this long
 
 
 def usage_bar(fraction, width=160):
@@ -142,6 +145,170 @@ class HistoryChart(Gtk.DrawingArea):
             cr.fill()
 
 
+def date_text(iso):
+    """A "YYYY-MM-DD" day from the engine as the locale's date."""
+    year, month, day = (int(part) for part in iso.split("-"))
+    return GLib.DateTime.new_local(year, month, day, 12, 0, 0).format("%x")
+
+
+class FreedByDayChart(Gtk.DrawingArea):
+    """What CleanMate freed per day as bars in the accent colour; hovering a day shows its date and size."""
+
+    PAD = 8
+
+    def __init__(self, days):
+        super().__init__(content_height=120, hexpand=True, has_tooltip=True, css_classes=["accent"],
+                         margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
+        self.days = days  # [{"date", "bytes", "cleanups"}], oldest first
+        self.hover = None
+        self.progress = 1.0  # share of each bar's height, while they grow
+        self.set_draw_func(self.draw)
+        self.connect("query-tooltip", self.on_query_tooltip)
+        motion = Gtk.EventControllerMotion()
+        motion.connect("motion", lambda _c, x, _y: self.set_hover(self.index_at(x)))
+        motion.connect("leave", lambda _c: self.set_hover(None))
+        self.add_controller(motion)
+
+    def set_progress(self, progress):
+        self.progress = progress
+        self.queue_draw()
+
+    def set_hover(self, index):
+        if index != self.hover:
+            self.hover = index
+            self.queue_draw()
+
+    def index_at(self, x):
+        span = self.get_width() - 2 * self.PAD
+        n = len(self.days)
+        if span <= 0 or not n:
+            return None
+        return min(max(int((x - self.PAD) / span * n), 0), n - 1)
+
+    def day_text(self, index):
+        d = self.days[index]
+        if not d["cleanups"]:
+            return _("{date}: no cleanup").format(date=date_text(d["date"]))
+        return ngettext("{date}: {size} freed in {n} cleanup", "{date}: {size} freed in {n} cleanups",
+                        d["cleanups"], date=date_text(d["date"]), size=human(d["bytes"]))
+
+    def on_query_tooltip(self, _widget, x, _y, _keyboard, tooltip):
+        index = self.index_at(x)
+        if index is None:
+            return False
+        tooltip.set_text(self.day_text(index))
+        return True
+
+    def bars(self, width, height):
+        """(x, y, w, h) of each day's bar, None for a day without a cleanup; a cleanup shows at least 2 px."""
+        slot = (width - 2 * self.PAD) / len(self.days)
+        high = max(d["bytes"] for d in self.days) or 1
+        base = height - self.PAD
+        bars = []
+        for i, d in enumerate(self.days):
+            if not d["cleanups"]:
+                bars.append(None)
+                continue
+            h = max(d["bytes"] / high * (height - 2 * self.PAD), 2) * self.progress
+            bars.append((self.PAD + (i + 0.15) * slot, base - h, slot * 0.7, h))
+        return bars
+
+    def draw(self, _area, cr, width, height):
+        if not self.days or width <= 2 * self.PAD:
+            return
+        color = self.get_color()
+        slot = (width - 2 * self.PAD) / len(self.days)
+        if self.hover is not None:  # the hovered day, also one without a cleanup
+            cr.set_source_rgba(color.red, color.green, color.blue, 0.08)
+            cr.rectangle(self.PAD + self.hover * slot, self.PAD, slot, height - 2 * self.PAD)
+            cr.fill()
+        cr.set_source_rgba(color.red, color.green, color.blue, 0.3)
+        cr.rectangle(self.PAD, height - self.PAD, width - 2 * self.PAD, 1)
+        cr.fill()
+        for i, bar in enumerate(self.bars(width, height)):
+            if bar:
+                cr.set_source_rgba(color.red, color.green, color.blue, 1 if i == self.hover else 0.75)
+                cr.rectangle(*bar)
+                cr.fill()
+
+
+def animations_on(widget):
+    return widget.get_settings().get_property("gtk-enable-animations")
+
+
+class FreedPanel(Gtk.Box):
+    """What CleanMate freed: three cards with a big number (last 30 days, in total, the last cleanup) and the
+    bar chart of the last 30 days. With animate, the numbers count up and the bars grow once it shows."""
+
+    def __init__(self, f, animate):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        self.numbers = {}  # "freed30", "lifetime", "last" → (Gtk.Label, bytes)
+        self.chart = None  # FreedByDayChart, when a day in the last 30 had a cleanup
+        self.timer = None
+        self.map_handler = None
+        cards = Gtk.Box(spacing=12, homogeneous=True)
+        items = [("freed30", f["bytes"], ngettext("Last 30 days · {n} cleanup", "Last 30 days · {n} cleanups",
+                                                   f["cleanups"])),
+                 ("lifetime", f["lifetime"], ngettext("In total · {n} cleanup", "In total · {n} cleanups",
+                                                      f["runs"]))]
+        if f["last_time"]:
+            when = GLib.DateTime.new_from_unix_local(f["last_time"]).format("%x %H:%M")
+            items.append(("last", f["last_bytes"], _("Last cleanup · {date}").format(date=when)))
+        for key, value, caption in items:
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, css_classes=["card"])
+            number = Gtk.Label(label=human(value), css_classes=["title-1", "numeric"], margin_top=18,
+                               margin_start=12, margin_end=12)
+            card.append(number)
+            card.append(Gtk.Label(label=caption, wrap=True, justify=Gtk.Justification.CENTER, margin_bottom=18,
+                                  margin_start=12, margin_end=12, css_classes=["dim-label"]))
+            self.numbers[key] = (number, value)
+            cards.append(card)
+        self.append(cards)
+        days = f.get("freed_by_day") or []
+        if any(d["cleanups"] for d in days):
+            self.chart = FreedByDayChart(days)
+            self.append(Gtk.Frame(child=self.chart, css_classes=["view"]))
+        self.animated = animate and animations_on(self)  # counts up once it shows
+        self.animating = self.animated
+        if self.animating:
+            self.set_progress(0)
+            self.map_handler = self.connect("map", lambda _w: self.begin())
+
+    def begin(self):
+        """Count up from now, once."""
+        self.disconnect(self.map_handler)
+        self.map_handler = None
+        started = time.monotonic()
+
+        def step():
+            t = min((time.monotonic() - started) * 1000 / ANIMATION_MS, 1)
+            self.set_progress(1 - (1 - t) ** 3)  # ease out
+            if t < 1:
+                return True
+            self.timer = None
+            self.animating = False
+            return False
+
+        self.timer = GLib.timeout_add(16, step)
+
+    def stop(self):
+        """Jump to the end (the page is rebuilt)."""
+        if self.map_handler:
+            self.disconnect(self.map_handler)
+            self.map_handler = None
+        if self.timer:
+            GLib.source_remove(self.timer)
+            self.timer = None
+        self.animating = False
+        self.set_progress(1)
+
+    def set_progress(self, progress):
+        for label, value in self.numbers.values():
+            label.set_label(human(int(value * progress)))
+        if self.chart:
+            self.chart.set_progress(progress)
+
+
 OUTSIDE_ICONS = {"reserved": "drive-harddisk-symbolic", "swapfile": "media-flash-symbolic",
                  "timeshift": "document-open-recent-symbolic"}
 
@@ -216,6 +383,8 @@ class OverviewPage(Gtk.Box):
         self.full_ms = None  # from Refresh to the folder sizes on screen
         self.first_before_folders = None  # the quick part showed before the folder sizes arrived
         self.chart = None  # HistoryChart, with two days or more
+        self.freed = None  # FreedPanel, once a cleanup was recorded
+        self.freed_shown = False  # the Freed numbers counted up once this session
         self.groups = {}  # "history", "outside", "top" → Adw.PreferencesGroup
         self.rows = {}  # key → Adw.ActionRow (disk rows: "disk:" + mount)
         self.bars = {}  # same keys → Gtk.LevelBar
@@ -300,6 +469,9 @@ class OverviewPage(Gtk.Box):
         self.bars.clear()
         self.groups.clear()
         self.chart = None
+        if self.freed:
+            self.freed.stop()
+            self.freed = None
         d = self.data
 
         header = Gtk.Box(spacing=12)
@@ -372,14 +544,12 @@ class OverviewPage(Gtk.Box):
         if not f:
             freed.set_description(_("Shows here after your first cleanup."))
         else:
-            freed.add(self.fact_row("freed30", _("Last 30 days"), ngettext(
-                "{size} in {n} cleanup", "{size} in {n} cleanups", f["cleanups"], size=human(f["bytes"]))))
-            freed.add(self.fact_row("lifetime", _("In total"), ngettext(
-                "{size} in {n} cleanup", "{size} in {n} cleanups", f["runs"], size=human(f["lifetime"]))))
-            if f["last_time"]:
-                when = GLib.DateTime.new_from_unix_local(f["last_time"]).format("%x")
-                freed.add(self.fact_row("last", _("Last cleanup"), _("{size} on {date}").format(
-                    size=human(f["last_bytes"]), date=when)))
+            self.freed = FreedPanel(f, animate=not self.freed_shown)  # Refresh doesn't count up again
+            self.freed_shown = True
+            if not self.freed.chart:
+                freed.set_description(_("No cleanups in the last 30 days."))
+            freed.add(self.freed)
+        self.groups["freed"] = freed
         self.results.append(freed)
 
         # measured last: placeholders until "top_dirs" arrives (show_folders)

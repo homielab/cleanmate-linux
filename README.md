@@ -87,8 +87,9 @@ tasks (updates, package repair, TRIM, font cache, locate…) with their output i
 password once per task, and switches the snap-versions and journal-size limits on or off; a task whose tool
 isn't installed is locked. The app opens on **System Overview**: your system and package counts, each disk
 with a usage bar (in the warning colour over 90 % full), a chart of free space over the last 30 days, memory
-and swap, what CleanMate freed in the last 30 days, space in use outside your folders (Timeshift snapshots,
-the swap file, ext4's reserved space), your largest folders, which open in Space Lens, and **System
+and swap, what CleanMate freed (the last 30 days, in total and the last cleanup, with a bar per day over the
+last 30 days), space in use outside your folders (Timeshift snapshots, the swap file, ext4's reserved space),
+your largest folders, which open in Space Lens, and **System
 protection**: whether the firewall (ufw), AppArmor, automatic security updates and Secure Boot are on. It
 only reads them; one that is off shows the command that turns it on, with a button to copy it. One it
 can't read shows *Unknown*.

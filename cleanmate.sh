@@ -9395,7 +9395,8 @@ json_maintain() { # ID [on|off] [--user-steps]
 # as numbers. "freed" comes only once a cleanup was recorded.
 
 json_overview() {
-  local t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 e b cut kind path n note top=""
+  local t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 e b cut kind path n note top="" d by_day="" days=()
+  local -A day_b=() day_n=()
   sys_facts; pkg_counts; mem_facts
   json_str j1 "$OV_OS"; json_str j2 "$OV_KERNEL"; json_str j3 "$OV_CPU"
   printf '{"event":"system","os":%s,"kernel":%s,"cpu":%s,"threads":%d,"uptime":%d,"apt":%s,"snap":%s,"flatpak":%s}\n' \
@@ -9409,15 +9410,24 @@ json_overview() {
     "$OV_RAM_TOTAL" "$((OV_RAM_TOTAL - OV_RAM_AVAIL))" "$OV_RAM_AVAIL" "$OV_SWAP_TOTAL" "$OV_SWAP_USED"
   if [[ -f $CLEANUP_HISTORY || -n ${STATS[runs]:-} ]]; then
     cut=$((EPOCHSECONDS - 30 * 86400))
+    # the last 30 calendar days, today last: noon of each day, so a DST change never skips one
+    printf -v t '%(%H %M %S)T' "$EPOCHSECONDS"; read -r s u a <<<"$t"
+    t=$((EPOCHSECONDS - 10#$s * 3600 - 10#$u * 60 - 10#$a + 43200))
+    for ((n = 29; n >= 0; n--)); do printf -v d '%(%F)T' $((t - n * 86400)); days+=("$d"); day_b[$d]=0 day_n[$d]=0; done
     if [[ -f $CLEANUP_HISTORY ]]; then
       while IFS=$'\t' read -r e b; do
         [[ $e =~ ^[0-9]+$ && $b =~ ^[0-9]+$ ]] || continue
         ((since == 0)) && since=$e
         ((e >= cut)) && { ((++n30)); b30=$((b30 + b)); }
+        printf -v d '%(%F)T' "$e"
+        [[ -n ${day_b[$d]:-} ]] && { day_b[$d]=$((day_b[$d] + b)); day_n[$d]=$((day_n[$d] + 1)); }
       done <"$CLEANUP_HISTORY"
     fi
-    printf '{"event":"freed","days":30,"bytes":%d,"cleanups":%d,"since":%d,"lifetime":%d,"runs":%d,"last_time":%d,"last_bytes":%d}\n' \
-      "$b30" "$n30" "$since" "${STATS[lifetime]:-0}" "${STATS[runs]:-0}" "${STATS[last_time]:-0}" "${STATS[last_freed]:-0}"
+    ((since)) && for d in "${days[@]}"; do
+      by_day+="${by_day:+,}{\"date\":\"$d\",\"bytes\":${day_b[$d]},\"cleanups\":${day_n[$d]}}"
+    done
+    printf '{"event":"freed","days":30,"bytes":%d,"cleanups":%d,"since":%d,"lifetime":%d,"runs":%d,"last_time":%d,"last_bytes":%d,"freed_by_day":[%s]}\n' \
+      "$b30" "$n30" "$since" "${STATS[lifetime]:-0}" "${STATS[runs]:-0}" "${STATS[last_time]:-0}" "${STATS[last_freed]:-0}" "$by_day"
   fi
   while IFS=$'\t' read -r t s u a; do
     json_str jd "$a"

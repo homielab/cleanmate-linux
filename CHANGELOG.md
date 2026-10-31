@@ -15,6 +15,7 @@ All notable changes are listed here. The format follows
 
 ### Changed
 
+- **System Overview** (desktop app): *Freed by CleanMate* shows three cards with big numbers — the last 30 days, in total and the last cleanup with its date and time — and a bar per day over the last 30 days; hover a bar for the day and what it freed. The numbers count up once when the page opens, unless animations are turned off in the system settings.
 - **App icon**: the same broom and sparkles as the macOS app, on a white tile with a gray-to-black glyph.
 - **Smart Scan** is faster on a computer with many projects: idle `node_modules`, project build folders and editor data of deleted projects are measured several at a time (up to one per CPU) and their sizes are kept in `~/.cache/cleanmate` until the folder changes (a week at most). On 50 projects these items take 0.17 s instead of 0.38 s, and 0.07 s on the next scan.
 
