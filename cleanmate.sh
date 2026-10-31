@@ -2509,7 +2509,7 @@ clean_entries_vscode_stale_workspaces() { # encoded folders (json_clean_entries 
 app_cache_find() {
   # Exclude with -path tests, not -prune: -delete implies -depth, which disables -prune.
   local ex=(thumbnails pip go-build yarn pnpm mozilla google-chrome chromium BraveSoftware
-    microsoft-edge vivaldi opera huggingface lm-studio firebase JetBrains 'Google/AndroidStudio*') skip=() e # AI models and old IDE versions are items of their own
+    microsoft-edge vivaldi opera huggingface lm-studio firebase JetBrains 'Google/AndroidStudio*' spotify/Storage) skip=() e # AI models, old IDE versions and Spotify's cache are items of their own
   for e in "${ex[@]}"; do skip+=(-path "$HOME/.cache/$e/*" -o); done
   unset 'skip[-1]'
   find "$HOME/.cache" -type f -not \( "${skip[@]}" \) -mtime +"$CACHE_DAYS" -atime +"$CACHE_DAYS" "$@" 2>/dev/null
@@ -2970,6 +2970,31 @@ $HOME/.local/share/ownCloud" 'nextcloud|Nextcloud|owncloud|ownCloud'
 LIST_CAT=apps reg_list_item cloud_mega "MEGAsync — logs" 0 item \
   "Logs of the MEGAsync client. Your synced folders and settings are kept. Skipped while MEGAsync runs." \
   cloud_mega "$HOME/.local/share/data/Mega Limited/MEGAsync" 'megasync|MEGAsync'
+
+# Media caches of chat and music apps, downloaded again when needed. Telegram: only cache/ and
+# media_cache/ of each account (tdata/user_data*), never the rest of tdata (logins, keys). Spotify:
+# the deb's ~/.cache/spotify/Storage (app_cache_find leaves it to this item); the Snap and Flatpak
+# caches are already whole items of their own (discover_app_caches).
+TELEGRAM_DIRS="$HOME/.local/share/TelegramDesktop
+$HOME/snap/telegram-desktop/current/.local/share/TelegramDesktop
+$HOME/.var/app/org.telegram.desktop/data/TelegramDesktop"
+app_telegram() {
+  local d u
+  while IFS= read -r d; do
+    [[ -d $d/tdata && ! -L $d/tdata ]] || continue
+    for u in "$d"/tdata/user_data*; do
+      [[ -d $u && ! -L $u ]] || continue
+      contents "$u/cache"; contents "$u/media_cache"
+    done
+  done <<<"$TELEGRAM_DIRS" | cloud_free
+}
+app_spotify() { contents "$HOME/.cache/spotify/Storage" | cloud_free; }
+LIST_CAT=apps reg_list_item app_telegram "Telegram Desktop — media cache" 0 item \
+  "Photos, videos and files Telegram Desktop cached; it downloads them again when you open a chat. Your logins and chats are kept. Skipped while Telegram runs." \
+  app_telegram "$TELEGRAM_DIRS" 'telegram-deskto.*|Telegram'
+LIST_CAT=apps reg_list_item app_spotify "Spotify — cache" 0 item \
+  "Songs Spotify cached while streaming; it streams them again when needed. Songs you downloaded for offline listening are stored here too and must be downloaded again. Skipped while Spotify runs." \
+  app_spotify "$HOME/.cache/spotify/Storage" 'spotify'
 
 # Flutter/Dart's pub cache: downloaded packages and git checkouts, fetched again by `pub get`.
 # Never credentials.json, bin/ or global_packages/ (activated tools).

@@ -2622,6 +2622,43 @@ test_build_tool_caches() {
   assert_missing "$h/mine/o/ok" # zig's own cache folder under a custom ZIG_GLOBAL_CACHE_DIR
 }
 
+test_telegram_and_spotify_caches() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/mediabin t
+  for t in "$h/.local/share/TelegramDesktop" "$h/snap/telegram-desktop/current/.local/share/TelegramDesktop" \
+    "$h/.var/app/org.telegram.desktop/data/TelegramDesktop"; do
+    new "$t/tdata/user_data/cache/0/a"; new "$t/tdata/user_data#2/media_cache/b"
+    new "$t/tdata/key_datas"; new "$t/tdata/D877F783D5D3EF8C/maps"; new "$t/tdata/user_data/keep"
+  done
+  new "$h/.cache/spotify/Storage/ab/song.file"; old "$h/.cache/spotify/Storage/cd/old.file"; new "$h/.cache/spotify/prefs"
+  out=$(cm --json details app_telegram 2>&1)
+  assert_contains "$out" "user_data/cache/0"; assert_contains "$out" "org.telegram.desktop/data/TelegramDesktop/tdata/user_data#2/media_cache/b"
+  assert_contains "$out" "snap/telegram-desktop/current"
+  [[ $out != *key_datas* && $out != *D877F783D5D3EF8C* && $out != *user_data/keep* ]] && ok_ "rest of tdata not listed" || fail "tdata listed: $out"
+  # the generic ~/.cache item leaves Spotify's Storage to its own item
+  out=$(cm --json details app_cache 2>&1)
+  [[ $out != *spotify* ]] && ok_ "Spotify not in ~/.cache item" || fail "app_cache: $out"
+  out=$(cm --scan --only apps 2>&1)
+  assert_contains "$out" "Telegram Desktop — media cache"; assert_contains "$out" "Spotify — cache"
+  # running apps: locked, nothing deleted
+  running_stub "$bin" telegram-deskto spotify
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item": print(e["id"], repr(e["locked"]))')
+  assert_contains "$out" "app_telegram 'telegram-deskto'"; assert_contains "$out" "app_spotify 'spotify'"
+  select_only app_telegram app_spotify
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only apps >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.local/share/TelegramDesktop/tdata/user_data/cache/0/a"; assert_exists "$h/.cache/spotify/Storage/ab/song.file"
+  cm --clean --yes --only apps >/dev/null 2>&1 </dev/null
+  for t in "$h/.local/share/TelegramDesktop" "$h/snap/telegram-desktop/current/.local/share/TelegramDesktop" \
+    "$h/.var/app/org.telegram.desktop/data/TelegramDesktop"; do
+    assert_missing "$t/tdata/user_data/cache/0"; assert_missing "$t/tdata/user_data#2/media_cache/b"
+    assert_exists "$t/tdata/key_datas"; assert_exists "$t/tdata/D877F783D5D3EF8C/maps"; assert_exists "$t/tdata/user_data/keep"
+  done
+  assert_missing "$h/.cache/spotify/Storage/ab"; assert_missing "$h/.cache/spotify/Storage/cd"; assert_exists "$h/.cache/spotify/prefs"
+}
+
 test_uv_rustup_and_browser_test_caches() {
   fresh_home
   local out
