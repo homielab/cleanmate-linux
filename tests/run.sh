@@ -295,6 +295,48 @@ test_hard_linked_store_files_not_counted() {
   assert_eq "$out" "4000" "target/: the store's file left out"
 }
 
+# sizes of project folders are measured in parallel and cached between scans, but never trusted once
+# the folder changed (at its top level) or the entry is a week old
+test_project_sizes_cached() {
+  fresh_home
+  local p=$HOME_DIR/code/web r=$HOME_DIR/code/rs c=$HOME_DIR/.cache/cleanmate out i
+  for i in 1 2 3 4 5 6; do
+    sized "$HOME_DIR/code/p$i/node_modules/x/i.js" "$((i * 100))"; new "$HOME_DIR/code/p$i/package.json"; new "$HOME_DIR/code/p$i/yarn.lock"
+  done
+  sized "$p/node_modules/a/x.js" 3000; new "$p/package.json"; new "$p/package-lock.json"
+  sized "$r/target/debug/app" 4000; new "$r/Cargo.toml"
+  touch -d '200 days ago' "$HOME_DIR"/code/*/* "$HOME_DIR"/code/*
+  out=$(in_app 'find_stale_node_modules' | sort -t $'\t' -k2,2)
+  assert_eq "$out" "$(for i in 1 2 3 4 5 6; do printf '%s\t%s\n' "$((i * 100))" "$HOME_DIR/code/p$i/node_modules"; done; printf '3000\t%s' "$p/node_modules")" \
+    "node_modules: each project with its own size"
+  assert_eq "$(wc -l <"$c/sizes-node_modules.tsv")" "7" "node_modules: one cached size per folder"
+  sed -i "s|\t3000\t$p/node_modules\$|\t999\t$p/node_modules|" "$c/sizes-node_modules.tsv"
+  out=$(in_app 'find_stale_node_modules' | grep -F "$p/")
+  assert_eq "${out%%$'\t'*}" "999" "node_modules: an unchanged folder's size comes from the cache"
+  sized "$p/node_modules/b/y.js" 1000
+  out=$(in_app 'find_stale_node_modules' | grep -F "$p/")
+  assert_eq "${out%%$'\t'*}" "4000" "node_modules: a package added, measured again"
+  sized "$p/node_modules/a/x.js" 5000 # deeper down: the folder's top level looks the same
+  sed -i "s|^\([^\t]*\)\t[0-9]*\t4000\t|\1\t$(($(date +%s) - 8 * 86400))\t4000\t|" "$c/sizes-node_modules.tsv"
+  out=$(in_app 'find_stale_node_modules' | grep -F "$p/")
+  assert_eq "${out%%$'\t'*}" "6000" "node_modules: a size cached over a week ago, measured again"
+  sed -i "s|^[^\t]*\t\([0-9]*\t6000\t\)|0.0.0.0.0.0\t\1|" "$c/sizes-node_modules.tsv"
+  sized "$p/node_modules/a/x.js" 2000
+  out=$(in_app 'find_stale_node_modules' | grep -F "$p/")
+  assert_eq "${out%%$'\t'*}" "3000" "node_modules: a cached size of another state of the folder, measured again"
+  out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
+  assert_eq "$out" "4000" "target/: measured"
+  sed -i "s|\t4000\t$r/target\$|\t1\t$r/target|" "$c/sizes-stale_build_dirs.tsv"
+  out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
+  assert_eq "$out" "1" "target/: an unchanged folder's size comes from the cache"
+  sized "$r/target/new" 500
+  out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
+  assert_eq "$out" "4500" "target/: a file added, measured again"
+  rm -r "$r/target"
+  in_app 'stale_build_dirs'
+  assert_missing "$c/sizes-stale_build_dirs.tsv"
+}
+
 test_ai_tools_keep_memory_and_logins() {
   fresh_home
   local P=$HOME_DIR/.claude/projects/-home-x-proj

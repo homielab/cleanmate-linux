@@ -28,6 +28,7 @@ INTERACTIVE=1
 SUDO_ASKED=0
 LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/cleanmate"
 LOG_FILE="$LOG_DIR/clean.log"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cleanmate"
 
 UPDATE_REPO=${CLEANMATE_REPO:-homielab/cleanmate-linux}
 REPO_URL="https://github.com/$UPDATE_REPO"
@@ -659,6 +660,8 @@ try_root() {
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+du_bytes() { du -sbx -- "$1" 2>/dev/null | cut -f1; } # PATH → its bytes, this file system only
 
 du_sum() { # total bytes of the existing paths given
   local p ex=()
@@ -2631,7 +2634,7 @@ path_gone() { # PATH → true only when PATH is certainly missing: the nearest e
 }
 
 stale_workspaces() { # → EW_DIR (storage folder) / EW_BYTES / EW_LABEL, biggest first
-  local editor root d name b m now open lines=()
+  local editor root d name b m now open i lines=() dirs=() sizes=()
   EW_DIR=() EW_BYTES=() EW_LABEL=()
   open=$'\n'$(open_files)$'\n'
   exclusion_prune
@@ -2646,12 +2649,13 @@ stale_workspaces() { # → EW_DIR (storage folder) / EW_BYTES / EW_LABEL, bigges
       path_gone "$WT_PATH" || continue
       open_under "$open" "$d" && continue
       name=${WT_PATH##*/}; name=${name%.code-workspace}
-      b=$(du -sbx -- "$d" 2>/dev/null | cut -f1)
       m=$(stat -c %Y -- "$d/state.vscdb" "$d" 2>/dev/null | head -n1)
-      lines+=("${b:-0}"$'\t'"$d"$'\t'"$name · $editor · $(((now - ${m:-$now}) / 86400)) days")
+      dirs+=("$d") lines+=("$d"$'\t'"$name · $editor · $(((now - ${m:-$now}) / 86400)) days")
     done
   done < <(editor_workspace_roots)
+  mapfile -t sizes < <(printf '%s' "${dirs[@]/%/$'\n'}" | sized_paths vscode_stale_workspaces du_bytes)
   ((${#lines[@]})) || return 0
+  for i in "${!lines[@]}"; do lines[i]=${sizes[i]:-0}$'\t'${lines[i]}; done
   while IFS=$'\t' read -r b d name; do
     EW_BYTES+=("$b") EW_DIR+=("$d") EW_LABEL+=("$name")
   done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
@@ -2742,14 +2746,17 @@ NM_LIST="$LOG_DIR/stale-node-modules.tsv"
 # A project counts only with package.json AND a lockfile (installed apps ship
 # node_modules without lockfiles), and when nothing at its top level changed
 # for NM_DAYS.
-nm_is_stale() { # NODE_MODULES_DIR
-  local p=${1%/node_modules} lock has_lock=0
+nm_has_lock() { # NODE_MODULES_DIR — a real folder next to package.json and a lockfile
+  local p=${1%/node_modules} lock
   [[ ${1##*/} == node_modules && -d $1 && ! -L $1 && -f $p/package.json ]] || return 1
   for lock in package-lock.json yarn.lock pnpm-lock.yaml bun.lockb bun.lock npm-shrinkwrap.json; do
-    [[ -f $p/$lock ]] && has_lock=1
+    [[ -f $p/$lock ]] && return 0
   done
-  ((has_lock)) || return 1
-  [[ -z $(find "$p" -mindepth 1 -maxdepth 1 -not -name node_modules -mtime -"$NM_DAYS" -print -quit 2>/dev/null) ]]
+  return 1
+}
+nm_is_stale() { # NODE_MODULES_DIR
+  nm_has_lock "$1" || return 1
+  [[ -z $(find "${1%/node_modules}" -mindepth 1 -maxdepth 1 -not -name node_modules -mtime -"$NM_DAYS" -print -quit 2>/dev/null) ]]
 }
 own_bytes() { # PATH… → bytes deleting them frees, like du -sbx, but a file hard-linked from elsewhere (the
   # pnpm store, Bun's cache) counts only when all its links are inside: then each inode once. Folders
@@ -2760,16 +2767,73 @@ own_bytes() { # PATH… → bytes deleting them frees, like du -sbx, but a file 
     { t += $4 }
     END { for (k in seen) if (seen[k] >= links[k]) t += size[k]; printf "%.0f\n", t }'
 }
-find_stale_node_modules() { # bytes<TAB>path of stale node_modules, outside your excluded folders
-  local d
-  exclusion_prune
-  find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
-    -o -path '*/resources/app' -o -name .git \) -prune -o -type d -name node_modules -prune -print 2>/dev/null |
-    while IFS= read -r d; do
-      touches_exclusion "$d" && continue
-      nm_is_stale "$d" && printf '%s\t%s\n' "$(own_bytes "$d")" "$d"
+# Sizes of project folders, measured nproc at a time and cached in CACHE_DIR between scans. A cached
+# size is used only while the folders and what is directly inside them are unchanged (count, inodes,
+# times, sizes and links), and for SIZE_CACHE_DAYS at most, so a change deeper down shows within days.
+SIZE_CACHE_DAYS=7
+path_sigs() { # PATH… → "PATH<TAB>signature" of each, one find for all
+  find "$@" -maxdepth 1 -printf '%H\t%i %T@ %s %n\n' 2>/dev/null | awk -F'\t' '
+    { split($2, a, " "); i = index(a[2], "."); k = $1; n[k]++; ino[k] += a[1]; sz[k] += a[3]; ln[k] += a[4]
+      if (i) { sec[k] += substr(a[2], 1, i - 1); ns[k] += substr(a[2], i + 1) } else sec[k] += a[2] }
+    END { for (k in n) printf "%s\t%.0f.%.0f.%.0f.%.0f.%.0f.%.0f\n", k, n[k], ino[k], sec[k], ns[k], sz[k], ln[k] }'
+}
+sized_paths() { # NAME MEASURE — stdin: lines of tab-separated paths; stdout: the bytes `MEASURE PATH…` gives for each line, in order
+  local name=$1 measure=$2 file now jobs line sig t b i out p ps running recs=() all=() cache=()
+  local -A c_sig=() c_time=() c_bytes=() sig_of=()
+  file=$CACHE_DIR/sizes-$name.tsv
+  printf -v now '%(%s)T' -1
+  mapfile -t recs
+  ((${#recs[@]})) || { rm -f -- "$file"; return 0; }
+  if [[ -f $file && ! -L $file ]]; then
+    while IFS=$'\t' read -r sig t b line; do
+      [[ $t =~ ^[0-9]+$ && $b =~ ^[0-9]+$ ]] && ((t <= now && now - t < SIZE_CACHE_DAYS * 86400)) || continue
+      c_sig[$line]=$sig c_time[$line]=$t c_bytes[$line]=$b
+    done <"$file"
+  fi
+  for line in "${recs[@]}"; do IFS=$'\t' read -ra ps <<<"$line"; all+=("${ps[@]}"); done
+  while IFS=$'\t' read -r p sig; do sig_of[$p]=$sig; done < <(path_sigs "${all[@]}")
+  jobs=$(nproc 2>/dev/null) && ((jobs > 0)) || jobs=2
+  out=$(
+    running=0
+    for i in "${!recs[@]}"; do
+      IFS=$'\t' read -ra ps <<<"${recs[i]}"
+      sig=""
+      for p in "${ps[@]}"; do sig+=${sig:+,}${sig_of[$p]:-?}; done # signatures are measured before the sizes
+      if [[ $sig != *'?'* && ${c_sig[${recs[i]}]-} == "$sig" ]]; then
+        printf '%d\t%s\t%s\t%s\n' "$i" "$sig" "${c_time[${recs[i]}]}" "${c_bytes[${recs[i]}]}"
+        continue
+      fi
+      if ((running >= jobs)); then wait -n; ((running--)); fi
+      ( b=$("$measure" "${ps[@]}"); printf '%d\t%s\t%s\t%s\n' "$i" "$sig" "$now" "${b:-0}" ) &
+      ((++running))
     done
-  return 0 # unreadable folders make find fail; the list is still valid
+    wait
+  )
+  while IFS=$'\t' read -r i sig t b; do
+    [[ $sig == *'?'* ]] || cache+=("$sig"$'\t'"$t"$'\t'"$b"$'\t'"${recs[i]}")
+    printf '%s\n' "$b"
+  done < <(sort -t $'\t' -k1,1n <<<"$out")
+  # only the folders seen now: the file never grows past one line per folder
+  mkdir -p "$CACHE_DIR" 2>/dev/null && printf '%s\n' "${cache[@]}" >"$file.$BASHPID" 2>/dev/null &&
+    mv -f "$file.$BASHPID" "$file" 2>/dev/null
+  return 0
+}
+find_stale_node_modules() { # bytes<TAB>path of stale node_modules, outside your excluded folders
+  local d p dirs=() stale=() sizes=() i
+  local -A recent=()
+  exclusion_prune
+  while IFS= read -r d; do
+    touches_exclusion "$d" && continue
+    nm_has_lock "$d" && dirs+=("$d")
+  done < <(find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
+    -o -path '*/resources/app' -o -name .git \) -prune -o -type d -name node_modules -prune -print 2>/dev/null)
+  # one find for all: the projects with something at their top level changed within NM_DAYS
+  # (unreadable folders make find fail; the list is still valid)
+  ((${#dirs[@]})) && while IFS= read -r p; do recent[$p]=1; done < <(find "${dirs[@]%/node_modules}" -mindepth 1 -maxdepth 1 \
+    -not -name node_modules -mtime -"$NM_DAYS" -printf '%H\n' 2>/dev/null)
+  for d in "${dirs[@]}"; do [[ -n ${recent[${d%/node_modules}]:-} ]] || stale+=("$d"); done
+  mapfile -t sizes < <(printf '%s' "${stale[@]/%/$'\n'}" | sized_paths node_modules own_bytes) # none: forgets the cached sizes
+  for i in "${!stale[@]}"; do printf '%s\t%s\n' "${sizes[i]:-0}" "${stale[i]}"; done
 }
 scan_node_modules() {
   have node || have npm || return 1
@@ -2816,17 +2880,16 @@ build_dirs_of() { # PROJECT → BD_DIRS: names of its build folders
   return 0
 }
 
-project_changed() { # PROJECT → when (epoch) its project files, lockfiles or its repository's .git/index last changed
-  local p=$1 d=$1 g files=()
-  files=("$p"/{Cargo.toml,Cargo.lock,pyproject.toml,setup.py,setup.cfg,Pipfile,Pipfile.lock,poetry.lock,uv.lock,pdm.lock,Podfile,Podfile.lock}
+project_files() { # PROJECT → PF: its project files, lockfiles and its repository's .git/index (some may not exist)
+  local p=$1 d=$1 g
+  PF=("$p"/{Cargo.toml,Cargo.lock,pyproject.toml,setup.py,setup.cfg,Pipfile,Pipfile.lock,poetry.lock,uv.lock,pdm.lock,Podfile,Podfile.lock}
     "$p"/requirements*.txt)
   while [[ $d == "$HOME"/* ]]; do
     if [[ -f $d/.git ]]; then # a worktree or submodule: "gitdir: PATH"
-      { read -r g <"$d/.git"; } 2>/dev/null && g=${g#gitdir: } && { [[ $g == /* ]] || g=$d/$g; } && files+=("$g/index")
-    else files+=("$d/.git/index"); fi
+      { read -r g <"$d/.git"; } 2>/dev/null && g=${g#gitdir: } && { [[ $g == /* ]] || g=$d/$g; } && PF+=("$g/index")
+    else PF+=("$d/.git/index"); fi
     d=${d%/*}
   done
-  { stat -c %Y -- "${files[@]}" 2>/dev/null; echo 0; } | sort -n | tail -n1
 }
 
 busy_paths() { # files your processes have open, and the folders cargo, rustc, python, uv or pod work in
@@ -2840,33 +2903,44 @@ busy_paths() { # files your processes have open, and the folders cargo, rustc, p
 }
 
 stale_build_dirs() { # → SB_DIR (project) / SB_WHAT (its build folders, space-separated) / SB_BYTES / SB_DAYS, biggest first
-  local d p busy now changed b i
-  local -A seen=()
+  local d p busy now changed b f i rec what=() dirs=() files=() recs=() sizes=() keep=()
+  local -A seen=() mtime=()
   SB_DIR=() SB_WHAT=() SB_BYTES=() SB_DAYS=()
-  busy=$(busy_paths)
+  busy=$'\n'$(busy_paths)$'\n'
   exclusion_prune
   printf -v now '%(%s)T' -1
+  while IFS= read -r d; do
+    p=${d%/*}
+    [[ $p == "$HOME"/* && $p != *[[:cntrl:]]* && -z ${seen[$p]:-} ]] || continue
+    seen[$p]=1
+    build_dirs_of "$p"
+    for i in "${!BD_DIRS[@]}"; do touches_exclusion "$p/${BD_DIRS[i]}" && unset "BD_DIRS[i]"; done
+    ((${#BD_DIRS[@]})) || continue
+    # in use (a path containing it elsewhere only errs on the safe side)
+    [[ $busy == *$'\n'"$p"$'\n'* || $busy == *"$p/"* ]] && continue
+    project_files "$p"
+    files+=("${PF[@]}")
+    rec=""
+    for b in "${BD_DIRS[@]}"; do rec+=${rec:+$'\t'}$p/$b; done
+    what+=("${BD_DIRS[*]}") dirs+=("$p") recs+=("$rec")
+  done < <(find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
+    -o -path '*/resources/app' -o -name .git -o -name node_modules \) -prune -o \
+    -type d \( -name target -o -name .venv -o -name venv -o -name Pods \) -prune -print 2>/dev/null)
+  # when each project last changed: one stat for all their files
+  ((${#files[@]})) && while IFS=$'\t' read -r changed f; do mtime[$f]=$changed; done < <(stat -c $'%Y\t%n' -- "${files[@]}" 2>/dev/null)
+  for i in "${!dirs[@]}"; do
+    project_files "${dirs[i]}"
+    changed=0
+    for f in "${PF[@]}"; do ((${mtime[$f]:-0} > changed)) && changed=${mtime[$f]}; done
+    ((now - changed >= NM_DAYS * 86400)) && keep+=("$i"$'\t'"$changed")
+  done
+  mapfile -t sizes < <(for i in "${keep[@]}"; do printf '%s\n' "${recs[${i%%$'\t'*}]}"; done | sized_paths stale_build_dirs own_bytes)
   while IFS=$'\t' read -r b changed d p; do
     SB_BYTES+=("$b") SB_DAYS+=($(((now - changed) / 86400))) SB_WHAT+=("$d") SB_DIR+=("$p")
-  done < <(
-    find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
-      -o -path '*/resources/app' -o -name .git -o -name node_modules \) -prune -o \
-      -type d \( -name target -o -name .venv -o -name venv -o -name Pods \) -prune -print 2>/dev/null |
-      while IFS= read -r d; do
-        p=${d%/*}
-        [[ $p == "$HOME"/* && $p != *[[:cntrl:]]* && -z ${seen[$p]:-} ]] || continue
-        seen[$p]=1
-        build_dirs_of "$p"
-        for i in "${!BD_DIRS[@]}"; do touches_exclusion "$p/${BD_DIRS[i]}" && unset "BD_DIRS[i]"; done
-        ((${#BD_DIRS[@]})) || continue
-        changed=$(project_changed "$p")
-        ((now - changed >= NM_DAYS * 86400)) || continue
-        grep -qxF -e "$p" <<<"$busy" && continue
-        grep -qF -e "$p/" <<<"$busy" && continue # in use (a path containing it elsewhere only errs on the safe side)
-        b=$(cd -- "$p" && own_bytes "${BD_DIRS[@]}")
-        printf '%s\t%s\t%s\t%s\n' "${b:-0}" "$changed" "${BD_DIRS[*]}" "$p"
-      done | sort -t $'\t' -k1,1nr
-  )
+  done < <(for f in "${!keep[@]}"; do
+    i=${keep[f]%%$'\t'*}
+    printf '%s\t%s\t%s\t%s\n' "${sizes[f]:-0}" "${keep[f]#*$'\t'}" "${what[i]}" "${dirs[i]}"
+  done | sort -t $'\t' -k1,1nr)
 }
 
 trash_build_dirs() { # INDEX… of SB_DIR — move their build folders to the Trash; @@undo lines let the terminal app undo it
@@ -3027,8 +3101,14 @@ $HOME/.cache/Cypress" "node|playwright"
 # emulators it downloaded. The CLI runs as `node`, so a log a process still has open is skipped
 # instead of looking for the CLI by name. Never configstore/firebase-tools.json (login),
 # crashlytics/, extensions/ or logs inside projects.
-open_files() { # every file a process of yours (all of them as root) has open
-  find /proc/[0-9]*/fd -type l -printf '%l\n' 2>/dev/null
+open_files() { # every file a process of yours (all of them as root) has open; not folders: scanning opens
+  # them for a moment (other items run at the same time), programs keep files open. The path is
+  # checked, not the fd: one closed between find's steps passes `-xtype d`
+  local l
+  while IFS= read -r l; do
+    [[ $l == /* && ! -d $l ]] && printf '%s\n' "$l"
+  done < <(find /proc/[0-9]*/fd -type l -printf '%l\n' 2>/dev/null)
+  return 0
 }
 firebase_logs() {
   local d=$HOME/.cache/firebase f open
@@ -7644,7 +7724,7 @@ cli_uninstall() { # --uninstall: remove commands, launcher, timer; optionally se
   fi
   ((DRY_RUN)) || { have systemctl && systemctl --user daemon-reload 2>/dev/null; }
   if confirm "Also delete your settings, remembered selections and logs?"; then
-    run rm -rf -- "${PREF_FILE%/*}" "$LOG_DIR" && ok "Removed settings and logs"
+    run rm -rf -- "${PREF_FILE%/*}" "$LOG_DIR" "$CACHE_DIR" && ok "Removed settings and logs"
   fi
   printf '\n  Goodbye 👋  (this copy of the script itself was left in place)\n'
 }

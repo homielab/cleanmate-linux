@@ -72,6 +72,13 @@ desktop-app test needs `gtk4-broadwayd` (package `libgtk-4-bin`) and runs on an 
 the browser-privacy test needs `sqlite3`.
 They also pass as root (for example in a container): the engine refuses home items as root, so those
 cleanups run as `nobody` through `setpriv`.
+
+`tests/bench-projects.sh [PROJECTS [FILES [ROUNDS]]]` times a Smart Scan on a throwaway home with 50
+idle projects (node_modules of 2000 files each, some with `target/`, `.venv/`, `Pods/`): the first
+scan and a repeat scan, both the whole `--json scan` and the three items that measure projects alone.
+Run it in a container limited to the CPUs you want to compare
+(`docker run --cpuset-cpus 0-3 … bash tests/bench-projects.sh`); `CLEANMATE_SCRIPT=old.sh` times
+another copy. A whole scan waits for its slowest item, so compare medians.
 CI runs everything on Ubuntu 22.04 and 24.04 for every pull request.
 
 ## Desktop app

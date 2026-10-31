@@ -11,6 +11,14 @@ All notable changes are listed here. The format follows
 - **Uninstaller** (both apps): AppImage apps — an AppImage with a launcher in `~/.local/share/applications` (made by hand, AppImageLauncher or Gear Lever) is listed as kind *AppImage*, its size the file plus its folders in your home. Uninstalling moves the file, its launcher and the icon only it uses to the Trash, as you and without a password; **Restore** (desktop app) or **z** (terminal app) puts it back. A running AppImage is skipped.
 - **Privacy** (both apps): browsing history, the downloads list and cookies of Firefox, Chrome, Chromium, Brave, Edge, Vivaldi and Opera (deb, Snap and Flatpak, every profile), one item per browser with the number of entries. Passwords, bookmarks and extensions are kept; clearing signs you out of websites. Not pre-selected, skipped while the browser runs; Firefox needs `sqlite3`.
 
+### Changed
+
+- **Smart Scan** is faster on a computer with many projects: idle `node_modules`, project build folders and editor data of deleted projects are measured several at a time (up to one per CPU) and their sizes are kept in `~/.cache/cleanmate` until the folder changes (a week at most). On 50 projects these items take 0.17 s instead of 0.38 s, and 0.07 s on the next scan.
+
+### Fixed
+
+- **Project build folders** could leave out a project at random during Smart Scan, when another item was reading a folder of it at the same moment.
+
 ## [2.0.0] — 2026-10-31
 
 First public release of CleanMate for Linux.
