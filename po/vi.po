@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 10:40+0000\n"
+"POT-Creation-Date: 2026-10-31 11:13+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -256,7 +256,46 @@ msgstr "Rác developer"
 msgid "Privacy"
 msgstr "Quyền riêng tư"
 
-#: gui/cleanmate_gui/i18n.py:94
+#: gui/cleanmate_gui/i18n.py:97
+msgid ""
+"A model Ollama downloaded. Removed with 'ollama rm'; layers other models use "
+"are kept."
+msgstr ""
+"Một model Ollama đã tải về. Xoá bằng 'ollama rm'; các lớp mà model khác dùng "
+"được giữ lại."
+
+#: gui/cleanmate_gui/i18n.py:99
+msgid ""
+"A model in the Hugging Face cache. Python code downloads it again the next "
+"time it is used."
+msgstr ""
+"Một model trong bộ nhớ đệm Hugging Face. Mã Python sẽ tải lại ở lần dùng "
+"tiếp theo."
+
+#: gui/cleanmate_gui/i18n.py:101
+msgid ""
+"A model downloaded in LM Studio. Download it again from LM Studio's Discover "
+"tab."
+msgstr ""
+"Một model đã tải trong LM Studio. Tải lại từ thẻ Discover của LM Studio."
+
+#: gui/cleanmate_gui/i18n.py:102
+msgid "Electron app"
+msgstr "ứng dụng Electron"
+
+#: gui/cleanmate_gui/i18n.py:103
+msgid "not used by any container"
+msgstr "không container nào dùng"
+
+#: gui/cleanmate_gui/i18n.py:104
+msgid "BuildKit cache"
+msgstr "Bộ nhớ đệm BuildKit"
+
+#: gui/cleanmate_gui/i18n.py:105
+msgid "scan timed out"
+msgstr "quét quá thời gian"
+
+#: gui/cleanmate_gui/i18n.py:114
 #, python-brace-format
 msgid ""
 "Downloads folder is outside your home folder ({path}); CleanMate only cleans "
@@ -264,6 +303,347 @@ msgid ""
 msgstr ""
 "Thư mục Tải về nằm ngoài thư mục home ({path}); CleanMate chỉ dọn bên trong "
 "home"
+
+#: gui/cleanmate_gui/i18n.py:118
+#, python-brace-format
+msgid ""
+"Cache folders of {app} ({kind}). Rebuilt automatically — close the app "
+"before cleaning."
+msgstr ""
+"Các thư mục bộ nhớ đệm của {app} ({kind}). Tự tạo lại — hãy đóng ứng dụng "
+"trước khi dọn."
+
+#: gui/cleanmate_gui/i18n.py:125
+#, python-brace-format
+msgid "{n} item"
+msgid_plural "{n} items"
+msgstr[0] "{n} mục"
+
+#: gui/cleanmate_gui/i18n.py:126
+#, python-brace-format
+msgid "{n} file"
+msgid_plural "{n} files"
+msgstr[0] "{n} tệp"
+
+#: gui/cleanmate_gui/i18n.py:127 gui/cleanmate_gui/uninstaller.py:452
+#, python-brace-format
+msgid "{n} folder"
+msgid_plural "{n} folders"
+msgstr[0] "{n} thư mục"
+
+#: gui/cleanmate_gui/i18n.py:128
+#, python-brace-format
+msgid "{n} leftover folder"
+msgid_plural "{n} leftover folders"
+msgstr[0] "{n} thư mục sót lại"
+
+#: gui/cleanmate_gui/i18n.py:129
+#, python-brace-format
+msgid "{n} app"
+msgid_plural "{n} apps"
+msgstr[0] "{n} ứng dụng"
+
+#: gui/cleanmate_gui/i18n.py:130
+#, python-brace-format
+msgid "{n} project"
+msgid_plural "{n} projects"
+msgstr[0] "{n} dự án"
+
+#: gui/cleanmate_gui/i18n.py:131
+#, python-brace-format
+msgid "{n} package"
+msgid_plural "{n} packages"
+msgstr[0] "{n} gói"
+
+#: gui/cleanmate_gui/i18n.py:132
+#, python-brace-format
+msgid "{n} removed package"
+msgid_plural "{n} removed packages"
+msgstr[0] "{n} gói đã gỡ"
+
+#: gui/cleanmate_gui/i18n.py:133
+#, python-brace-format
+msgid "{n} package archive"
+msgid_plural "{n} package archives"
+msgstr[0] "{n} tệp gói"
+
+#: gui/cleanmate_gui/i18n.py:134
+#, python-brace-format
+msgid "{n} downloaded installer"
+msgid_plural "{n} downloaded installers"
+msgstr[0] "{n} bộ cài đã tải"
+
+#: gui/cleanmate_gui/i18n.py:135
+#, python-brace-format
+msgid "{n} download"
+msgid_plural "{n} downloads"
+msgstr[0] "{n} tệp tải về"
+
+#: gui/cleanmate_gui/i18n.py:136
+#, python-brace-format
+msgid "{n} disabled revision"
+msgid_plural "{n} disabled revisions"
+msgstr[0] "{n} bản đã tắt"
+
+#: gui/cleanmate_gui/i18n.py:137
+#, python-brace-format
+msgid "{n} version"
+msgid_plural "{n} versions"
+msgstr[0] "{n} phiên bản"
+
+#: gui/cleanmate_gui/i18n.py:138
+#, python-brace-format
+msgid "{n} drive"
+msgid_plural "{n} drives"
+msgstr[0] "{n} ổ"
+
+#: gui/cleanmate_gui/i18n.py:139
+#, python-brace-format
+msgid "{n} list"
+msgid_plural "{n} lists"
+msgstr[0] "{n} danh sách"
+
+#: gui/cleanmate_gui/i18n.py:140
+#, python-brace-format
+msgid "{n} history list"
+msgid_plural "{n} history lists"
+msgstr[0] "{n} danh sách lịch sử"
+
+#: gui/cleanmate_gui/i18n.py:141
+#, python-brace-format
+msgid "{n} image"
+msgid_plural "{n} images"
+msgstr[0] "{n} image"
+
+#: gui/cleanmate_gui/i18n.py:142
+#, python-brace-format
+msgid "{n} dangling image"
+msgid_plural "{n} dangling images"
+msgstr[0] "{n} image lơ lửng"
+
+#: gui/cleanmate_gui/i18n.py:143
+#, python-brace-format
+msgid "{n} container"
+msgid_plural "{n} containers"
+msgstr[0] "{n} container"
+
+#: gui/cleanmate_gui/i18n.py:144
+#, python-brace-format
+msgid "{n} stopped container"
+msgid_plural "{n} stopped containers"
+msgstr[0] "{n} container đã dừng"
+
+#: gui/cleanmate_gui/i18n.py:145
+#, python-brace-format
+msgid "{n} volume"
+msgid_plural "{n} volumes"
+msgstr[0] "{n} volume"
+
+#: gui/cleanmate_gui/i18n.py:146
+#, python-brace-format
+msgid "{n} anonymous volume"
+msgid_plural "{n} anonymous volumes"
+msgstr[0] "{n} volume ẩn danh"
+
+#: gui/cleanmate_gui/i18n.py:147
+#, python-brace-format
+msgid "{n} named volume"
+msgid_plural "{n} named volumes"
+msgstr[0] "{n} volume có tên"
+
+#: gui/cleanmate_gui/i18n.py:148
+#, python-brace-format
+msgid "{n} AVD"
+msgid_plural "{n} AVDs"
+msgstr[0] "{n} AVD"
+
+#: gui/cleanmate_gui/i18n.py:149
+#, python-brace-format
+msgid "{n} snapshot"
+msgid_plural "{n} snapshots"
+msgstr[0] "{n} snapshot"
+
+#: gui/cleanmate_gui/i18n.py:150
+#, python-brace-format
+msgid "{n} session"
+msgid_plural "{n} sessions"
+msgstr[0] "{n} phiên"
+
+#: gui/cleanmate_gui/i18n.py:151
+#, python-brace-format
+msgid "{n} model"
+msgid_plural "{n} models"
+msgstr[0] "{n} model"
+
+#: gui/cleanmate_gui/i18n.py:152
+#, python-brace-format
+msgid "{n} report"
+msgid_plural "{n} reports"
+msgstr[0] "{n} báo cáo"
+
+#: gui/cleanmate_gui/i18n.py:153
+#, python-brace-format
+msgid "{n} dump"
+msgid_plural "{n} dumps"
+msgstr[0] "{n} bản dump"
+
+#: gui/cleanmate_gui/i18n.py:154
+#, python-brace-format
+msgid "{n} command"
+msgid_plural "{n} commands"
+msgstr[0] "{n} lệnh"
+
+#: gui/cleanmate_gui/i18n.py:155
+#, python-brace-format
+msgid "{n} entry"
+msgid_plural "{n} entries"
+msgstr[0] "{n} mục"
+
+#: gui/cleanmate_gui/i18n.py:156
+#, python-brace-format
+msgid "{n} remembered choice"
+msgid_plural "{n} remembered choices"
+msgstr[0] "{n} lựa chọn đã nhớ"
+
+#: gui/cleanmate_gui/i18n.py:176
+#, python-brace-format
+msgid "{count} in /var/log"
+msgstr "{count} trong /var/log"
+
+#: gui/cleanmate_gui/i18n.py:177
+#, python-brace-format
+msgid "{count} in ~/.cache"
+msgstr "{count} trong ~/.cache"
+
+#: gui/cleanmate_gui/i18n.py:178
+#, python-brace-format
+msgid "{count} in {count2}"
+msgstr "{count} trong {count2}"
+
+#: gui/cleanmate_gui/i18n.py:179
+#, python-brace-format
+msgid "{count} on {count2}"
+msgstr "{count} trên {count2}"
+
+#: gui/cleanmate_gui/i18n.py:180
+#, python-brace-format
+msgid "{count}, {count2}"
+msgstr "{count}, {count2}"
+
+#: gui/cleanmate_gui/i18n.py:181
+#, python-brace-format
+msgid "{count} still configured"
+msgstr "{count} còn cấu hình"
+
+#: gui/cleanmate_gui/i18n.py:182
+#, python-brace-format
+msgid "{count} older than {days} days"
+msgstr "{count} cũ hơn {days} ngày"
+
+#: gui/cleanmate_gui/i18n.py:183
+#, python-brace-format
+msgid "{count} untouched for {days}+ days"
+msgstr "{count} không dùng hơn {days} ngày"
+
+#: gui/cleanmate_gui/i18n.py:184
+#, python-brace-format
+msgid "{count} idle for {days}+ days"
+msgstr "{count} không dùng từ {days}+ ngày"
+
+#: gui/cleanmate_gui/i18n.py:185
+#, python-brace-format
+msgid "{count} with entries"
+msgstr "{count} có mục"
+
+#: gui/cleanmate_gui/i18n.py:186
+#, python-brace-format
+msgid "{count} that no longer exist"
+msgstr "{count} không còn tồn tại"
+
+#: gui/cleanmate_gui/i18n.py:187
+#, python-brace-format
+msgid "{count} not your default"
+msgstr "{count} không phải bản mặc định"
+
+#: gui/cleanmate_gui/i18n.py:188
+#, python-brace-format
+msgid "{count} no AVD uses"
+msgstr "{count} không AVD nào dùng"
+
+#: gui/cleanmate_gui/i18n.py:189
+#, python-brace-format
+msgid "{count} replaced by a newer one"
+msgstr "{count} đã có bản mới hơn"
+
+#: gui/cleanmate_gui/i18n.py:190
+#, python-brace-format
+msgid "{count} — may contain data"
+msgstr "{count} — có thể chứa dữ liệu"
+
+#: gui/cleanmate_gui/i18n.py:191
+#, python-brace-format
+msgid "{count} kept"
+msgstr "giữ {count}"
+
+#: gui/cleanmate_gui/i18n.py:193
+#, python-brace-format
+msgid "{size} in total"
+msgstr "tổng cộng {size}"
+
+#: gui/cleanmate_gui/i18n.py:194
+#, python-brace-format
+msgid "skipped while running: {names}"
+msgstr "bỏ qua vì đang chạy: {names}"
+
+#: gui/cleanmate_gui/i18n.py:195
+#, python-brace-format
+msgid "get it back with: ollama pull {ref}"
+msgstr "lấy lại bằng: ollama pull {ref}"
+
+#: gui/cleanmate_gui/i18n.py:234 gui/cleanmate_gui/i18n.py:235
+#, python-brace-format
+msgid "{days} days old"
+msgstr "cũ {days} ngày"
+
+#: gui/cleanmate_gui/i18n.py:236
+#, python-brace-format
+msgid "untouched for {days} days"
+msgstr "không đụng tới {days} ngày"
+
+#: gui/cleanmate_gui/i18n.py:237
+#, python-brace-format
+msgid "{days} days idle"
+msgstr "không dùng {days} ngày"
+
+#: gui/cleanmate_gui/i18n.py:238
+msgid "(running, skipped)"
+msgstr "(đang chạy, bỏ qua)"
+
+#: gui/cleanmate_gui/i18n.py:239
+msgid "← running (kept)"
+msgstr "← đang chạy (giữ lại)"
+
+#: gui/cleanmate_gui/i18n.py:240
+msgid "← kept as a fallback"
+msgstr "← giữ làm dự phòng"
+
+#: gui/cleanmate_gui/i18n.py:241
+msgid "← will be removed: "
+msgstr "← sẽ bị xoá: "
+
+#: gui/cleanmate_gui/i18n.py:242
+#, python-brace-format
+msgid "(revision {revision})"
+msgstr "(bản {revision})"
+
+#: gui/cleanmate_gui/i18n.py:243
+msgid "Largest archived journal files:"
+msgstr "Tệp journal lưu trữ lớn nhất:"
+
+#: gui/cleanmate_gui/i18n.py:245
+#, python-brace-format
+msgid "Archived and active journals take up {size} in the file system."
+msgstr "Journal lưu trữ và đang dùng chiếm {size} trên hệ thống tệp."
 
 #: gui/cleanmate_gui/largefiles.py:17
 msgid "Any age"
@@ -1950,12 +2330,6 @@ msgid "Selected <b>{size}</b> in {n} app"
 msgid_plural "Selected <b>{size}</b> in {n} apps"
 msgstr[0] "Đã chọn <b>{size}</b> trong {n} ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:452
-#, python-brace-format
-msgid "{n} folder"
-msgid_plural "{n} folders"
-msgstr[0] "{n} thư mục"
-
 #: gui/cleanmate_gui/uninstaller.py:454
 #, python-brace-format
 msgid "Uninstall {n} app…"
@@ -3401,7 +3775,11 @@ msgid ""
 "devices, often several GB each. Deleted; the next start is a cold boot and "
 "the emulator saves a new one. Apps and data on the device are kept. Close "
 "the emulator first."
-msgstr "Trạng thái đã lưu (snapshot khởi động nhanh) của các máy ảo Android, thường vài GB mỗi máy. Xoá hẳn; lần mở sau khởi động lại từ đầu và emulator lưu snapshot mới. Ứng dụng và dữ liệu trên máy ảo được giữ. Hãy đóng emulator trước."
+msgstr ""
+"Trạng thái đã lưu (snapshot khởi động nhanh) của các máy ảo Android, thường "
+"vài GB mỗi máy. Xoá hẳn; lần mở sau khởi động lại từ đầu và emulator lưu "
+"snapshot mới. Ứng dụng và dữ liệu trên máy ảo được giữ. Hãy đóng emulator "
+"trước."
 
 #. jetbrains_old_versions label
 msgid "Old IDE versions"

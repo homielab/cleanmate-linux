@@ -2,7 +2,7 @@
 from gi.repository import Adw, GLib, Gtk, Pango
 
 from .engine import CATEGORY_TITLES, human
-from .i18n import _, item_text, ngettext
+from .i18n import _, detail_text, item_text, ngettext, note_text
 
 
 # Items whose clean-all removes something else than the parts listed (`docker volume prune` keeps named
@@ -212,7 +212,7 @@ class ScanPage(Gtk.Box):
                                        use_markup=False)
                 more.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"]))
                 for e in clean:
-                    row = Adw.ActionRow(title=item_text(e["label"]), subtitle=item_text(e["note"]) or _("clean"),
+                    row = Adw.ActionRow(title=item_text(e["label"]), subtitle=note_text(e["note"]) or _("clean"),
                                          use_markup=False)
                     row.add_css_class("dim-label")
                     more.add_row(row)
@@ -225,7 +225,7 @@ class ScanPage(Gtk.Box):
 
     def item_row(self, e, biggest):
         locked = e.get("locked") or ""  # the program that has to be closed first
-        subtitle = item_text(e["note"])
+        subtitle = note_text(e["note"])
         if locked:
             subtitle = _("Close {program} and scan again").format(program=locked)
         elif e["root"]:
@@ -297,7 +297,7 @@ class ScanPage(Gtk.Box):
         self.engine.details(item_id, on_event, on_done)
 
     def entry_row(self, item_id, x):
-        row = Adw.ActionRow(title=x["label"], subtitle=entry_note(x.get("note")), use_markup=False, title_lines=1,
+        row = Adw.ActionRow(title=detail_text(x["label"]), subtitle=entry_note(x.get("note")), use_markup=False, title_lines=1,
                             css_classes=["item-row"], tooltip_text=x["id"])
         check = Gtk.CheckButton(active=x["id"] in self.entry_selected[item_id], valign=Gtk.Align.CENTER,
                                 css_classes=["big-check"])
@@ -404,7 +404,7 @@ class ScanPage(Gtk.Box):
 
         def on_event(ev):
             if ev["event"] == "details":
-                lines.extend(ev["lines"])
+                lines.extend(detail_text(line) for line in ev["lines"])
 
         def on_done(ok, status):
             text.get_buffer().set_text("\n".join(lines) if lines else _("Nothing more to show."))

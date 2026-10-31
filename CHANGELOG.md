@@ -69,6 +69,7 @@ All notable changes are listed here. The format follows
 
 ### Fixed
 
+- Desktop app in Vietnamese: Smart Scan no longer mixes in English — the notes under each item ("3 files in /var/log", "skipped while running: …"), apps found on the computer, model descriptions and the lines of an item's details are translated too.
 - Sizes no longer promise more than cleaning frees: with Docker 23 or newer the terminal app's *Docker: unused volumes* (and the desktop app's, when no volume is picked one by one) counts only anonymous volumes — the only ones `docker volume prune` removes — and says how many named volumes it keeps. Stale `node_modules` and project build folders no longer count files pnpm or Bun hard-linked from their store.
 - Large & Old Files and Duplicates: files on a USB or other mounted drive (under `/media` or `/mnt`) now go to that drive's own Trash, so **Undo** in the notification (and `z` in the terminal app) puts them back.
 - Undo (`z`) never replaces or moves into a file or folder that appeared where the trashed file used to be.

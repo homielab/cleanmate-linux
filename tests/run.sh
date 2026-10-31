@@ -3565,6 +3565,92 @@ test_gui_language_setting() {
   assert_eq "$(gui_text C.UTF-8)" "Settings system" "a value it doesn't know: same as system"
 }
 
+test_gui_scan_texts_translated() {
+  command -v msgfmt >/dev/null && command -v python3 >/dev/null || { SKIPPED="needs gettext and python3"; return; }
+  fresh_home
+  bash "$ROOT/po/compile.sh" "$WORK/locale" >/dev/null || { fail "po/compile.sh failed"; return; }
+  local out
+  out=$(env -i HOME="$HOME_DIR" LANG=C.UTF-8 LANGUAGE=vi CLEANMATE_LOCALEDIR="$WORK/locale" PYTHONPATH="$ROOT/gui" \
+    python3 - <<'PY' 2>&1
+from cleanmate_gui.i18n import detail_text, item_text, note_text
+notes = {
+    "1 file": "1 tệp",
+    "12 files in /var/log": "12 tệp trong /var/log",
+    "3 files in 2 apps": "3 tệp trong 2 ứng dụng",
+    "4 removed packages still configured": "4 gói đã gỡ còn cấu hình",
+    "2 files older than 30 days": "2 tệp cũ hơn 30 ngày",
+    "5 items untouched for 90+ days": "5 mục không dùng hơn 90 ngày",
+    "3 downloads untouched for 7+ days": "3 tệp tải về không dùng hơn 7 ngày",
+    "2 items on 1 drive": "2 mục trên 1 ổ",
+    "1 history list with entries": "1 danh sách lịch sử có mục",
+    "2 projects that no longer exist": "2 dự án không còn tồn tại",
+    "40 files in ~/.cache": "40 tệp trong ~/.cache",
+    "3 projects idle for 90+ days": "3 dự án không dùng từ 90+ ngày",
+    "2 versions not your default; skipped while running: Node 20, Python 3.11":
+        "2 phiên bản không phải bản mặc định; bỏ qua vì đang chạy: Node 20, Python 3.11",
+    "skipped while running: GoLand": "bỏ qua vì đang chạy: GoLand",
+    "1 image no AVD uses": "1 image không AVD nào dùng",
+    "3 AVDs": "3 AVD",
+    "2 snapshots": "2 snapshot",
+    "1 version replaced by a newer one": "1 phiên bản đã có bản mới hơn",
+    "2 anonymous volumes — may contain data; 1 named volume kept":
+        "2 volume ẩn danh — có thể chứa dữ liệu; giữ 1 volume có tên",
+    "2 dangling images, 1 stopped container": "2 image lơ lửng, 1 container đã dừng",
+    "1.2 GB in total": "tổng cộng 1.2 GB",
+    "get it back with: ollama pull llama3:8b": "lấy lại bằng: ollama pull llama3:8b",
+    "not used by any container": "không container nào dùng",
+    "BuildKit cache": "Bộ nhớ đệm BuildKit",
+    "scan timed out": "quét quá thời gian",
+    "3 disabled revisions": "3 bản đã tắt",
+    "2 dumps": "2 bản dump",
+    "~/.cache/thumbnails": "~/.cache/thumbnails",
+    "Firefox, Chromium": "Firefox, Chromium",
+    "Downloads folder is outside your home folder (/mnt/d); CleanMate only cleans inside it":
+        "Thư mục Tải về nằm ngoài thư mục home (/mnt/d); CleanMate chỉ dọn bên trong home",
+    "7 widgets in a box": "7 widgets in a box",
+}
+items = {
+    "Cache folders of Slack (Electron app). Rebuilt automatically — close the app before cleaning.":
+        "Các thư mục bộ nhớ đệm của Slack (ứng dụng Electron). Tự tạo lại — hãy đóng ứng dụng trước khi dọn.",
+    "Cache folders of Spotify (Snap) (Snap spotify). Rebuilt automatically — close the app before cleaning.":
+        "Các thư mục bộ nhớ đệm của Spotify (Snap) (Snap spotify). Tự tạo lại — hãy đóng ứng dụng trước khi dọn.",
+    "A model downloaded in LM Studio. Download it again from LM Studio's Discover tab.":
+        "Một model đã tải trong LM Studio. Tải lại từ thẻ Discover của LM Studio.",
+}
+details = {
+    "  1.2 GB  setup.deb  (45 days old)": "  1.2 GB  setup.deb  (cũ 45 ngày)",
+    "setup.deb · 45 days old": "setup.deb · cũ 45 ngày",
+    "Photos/ · untouched for 120 days": "Photos/ · không đụng tới 120 ngày",
+    "~/code/api — target/, .venv/ · 120 days idle": "~/code/api — target/, .venv/ · không dùng 120 ngày",
+    "             Node 18  (running, skipped)": "             Node 18  (đang chạy, bỏ qua)",
+    "  6.8.0-45  ← running (kept)": "  6.8.0-45  ← đang chạy (giữ lại)",
+    "  6.8.0-40  ← kept as a fallback": "  6.8.0-40  ← giữ làm dự phòng",
+    "  6.8.0-31  ← will be removed: linux-image-6.8.0-31": "  6.8.0-31  ← sẽ bị xoá: linux-image-6.8.0-31",
+    "  80 MB  core (revision 1234)": "  80 MB  core (bản 1234)",
+    "  Largest archived journal files:": "  Tệp journal lưu trữ lớn nhất:",
+    "  Archived and active journals take up 1.1G in the file system.":
+        "  Journal lưu trữ và đang dùng chiếm 1.1G trên hệ thống tệp.",
+    "  ~/.zsh_history  (240 commands)": "  ~/.zsh_history  (240 lệnh)",
+    "  ~/.cache/x/y": "  ~/.cache/x/y",
+    "  1.0 MB  ~/backup (3 files).zip": "  1.0 MB  ~/backup (3 files).zip",
+    "  1.0 MB  ~/notes (revision 2).txt": "  1.0 MB  ~/notes (revision 2).txt",
+    "  1.0 MB  ~/report 5 days old.pdf": "  1.0 MB  ~/report 5 days old.pdf",
+    "backup (3 files).zip · 45 days old": "backup (3 files).zip · cũ 45 ngày",
+    "x · untouched for 3 days.mkv · untouched for 12 days": "x · untouched for 3 days.mkv · không đụng tới 12 ngày",
+    "  2.0 MB  ~/a (running, skipped) b": "  2.0 MB  ~/a (running, skipped) b",
+}
+bad = [(f.__name__, k, f(k), v) for table, f in ((notes, note_text), (items, item_text), (details, detail_text))
+       for k, v in table.items() if f(k) != v]
+print("\n".join(map(repr, bad)) or "ok")
+PY
+)
+  assert_eq "$out" "ok" "notes, scan-time item texts and details lines are translated (unknown ones kept)"
+  out=$(env -i HOME="$HOME_DIR" LANG=C.UTF-8 CLEANMATE_LOCALEDIR="$WORK/locale" PYTHONPATH="$ROOT/gui" python3 -c '
+from cleanmate_gui.i18n import detail_text, note_text
+print(note_text("2 versions not your default; skipped while running: Node 20"), detail_text("a · 3 days old"), sep="|")')
+  assert_eq "$out" "2 versions not your default; skipped while running: Node 20|a · 3 days old" "English stays as sent"
+}
+
 test_extract_items_for_translation() {
   command -v msgcat >/dev/null && command -v python3 >/dev/null || { SKIPPED="needs gettext and python3"; return; }
   local d=$WORK/potest out

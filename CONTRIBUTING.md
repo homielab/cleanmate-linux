@@ -113,8 +113,11 @@ The desktop app is translated with gettext (domain `cleanmate`, files in `po/`);
 terminal app are English only. The desktop app translates the names and descriptions of cleanup items
 the engine sends (`item_text` in `gui/cleanmate_gui/i18n.py`): `po/extract-items.sh` takes them from
 `--json items` into `po/items.pot`, numbers as `{0}`, `{1}`… so a description matches whatever number
-of days or MB the settings give. Names made at scan time (apps found on the computer) and scan notes
-stay in English.
+of days or MB the settings give. Texts the engine makes at scan time — apps found on the computer,
+scan notes ("3 files in /var/log"), the lines of an item's details — go through pattern tables in
+`i18n.py` (`item_text`, `note_text`, `detail_text`; counted nouns in `_COUNTS`). A new note or
+counted noun in `cleanmate.sh` needs a pattern there, or it shows in English; add a case to
+`tests/run.sh gui_scan_texts_translated`.
 
 - In code, wrap text in `_("…")`, and counts in `ngettext("{n} file", "{n} files", n)` (it fills in
   `{n}` and any other `{field}=` you pass). Put values in `{named}` fields, never glue sentences together.
