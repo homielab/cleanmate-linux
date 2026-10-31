@@ -3158,7 +3158,10 @@ for l in sys.stdin:
   printf 'export PATH=$HOME/sdk/go1.19/bin:$PATH\n' >"$h/.profile"
   assert_eq "$(details)" "Go 1.22.0 off" "the Go SDK on the profile's PATH kept"
   mkdir -p "$h/.pyenv/versions"; : >"$h/.profile"
-  assert_eq "$(details)" "" "no go command: every Go SDK kept"
+  # the usual folders the app also looks in (/usr/local/go/bin, …) can't be taken off a machine that has Go there
+  if [[ ! -x /usr/local/go/bin/go && ! -x /usr/lib/go/bin/go && ! -x /usr/bin/go && ! -x /snap/bin/go ]]; then
+    assert_eq "$(details)" "" "no go command: every Go SDK kept"
+  fi
   unset -f details
 }
 
