@@ -6,6 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-10-31
+
+First public release of CleanMate for Linux.
+
 ### Added
 
 - **Developer Junk** (both apps): Android emulator snapshots — the `snapshots` folder of each virtual device (`~/.android/avd`, `ANDROID_AVD_HOME`, `ANDROID_USER_HOME`, `ANDROID_EMULATOR_HOME`, `ANDROID_SDK_HOME`, and AVDs an `.ini` points to elsewhere), often several GB each. The next start is a cold boot; disks (`userdata*.img`, `sdcard.img`) and settings stay. Not pre-selected, deleted for good, skipped while the emulator runs; each AVD on its own in the desktop app.
@@ -76,9 +80,6 @@ All notable changes are listed here. The format follows
 - Undo (`z`) never replaces or moves into a file or folder that appeared where the trashed file used to be.
 - Terminal app: key presses were sometimes ignored with bash older than 5.3 (Ubuntu 22.04 and 24.04), and keys typed while a screen was busy were printed over it.
 
-## [2.0.0] — 2026-10-25
-
-First public release of CleanMate for Linux.
 
 ### Cleaning
 
