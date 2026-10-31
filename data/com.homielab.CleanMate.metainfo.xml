@@ -26,7 +26,7 @@
       <li>Every browser and app cache as its own choice</li>
       <li>AI tools: caches and old chat sessions of Claude, Codex, Gemini, Zed and others</li>
       <li>Developer junk: npm, pip, Go, Cargo and Docker leftovers, idle node_modules</li>
-      <li>Privacy: terminal history, recent files and other histories</li>
+      <li>Privacy: browser history and cookies, terminal history, recent files and other histories</li>
     </ul>
     <p>
       It uses the system's own tools wherever possible (apt, journalctl, snap, docker), keeps a

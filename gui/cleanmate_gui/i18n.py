@@ -103,6 +103,8 @@ def _static():
         "not used by any container": _("not used by any container"),
         "BuildKit cache": _("BuildKit cache"),
         "scan timed out": _("scan timed out"),
+        "needs sqlite3": _("needs sqlite3"),
+        "install sqlite3 to count entries": _("install sqlite3 to count entries"),
     }
 
 
@@ -154,6 +156,8 @@ _COUNTS = {
     "command": lambda n: ngettext("{n} command", "{n} commands", n),
     "entry": lambda n: ngettext("{n} entry", "{n} entries", n),
     "remembered choice": lambda n: ngettext("{n} remembered choice", "{n} remembered choices", n),
+    "history entry": lambda n: ngettext("{n} history entry", "{n} history entries", n),
+    "cookie": lambda n: ngettext("{n} cookie", "{n} cookies", n),
 }
 
 
@@ -177,6 +181,7 @@ def _sentences():
         (r"\{c0\} in ~/\.cache", _("{count} in ~/.cache")),
         (r"\{c0\} in \{c1\}", _("{count} in {count2}")),
         (r"\{c0\} on \{c1\}", _("{count} on {count2}")),
+        (r"\{c0\}, \{c1\}, \{c2\}", _("{count}, {count2}, {count3}")),
         (r"\{c0\}, \{c1\}", _("{count}, {count2}")),
         (r"\{c0\} still configured", _("{count} still configured")),
         (r"\{c0\} older than (?P<days>\d+) days", _("{count} older than {days} days")),
@@ -210,7 +215,7 @@ def _note_part(text):
     for pattern, template in _sentences():
         m = re.fullmatch(pattern, shape)
         if m:
-            fields = dict(zip(("count", "count2"), counts), **m.groupdict())
+            fields = dict(zip(("count", "count2", "count3"), counts), **m.groupdict())
             try:
                 return template.format(**fields)
             except (IndexError, KeyError):
@@ -246,7 +251,7 @@ def _details():
         (r"^(\s*)Largest archived journal files:$", lambda m: m[1] + _("Largest archived journal files:")),
         (r"^(\s*)Archived and active journals take up (\S+) in the file system\.$",
          lambda m: m[1] + _("Archived and active journals take up {size} in the file system.").format(size=m[2])),
-        (r"  \((\d+ \w+(?: \w+)?)\)$", lambda m: "  (" + COUNT.sub(_count, m[1]) + ")"),
+        (r"  \((\d+ \w+(?: \w+)?(?:, \d+ \w+(?: \w+)?)*)\)$", lambda m: "  (" + COUNT.sub(_count, m[1]) + ")"),
     ]
 
 

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 13:47+0000\n"
+"POT-Creation-Date: 2026-10-31 14:08+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -301,380 +301,407 @@ msgstr ""
 msgid "scan timed out"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:114
+#: gui/cleanmate_gui/i18n.py:106
+msgid "needs sqlite3"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:107
+msgid "install sqlite3 to count entries"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:116
 #, python-brace-format
 msgid ""
 "Downloads folder is outside your home folder ({path}); CleanMate only cleans "
 "inside it"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:118
+#: gui/cleanmate_gui/i18n.py:120
 #, python-brace-format
 msgid ""
 "Cache folders of {app} ({kind}). Rebuilt automatically — close the app "
 "before cleaning."
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:125
+#: gui/cleanmate_gui/i18n.py:127
 #, python-brace-format
 msgid "{n} item"
 msgid_plural "{n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:126
+#: gui/cleanmate_gui/i18n.py:128
 #, python-brace-format
 msgid "{n} file"
 msgid_plural "{n} files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:127 gui/cleanmate_gui/uninstaller.py:459
+#: gui/cleanmate_gui/i18n.py:129 gui/cleanmate_gui/uninstaller.py:459
 #, python-brace-format
 msgid "{n} folder"
 msgid_plural "{n} folders"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:128
+#: gui/cleanmate_gui/i18n.py:130
 #, python-brace-format
 msgid "{n} leftover folder"
 msgid_plural "{n} leftover folders"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:129
+#: gui/cleanmate_gui/i18n.py:131
 #, python-brace-format
 msgid "{n} app"
 msgid_plural "{n} apps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:130
+#: gui/cleanmate_gui/i18n.py:132
 #, python-brace-format
 msgid "{n} project"
 msgid_plural "{n} projects"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:131
+#: gui/cleanmate_gui/i18n.py:133
 #, python-brace-format
 msgid "{n} package"
 msgid_plural "{n} packages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:132
+#: gui/cleanmate_gui/i18n.py:134
 #, python-brace-format
 msgid "{n} removed package"
 msgid_plural "{n} removed packages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:133
+#: gui/cleanmate_gui/i18n.py:135
 #, python-brace-format
 msgid "{n} package archive"
 msgid_plural "{n} package archives"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:134
+#: gui/cleanmate_gui/i18n.py:136
 #, python-brace-format
 msgid "{n} downloaded installer"
 msgid_plural "{n} downloaded installers"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:135
+#: gui/cleanmate_gui/i18n.py:137
 #, python-brace-format
 msgid "{n} download"
 msgid_plural "{n} downloads"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:136
+#: gui/cleanmate_gui/i18n.py:138
 #, python-brace-format
 msgid "{n} disabled revision"
 msgid_plural "{n} disabled revisions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:137
+#: gui/cleanmate_gui/i18n.py:139
 #, python-brace-format
 msgid "{n} version"
 msgid_plural "{n} versions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:138
+#: gui/cleanmate_gui/i18n.py:140
 #, python-brace-format
 msgid "{n} drive"
 msgid_plural "{n} drives"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:139
+#: gui/cleanmate_gui/i18n.py:141
 #, python-brace-format
 msgid "{n} list"
 msgid_plural "{n} lists"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:140
+#: gui/cleanmate_gui/i18n.py:142
 #, python-brace-format
 msgid "{n} history list"
 msgid_plural "{n} history lists"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:141
+#: gui/cleanmate_gui/i18n.py:143
 #, python-brace-format
 msgid "{n} image"
 msgid_plural "{n} images"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:142
+#: gui/cleanmate_gui/i18n.py:144
 #, python-brace-format
 msgid "{n} dangling image"
 msgid_plural "{n} dangling images"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:143
+#: gui/cleanmate_gui/i18n.py:145
 #, python-brace-format
 msgid "{n} container"
 msgid_plural "{n} containers"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:144
+#: gui/cleanmate_gui/i18n.py:146
 #, python-brace-format
 msgid "{n} stopped container"
 msgid_plural "{n} stopped containers"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:145
+#: gui/cleanmate_gui/i18n.py:147
 #, python-brace-format
 msgid "{n} volume"
 msgid_plural "{n} volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:146
+#: gui/cleanmate_gui/i18n.py:148
 #, python-brace-format
 msgid "{n} anonymous volume"
 msgid_plural "{n} anonymous volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:147
+#: gui/cleanmate_gui/i18n.py:149
 #, python-brace-format
 msgid "{n} named volume"
 msgid_plural "{n} named volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:148
+#: gui/cleanmate_gui/i18n.py:150
 #, python-brace-format
 msgid "{n} AVD"
 msgid_plural "{n} AVDs"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:149
+#: gui/cleanmate_gui/i18n.py:151
 #, python-brace-format
 msgid "{n} snapshot"
 msgid_plural "{n} snapshots"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:150
+#: gui/cleanmate_gui/i18n.py:152
 #, python-brace-format
 msgid "{n} session"
 msgid_plural "{n} sessions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:151
+#: gui/cleanmate_gui/i18n.py:153
 #, python-brace-format
 msgid "{n} model"
 msgid_plural "{n} models"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:152
+#: gui/cleanmate_gui/i18n.py:154
 #, python-brace-format
 msgid "{n} report"
 msgid_plural "{n} reports"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:153
+#: gui/cleanmate_gui/i18n.py:155
 #, python-brace-format
 msgid "{n} dump"
 msgid_plural "{n} dumps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:154
+#: gui/cleanmate_gui/i18n.py:156
 #, python-brace-format
 msgid "{n} command"
 msgid_plural "{n} commands"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:155
+#: gui/cleanmate_gui/i18n.py:157
 #, python-brace-format
 msgid "{n} entry"
 msgid_plural "{n} entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:156
+#: gui/cleanmate_gui/i18n.py:158
 #, python-brace-format
 msgid "{n} remembered choice"
 msgid_plural "{n} remembered choices"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:176
+#: gui/cleanmate_gui/i18n.py:159
+#, python-brace-format
+msgid "{n} history entry"
+msgid_plural "{n} history entries"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/i18n.py:160
+#, python-brace-format
+msgid "{n} cookie"
+msgid_plural "{n} cookies"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/i18n.py:180
 #, python-brace-format
 msgid "{count} in /var/log"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:177
+#: gui/cleanmate_gui/i18n.py:181
 #, python-brace-format
 msgid "{count} in ~/.cache"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:178
+#: gui/cleanmate_gui/i18n.py:182
 #, python-brace-format
 msgid "{count} in {count2}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:179
+#: gui/cleanmate_gui/i18n.py:183
 #, python-brace-format
 msgid "{count} on {count2}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:180
-#, python-brace-format
-msgid "{count}, {count2}"
-msgstr ""
-
-#: gui/cleanmate_gui/i18n.py:181
-#, python-brace-format
-msgid "{count} still configured"
-msgstr ""
-
-#: gui/cleanmate_gui/i18n.py:182
-#, python-brace-format
-msgid "{count} older than {days} days"
-msgstr ""
-
-#: gui/cleanmate_gui/i18n.py:183
-#, python-brace-format
-msgid "{count} untouched for {days}+ days"
-msgstr ""
-
 #: gui/cleanmate_gui/i18n.py:184
 #, python-brace-format
-msgid "{count} idle for {days}+ days"
+msgid "{count}, {count2}, {count3}"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:185
 #, python-brace-format
-msgid "{count} with entries"
+msgid "{count}, {count2}"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:186
 #, python-brace-format
-msgid "{count} that no longer exist"
+msgid "{count} still configured"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:187
 #, python-brace-format
-msgid "{count} not your default"
+msgid "{count} older than {days} days"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:188
 #, python-brace-format
-msgid "{count} no AVD uses"
+msgid "{count} untouched for {days}+ days"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:189
 #, python-brace-format
-msgid "{count} replaced by a newer one"
+msgid "{count} idle for {days}+ days"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:190
 #, python-brace-format
-msgid "{count} — may contain data"
+msgid "{count} with entries"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:191
 #, python-brace-format
-msgid "{count} kept"
+msgid "{count} that no longer exist"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:192
+#, python-brace-format
+msgid "{count} not your default"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:193
 #, python-brace-format
-msgid "{size} in total"
+msgid "{count} no AVD uses"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:194
 #, python-brace-format
-msgid "skipped while running: {names}"
+msgid "{count} replaced by a newer one"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:195
 #, python-brace-format
+msgid "{count} — may contain data"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:196
+#, python-brace-format
+msgid "{count} kept"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:198
+#, python-brace-format
+msgid "{size} in total"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:199
+#, python-brace-format
+msgid "skipped while running: {names}"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:200
+#, python-brace-format
 msgid "get it back with: ollama pull {ref}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:236 gui/cleanmate_gui/i18n.py:237
+#: gui/cleanmate_gui/i18n.py:241 gui/cleanmate_gui/i18n.py:242
 #, python-brace-format
 msgid "{days} days old"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:238 gui/cleanmate_gui/i18n.py:239
+#: gui/cleanmate_gui/i18n.py:243 gui/cleanmate_gui/i18n.py:244
 #, python-brace-format
 msgid "untouched for {days} days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:240
+#: gui/cleanmate_gui/i18n.py:245
 #, python-brace-format
 msgid "{days} days idle"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:241
+#: gui/cleanmate_gui/i18n.py:246
 msgid "(running, skipped)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:242
+#: gui/cleanmate_gui/i18n.py:247
 msgid "← running (kept)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:243
+#: gui/cleanmate_gui/i18n.py:248
 msgid "← kept as a fallback"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:244
+#: gui/cleanmate_gui/i18n.py:249
 msgid "← will be removed: "
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:245
+#: gui/cleanmate_gui/i18n.py:250
 #, python-brace-format
 msgid "(revision {revision})"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:246
+#: gui/cleanmate_gui/i18n.py:251
 msgid "Largest archived journal files:"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:248
+#: gui/cleanmate_gui/i18n.py:253
 #, python-brace-format
 msgid "Archived and active journals take up {size} in the file system."
 msgstr ""
@@ -2555,7 +2582,9 @@ msgid ""
 msgstr ""
 
 #: gui/cleanmate_gui/window.py:42
-msgid "Terminal history, recent files, run dialog and emoji history."
+msgid ""
+"Browser history and cookies, terminal history, recent files, run dialog and "
+"emoji history."
 msgstr ""
 
 #: gui/cleanmate_gui/window.py:44 gui/cleanmate_gui/window.py:224
@@ -3206,6 +3235,83 @@ msgstr ""
 
 #. priv_gsettings description
 msgid "Commands typed in Alt+F2, recently used emoji and characters."
+msgstr ""
+
+#. priv_browser_firefox label
+msgid "Firefox — history & cookies"
+msgstr ""
+
+#. priv_browser_firefox description
+msgid ""
+"Browsing history, the downloads list and cookies of Firefox, in every "
+"profile. Signs you out of websites; passwords, bookmarks and extensions are "
+"kept. Skipped while Firefox is running. Needs sqlite3."
+msgstr ""
+
+#. priv_browser_chrome label
+msgid "Google Chrome — history & cookies"
+msgstr ""
+
+#. priv_browser_chrome description
+msgid ""
+"Browsing history, the downloads list and cookies of Google Chrome, in every "
+"profile. Signs you out of websites; passwords, bookmarks and extensions are "
+"kept. Skipped while Google Chrome is running."
+msgstr ""
+
+#. priv_browser_chromium label
+msgid "Chromium — history & cookies"
+msgstr ""
+
+#. priv_browser_chromium description
+msgid ""
+"Browsing history, the downloads list and cookies of Chromium, in every "
+"profile. Signs you out of websites; passwords, bookmarks and extensions are "
+"kept. Skipped while Chromium is running."
+msgstr ""
+
+#. priv_browser_brave label
+msgid "Brave — history & cookies"
+msgstr ""
+
+#. priv_browser_brave description
+msgid ""
+"Browsing history, the downloads list and cookies of Brave, in every profile. "
+"Signs you out of websites; passwords, bookmarks and extensions are kept. "
+"Skipped while Brave is running."
+msgstr ""
+
+#. priv_browser_edge label
+msgid "Microsoft Edge — history & cookies"
+msgstr ""
+
+#. priv_browser_edge description
+msgid ""
+"Browsing history, the downloads list and cookies of Microsoft Edge, in every "
+"profile. Signs you out of websites; passwords, bookmarks and extensions are "
+"kept. Skipped while Microsoft Edge is running."
+msgstr ""
+
+#. priv_browser_vivaldi label
+msgid "Vivaldi — history & cookies"
+msgstr ""
+
+#. priv_browser_vivaldi description
+msgid ""
+"Browsing history, the downloads list and cookies of Vivaldi, in every "
+"profile. Signs you out of websites; passwords, bookmarks and extensions are "
+"kept. Skipped while Vivaldi is running."
+msgstr ""
+
+#. priv_browser_opera label
+msgid "Opera — history & cookies"
+msgstr ""
+
+#. priv_browser_opera description
+msgid ""
+"Browsing history, the downloads list and cookies of Opera, in every profile. "
+"Signs you out of websites; passwords, bookmarks and extensions are kept. "
+"Skipped while Opera is running."
 msgstr ""
 
 #. ai_claude_cache label

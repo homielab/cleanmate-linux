@@ -337,6 +337,104 @@ test_privacy_clears_in_place() {
   grep -q '</xbel>' "$HOME_DIR/.local/share/recently-used.xbel" && ok_ "xbel still valid" || fail "xbel broken"
 }
 
+# Browser privacy: history, downloads and cookies go; bookmarks, passwords and
+# the rest of the profile stay. Firefox keeps its files (bookmarks live in
+# places.sqlite), Chromium loses only its History and Cookies files.
+test_browser_privacy() {
+  command -v sqlite3 >/dev/null || { SKIPPED="needs sqlite3"; return; }
+  command -v python3 >/dev/null || { SKIPPED="needs python3"; return; }
+  fresh_home
+  local ff=$HOME_DIR/.mozilla/firefox/abcd.default-release cr=$HOME_DIR/.config/chromium f out want items
+  local bin=$WORK/browserbin
+  mkdir -p "$ff" "$cr/Default/Network" "$cr/Profile 1"
+  sqlite3 "$ff/places.sqlite" "PRAGMA journal_mode=WAL;
+    CREATE TABLE moz_origins (id INTEGER PRIMARY KEY, prefix TEXT, host TEXT, frecency INTEGER);
+    CREATE TABLE moz_places (id INTEGER PRIMARY KEY, url TEXT, title TEXT, visit_count INTEGER DEFAULT 0,
+      last_visit_date INTEGER, origin_id INTEGER);
+    CREATE TABLE moz_historyvisits (id INTEGER PRIMARY KEY, from_visit INTEGER, place_id INTEGER,
+      visit_date INTEGER, visit_type INTEGER);
+    CREATE TABLE moz_inputhistory (place_id INTEGER, input TEXT, use_count INTEGER);
+    CREATE TABLE moz_bookmarks (id INTEGER PRIMARY KEY, type INTEGER, fk INTEGER, parent INTEGER, title TEXT);
+    CREATE TABLE moz_keywords (id INTEGER PRIMARY KEY, keyword TEXT, place_id INTEGER);
+    CREATE TABLE moz_anno_attributes (id INTEGER PRIMARY KEY, name TEXT);
+    CREATE TABLE moz_annos (id INTEGER PRIMARY KEY, place_id INTEGER, anno_attribute_id INTEGER, content TEXT);
+    INSERT INTO moz_origins VALUES (1, 'https://', 'example.org', 1), (2, 'https://', 'secret.example', 1);
+    INSERT INTO moz_places VALUES (1, 'https://example.org/', 'Example', 3, 1700000000000000, 1),
+      (2, 'https://secret.example/a', 'Secret', 1, 1700000000000000, 2),
+      (3, 'https://secret.example/file.zip', '', 1, 1700000000000000, 2);
+    INSERT INTO moz_historyvisits VALUES (1, 0, 1, 1700000000000000, 1), (2, 0, 2, 1700000000000000, 1),
+      (3, 0, 3, 1700000000000000, 7);
+    INSERT INTO moz_inputhistory VALUES (2, 'sec', 1);
+    INSERT INTO moz_bookmarks VALUES (1, 1, 1, 0, 'Example');
+    INSERT INTO moz_anno_attributes VALUES (1, 'downloads/destinationFileURI');
+    INSERT INTO moz_annos VALUES (1, 3, 1, 'file:///tmp/file.zip');" >/dev/null
+  sqlite3 "$ff/cookies.sqlite" "CREATE TABLE moz_cookies (id INTEGER PRIMARY KEY, host TEXT, name TEXT, value TEXT);
+    INSERT INTO moz_cookies VALUES (1, '.secret.example', 'sid', 'x'), (2, '.example.org', 'sid', 'y');"
+  printf '{}\n' >"$ff/prefs.js"
+  sqlite3 "$cr/Default/History" "CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT);
+    CREATE TABLE downloads (id INTEGER PRIMARY KEY, target_path TEXT);
+    INSERT INTO urls VALUES (1, 'https://secret.example/'), (2, 'https://example.org/');
+    INSERT INTO downloads VALUES (1, '/tmp/file.zip');"
+  : >"$cr/Default/History-journal" # Chromium truncates its journals
+  printf 'links\n' >"$cr/Default/Visited Links"
+  sqlite3 "$cr/Default/Network/Cookies" "CREATE TABLE cookies (host_key TEXT, name TEXT);
+    INSERT INTO cookies VALUES ('.secret.example', 'sid'), ('.example.org', 'sid');"
+  sqlite3 "$cr/Profile 1/Cookies" "CREATE TABLE cookies (host_key TEXT, name TEXT); INSERT INTO cookies VALUES ('a', 'b');"
+  printf 'passwords\n' >"$cr/Default/Login Data"
+  printf '{"roots":{}}\n' >"$cr/Default/Bookmarks"
+  printf '{}\n' >"$cr/Default/Preferences"
+  mkdir -p "$cr/Default/Extensions/abc" && printf 'ext\n' >"$cr/Default/Extensions/abc/manifest.json"
+
+  items='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"].startswith("priv_browser_") and e["status"] != "clean" or e.get("note") == "needs sqlite3":
+        print(e["id"], e["status"], e["bytes"], repr(e["note"]), repr(e["locked"]), e["default"])'
+  out=$(cm --json --only privacy scan | python3 -c "$items")
+  want=$(tbytes "$ff/places.sqlite" "$ff/cookies.sqlite")
+  assert_contains "$out" "priv_browser_firefox found $want '3 history entries, 2 cookies, 1 download' '' False"
+  want=$(tbytes "$cr/Default/History" "$cr/Default/History-journal" "$cr/Default/Visited Links" \
+    "$cr/Default/Network/Cookies" "$cr/Profile 1/Cookies")
+  assert_contains "$out" "priv_browser_chromium found $want '2 history entries, 3 cookies, 1 download' '' False"
+  assert_eq "$(grep -c . <<<"$out")" 2 "only the browsers found are listed"
+  out=$(cm --json details priv_browser_chromium)
+  assert_contains "$out" "~/.config/chromium/Default  (2 history entries, 2 cookies, 1 download)"
+
+  # a running browser locks its item, and a clean skips it
+  running_stub "$bin" firefox chromium
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json --only privacy scan | python3 -c "$items")
+  assert_contains "$out" "priv_browser_firefox found $(tbytes "$ff/places.sqlite" "$ff/cookies.sqlite") '3 history entries, 2 cookies, 1 download' 'firefox'"
+  assert_contains "$out" "'chromium' False"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean priv_browser_firefox priv_browser_chromium 2>&1)
+  assert_contains "$out" '"id":"priv_browser_firefox","state":"skip"'
+  assert_contains "$out" '"id":"priv_browser_chromium","state":"skip"'
+  assert_exists "$cr/Default/History"
+  assert_eq "$(sqlite3 "$ff/places.sqlite" 'SELECT count(*) FROM moz_historyvisits;')" 3 "running Firefox: history kept"
+
+  # without sqlite3 Firefox can't be cleared; Chromium is listed by size only
+  out=$(BASE_PATH=$(path_without sqlite3) cm --json --only privacy scan | python3 -c "$items")
+  assert_contains "$out" "priv_browser_firefox clean"
+  assert_contains "$out" "'needs sqlite3'"
+  assert_contains "$out" "priv_browser_chromium found"
+  assert_contains "$out" "'install sqlite3 to count entries'"
+
+  out=$(user_cm --json clean priv_browser_firefox priv_browser_chromium 2>&1)
+  assert_contains "$out" '"id":"priv_browser_firefox","state":"ok"'
+  assert_contains "$out" '"id":"priv_browser_chromium","state":"ok"'
+  assert_eq "$(sqlite3 "$ff/places.sqlite" 'SELECT count(*) FROM moz_historyvisits; SELECT count(*) FROM moz_inputhistory;
+    SELECT count(*) FROM moz_annos;' | paste -sd' ')" "0 0 0" "Firefox history, typed text and downloads cleared"
+  assert_eq "$(sqlite3 "$ff/places.sqlite" 'SELECT url, visit_count, ifnull(last_visit_date, 0) FROM moz_places;
+    SELECT count(*) FROM moz_origins; SELECT title FROM moz_bookmarks;' | paste -sd' ')" \
+    "https://example.org/|0|0 1 Example" "Firefox bookmark kept, its visits forgotten"
+  assert_eq "$(sqlite3 "$ff/cookies.sqlite" 'SELECT count(*) FROM moz_cookies;')" 0 "Firefox cookies cleared"
+  assert_exists "$ff/prefs.js"
+  for f in History History-journal "Visited Links" Network/Cookies; do assert_missing "$cr/Default/$f"; done
+  assert_missing "$cr/Profile 1/Cookies"
+  for f in "Login Data" Bookmarks Preferences Extensions/abc/manifest.json; do assert_exists "$cr/Default/$f"; done
+  out=$(cm --json --only privacy scan | python3 -c "$items")
+  assert_eq "$out" "" "nothing left to clear"
+}
+
 test_old_app_logs() {
   fresh_home
   old "$HOME_DIR/.config/Code/logs/20260101T100000/window1/renderer.log"
@@ -3701,6 +3799,9 @@ notes = {
     "BuildKit cache": "Bộ nhớ đệm BuildKit",
     "scan timed out": "quét quá thời gian",
     "3 disabled revisions": "3 bản đã tắt",
+    "3 history entries, 2 cookies, 1 download": "3 mục lịch sử, 2 cookie, 1 tệp tải về",
+    "needs sqlite3": "cần sqlite3",
+    "install sqlite3 to count entries": "cài sqlite3 để đếm số mục",
     "2 dumps": "2 bản dump",
     "~/.cache/thumbnails": "~/.cache/thumbnails",
     "Firefox, Chromium": "Firefox, Chromium",
@@ -3718,6 +3819,8 @@ items = {
 }
 details = {
     "  1.2 GB  setup.deb  (45 days old)": "  1.2 GB  setup.deb  (cũ 45 ngày)",
+    "  20.0 KB  ~/.config/chromium/Default  (2 history entries, 1 cookie, 0 downloads)":
+        "  20.0 KB  ~/.config/chromium/Default  (2 mục lịch sử, 1 cookie, 0 tệp tải về)",
     "setup.deb · 45 days old": "setup.deb · cũ 45 ngày",
     "Photos/ · untouched for 120 days": "Photos/ · không đụng tới 120 ngày",
     "~/code/api — target/, .venv/ · 120 days idle": "~/code/api — target/, .venv/ · không dùng 120 ngày",

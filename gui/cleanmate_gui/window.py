@@ -39,7 +39,7 @@ PAGES = [
      _("Stale node_modules and project build folders, npm, pip, Go, Cargo, Conda, Docker and Podman leftovers, "
        "Firebase CLI logs.")),
     ("privacy", _("Privacy"), "security-high-symbolic", ["privacy"],
-     _("Terminal history, recent files, run dialog and emoji history.")),
+     _("Browser history and cookies, terminal history, recent files, run dialog and emoji history.")),
     None,  # section: Tools
     ("lens", _("Space Lens"), "folder-symbolic", None,
      _("See what takes up the space, folder by folder, and move what you don't need to the Trash. "

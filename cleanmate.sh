@@ -2116,6 +2116,210 @@ clean_priv_gsettings() {
 }
 details_priv_gsettings() { gs_nonempty_keys | sed 's/^/  /'; return 0; }
 
+# ── Privacy: browsing history, downloads list and cookies, one item per browser ──
+#
+# Firefox keeps bookmarks in places.sqlite next to the history, so history,
+# download records and cookies are deleted row by row with sqlite3 and the
+# files stay. Chromium-based browsers keep them in files of their own
+# (History also holds the downloads list), which are removed. Login Data,
+# Web Data, Bookmarks, Extensions and Preferences are never touched. A running
+# browser holds these files open and writes them back, so it is skipped.
+
+declare -A BPRIV_KIND=()
+BPRIV_FIREFOX_FILES=(places.sqlite places.sqlite-wal cookies.sqlite cookies.sqlite-wal downloads.sqlite)
+BPRIV_CHROME_FILES=(History History-journal Cookies Cookies-journal "Visited Links" "Top Sites" "Top Sites-journal"
+  Network/Cookies Network/Cookies-journal)
+
+bpriv_profiles() { # ID → profile folders (a root itself or a folder directly in it) holding history or cookies
+  local root d f marks
+  if [[ ${BPRIV_KIND[$1]} == firefox ]]; then marks=(places.sqlite cookies.sqlite)
+  else marks=(History Cookies Network/Cookies); fi
+  while IFS= read -r root; do
+    [[ -n $root && -d $root && ! -L $root ]] || continue
+    for d in "$root" "$root"/*/; do
+      d=${d%/}
+      [[ -d $d && ! -L $d ]] || continue
+      for f in "${marks[@]}"; do [[ -f $d/$f && ! -L $d/$f ]] && { printf '%s\n' "$d"; break; }; done
+    done
+  done <<<"${ITEM_PATHS[$1]}" | sort -u
+}
+
+bpriv_files() { # ID PROFILE → the history and cookie files in it
+  local f list
+  if [[ ${BPRIV_KIND[$1]} == firefox ]]; then list=("${BPRIV_FIREFOX_FILES[@]}"); else list=("${BPRIV_CHROME_FILES[@]}"); fi
+  for f in "${list[@]}"; do [[ -f $2/$f && ! -L $2/$f ]] && printf '%s\n' "$2/$f"; done
+  return 0
+}
+
+bpriv_query() { # DB SQL → the answer; 0 when DB doesn't exist, fails when sqlite3 can't read it
+  [[ -f $1 ]] || { echo 0; return 0; }
+  local v
+  v=$(sqlite3 -readonly -batch -noheader -cmd '.timeout 2000' "$1" "$2" 2>/dev/null) || return 1
+  [[ $v =~ ^[0-9]+$ ]] || return 1
+  echo "$v"
+}
+
+bpriv_counts() { # ID PROFILE → "HISTORY COOKIES DOWNLOADS"; fails without sqlite3 or when a database can't be read
+  local p=$2 h c c2=0 d
+  have sqlite3 || return 1
+  if [[ ${BPRIV_KIND[$1]} == firefox ]]; then
+    h=$(bpriv_query "$p/places.sqlite" "SELECT count(*) FROM moz_places WHERE last_visit_date IS NOT NULL;") || return 1
+    d=$(bpriv_query "$p/places.sqlite" "SELECT count(*) FROM moz_annos WHERE anno_attribute_id IN
+      (SELECT id FROM moz_anno_attributes WHERE name = 'downloads/destinationFileURI');") || d=0 # no download ever
+    c=$(bpriv_query "$p/cookies.sqlite" "SELECT count(*) FROM moz_cookies;") || return 1
+  else
+    h=$(bpriv_query "$p/History" "SELECT count(*) FROM urls;") || return 1
+    d=$(bpriv_query "$p/History" "SELECT count(*) FROM downloads;") || return 1
+    c=$(bpriv_query "$p/Cookies" "SELECT count(*) FROM cookies;") || return 1
+    c2=$(bpriv_query "$p/Network/Cookies" "SELECT count(*) FROM cookies;") || return 1
+  fi
+  printf '%d %d %d\n' "$h" "$((c + c2))" "$d"
+}
+
+bpriv_note() { printf '%s, %s, %s' "$(plural "$1" "history entry")" "$(plural "$2" cookie)" "$(plural "$3" download)"; }
+
+bpriv_scan() {
+  local profiles p files=() h c d th=0 tc=0 td=0
+  mapfile -t profiles < <(bpriv_profiles "$1")
+  ((${#profiles[@]})) || return 1
+  for p in "${profiles[@]}"; do mapfile -t -O "${#files[@]}" files < <(bpriv_files "$1" "$p"); done
+  SCAN_BYTES=$(du_sum "${files[@]}")
+  if ! have sqlite3; then # Firefox can't be cleared without it; the others only lose the counts
+    [[ ${BPRIV_KIND[$1]} == firefox ]] && { SCAN_NOTE="needs sqlite3"; return 2; }
+    SCAN_NOTE="install sqlite3 to count entries"
+    ((SCAN_BYTES > 0)) || return 2
+    return 0
+  fi
+  for p in "${profiles[@]}"; do
+    read -r h c d < <(bpriv_counts "$1" "$p") || return 0 # unreadable (a running browser locks them): size only
+    th=$((th + h)) tc=$((tc + c)) td=$((td + d))
+  done
+  SCAN_NOTE=$(bpriv_note "$th" "$tc" "$td")
+  ((th + tc + td > 0)) || return 2
+}
+
+bpriv_sqlite() { # DB SQL… — change a database, all or nothing (-bail stops at the first error, rolling back)
+  run sqlite3 -bail -batch -cmd '.timeout 5000' "$@"
+}
+
+bpriv_tables() { sqlite3 -readonly -batch -noheader "$1" "SELECT name FROM sqlite_master WHERE type = 'table';" 2>/dev/null; }
+
+bpriv_clean_firefox() { # PROFILE
+  local p=$1 db t sql=() rc=0
+  local -A has=()
+  db=$p/places.sqlite
+  if [[ -f $db ]]; then
+    while IFS= read -r t; do has[$t]=1; done < <(bpriv_tables "$db")
+    if [[ -n ${has[moz_places]:-} && -n ${has[moz_historyvisits]:-} ]]; then
+      sql=("BEGIN;" "DELETE FROM moz_historyvisits;")
+      for t in moz_historyvisits_extra moz_inputhistory moz_places_metadata_search_queries moz_places_metadata; do
+        [[ -n ${has[$t]:-} ]] && sql+=("DELETE FROM $t;")
+      done
+      [[ -n ${has[moz_annos]:-} && -n ${has[moz_anno_attributes]:-} ]] && sql+=("DELETE FROM moz_annos WHERE
+        anno_attribute_id IN (SELECT id FROM moz_anno_attributes WHERE name LIKE 'downloads/%');")
+      t="id NOT IN (SELECT fk FROM moz_bookmarks WHERE fk IS NOT NULL)" # bookmarked pages stay
+      [[ -n ${has[moz_bookmarks]:-} ]] || t="1"
+      [[ -n ${has[moz_keywords]:-} ]] && t+=" AND id NOT IN (SELECT place_id FROM moz_keywords WHERE place_id IS NOT NULL)"
+      sql+=("DELETE FROM moz_places WHERE $t;" "UPDATE moz_places SET visit_count = 0, last_visit_date = NULL;")
+      [[ -n ${has[moz_annos]:-} ]] && sql+=("DELETE FROM moz_annos WHERE place_id NOT IN (SELECT id FROM moz_places);")
+      [[ -n ${has[moz_places_extra]:-} ]] &&
+        sql+=("DELETE FROM moz_places_extra WHERE place_id NOT IN (SELECT id FROM moz_places);")
+      [[ -n ${has[moz_origins]:-} ]] &&
+        sql+=("DELETE FROM moz_origins WHERE id NOT IN (SELECT origin_id FROM moz_places WHERE origin_id IS NOT NULL);")
+      sql+=("COMMIT;" "VACUUM;")
+      bpriv_sqlite "$db" "${sql[*]}" || { echo "Could not clear the history in ${db/#$HOME/\~}"; rc=1; }
+    else
+      echo "Unknown history database, left alone: ${db/#$HOME/\~}"
+    fi
+  fi
+  db=$p/cookies.sqlite
+  if [[ -f $db ]]; then
+    bpriv_sqlite "$db" "DELETE FROM moz_cookies; VACUUM;" || { echo "Could not clear the cookies in ${db/#$HOME/\~}"; rc=1; }
+  fi
+  db=$p/downloads.sqlite # Firefox before version 26
+  if [[ -f $db ]] && bpriv_tables "$db" | grep -qx moz_downloads; then
+    bpriv_sqlite "$db" "DELETE FROM moz_downloads; VACUUM;" || rc=1
+  fi
+  return "$rc"
+}
+
+bpriv_clean() {
+  local p f rc=0 name
+  if name=$(lockedby_cache_item "$1"); then
+    echo "Skipped: $name is running — close it and try again"
+    return 1
+  fi
+  while IFS= read -r p; do
+    if [[ ${BPRIV_KIND[$1]} == firefox ]]; then
+      have sqlite3 || { echo "needs sqlite3"; return 1; }
+      bpriv_clean_firefox "$p" || rc=1
+    else
+      while IFS= read -r f; do run rm -f -- "$f" || rc=1; done < <(bpriv_files "$1" "$p")
+    fi
+  done < <(bpriv_profiles "$1")
+  return "$rc"
+}
+
+bpriv_details() { # each profile: size and entry counts — never the contents
+  local p h c d count files
+  while IFS= read -r p; do
+    count=""
+    read -r h c d < <(bpriv_counts "$1" "$p") && count="  ($(bpriv_note "$h" "$c" "$d"))"
+    mapfile -t files < <(bpriv_files "$1" "$p")
+    printf '%s\t%s%s\n' "$(du_sum "${files[@]}")" "$p" "$count"
+  done < <(bpriv_profiles "$1") | detail_files 20
+  return 0
+}
+
+bpriv_precheck() { # never ask: the browser would write the history back when it closes
+  local name
+  name=$(lockedby_cache_item "$1") || return 0
+  ((UI_ACTIVE)) || warn "Skipping ${ITEM_LABEL[$1]}: $name is running — close it and try again."
+  return 1
+}
+
+reg_browser_privacy() { # ID LABEL KIND PROCESS_REGEX PROFILE_ROOTS [CMDLINE_REGEX]
+  local id=$1 extra=""
+  [[ $id =~ ^[a-z0-9_]+$ ]] || return 1
+  [[ $3 == firefox ]] && extra=" Needs sqlite3."
+  reg "$id" privacy "$2 — history & cookies" 0 \
+    "Browsing history, the downloads list and cookies of $2, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while $2 is running.$extra"
+  BPRIV_KIND[$id]=$3 ITEM_PROCS[$id]=$4 ITEM_PATHS[$id]=$5 ITEM_ARGS[$id]=${6:-}
+  eval "scan_$id() { bpriv_scan $id; }
+        clean_$id() { bpriv_clean $id; }
+        details_$id() { bpriv_details $id; }
+        precheck_$id() { bpriv_precheck $id; }
+        lockedby_$id() { lockedby_cache_item $id; }"
+}
+
+#                   id                    label           kind     processes          profile folders (deb, snap, flatpak)
+reg_browser_privacy priv_browser_firefox Firefox firefox 'firefox|firefox-esr|firefox-bin' "$HOME/.mozilla/firefox
+${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox
+$HOME/snap/firefox/common/.mozilla/firefox
+$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox
+$HOME/.var/app/org.mozilla.firefox/config/mozilla/firefox"
+_cfg=${XDG_CONFIG_HOME:-$HOME/.config}
+reg_browser_privacy priv_browser_chrome "Google Chrome" chromium chrome "$_cfg/google-chrome
+$_cfg/google-chrome-beta
+$_cfg/google-chrome-unstable
+$HOME/.var/app/com.google.Chrome/config/google-chrome"
+reg_browser_privacy priv_browser_chromium Chromium chromium 'chromium|chromium-browse' "$_cfg/chromium
+$HOME/snap/chromium/common/chromium
+$HOME/.var/app/org.chromium.Chromium/config/chromium" '/snap/chromium/'
+reg_browser_privacy priv_browser_brave Brave chromium 'brave|brave-browser' "$_cfg/BraveSoftware/Brave-Browser
+$HOME/snap/brave/current/.config/BraveSoftware/Brave-Browser
+$HOME/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser"
+reg_browser_privacy priv_browser_edge "Microsoft Edge" chromium msedge "$_cfg/microsoft-edge
+$_cfg/microsoft-edge-beta
+$_cfg/microsoft-edge-dev
+$HOME/.var/app/com.microsoft.Edge/config/microsoft-edge"
+reg_browser_privacy priv_browser_vivaldi Vivaldi chromium 'vivaldi-bin|vivaldi' "$_cfg/vivaldi
+$_cfg/vivaldi-snapshot
+$HOME/.var/app/com.vivaldi.Vivaldi/config/vivaldi"
+reg_browser_privacy priv_browser_opera Opera chromium opera "$_cfg/opera
+$HOME/snap/opera/current/.config/opera"
+unset _cfg
+
 # ── AI tools: caches/logs and old chat history ──
 #
 # Each item has a list function printing the paths to remove (files or whole
@@ -8916,7 +9120,7 @@ main_menu() {
     cat_badge user browser apps; mi 4 "User & App Junk" "Trash, thumbnails, browser and app caches" "$BADGE"
     cat_badge ai models;         mi 5 "AI Tools" "Claude, Codex, Gemini, opencode, Zed: caches, old chats, models" "$BADGE"
     cat_badge dev;               mi 6 "Developer Junk" "Stale node_modules, npm, pip, Go, Cargo, Conda, Docker…" "$BADGE"
-    cat_badge privacy;           mi 7 "Privacy" "Terminal history, recent files, run dialog…" "$BADGE"
+    cat_badge privacy;           mi 7 "Privacy" "Browser & terminal history, recent files…" "$BADGE"
     mh "Files"
     mi 8 "Space Lens" "Explore what takes up space, folder by folder"
     mi 9 "Large & Old Files" "Find space hogs and forgotten downloads"

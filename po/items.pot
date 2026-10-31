@@ -456,6 +456,62 @@ msgstr ""
 msgid "Commands typed in Alt+F2, recently used emoji and characters."
 msgstr ""
 
+#. priv_browser_firefox label
+msgid "Firefox — history & cookies"
+msgstr ""
+
+#. priv_browser_firefox description
+msgid "Browsing history, the downloads list and cookies of Firefox, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while Firefox is running. Needs sqlite3."
+msgstr ""
+
+#. priv_browser_chrome label
+msgid "Google Chrome — history & cookies"
+msgstr ""
+
+#. priv_browser_chrome description
+msgid "Browsing history, the downloads list and cookies of Google Chrome, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while Google Chrome is running."
+msgstr ""
+
+#. priv_browser_chromium label
+msgid "Chromium — history & cookies"
+msgstr ""
+
+#. priv_browser_chromium description
+msgid "Browsing history, the downloads list and cookies of Chromium, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while Chromium is running."
+msgstr ""
+
+#. priv_browser_brave label
+msgid "Brave — history & cookies"
+msgstr ""
+
+#. priv_browser_brave description
+msgid "Browsing history, the downloads list and cookies of Brave, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while Brave is running."
+msgstr ""
+
+#. priv_browser_edge label
+msgid "Microsoft Edge — history & cookies"
+msgstr ""
+
+#. priv_browser_edge description
+msgid "Browsing history, the downloads list and cookies of Microsoft Edge, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while Microsoft Edge is running."
+msgstr ""
+
+#. priv_browser_vivaldi label
+msgid "Vivaldi — history & cookies"
+msgstr ""
+
+#. priv_browser_vivaldi description
+msgid "Browsing history, the downloads list and cookies of Vivaldi, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while Vivaldi is running."
+msgstr ""
+
+#. priv_browser_opera label
+msgid "Opera — history & cookies"
+msgstr ""
+
+#. priv_browser_opera description
+msgid "Browsing history, the downloads list and cookies of Opera, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while Opera is running."
+msgstr ""
+
 #. ai_claude_cache label
 msgid "Claude Code — cache & logs"
 msgstr ""
