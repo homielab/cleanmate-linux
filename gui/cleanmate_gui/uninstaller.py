@@ -1,12 +1,13 @@
 """Uninstaller: your apps (apt, Snap, Flatpak) with the folders they leave in your home.
 
 The engine lists the apps (`--json apps`, parts of Ubuntu are never listed),
-checks and removes them (`--json uninstall`, apt and Snap through pkexec) and
-moves the chosen leftover folders to the Trash (`--json trash`) once the app
-is gone. Folders of apps removed earlier (`leftover` events) are a group of
+checks and removes them (`--json uninstall`: several at once, apt and Snap
+through one pkexec, running apps skipped) and moves the chosen leftover folders
+to the Trash (`--json trash`) once the app is gone. Folders of apps removed earlier (`leftover` events) are a group of
 their own at the end, never ticked. This page only shows them and keeps the choice.
 """
 import os
+import re
 import time
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
@@ -47,6 +48,10 @@ def used_ago(epoch):
     return ngettext("used {n} year ago", "used {n} years ago", days // 365)
 
 
+def running_text(program):
+    return _("Skipped: {program} is running — close it and try again").format(program=program)
+
+
 def app_icon(desktop_id):
     try:
         info = Gio.DesktopAppInfo.new(desktop_id + ".desktop") if desktop_id else None
@@ -76,6 +81,11 @@ class UninstallerPage(Gtk.Box):
         self.checks = {}  # app id → Gtk.CheckButton
         self.left_checks = {}  # path → Gtk.CheckButton
         self.rows = {}  # app id → its row (filtered by the search)
+        self.all_check = None  # ticks every app shown: none / some (inconsistent) / all
+        self.syncing = False  # the page moves the boxes itself: don't react
+        self.bulk = False  # many boxes change at once: update the summary once at the end
+        self.batch_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)  # the selected apps, when more than one
+        self.batch_rows = {}  # app id → its row in that panel
         self.running = None
         self.busy = False  # listing, checking or uninstalling: nothing else starts
         self.undo_toast = None
@@ -121,6 +131,7 @@ class UninstallerPage(Gtk.Box):
         self.summary = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
         self.bar.pack_start(self.summary)
         self.remove_button = Gtk.Button(label=_("Uninstall"), css_classes=["destructive-action"])
+        self.remove_button.set_tooltip_text(_("Asks once, and for your password once for all apt and Snap apps"))
         self.remove_button.connect("clicked", lambda *_: self.check())
         self.bar.pack_end(self.remove_button)
         again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("List apps again"))
@@ -179,6 +190,7 @@ class UninstallerPage(Gtk.Box):
         self.checks.clear()
         self.left_checks.clear()
         self.rows.clear()
+        self.all_check = None
         self.orphan_checks.clear()
         self.orphan_rows.clear()
         if not self.apps and not self.orphans:
@@ -196,8 +208,15 @@ class UninstallerPage(Gtk.Box):
                                   "{n} parts of Ubuntu itself can't be removed safely and aren't listed.", self.hidden)
         header.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
         self.results.append(header)
+        if self.batch_box.get_parent():
+            self.batch_box.get_parent().remove(self.batch_box)
+        self.results.append(self.batch_box)
         if self.apps:
-            group = Adw.PreferencesGroup()
+            group = Adw.PreferencesGroup(title=_("Apps"))
+            self.all_check = Gtk.CheckButton(label=_("All shown"), valign=Gtk.Align.CENTER, css_classes=["big-check"],
+                                             tooltip_text=_("Select or deselect every app the list shows"))
+            self.all_check.connect("toggled", self.on_all_toggled)
+            group.set_header_suffix(self.all_check)
             biggest = max(a["bytes"] + a["data_bytes"] for a in self.apps.values())
             for a in self.sorted_apps():
                 row = self.app_row(a, biggest)
@@ -361,6 +380,32 @@ class UninstallerPage(Gtk.Box):
                 "{n} app has no last-used date — Show", "{n} apps have no last-used date — Show", undated))
         for path, row in self.orphan_rows.items():
             row.set_visible(not q or q in os.path.basename(path).lower())
+        self.sync_all_check()
+
+    def shown_ids(self):
+        return [i for i, row in self.rows.items() if row.get_visible()]
+
+    def sync_all_check(self):
+        """The box above the list follows the apps shown: none / some (inconsistent) / all."""
+        if not self.all_check:
+            return
+        shown = self.shown_ids()
+        n = sum(1 for i in shown if i in self.selected)
+        self.syncing = True
+        self.all_check.set_sensitive(bool(shown) and not self.busy)
+        self.all_check.set_inconsistent(0 < n < len(shown))
+        self.all_check.set_active(bool(shown) and n == len(shown))
+        self.syncing = False
+
+    def on_all_toggled(self, check):
+        if self.syncing:
+            return
+        target = check.get_active()  # read once: each app re-syncs the box
+        self.bulk = True
+        for i in self.shown_ids():  # apps the search or filter hides keep their tick
+            self.checks[i].set_active(target)
+        self.bulk = False
+        self.update_summary()
 
     def on_unused_changed(self, *_args):
         self.show_undated = False
@@ -382,17 +427,19 @@ class UninstallerPage(Gtk.Box):
             if box:
                 box.set_sensitive(on)
                 box.set_active(on)
-        self.update_summary()
+        if not self.bulk:
+            self.update_summary()
 
     def on_left_toggled(self, check, path):
         if check.get_active():
             self.left_selected.add(path)
         else:
             self.left_selected.discard(path)
-        self.update_summary()
+        if not self.bulk:
+            self.update_summary()
 
     def chosen(self):
-        apps = [self.apps[i] for i in self.selected if i in self.apps]
+        apps = [a for a in self.sorted_apps() if a["id"] in self.selected]  # in the list's order
         folders = [l for a in apps for l in a["leftovers"] if l["path"] in self.left_selected]
         return apps, folders
 
@@ -404,7 +451,49 @@ class UninstallerPage(Gtk.Box):
         if folders:
             text += " + " + ngettext("{n} folder", "{n} folders", len(folders))
         self.summary.set_markup(text)
+        self.remove_button.set_label(ngettext("Uninstall {n} app…", "Uninstall {n} apps…", len(apps))
+                                     if len(apps) > 1 else _("Uninstall"))
         self.remove_button.set_sensitive(bool(apps) and not self.busy)
+        self.sync_all_check()
+        self.update_batch(apps)
+
+    def update_batch(self, apps):
+        """More than one app ticked: a panel at the top with each one, its size and its folders,
+        also those the search or filter hides."""
+        child = self.batch_box.get_first_child()
+        while child:
+            self.batch_box.remove(child)
+            child = self.batch_box.get_first_child()
+        self.batch_rows.clear()
+        if len(apps) < 2:
+            return
+        apps = sorted(apps, key=lambda a: a["name"].lower())
+        sizes = {a["id"]: a["bytes"] + sum(l["bytes"] for l in a["leftovers"] if l["path"] in self.left_selected)
+                 for a in apps}
+        group = Adw.PreferencesGroup(
+            title=ngettext("{n} app selected", "{n} apps selected", len(apps)),
+            description=_("Removed together: one confirmation, and your password once for apt and Snap apps."))
+        biggest = max(sizes.values()) or 1
+        for a in apps:
+            folders = [l for l in a["leftovers"] if l["path"] in self.left_selected]
+            if folders:
+                note = ngettext("{n} folder to the Trash", "{n} folders to the Trash", len(folders))
+            elif a["leftovers"]:
+                note = _("folders kept")
+            else:
+                note = _("no folders in your home")
+            row = Adw.ActionRow(title=a["name"], use_markup=False, css_classes=["item-row"],
+                                subtitle=" · ".join((KIND_LABELS.get(a["kind"], a["kind"]), note)))
+            row.add_prefix(app_icon(a["desktop"]))
+            for widget in size_widgets(sizes[a["id"]], biggest):
+                row.add_suffix(widget)
+            drop = Gtk.Button(icon_name="window-close-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                              tooltip_text=_("Leave this app out"))
+            drop.connect("clicked", lambda _b, i=a["id"]: self.checks[i].set_active(False))
+            row.add_suffix(drop)
+            group.add(row)
+            self.batch_rows[a["id"]] = row
+        self.batch_box.append(group)
 
     # ── uninstalling ──
     def check(self):
@@ -433,18 +522,29 @@ class UninstallerPage(Gtk.Box):
         self.running = self.engine.uninstall([a["id"] for a in apps], on_event, on_done, check=True)
 
     def confirm(self, apps, folders, check):
+        running = {r["id"]: r["program"] for r in check.get("running", [])}
+        if all(a["id"] in running for a in apps):
+            self.window.toast(_("Close {names} first: apps that are running aren't removed.").format(
+                names=", ".join(a["name"] for a in apps)), timeout=8)
+            return
         lines = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         for a in apps[:12]:
             row = Gtk.Box(spacing=12)
             row.append(Gtk.Label(label=a["name"], xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
-            if a["kind"] != "flatpak":
+            if a["id"] in running:
+                row.append(Gtk.Label(label=_("running — skipped"), css_classes=["dim-label"]))
+            elif a["kind"] != "flatpak":
                 row.append(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password")))
             row.append(Gtk.Label(label=human(a["bytes"]), css_classes=["numeric", "dim-label"]))
             lines.append(row)
         if len(apps) > 12:
             lines.append(Gtk.Label(label=_("… and {n} more").format(n=len(apps) - 12), xalign=0, css_classes=["dim-label"]))
-        heading = ngettext("Uninstall {n} app?", "Uninstall {n} apps?", len(apps))
+        heading = ngettext("Uninstall {n} app?", "Uninstall {n} apps?", len(apps) - len(running))
         body = []
+        if running:
+            body.append(ngettext("{n} app is running and will be skipped: {names}.",
+                                 "{n} apps are running and will be skipped: {names}.", len(running),
+                                 names=", ".join(a["name"] for a in apps if a["id"] in running)))
         if check["extra"]:
             heading = ngettext("Also removes {n} other package!", "Also removes {n} other packages!", check["extra"])
             body.append(_("apt will also remove: {packages}.").format(packages=check["extra_text"]))
@@ -454,26 +554,29 @@ class UninstallerPage(Gtk.Box):
                                  size=human(sum(l["bytes"] for l in folders))))
         else:
             body.append(_("Your folders in your home are kept."))
-        if any(a["kind"] != "flatpak" for a in apps):
-            body.append(_("Apps with a lock need your password."))
+        if any(a["kind"] != "flatpak" and a["id"] not in running for a in apps):
+            body.append(_("Apps with a lock need your password, asked once for all of them."))
         dialog = Adw.AlertDialog(heading=heading, body=" ".join(body), extra_child=lines)
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("remove", _("Uninstall"))
         dialog.set_response_appearance("remove", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
-        dialog.connect("response", lambda d, r: r == "remove" and self.uninstall(apps, folders))
+        dialog.connect("response", lambda d, r: r == "remove" and self.uninstall(apps, folders, running))
         dialog.present(self.window)
 
-    def uninstall(self, apps, folders):
+    def uninstall(self, apps, folders, running=None):
+        """Flatpak apps as you, then every apt and Snap app in one engine run through pkexec (one password).
+        `running` (app id → program, from the check) are skipped without asking for a password."""
         if self.busy:
             return
         self.busy = True
         dry = self.engine.dry_run
-        user_ids = [a["id"] for a in apps if a["kind"] == "flatpak"]
+        running = running or {}
+        user_ids = [a["id"] for a in apps if a["kind"] == "flatpak" and a["id"] not in running]
         # apt and Snap need root: the standard password dialog (never in a dry run, which changes nothing)
-        root_ids = [a["id"] for a in apps if a["kind"] != "flatpak"]
-        removed = set()
+        root_ids = [a["id"] for a in apps if a["kind"] != "flatpak" and a["id"] not in running]
+        removed, skipped = set(), set()
         rows = {}
         child = self.work_list.get_first_child()
         while child:
@@ -485,6 +588,7 @@ class UninstallerPage(Gtk.Box):
             row.add_prefix(row.icon)
             self.work_list.append(row)
             rows[a["id"]] = row
+        self.sync_all_check()
         self.work_title.set_text(_("Uninstalling…"))
         self.stack.set_visible_child_name("working")
         self.bar.set_revealed(False)
@@ -496,6 +600,11 @@ class UninstallerPage(Gtk.Box):
             row.icon.set_css_classes([{"ok": "success", "skip": "warning"}.get(state, "error")])
             row.set_subtitle(text)
 
+        for i, program in running.items():
+            if i in rows:
+                set_row(rows[i], "skip", running_text(program))
+                skipped.add(i)
+
         def on_event(e):
             if e["event"] == "error":
                 self.window.toast(e["message"], timeout=8)
@@ -504,8 +613,13 @@ class UninstallerPage(Gtk.Box):
             if e["state"] == "run":
                 rows[e["id"]].set_subtitle(_("removing…"))
                 return
+            info = e["info"]
+            if e["state"] == "skip":  # started after the check
+                skipped.add(e["id"])
+                m = re.match(r"Skipped: (.+) is running", info or "")
+                info = running_text(m.group(1)) if m else info
             set_row(rows[e["id"]], e["state"],
-                    e["info"] or {"ok": _("removed"), "skip": _("skipped")}.get(e["state"], _("failed")))
+                    info or {"ok": _("removed"), "skip": _("skipped")}.get(e["state"], _("failed")))
             if e["state"] == "ok":
                 removed.add(e["id"])
 
@@ -559,6 +673,9 @@ class UninstallerPage(Gtk.Box):
                 if folders_done:
                     msg += ngettext("; moved {n} folder to the Trash", "; moved {n} folders to the Trash",
                                     folders_done)
+            if skipped:
+                msg += ngettext("; {n} app skipped because it is running", "; {n} apps skipped because they are running",
+                                len(skipped))
             self.work_title.set_text(msg)
             if moved:
                 self.undo_toast = self.window.toast(msg, _("Restore folders"), lambda: self.restore(moved), timeout=10)

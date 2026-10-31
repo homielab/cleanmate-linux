@@ -636,7 +636,7 @@ def startup_test(win, report, wait, finish):
     wait(idle, first, 60, "first startup list")
 
 
-STUBS = {  # package tools for the Uninstaller check: gimp (apt), Spotify (Flatpak), BusyBox (part of Ubuntu)
+STUBS = {  # package tools for the Uninstaller: gimp (apt), Spotify (Flatpak), VLC (Snap), BusyBox (part of Ubuntu)
     "dpkg": """#!/bin/sh
 [ "$1" = -S ] || exit 1; shift
 for f; do n=${f##*/}; n=${n%.desktop}; case $n in gimp|busybox) echo "$n: $f" ;; esac; done
@@ -653,23 +653,34 @@ esac
 case "$*" in "-s purge gimp") printf 'Purg gimp [2.10]\\nPurg gimp-data [2.10]\\n' ;; -s*) ;; *) echo "apt-get $*" >>"$HOME/removed.log" ;; esac
 """,
     "flatpak": """#!/bin/sh
-case $1 in list) printf 'com.spotify.Client\\t123.0 MB\\n' ;; uninstall) echo "flatpak $*" >>"$HOME/removed.log" ;; esac
+case $1 in
+  list) printf 'com.spotify.Client\\t123.0 MB\\n' ;;
+  ps) [ -f "$HOME/spotify-runs" ] && echo com.spotify.Client ;;
+  uninstall) echo "flatpak $*" >>"$HOME/removed.log" ;;
+esac
 """,
-    "sudo": "#!/bin/sh\nexit 1\n",
-    "pkexec": "#!/bin/sh\nexit 126\n",  # never a real password prompt
+    "snap": """#!/bin/sh
+case $1 in list) printf 'Name Version Rev\\nvlc 3.0 1\\n' ;; remove) echo "snap $*" >>"$HOME/removed.log" ;; esac
+""",
+    "sudo": "#!/bin/sh\n[ \"$1\" = -n ] && shift\nexec \"$@\"\n",
+    # never a real password prompt: count the prompts, run the engine as you
+    "pkexec": "#!/bin/sh\necho \"pkexec $*\" >>\"$HOME/pkexec.log\"\nexec \"$@\"\n",
 }
 
 
 def uninstaller_test(win, report, wait, finish):
-    """List apps from stub launchers and package tools, select, check, dry-run; then remove the
-    Flatpak app for real (a stub) and put its folder back; the folder of a Flatpak app removed
-    earlier is listed unticked, goes to the Trash and comes back; all in a throwaway home."""
+    """List apps from stub launchers and package tools, select (the box above the list, ticks kept
+    through search, sort and filter), check, dry-run; then remove three apps at once for real (stubs):
+    apt and Snap through one pkexec, the running Flatpak app skipped, and put their folders back;
+    the folder of a Flatpak app removed earlier is listed unticked, goes to the Trash and comes back;
+    all in a throwaway home."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir, apps_dir = (os.path.join(sandbox, d) for d in ("home", "bin", "applications"))
     gone = os.path.join(home, ".var", "app", "org.example.Gone")  # a Flatpak app removed earlier
-    for d in (bin_dir, apps_dir, os.path.join(home, ".config", "GIMP"),
-              os.path.join(home, ".var", "app", "com.spotify.Client"), gone):
+    proc = os.path.join(sandbox, "proc")
+    for d in (bin_dir, apps_dir, os.path.join(home, ".config", "GIMP"), os.path.join(home, "snap", "vlc"),
+              os.path.join(home, ".var", "app", "com.spotify.Client"), gone, proc):
         os.makedirs(d)
     for name, text in STUBS.items():
         with open(os.path.join(bin_dir, name), "w") as f:
@@ -678,16 +689,20 @@ def uninstaller_test(win, report, wait, finish):
     for name, title, exe, extra in (("gimp", "GNU Image Manipulation Program", "gimp-2.10 %U", ""),
                                     ("busybox", "BusyBox", "busybox", ""),
                                     ("com.spotify.Client", "Spotify", "flatpak run com.spotify.Client",
-                                     "X-Flatpak=com.spotify.Client")):
+                                     "X-Flatpak=com.spotify.Client"),
+                                    ("vlc_vlc", "VLC media player", "/snap/bin/vlc %U", "X-SnapInstanceName=vlc")):
         with open(os.path.join(apps_dir, name + ".desktop"), "w") as f:
             f.write(f"[Desktop Entry]\nType=Application\nName={title}\nExec={exe}\n{extra}\n")
     for path in (os.path.join(home, ".config", "GIMP", "gimprc"),
-                 os.path.join(home, ".var", "app", "com.spotify.Client", "data"), os.path.join(gone, "data")):
+                 os.path.join(home, ".var", "app", "com.spotify.Client", "data"), os.path.join(gone, "data"),
+                 os.path.join(home, "snap", "vlc", "data")):
         with open(path, "w") as f:
             f.write("data\n")
     spotify_data = os.path.join(home, ".var", "app", "com.spotify.Client")
+    gimp_data, vlc_data = os.path.join(home, ".config", "GIMP"), os.path.join(home, "snap", "vlc")
     env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
            "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_APP_DIRS": apps_dir,
+           "CLEANMATE_PROC": proc,  # no process of these apps runs (Spotify: `flatpak ps` when asked)
            "CLEANMATE_NO_UPDATE_CHECK": "1", "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
 
     win.show_page("uninstall")
@@ -712,7 +727,7 @@ def uninstaller_test(win, report, wait, finish):
 
     def listed():
         ids = sorted(page.apps)
-        report(ids == ["apt:gimp", "flatpak:com.spotify.Client"] and page.hidden == 1,
+        report(ids == ["apt:gimp", "flatpak:com.spotify.Client", "snap:vlc"] and page.hidden == 1,
                f"apps listed, part of Ubuntu hidden: {ids}, {page.hidden} hidden")
         orphans = [o["path"] for o in page.orphans]
         report(orphans == [gone] and gone in page.orphan_checks and not page.orphan_checks[gone].get_active()
@@ -734,7 +749,33 @@ def uninstaller_test(win, report, wait, finish):
 
     def searched():
         report(page.rows["flatpak:com.spotify.Client"].get_visible(), "search filters the list")
+        page.all_check.set_active(True)
+        report(page.selected == {"flatpak:com.spotify.Client"} and page.all_check.get_active()
+               and not page.all_check.get_inconsistent(), f"the box above the list ticks only the apps shown: {page.selected}")
         page.search_entry.set_text("")
+        wait(lambda: page.rows["apt:gimp"].get_visible(), unsearched, 5, "search cleared")
+
+    def unsearched():
+        report(page.selected == {"flatpak:com.spotify.Client"} and page.all_check.get_inconsistent()
+               and page.checks["flatpak:com.spotify.Client"].get_active(), "ticks stay after the search; the box shows some")
+        page.sort_drop.set_selected(2)  # by name: the list is built again
+        report(page.checks["flatpak:com.spotify.Client"].get_active() and not page.checks["apt:gimp"].get_active()
+               and page.all_check.get_inconsistent(), "ticks stay when sorting")
+        page.all_check.set_active(True)
+        report(len(page.selected) == 3 and page.all_check.get_active() and not page.all_check.get_inconsistent()
+               and page.remove_button.get_label() == ngettext("Uninstall {n} app…", "Uninstall {n} apps…", 3),
+               f"the box above the list ticks every app: {page.remove_button.get_label()}")
+        titles = sorted(row.get_title() for row in page.batch_rows.values())
+        report(page.batch_box.get_first_child() is not None and titles == sorted(a["name"] for a in page.apps.values()),
+               f"more than one app ticked: the panel lists each one: {titles}")
+        page.unused_drop.set_selected(4)  # unused for 12+ months: their folders were just made, so none is shown
+        report(len(page.selected) == 3 and not page.all_check.get_sensitive(),
+               "ticks stay while the filter hides the apps")
+        page.unused_drop.set_selected(0)
+        page.sort_drop.set_selected(0)
+        page.all_check.set_active(False)
+        report(not page.selected and not page.batch_rows and not page.all_check.get_active(),
+               "the box above the list unticks every app shown; no panel")
         now = 1_000_000_000
         day = 86400
         old, recent = {"last_used": now - 100 * day}, {"last_used": now - 10 * day}
@@ -767,38 +808,66 @@ def uninstaller_test(win, report, wait, finish):
             lead("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled")), dry_done, 60, "dry-run uninstall")
 
     def dry_done():
-        dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 1)
+        dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 2)
         if os.geteuid() != 0:  # root: Flatpak refused
-            dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 2) + \
-                ngettext(", {n} folder would be moved to the Trash", ", {n} folders would be moved to the Trash", 2)
+            dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 3) + \
+                ngettext(", {n} folder would be moved to the Trash", ", {n} folders would be moved to the Trash", 3)
         expected = dry
-        report(page.work_title.get_text() == expected and os.path.isdir(spotify_data) and not os.path.exists(os.path.join(home, "removed.log")),
-               f"dry run removes nothing: {page.work_title.get_text()}")
+        report(page.work_title.get_text() == expected and os.path.isdir(spotify_data) and not os.path.exists(os.path.join(home, "removed.log"))
+               and not os.path.exists(os.path.join(home, "pkexec.log")),
+               f"dry run removes nothing and asks no password: {page.work_title.get_text()}")
         if os.geteuid() == 0:
             report(True, "real uninstall skipped: the engine refuses Flatpak and folders as root")
             return done()
         page.engine = Engine(real_engine.path, dry_run=False, env=env)
-        wait(idle, real_run, 30, "list after the dry run")
+        wait(lambda: idle() and page.stack.get_visible_child_name() == "results", real_run, 30, "list after the dry run")
 
     def real_run():
-        page.selected = {"flatpak:com.spotify.Client"}
+        open(os.path.join(home, "spotify-runs"), "w").close()  # `flatpak ps` lists Spotify now
+        checked.clear()
+        page.all_check.set_active(True)
+        page.check()
+        wait(lambda: idle() and checked, real_checked, 60, "check of three apps")
+
+    def real_checked():
+        running = {r["id"]: r["program"] for r in checked.get("running", [])}
+        report(checked.get("ok") and list(running) == ["flatpak:com.spotify.Client"],
+               f"the check names the running app: {running}")
         apps, folders = page.chosen()
-        page.uninstall(apps, folders)
+        report(len(apps) == 3 and len(folders) == 3, f"three apps and their folders chosen: {len(apps)}, {len(folders)}")
+        page.uninstall(apps, folders, running)  # what Uninstall in the dialog does
         wait(lambda: idle() and page.work_title.get_text().startswith(
             lead("Uninstalled {n} app", "Uninstalled {n} apps")), removed, 60, "uninstall")
 
     def removed():
-        log = open(os.path.join(home, "removed.log")).read() if os.path.exists(os.path.join(home, "removed.log")) else ""
-        report("flatpak uninstall -y --noninteractive --delete-data com.spotify.Client" in log
-               and not os.path.exists(spotify_data), "the Flatpak app is removed and its folder moved to the Trash")
+        def text(name):
+            path = os.path.join(home, name)
+            return open(path).read() if os.path.exists(path) else ""
+        log, prompts = text("removed.log"), text("pkexec.log").splitlines()
+        report(len(prompts) == 1 and sorted(prompts[0].split(" uninstall ")[-1].split()) == ["apt:gimp", "snap:vlc"],
+               f"one password for the apt and Snap apps together: {prompts}")
+        report("apt-get purge -y gimp" in log and "snap remove --purge vlc" in log and "flatpak" not in log,
+               f"apt and Snap removed, the running Flatpak app not: {log!r}")
+        skipped = U.running_text("com.spotify.Client")
+        report(os.path.isdir(spotify_data) and not os.path.exists(gimp_data) and not os.path.exists(vlc_data)
+               and page.work_title.get_text().endswith(ngettext("; {n} app skipped because it is running",
+                                                                "; {n} apps skipped because they are running", 1)),
+               f"the folders of the removed apps go to the Trash, the running app's stay: {page.work_title.get_text()}")
+        subtitles = []
+        row = page.work_list.get_first_child()
+        while row:
+            subtitles.append(row.get_subtitle())
+            row = row.get_next_sibling()
+        report(skipped in subtitles, f"the running app says why it was skipped: {subtitles}")
         if not page.undo_toast:
             report(False, "no Restore folders toast after uninstalling")
             return done()
         page.undo_toast.emit("button-clicked")
-        wait(lambda: idle() and os.path.isdir(spotify_data), restored, 60, "restore folders")
+        wait(lambda: idle() and os.path.isdir(gimp_data) and os.path.isdir(vlc_data), restored, 60, "restore folders")
 
     def restored():
-        report(os.path.isdir(spotify_data), "Restore folders in the toast puts the app's folder back")
+        report(os.path.isdir(gimp_data) and os.path.isdir(vlc_data),
+               "Restore folders in the toast puts the folders of all the removed apps back")
         wait(lambda: idle() and gone in page.orphan_checks, trash_orphan, 30, "list after restoring")
 
     def trash_orphan():

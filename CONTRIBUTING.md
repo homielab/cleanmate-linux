@@ -89,6 +89,7 @@ deletion logic in the engine: pages only call `--json` commands (see the protoco
 `/run/media/$USER`, `/mnt`); every folder in it counts as a drive with its own Trash, for tests.
 `CLEANMATE_SYSROOT` makes System protection read `/etc`, `/sys`, `/run` and `/usr/bin` under another folder
 (systemctl and mokutil still come from `PATH`), for tests.
+`CLEANMATE_PROC` replaces `/proc` where the Uninstaller looks for running snaps and apt apps, for tests.
 
 ### Screenshots
 

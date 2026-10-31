@@ -44,7 +44,8 @@ cm() { # run the app non-interactively inside the fake home
     ${CLEANMATE_SYSTEM_AUTOSTART:+CLEANMATE_SYSTEM_AUTOSTART=$CLEANMATE_SYSTEM_AUTOSTART} \
     ${CLEANMATE_VOLUME_ROOTS:+CLEANMATE_VOLUME_ROOTS=$CLEANMATE_VOLUME_ROOTS} \
     ${CLEANMATE_MOUNTS:+CLEANMATE_MOUNTS=$CLEANMATE_MOUNTS} \
-    ${CLEANMATE_SYSROOT:+CLEANMATE_SYSROOT=$CLEANMATE_SYSROOT} bash "$SCRIPT" "$@"
+    ${CLEANMATE_SYSROOT:+CLEANMATE_SYSROOT=$CLEANMATE_SYSROOT} \
+    ${CLEANMATE_PROC:+CLEANMATE_PROC=$CLEANMATE_PROC} bash "$SCRIPT" "$@"
 }
 
 # As root, `--json clean` refuses home items (the desktop app elevates only for
@@ -2135,6 +2136,82 @@ for l in sys.stdin:
   fi
 }
 
+# Several apps at once: apt and Snap each in one command (one password in the
+# desktop app), Flatpak as you; a running app is skipped, and one that fails
+# in a batch doesn't hide the others that are gone.
+test_uninstall_several_apps_at_once() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/appbatch runbin=$WORK/appbatch-run proc=$WORK/appbatch-proc out s
+  app_fixtures "$bin"
+  for s in vlc obs zoom; do
+    printf '[Desktop Entry]\nType=Application\nName=%s\nExec=/snap/bin/%s\nX-SnapInstanceName=%s\n' "$s" "$s" "$s" >"$HOME_DIR/sys/${s}_$s.desktop"
+  done
+  cat >"$bin/snap" <<'EOS'
+#!/bin/sh
+case $1 in
+  list) if [ -n "$2" ]; then ! grep -qx "$2" "$HOME/snaps-gone" 2>/dev/null; exit; fi
+        printf 'Name Version Rev\nvlc 3.0 1\nobs 30 1\nzoom 6 1\n' ;;
+  remove) echo "snap $*" >>"$HOME/removed.log"; shift 2
+          for s; do
+            [ "$s" = zoom ] && [ -f "$HOME/zoom-fails" ] && { echo "error: cannot remove \"zoom\": snap is busy" >&2; exit 1; }
+            echo "$s" >>"$HOME/snaps-gone"
+          done ;;
+esac
+EOS
+  cat >"$bin/flatpak" <<'EOS'
+#!/bin/sh
+case $1 in
+  list) printf 'com.spotify.Client\t123.0 MB\n' ;;
+  ps) [ -f "$HOME/spotify-runs" ] && echo com.spotify.Client ;;
+  uninstall) echo "flatpak $*" >>"$HOME/removed.log" ;;
+esac
+EOS
+  cat >"$bin/dpkg" <<'EOS'
+#!/bin/sh
+case $1 in
+  -L) [ "$2" = gimp ] && printf '/.\n/usr/bin/gimp-2.10\n/usr/share/gimp\n' ;;
+  -S) shift; for f; do n=${f##*/}; n=${n%.desktop}; case $n in gimp|foo|busybox|gnome-control-center) echo "$n: $f" ;; esac; done ;;
+  *) exit 1 ;;
+esac
+EOS
+  printf '#!/bin/sh\n[ "$1" = -n ] && shift\nexec "$@"\n' >"$bin/sudo" # the password was given (pkexec in the desktop app)
+  chmod +x "$bin"/*
+  running_stub "$runbin" gimp-2.10
+  mkdir -p "$proc/4242"
+  echo '0::/user.slice/user-1000.slice/user@1000.service/app.slice/snap.vlc.vlc-6f1c.scope' >"$proc/4242/cgroup"
+  echo vlc >"$proc/4242/comm"
+  local CLEANMATE_APP_DIRS="$HOME_DIR/sys" BASE_PATH="$bin:$BASE_PATH" CLEANMATE_PROC=$WORK/appbatch-none
+  local ev='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "check": print("check", e["ok"], " ".join(r["id"] + "=" + r["program"] for r in e["running"]))
+    elif e["event"] == "task" and e["state"] != "run": print(e["id"], e["state"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])
+    elif e["event"] == "done" and "removed" in e: print("done", e["removed"], e["failed"], e["skipped"])'
+  out=$(cm --json uninstall --check apt:gimp snap:vlc snap:obs | python3 -c "$ev")
+  assert_eq "$out" "check True " "nothing runs"
+  out=$(CLEANMATE_PROC=$proc cm --json uninstall --check apt:gimp snap:vlc snap:obs | python3 -c "$ev")
+  assert_eq "$out" "check True snap:vlc=vlc" "a snap runs: a process in its cgroup"
+  out=$(BASE_PATH="$runbin:$BASE_PATH" cm --json uninstall --check apt:gimp snap:obs | python3 -c "$ev")
+  assert_eq "$out" "check True apt:gimp=gimp-2.10" "an apt app runs: a command of its package"
+  out=$(CLEANMATE_PROC=$proc cm --json uninstall apt:gimp snap:vlc snap:obs snap:zoom | python3 -c "$ev")
+  assert_eq "$out" $'snap:vlc skip Skipped: vlc is running — close it and try again\napt:gimp ok uninstalled\nsnap:obs ok uninstalled\nsnap:zoom ok uninstalled\ndone 3 0 1' \
+    "the running snap skipped, the others removed"
+  assert_eq "$(cat "$HOME_DIR/removed.log")" $'apt-get purge -y gimp\nsnap remove --purge obs zoom' "one apt and one snap command for all of them"
+  rm -- "$HOME_DIR/removed.log" "$HOME_DIR/snaps-gone"
+  touch "$HOME_DIR/zoom-fails"
+  out=$(cm --json uninstall snap:obs snap:zoom snap:vlc | python3 -c "$ev")
+  assert_eq "$out" $'snap:obs ok uninstalled\nsnap:zoom fail error: cannot remove "zoom": snap is busy\nsnap:vlc fail error: cannot remove "zoom": snap is busy\ndone 1 2 0' \
+    "a failed batch: what is gone counts as removed, the rest says why"
+  rm -- "$HOME_DIR/removed.log"
+  touch "$HOME_DIR/spotify-runs"
+  out=$(user_cm --json uninstall flatpak:com.spotify.Client | python3 -c "$ev")
+  assert_eq "$out" $'flatpak:com.spotify.Client skip Skipped: com.spotify.Client is running — close it and try again\ndone 0 0 1' \
+    "a running Flatpak app is skipped"
+  assert_missing "$HOME_DIR/removed.log"
+}
+
 test_leftovers_of_removed_apps() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -2246,7 +2323,12 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "apps listed, part of Ubuntu hidden"
     assert_contains "$out" "ticking an app ticks its leftover folder"
     assert_contains "$out" "dry run removes nothing"
-    ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the app's folder back"
+    assert_contains "$out" "the box above the list ticks only the apps shown"
+    assert_contains "$out" "ticks stay after the search; the box shows some"
+    assert_contains "$out" "more than one app ticked: the panel lists each one"
+    ((EUID == 0)) || assert_contains "$out" "one password for the apt and Snap apps together"
+    ((EUID == 0)) || assert_contains "$out" "the running app says why it was skipped"
+    ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the folders of all the removed apps back"
     ((EUID == 0)) || assert_contains "$out" "a changed number and switch are saved for the terminal app"
     ((EUID == 0)) || assert_contains "$out" "turning automatic cleaning on enables the weekly timer"
     ((EUID == 0)) || assert_contains "$out" "picking Tiếng Việt saves it and offers a restart"

@@ -5183,9 +5183,55 @@ task_uninstall() { # SRC:ID[:INDEX]
   local src=${1%%:*} id=${1#*:}
   id=${id%%:*}
   case $src in
-    apt*) run_root env DEBIAN_FRONTEND=noninteractive apt-get purge -y "$id" ;;
-    snap) run_root snap remove --purge "$id" ;;
+    apt*) uninstall_batch apt "$id" ;;
+    snap) uninstall_batch snap "$id" ;;
     flatpak) run flatpak uninstall -y --noninteractive --delete-data "$id" ;;
+  esac
+}
+
+uninstall_batch() { # apt|snap ID… — one command removes them all (needs root)
+  local src=$1
+  shift
+  case $src in
+    apt) run_root env DEBIAN_FRONTEND=noninteractive apt-get purge -y "$@" ;;
+    snap) run_root snap remove --purge "$@" ;;
+  esac
+}
+
+app_installed() { # SRC ID → still installed? (after a removal that failed, some apps of the batch may be gone)
+  local s
+  case $1 in
+    apt) s=$(dpkg-query -W -f='${db:Status-Abbrev}' "$2" 2>/dev/null) && [[ $s =~ ^.[^nc] ]] ;;
+    snap) snap list "$2" >/dev/null 2>&1 ;;
+    flatpak) flatpak info "$2" >/dev/null 2>&1 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Removing an app while it runs can lose what is open in it, so a running app
+# is skipped. Flatpak says which apps run (`flatpak ps`); a snap's processes
+# sit in its own cgroups (snap.NAME.APP-….scope); an apt app runs a file of
+# its package, or a command it ships under that name (a script).
+PROC_DIR=${CLEANMATE_PROC:-/proc} # tests: a fake process table
+app_running() { # SRC ID → the name of its running program; fails when none runs
+  local src=$1 id=$2 files f re
+  case $src in
+    flatpak)
+      have flatpak && flatpak ps --columns=application 2>/dev/null | grep -qxF -- "$id" || return 1
+      printf '%s\n' "$id" ;;
+    snap)
+      f=$(grep -lsE "(^|/)snap\.${id//./\\.}\.[^/]+\.(scope|service)\$" "$PROC_DIR"/[0-9]*/cgroup 2>/dev/null | head -n 1)
+      [[ -n $f ]] || return 1
+      f=$(head -c 64 "${f%/cgroup}/comm" 2>/dev/null)
+      printf '%s\n' "${f:-$id}" ;;
+    apt)
+      have dpkg && files=$(dpkg -L "$id" 2>/dev/null | grep '^/') && [[ -n $files ]] || return 1
+      f=$(find "$PROC_DIR"/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null | grep -m1 -xF -f <(printf '%s\n' "$files"))
+      [[ -n $f ]] && { printf '%s\n' "${f##*/}"; return 0; }
+      re=$(grep -E '^/(usr/)?(s?bin|games)/[^/]+$' <<<"$files" | sed 's|.*/||; s/^\(.\{15\}\).*/\1/; s/[][\.*^$+?(){}|]/\\&/g' |
+        sort -u | paste -sd'|' -) # the kernel keeps 15 characters of a program's name
+      [[ -n $re ]] && running_proc -x "($re)" ;;
+    *) return 1 ;;
   esac
 }
 
@@ -8276,8 +8322,9 @@ json_activity() { # [--limit N] — the activity log the terminal app shows, new
 #
 # `apps` lists exactly what the terminal app's Uninstaller offers (parts of
 # Ubuntu are never listed), and `uninstall` only removes apps on that list.
-# apt and Snap need root (the app runs this through pkexec); Flatpak apps are
-# removed as you. Leftover folders go to the Trash with `trash`, as you, after
+# apt and Snap need root (the app runs this through pkexec), and each takes
+# one command for all of its apps; Flatpak apps are removed as you. An app that
+# is running is skipped (`check` lists them). Leftover folders go to the Trash with `trash`, as you, after
 # the app is gone. After the apps, `leftover` events list the folders of apps
 # that are already gone (`orphan_folders`), offered for the Trash on their own.
 
@@ -8305,9 +8352,9 @@ json_apps() {
   printf '{"event":"done","hidden":%d}\n' "$hidden"
 }
 
-json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only says what apt would do
-  local check=0 a src id apt=() out rc why gone=0 failed=0 msg extra
-  local -A known=()
+json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only says what apt would do and what runs
+  local check=0 a src id apt=() ids=() out rc why gone=0 failed=0 skipped=0 msg extra prog jr="" ji jp
+  local -A known=() busy=() rc_of=() out_of=()
   [[ ${1:-} == --check ]] && { check=1; shift; }
   (($#)) || { json_error "No apps given."; return 2; }
   while IFS=$'\t' read -r src id _; do [[ $src == '#hidden' ]] || known[$src:$id]=1; done < <(app_inventory 2>/dev/null)
@@ -8315,8 +8362,14 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
     [[ -n ${known[$a]:-} ]] || { json_error "Not an app CleanMate can remove: $a"; return 2; }
     src=${a%%:*}
     if ((EUID == 0 && !check)) && [[ $src == flatpak ]]; then json_error "Flatpak apps are removed as you, not as root: $a"; return 2; fi
-    [[ $src == apt ]] && apt+=("${a#*:}")
   done
+  for a in "$@"; do # a running app is skipped
+    prog=$(app_running "${a%%:*}" "${a#*:}") || continue
+    busy[$a]=$prog
+    json_str ji "$a"; json_str jp "$prog"
+    jr+="${jr:+,}{\"id\":$ji,\"program\":$jp}"
+  done
+  for a in "$@"; do [[ ${a%%:*} == apt && -z ${busy[$a]:-} ]] && apt+=("${a#*:}"); done
   msg="" extra=0
   if ((${#apt[@]})); then # simulate first: apt may refuse, or take other packages with it
     if apt_check_removal "${apt[@]}"; then extra=$APT_EXTRA_N; else msg=$APT_ERR; fi
@@ -8324,23 +8377,39 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
   if ((check)); then
     local jm je
     json_str jm "$msg"; json_str je "$( ((extra)) && printf '%s' "$APT_EXTRA_TEXT")"
-    printf '{"event":"check","ok":%s,"message":%s,"extra":%d,"extra_text":%s}\n{"event":"done"}\n' \
-      "$([[ -z $msg ]] && echo true || echo false)" "$jm" "$extra" "$je"
+    printf '{"event":"check","ok":%s,"message":%s,"extra":%d,"extra_text":%s,"running":[%s]}\n{"event":"done"}\n' \
+      "$([[ -z $msg ]] && echo true || echo false)" "$jm" "$extra" "$je" "$jr"
     return
   fi
   [[ -z $msg ]] || { json_error "$msg"; return 2; }
   for a in "$@"; do
-    json_file_task "$a" run "" 0
-    out=$(task_uninstall "$a" 2>&1 </dev/null); rc=$?
-    if ((rc == 0)); then
-      json_file_task "$a" ok "$( ((DRY_RUN)) && echo "would be uninstalled" || echo "uninstalled")" 0; ((++gone))
-    else
-      why=$(grep -v '^\s*$' <<<"$out" | tail -n 1)
-      json_file_task "$a" fail "${why:-failed (exit $rc)}" 0; ((++failed))
-      log "json uninstall $a failed: $why"
-    fi
+    [[ -n ${busy[$a]:-} ]] || continue
+    json_file_task "$a" skip "Skipped: ${busy[$a]} is running — close it and try again" 0; ((++skipped))
   done
-  printf '{"event":"done","removed":%d,"failed":%d}\n' "$gone" "$failed"
+  for src in apt snap flatpak; do # apt and Snap: one command for all of them; Flatpak one by one
+    ids=() rc_of=() out_of=()
+    for a in "$@"; do [[ ${a%%:*} == "$src" && -z ${busy[$a]:-} ]] && ids+=("${a#*:}"); done
+    ((${#ids[@]})) || continue
+    for id in "${ids[@]}"; do json_file_task "$src:$id" run "" 0; done
+    if [[ $src == flatpak ]]; then
+      for id in "${ids[@]}"; do out_of[$id]=$(task_uninstall "flatpak:$id" 2>&1 </dev/null); rc_of[$id]=$?; done
+    else
+      out=$(uninstall_batch "$src" "${ids[@]}" 2>&1 </dev/null); rc=$?
+      for id in "${ids[@]}"; do out_of[$id]=$out rc_of[$id]=$rc; done
+    fi
+    for id in "${ids[@]}"; do
+      rc=${rc_of[$id]}
+      ((rc == 0 || DRY_RUN)) || app_installed "$src" "$id" || rc=0 # the batch failed, but this one is gone
+      if ((rc == 0)); then
+        json_file_task "$src:$id" ok "$( ((DRY_RUN)) && echo "would be uninstalled" || echo "uninstalled")" 0; ((++gone))
+      else
+        why=$(grep -v '^\s*$' <<<"${out_of[$id]}" | tail -n 1)
+        json_file_task "$src:$id" fail "${why:-failed (exit $rc)}" 0; ((++failed))
+        log "json uninstall $src:$id failed: $why"
+      fi
+    done
+  done
+  printf '{"event":"done","removed":%d,"failed":%d,"skipped":%d}\n' "$gone" "$failed" "$skipped"
 }
 
 # Maintenance: `maintenance` lists the items with their state, `maintain ID` runs

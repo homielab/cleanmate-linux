@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 23:53+0000\n"
+"POT-Creation-Date: 2026-10-31 09:43+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -55,7 +55,7 @@ msgstr "Hãy thử kích thước nhỏ hơn hoặc thư mục khác."
 #: gui/cleanmate_gui/duplicates.py:103 gui/cleanmate_gui/duplicates.py:325
 #: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:279
 #: gui/cleanmate_gui/spacelens.py:89 gui/cleanmate_gui/spacelens.py:365
-#: gui/cleanmate_gui/uninstaller.py:271 gui/cleanmate_gui/uninstaller.py:307
+#: gui/cleanmate_gui/uninstaller.py:290 gui/cleanmate_gui/uninstaller.py:326
 msgid "Move to Trash"
 msgstr "Chuyển vào Thùng rác"
 
@@ -150,7 +150,7 @@ msgstr[0] "Đã chọn mọi bản của {n} tệp: sẽ không giữ lại bả
 
 #: gui/cleanmate_gui/duplicates.py:318 gui/cleanmate_gui/largefiles.py:272
 #: gui/cleanmate_gui/scanpage.py:432 gui/cleanmate_gui/spacelens.py:358
-#: gui/cleanmate_gui/uninstaller.py:445
+#: gui/cleanmate_gui/uninstaller.py:541
 #, python-brace-format
 msgid "… and {n} more"
 msgstr "… và {n} mục khác"
@@ -173,7 +173,7 @@ msgstr ""
 #: gui/cleanmate_gui/duplicates.py:324 gui/cleanmate_gui/largefiles.py:278
 #: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:443
 #: gui/cleanmate_gui/settings.py:376 gui/cleanmate_gui/spacelens.py:364
-#: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:460
+#: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:560
 msgid "Cancel"
 msgstr "Huỷ"
 
@@ -203,13 +203,13 @@ msgstr[0] "{n} tệp không chuyển được: {reason}"
 
 #: gui/cleanmate_gui/duplicates.py:376 gui/cleanmate_gui/largefiles.py:329
 #: gui/cleanmate_gui/scanpage.py:537 gui/cleanmate_gui/spacelens.py:417
-#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/uninstaller.py:340
+#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/uninstaller.py:359
 msgid "Undo"
 msgstr "Hoàn tác"
 
 #: gui/cleanmate_gui/duplicates.py:412 gui/cleanmate_gui/largefiles.py:365
 #: gui/cleanmate_gui/scanpage.py:573 gui/cleanmate_gui/spacelens.py:450
-#: gui/cleanmate_gui/uninstaller.py:595
+#: gui/cleanmate_gui/uninstaller.py:712
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
 msgstr "Đã trả lại {back}, {failed} không khôi phục được: {reason}"
@@ -486,8 +486,8 @@ msgstr ""
 "journal)"
 
 #: gui/cleanmate_gui/maintenance.py:197 gui/cleanmate_gui/scanpage.py:232
-#: gui/cleanmate_gui/scanpage.py:249 gui/cleanmate_gui/uninstaller.py:224
-#: gui/cleanmate_gui/uninstaller.py:441
+#: gui/cleanmate_gui/scanpage.py:249 gui/cleanmate_gui/uninstaller.py:243
+#: gui/cleanmate_gui/uninstaller.py:537
 msgid "Needs your password"
 msgstr "Cần mật khẩu của bạn"
 
@@ -1130,7 +1130,7 @@ msgid ""
 msgstr "Mục vào Thùng rác hoàn tác được trong 10 giây; mục khác bị xoá hẳn."
 
 #: gui/cleanmate_gui/scanpage.py:471 gui/cleanmate_gui/scanpage.py:515
-#: gui/cleanmate_gui/uninstaller.py:483 gui/cleanmate_gui/uninstaller.py:522
+#: gui/cleanmate_gui/uninstaller.py:586 gui/cleanmate_gui/uninstaller.py:636
 msgid "waiting"
 msgstr "đang chờ"
 
@@ -1146,20 +1146,20 @@ msgstr "đang xử lý…"
 msgid "done"
 msgstr "xong"
 
-#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:508
+#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:622
 msgid "skipped"
 msgstr "bỏ qua"
 
-#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:508
+#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:622
 msgid "failed"
 msgstr "thất bại"
 
 #: gui/cleanmate_gui/scanpage.py:508 gui/cleanmate_gui/scanpage.py:515
-#: gui/cleanmate_gui/uninstaller.py:516 gui/cleanmate_gui/uninstaller.py:522
+#: gui/cleanmate_gui/uninstaller.py:630 gui/cleanmate_gui/uninstaller.py:636
 msgid "waiting for your password…"
 msgstr "đang chờ mật khẩu của bạn…"
 
-#: gui/cleanmate_gui/scanpage.py:518 gui/cleanmate_gui/uninstaller.py:524
+#: gui/cleanmate_gui/scanpage.py:518 gui/cleanmate_gui/uninstaller.py:638
 msgid "Skipped — no password was entered"
 msgstr "Đã bỏ qua — chưa nhập mật khẩu"
 
@@ -1657,7 +1657,7 @@ msgstr ""
 "Càng ít app khi đăng nhập thì máy khởi động càng nhanh. Tắt một app không gỡ "
 "cài đặt nó."
 
-#: gui/cleanmate_gui/startup.py:120
+#: gui/cleanmate_gui/startup.py:120 gui/cleanmate_gui/uninstaller.py:215
 msgid "Apps"
 msgstr "Ứng dụng"
 
@@ -1748,120 +1748,130 @@ msgstr "Không trả lại được {name}: {reason}"
 msgid "{name} is back"
 msgstr "Đã trả lại {name}"
 
-#: gui/cleanmate_gui/uninstaller.py:19
+#: gui/cleanmate_gui/uninstaller.py:20
 msgid "Size"
 msgstr "Kích thước"
 
-#: gui/cleanmate_gui/uninstaller.py:19
+#: gui/cleanmate_gui/uninstaller.py:20
 msgid "Last used"
 msgstr "Lần dùng cuối"
 
-#: gui/cleanmate_gui/uninstaller.py:19
+#: gui/cleanmate_gui/uninstaller.py:20
 msgid "Name"
 msgstr "Tên"
 
 #
-#: gui/cleanmate_gui/uninstaller.py:20
+#: gui/cleanmate_gui/uninstaller.py:21
 msgid "All apps"
 msgstr "Tất cả ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:20
+#: gui/cleanmate_gui/uninstaller.py:21
 msgid "Unused for 1+ month"
 msgstr "Chưa dùng ≥ 1 tháng"
 
-#: gui/cleanmate_gui/uninstaller.py:20
+#: gui/cleanmate_gui/uninstaller.py:21
 msgid "Unused for 3+ months"
 msgstr "Chưa dùng ≥ 3 tháng"
 
-#: gui/cleanmate_gui/uninstaller.py:21
+#: gui/cleanmate_gui/uninstaller.py:22
 msgid "Unused for 6+ months"
 msgstr "Chưa dùng ≥ 6 tháng"
 
-#: gui/cleanmate_gui/uninstaller.py:21
+#: gui/cleanmate_gui/uninstaller.py:22
 msgid "Unused for 12+ months"
 msgstr "Chưa dùng ≥ 12 tháng"
 
-#: gui/cleanmate_gui/uninstaller.py:23
+#: gui/cleanmate_gui/uninstaller.py:24
 msgid "This Flatpak app is no longer installed"
 msgstr "Ứng dụng Flatpak này không còn được cài"
 
-#: gui/cleanmate_gui/uninstaller.py:24
+#: gui/cleanmate_gui/uninstaller.py:25
 msgid "This snap is no longer installed"
 msgstr "Snap này không còn được cài"
 
-#: gui/cleanmate_gui/uninstaller.py:39
+#: gui/cleanmate_gui/uninstaller.py:40
 msgid "last use unknown"
 msgstr "Không rõ"
 
-#: gui/cleanmate_gui/uninstaller.py:42
+#: gui/cleanmate_gui/uninstaller.py:43
 msgid "used today"
 msgstr "dùng hôm nay"
 
-#: gui/cleanmate_gui/uninstaller.py:44
+#: gui/cleanmate_gui/uninstaller.py:45
 #, python-brace-format
 msgid "used {n} day ago"
 msgid_plural "used {n} days ago"
 msgstr[0] "dùng {n} ngày trước"
 
-#: gui/cleanmate_gui/uninstaller.py:46
+#: gui/cleanmate_gui/uninstaller.py:47
 #, python-brace-format
 msgid "used {n} month ago"
 msgid_plural "used {n} months ago"
 msgstr[0] "dùng {n} tháng trước"
 
-#: gui/cleanmate_gui/uninstaller.py:47
+#: gui/cleanmate_gui/uninstaller.py:48
 #, python-brace-format
 msgid "used {n} year ago"
 msgid_plural "used {n} years ago"
 msgstr[0] "dùng {n} năm trước"
 
-#: gui/cleanmate_gui/uninstaller.py:84
+#: gui/cleanmate_gui/uninstaller.py:52
+#, python-brace-format
+msgid "Skipped: {program} is running — close it and try again"
+msgstr "Đã bỏ qua: {program} đang chạy — hãy đóng nó rồi thử lại"
+
+#: gui/cleanmate_gui/uninstaller.py:94
 msgid "Search apps"
 msgstr "Tìm ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:87
+#: gui/cleanmate_gui/uninstaller.py:97
 msgid "Sort by"
 msgstr "Sắp xếp theo"
 
-#: gui/cleanmate_gui/uninstaller.py:91
+#: gui/cleanmate_gui/uninstaller.py:101
 msgid "Filter by last use"
 msgstr "Lọc theo lần dùng cuối"
 
-#: gui/cleanmate_gui/uninstaller.py:102
+#: gui/cleanmate_gui/uninstaller.py:112
 msgid "Finding your apps…"
 msgstr "Đang tìm ứng dụng của bạn…"
 
-#: gui/cleanmate_gui/uninstaller.py:103
+#: gui/cleanmate_gui/uninstaller.py:113
 msgid "And the space each one uses."
 msgstr "Và dung lượng mỗi ứng dụng chiếm."
 
-#: gui/cleanmate_gui/uninstaller.py:104
+#: gui/cleanmate_gui/uninstaller.py:114
 msgid "No apps found"
 msgstr "Không tìm thấy ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:105
+#: gui/cleanmate_gui/uninstaller.py:115
 msgid "Only apps with a launcher are listed."
 msgstr "Chỉ liệt kê ứng dụng có biểu tượng khởi chạy."
 
-#: gui/cleanmate_gui/uninstaller.py:123 gui/cleanmate_gui/uninstaller.py:461
+#: gui/cleanmate_gui/uninstaller.py:133 gui/cleanmate_gui/uninstaller.py:455
+#: gui/cleanmate_gui/uninstaller.py:561
 msgid "Uninstall"
 msgstr "Gỡ cài đặt"
 
-#: gui/cleanmate_gui/uninstaller.py:126
+#: gui/cleanmate_gui/uninstaller.py:134
+msgid "Asks once, and for your password once for all apt and Snap apps"
+msgstr "Hỏi một lần, và hỏi mật khẩu một lần cho mọi ứng dụng apt và Snap"
+
+#: gui/cleanmate_gui/uninstaller.py:137
 msgid "List apps again"
 msgstr "Liệt kê lại ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:190
+#: gui/cleanmate_gui/uninstaller.py:202
 #, python-brace-format
 msgid "{n} app · {size}"
 msgid_plural "{n} apps · {size}"
 msgstr[0] "{n} ứng dụng · {size}"
 
-#: gui/cleanmate_gui/uninstaller.py:193
+#: gui/cleanmate_gui/uninstaller.py:205
 msgid "Size = the app + its folders in your home."
 msgstr "Kích thước = ứng dụng + các thư mục của nó trong thư mục nhà."
 
-#: gui/cleanmate_gui/uninstaller.py:195
+#: gui/cleanmate_gui/uninstaller.py:207
 #, python-brace-format
 msgid "{n} part of Ubuntu itself can't be removed safely and isn't listed."
 msgid_plural ""
@@ -1869,7 +1879,15 @@ msgid_plural ""
 msgstr[0] ""
 "{n} thành phần của chính Ubuntu không thể gỡ an toàn nên không được liệt kê."
 
-#: gui/cleanmate_gui/uninstaller.py:221
+#: gui/cleanmate_gui/uninstaller.py:216
+msgid "All shown"
+msgstr "Tất cả đang hiện"
+
+#: gui/cleanmate_gui/uninstaller.py:217
+msgid "Select or deselect every app the list shows"
+msgstr "Chọn hoặc bỏ chọn mọi ứng dụng danh sách đang hiện"
+
+#: gui/cleanmate_gui/uninstaller.py:240
 #, python-brace-format
 msgid ""
 "{kind} package {package}\n"
@@ -1878,19 +1896,19 @@ msgstr ""
 "Gói {kind} {package}\n"
 "Ứng dụng {size} · dữ liệu của bạn {data}"
 
-#: gui/cleanmate_gui/uninstaller.py:251
+#: gui/cleanmate_gui/uninstaller.py:270
 msgid "Moved to the Trash after uninstalling"
 msgstr "Chuyển vào Thùng rác sau khi gỡ"
 
-#: gui/cleanmate_gui/uninstaller.py:255
+#: gui/cleanmate_gui/uninstaller.py:274
 msgid "Also move this folder to the Trash"
 msgstr "Chuyển cả thư mục này vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:268
+#: gui/cleanmate_gui/uninstaller.py:287
 msgid "Leftovers of removed apps"
 msgstr "Dữ liệu còn sót của ứng dụng đã gỡ"
 
-#: gui/cleanmate_gui/uninstaller.py:269
+#: gui/cleanmate_gui/uninstaller.py:288
 msgid ""
 "Folders in your home that no installed app uses. Nothing is ticked; they go "
 "to the Trash, so you can put them back."
@@ -1899,125 +1917,182 @@ msgstr ""
 "Không mục nào được chọn sẵn; chúng được chuyển vào Thùng rác nên bạn có thể "
 "khôi phục."
 
-#: gui/cleanmate_gui/uninstaller.py:279
+#: gui/cleanmate_gui/uninstaller.py:298
 msgid "No app with this name is installed"
 msgstr "Không có ứng dụng nào tên này đang được cài"
 
-#: gui/cleanmate_gui/uninstaller.py:307
+#: gui/cleanmate_gui/uninstaller.py:326
 #, python-brace-format
 msgid "Move {size} to Trash"
 msgstr "Chuyển {size} vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:336
+#: gui/cleanmate_gui/uninstaller.py:355
 #, python-brace-format
 msgid "Dry run: {n} folder would be moved to the Trash"
 msgid_plural "Dry run: {n} folders would be moved to the Trash"
 msgstr[0] "Chạy thử: {n} thư mục sẽ được chuyển vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:339
+#: gui/cleanmate_gui/uninstaller.py:358
 #, python-brace-format
 msgid "Moved {n} folder to the Trash"
 msgid_plural "Moved {n} folders to the Trash"
 msgstr[0] "Đã chuyển {n} thư mục vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:361
+#: gui/cleanmate_gui/uninstaller.py:380
 #, python-brace-format
 msgid "{n} app has no last-used date — Show"
 msgid_plural "{n} apps have no last-used date — Show"
 msgstr[0] "{n} ứng dụng không có ngày mở — Hiện"
 
-#: gui/cleanmate_gui/uninstaller.py:402
+#: gui/cleanmate_gui/uninstaller.py:449
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} app"
 msgid_plural "Selected <b>{size}</b> in {n} apps"
 msgstr[0] "Đã chọn <b>{size}</b> trong {n} ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:405
+#: gui/cleanmate_gui/uninstaller.py:452
 #, python-brace-format
 msgid "{n} folder"
 msgid_plural "{n} folders"
 msgstr[0] "{n} thư mục"
 
-#: gui/cleanmate_gui/uninstaller.py:430
+#: gui/cleanmate_gui/uninstaller.py:454
+#, python-brace-format
+msgid "Uninstall {n} app…"
+msgid_plural "Uninstall {n} apps…"
+msgstr[0] "Gỡ {n} ứng dụng…"
+
+#: gui/cleanmate_gui/uninstaller.py:474
+#, python-brace-format
+msgid "{n} app selected"
+msgid_plural "{n} apps selected"
+msgstr[0] "Đã chọn {n} ứng dụng"
+
+#: gui/cleanmate_gui/uninstaller.py:475
+msgid ""
+"Removed together: one confirmation, and your password once for apt and Snap "
+"apps."
+msgstr "Gỡ cùng lúc: một lần xác nhận, và nhập mật khẩu một lần cho các ứng dụng apt và Snap."
+
+#: gui/cleanmate_gui/uninstaller.py:480
+#, python-brace-format
+msgid "{n} folder to the Trash"
+msgid_plural "{n} folders to the Trash"
+msgstr[0] "{n} thư mục vào Thùng rác"
+
+#: gui/cleanmate_gui/uninstaller.py:482
+msgid "folders kept"
+msgstr "giữ thư mục"
+
+#: gui/cleanmate_gui/uninstaller.py:484
+msgid "no folders in your home"
+msgstr "không có thư mục trong thư mục riêng"
+
+#: gui/cleanmate_gui/uninstaller.py:491
+msgid "Leave this app out"
+msgstr "Bỏ ứng dụng này ra"
+
+#: gui/cleanmate_gui/uninstaller.py:519
 msgid "Couldn't check what removing these apps does."
 msgstr "Không kiểm tra được việc gỡ các ứng dụng này sẽ ảnh hưởng gì."
 
-#: gui/cleanmate_gui/uninstaller.py:446
+#: gui/cleanmate_gui/uninstaller.py:527
+#, python-brace-format
+msgid "Close {names} first: apps that are running aren't removed."
+msgstr "Hãy đóng {names} trước: ứng dụng đang chạy sẽ không bị gỡ."
+
+#: gui/cleanmate_gui/uninstaller.py:535
+msgid "running — skipped"
+msgstr "đang chạy — bỏ qua"
+
+#: gui/cleanmate_gui/uninstaller.py:542
 #, python-brace-format
 msgid "Uninstall {n} app?"
 msgid_plural "Uninstall {n} apps?"
 msgstr[0] "Gỡ {n} ứng dụng?"
 
-#: gui/cleanmate_gui/uninstaller.py:449
+#: gui/cleanmate_gui/uninstaller.py:545
+#, python-brace-format
+msgid "{n} app is running and will be skipped: {names}."
+msgid_plural "{n} apps are running and will be skipped: {names}."
+msgstr[0] "{n} ứng dụng đang chạy và sẽ được bỏ qua: {names}."
+
+#: gui/cleanmate_gui/uninstaller.py:549
 #, python-brace-format
 msgid "Also removes {n} other package!"
 msgid_plural "Also removes {n} other packages!"
 msgstr[0] "Sẽ gỡ thêm {n} gói khác!"
 
-#: gui/cleanmate_gui/uninstaller.py:450
+#: gui/cleanmate_gui/uninstaller.py:550
 #, python-brace-format
 msgid "apt will also remove: {packages}."
 msgstr "apt sẽ gỡ thêm: {packages}."
 
-#: gui/cleanmate_gui/uninstaller.py:452
+#: gui/cleanmate_gui/uninstaller.py:552
 #, python-brace-format
 msgid "{n} folder ({size}) will go to the Trash — you can undo that."
 msgid_plural "{n} folders ({size}) will go to the Trash — you can undo that."
 msgstr[0] "{n} thư mục ({size}) sẽ vào Thùng rác — bạn có thể hoàn tác."
 
-#: gui/cleanmate_gui/uninstaller.py:456
+#: gui/cleanmate_gui/uninstaller.py:556
 msgid "Your folders in your home are kept."
 msgstr "Các thư mục của bạn trong thư mục nhà được giữ lại."
 
-#: gui/cleanmate_gui/uninstaller.py:458
-msgid "Apps with a lock need your password."
-msgstr "Ứng dụng có ổ khoá cần mật khẩu của bạn."
+#: gui/cleanmate_gui/uninstaller.py:558
+msgid "Apps with a lock need your password, asked once for all of them."
+msgstr "Ứng dụng có ổ khoá cần mật khẩu của bạn, chỉ hỏi một lần cho tất cả."
 
-#: gui/cleanmate_gui/uninstaller.py:488
+#: gui/cleanmate_gui/uninstaller.py:592
 msgid "Uninstalling…"
 msgstr "Đang gỡ cài đặt…"
 
-#: gui/cleanmate_gui/uninstaller.py:505 gui/cleanmate_gui/uninstaller.py:522
+#: gui/cleanmate_gui/uninstaller.py:614 gui/cleanmate_gui/uninstaller.py:636
 msgid "removing…"
 msgstr "đang gỡ…"
 
-#: gui/cleanmate_gui/uninstaller.py:508
+#: gui/cleanmate_gui/uninstaller.py:622
 msgid "removed"
 msgstr "đã gỡ"
 
-#: gui/cleanmate_gui/uninstaller.py:526
+#: gui/cleanmate_gui/uninstaller.py:640
 msgid "Not removed"
 msgstr "Chưa gỡ được"
 
-#: gui/cleanmate_gui/uninstaller.py:553
+#: gui/cleanmate_gui/uninstaller.py:667
 #, python-brace-format
 msgid "Dry run: {n} app would be uninstalled"
 msgid_plural "Dry run: {n} apps would be uninstalled"
 msgstr[0] "Chạy thử: {n} ứng dụng sẽ được gỡ"
 
-#: gui/cleanmate_gui/uninstaller.py:555
+#: gui/cleanmate_gui/uninstaller.py:669
 #, python-brace-format
 msgid ", {n} folder would be moved to the Trash"
 msgid_plural ", {n} folders would be moved to the Trash"
 msgstr[0] ", {n} thư mục sẽ được chuyển vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:558
+#: gui/cleanmate_gui/uninstaller.py:672
 #, python-brace-format
 msgid "Uninstalled {n} app"
 msgid_plural "Uninstalled {n} apps"
 msgstr[0] "Đã gỡ {n} ứng dụng"
 
-#: gui/cleanmate_gui/uninstaller.py:560
+#: gui/cleanmate_gui/uninstaller.py:674
 #, python-brace-format
 msgid "; moved {n} folder to the Trash"
 msgid_plural "; moved {n} folders to the Trash"
 msgstr[0] "; đã chuyển {n} thư mục vào Thùng rác"
 
-#: gui/cleanmate_gui/uninstaller.py:564
+#: gui/cleanmate_gui/uninstaller.py:677
+#, python-brace-format
+msgid "; {n} app skipped because it is running"
+msgid_plural "; {n} apps skipped because they are running"
+msgstr[0] "; bỏ qua {n} ứng dụng vì đang chạy"
+
+#: gui/cleanmate_gui/uninstaller.py:681
 msgid "Restore folders"
 msgstr "Khôi phục thư mục"
 
-#: gui/cleanmate_gui/uninstaller.py:598
+#: gui/cleanmate_gui/uninstaller.py:715
 #, python-brace-format
 msgid "Put back {n} folder from the Trash"
 msgid_plural "Put back {n} folders from the Trash"
@@ -2730,102 +2805,6 @@ msgstr ""
 "Shader Steam đã biên dịch cho game của bạn. Steam tạo lại chúng; game có thể "
 "giật nhẹ lần đầu."
 
-#. deno_cache label
-msgid "Deno cache"
-msgstr "Bộ nhớ đệm Deno"
-
-#. deno_cache description
-msgid "Modules and npm packages Deno downloaded, plus its compiled code. Downloaded again on the next run; localStorage data of scripts (location_data) is kept."
-msgstr "Module và gói npm Deno đã tải, cùng mã đã biên dịch. Tải lại ở lần chạy sau; dữ liệu localStorage của script (location_data) được giữ."
-
-#. zig_cache label
-msgid "Zig cache"
-msgstr "Bộ nhớ đệm Zig"
-
-#. zig_cache description
-msgid "Build outputs and fetched packages of Zig. Made again by the next build."
-msgstr "Kết quả build và gói Zig đã tải. Lần build sau sẽ tạo lại."
-
-#. bazel_cache label
-msgid "Bazel cache"
-msgstr "Bộ nhớ đệm Bazel"
-
-#. bazel_cache description
-msgid "Dependencies Bazel downloaded and its unpacked install. Made again by the next build; the output folders of your workspaces are kept."
-msgstr "Phụ thuộc Bazel đã tải và bản cài đã giải nén. Lần build sau sẽ tạo lại; thư mục output của workspace được giữ."
-
-#. ccache_cache label
-msgid "ccache cache"
-msgstr "Bộ nhớ đệm ccache"
-
-#. ccache_cache description
-msgid "Compiler outputs ccache saved. Made again by the next build; ccache.conf is kept."
-msgstr "Kết quả biên dịch ccache đã lưu. Lần build sau sẽ tạo lại; ccache.conf được giữ."
-
-#. sccache_cache label
-msgid "sccache cache"
-msgstr "Bộ nhớ đệm sccache"
-
-#. sccache_cache description
-msgid "Compiler outputs sccache saved. Made again by the next build."
-msgstr "Kết quả biên dịch sccache đã lưu. Lần build sau sẽ tạo lại."
-
-#. nuget_cache label
-msgid "NuGet cache"
-msgstr "Bộ nhớ đệm NuGet"
-
-#. nuget_cache description
-msgid "Package metadata and downloads NuGet cached (HTTP caches). Downloaded again by the next restore; ~/.nuget/packages is kept."
-msgstr "Thông tin gói và bản tải NuGet đã lưu (bộ nhớ đệm HTTP). Tải lại ở lần restore sau; ~/.nuget/packages được giữ."
-
-#. poetry_cache label
-msgid "Poetry cache"
-msgstr "Bộ nhớ đệm Poetry"
-
-#. poetry_cache description
-msgid "Packages Poetry downloaded. Downloaded again by poetry install; your virtualenvs are kept."
-msgstr "Gói Poetry đã tải. poetry install sẽ tải lại; virtualenv của bạn được giữ."
-
-#. pipx_cache label
-msgid "pipx run cache"
-msgstr "Bộ nhớ đệm pipx run"
-
-#. pipx_cache description
-msgid "Environments of apps started with pipx run. Made again on the next run; apps installed with pipx install and its Pythons are kept."
-msgstr "Môi trường của ứng dụng chạy bằng pipx run. Tạo lại ở lần chạy sau; ứng dụng cài bằng pipx install và các bản Python của pipx được giữ."
-
-#. precommit_cache label
-msgid "pre-commit cache"
-msgstr "Bộ nhớ đệm pre-commit"
-
-#. precommit_cache description
-msgid "Hook repositories and environments pre-commit made. Installed again on the next commit (slower once)."
-msgstr "Kho hook và môi trường pre-commit đã tạo. Cài lại ở lần commit sau (chậm một lần)."
-
-#. cloud_dropbox label
-msgid "Dropbox — cache & logs"
-msgstr "Dropbox — bộ nhớ đệm & nhật ký"
-
-#. cloud_dropbox description
-msgid "Dropbox's logs and the .dropbox.cache of your Dropbox folder (older copies of files) untouched for 7 days. Your files and settings are kept. Skipped while Dropbox runs."
-msgstr "Nhật ký Dropbox và .dropbox.cache của thư mục Dropbox (bản cũ của tệp) không đổi trong 7 ngày. Tệp và cài đặt của bạn được giữ. Bỏ qua khi Dropbox đang chạy."
-
-#. cloud_nextcloud label
-msgid "Nextcloud & ownCloud — cache & logs"
-msgstr "Nextcloud & ownCloud — bộ nhớ đệm & nhật ký"
-
-#. cloud_nextcloud description
-msgid "Logs and cache of the Nextcloud and ownCloud desktop clients. Your synced folders and settings are kept. Skipped while the client runs."
-msgstr "Nhật ký và bộ nhớ đệm của ứng dụng Nextcloud và ownCloud. Thư mục đồng bộ và cài đặt của bạn được giữ. Bỏ qua khi ứng dụng đang chạy."
-
-#. cloud_mega label
-msgid "MEGAsync — logs"
-msgstr "MEGAsync — nhật ký"
-
-#. cloud_mega description
-msgid "Logs of the MEGAsync client. Your synced folders and settings are kept. Skipped while MEGAsync runs."
-msgstr "Nhật ký của ứng dụng MEGAsync. Thư mục đồng bộ và cài đặt của bạn được giữ. Bỏ qua khi MEGAsync đang chạy."
-
 #
 #. priv_recent label
 msgid "Recent files list"
@@ -3201,6 +3180,142 @@ msgid ""
 msgstr ""
 "Emulator mà Firebase CLI đã tải (Firestore, Database, Pub/Sub, UI…). Tải lại "
 "khi bạn khởi động chúng."
+
+#. deno_cache label
+msgid "Deno cache"
+msgstr "Bộ nhớ đệm Deno"
+
+#. deno_cache description
+msgid ""
+"Modules and npm packages Deno downloaded, plus its compiled code. Downloaded "
+"again on the next run; localStorage data of scripts (location_data) is kept."
+msgstr ""
+"Module và gói npm Deno đã tải, cùng mã đã biên dịch. Tải lại ở lần chạy sau; "
+"dữ liệu localStorage của script (location_data) được giữ."
+
+#. zig_cache label
+msgid "Zig cache"
+msgstr "Bộ nhớ đệm Zig"
+
+#. zig_cache description
+msgid ""
+"Build outputs and fetched packages of Zig. Made again by the next build."
+msgstr "Kết quả build và gói Zig đã tải. Lần build sau sẽ tạo lại."
+
+#. bazel_cache label
+msgid "Bazel cache"
+msgstr "Bộ nhớ đệm Bazel"
+
+#. bazel_cache description
+msgid ""
+"Dependencies Bazel downloaded and its unpacked install. Made again by the "
+"next build; the output folders of your workspaces are kept."
+msgstr ""
+"Phụ thuộc Bazel đã tải và bản cài đã giải nén. Lần build sau sẽ tạo lại; thư "
+"mục output của workspace được giữ."
+
+#. ccache_cache label
+msgid "ccache cache"
+msgstr "Bộ nhớ đệm ccache"
+
+#. ccache_cache description
+msgid ""
+"Compiler outputs ccache saved. Made again by the next build; ccache.conf is "
+"kept."
+msgstr ""
+"Kết quả biên dịch ccache đã lưu. Lần build sau sẽ tạo lại; ccache.conf được "
+"giữ."
+
+#. sccache_cache label
+msgid "sccache cache"
+msgstr "Bộ nhớ đệm sccache"
+
+#. sccache_cache description
+msgid "Compiler outputs sccache saved. Made again by the next build."
+msgstr "Kết quả biên dịch sccache đã lưu. Lần build sau sẽ tạo lại."
+
+#. nuget_cache label
+msgid "NuGet cache"
+msgstr "Bộ nhớ đệm NuGet"
+
+#. nuget_cache description
+msgid ""
+"Package metadata and downloads NuGet cached (HTTP caches). Downloaded again "
+"by the next restore; ~/.nuget/packages is kept."
+msgstr ""
+"Thông tin gói và bản tải NuGet đã lưu (bộ nhớ đệm HTTP). Tải lại ở lần "
+"restore sau; ~/.nuget/packages được giữ."
+
+#. poetry_cache label
+msgid "Poetry cache"
+msgstr "Bộ nhớ đệm Poetry"
+
+#. poetry_cache description
+msgid ""
+"Packages Poetry downloaded. Downloaded again by poetry install; your "
+"virtualenvs are kept."
+msgstr ""
+"Gói Poetry đã tải. poetry install sẽ tải lại; virtualenv của bạn được giữ."
+
+#. pipx_cache label
+msgid "pipx run cache"
+msgstr "Bộ nhớ đệm pipx run"
+
+#. pipx_cache description
+msgid ""
+"Environments of apps started with pipx run. Made again on the next run; apps "
+"installed with pipx install and its Pythons are kept."
+msgstr ""
+"Môi trường của ứng dụng chạy bằng pipx run. Tạo lại ở lần chạy sau; ứng dụng "
+"cài bằng pipx install và các bản Python của pipx được giữ."
+
+#. precommit_cache label
+msgid "pre-commit cache"
+msgstr "Bộ nhớ đệm pre-commit"
+
+#. precommit_cache description
+msgid ""
+"Hook repositories and environments pre-commit made. Installed again on the "
+"next commit (slower once)."
+msgstr ""
+"Kho hook và môi trường pre-commit đã tạo. Cài lại ở lần commit sau (chậm một "
+"lần)."
+
+#. cloud_dropbox label
+msgid "Dropbox — cache & logs"
+msgstr "Dropbox — bộ nhớ đệm & nhật ký"
+
+#. cloud_dropbox description
+#, python-brace-format
+msgid ""
+"Dropbox's logs and the .dropbox.cache of your Dropbox folder (older copies "
+"of files) untouched for {0} days. Your files and settings are kept. Skipped "
+"while Dropbox runs."
+msgstr "Nhật ký Dropbox và .dropbox.cache của thư mục Dropbox (bản cũ của tệp) không đổi trong {0} ngày. Tệp và cài đặt của bạn được giữ. Bỏ qua khi Dropbox đang chạy."
+
+#. cloud_nextcloud label
+msgid "Nextcloud & ownCloud — cache & logs"
+msgstr "Nextcloud & ownCloud — bộ nhớ đệm & nhật ký"
+
+#. cloud_nextcloud description
+msgid ""
+"Logs and cache of the Nextcloud and ownCloud desktop clients. Your synced "
+"folders and settings are kept. Skipped while the client runs."
+msgstr ""
+"Nhật ký và bộ nhớ đệm của ứng dụng Nextcloud và ownCloud. Thư mục đồng bộ và "
+"cài đặt của bạn được giữ. Bỏ qua khi ứng dụng đang chạy."
+
+#. cloud_mega label
+msgid "MEGAsync — logs"
+msgstr "MEGAsync — nhật ký"
+
+#. cloud_mega description
+msgid ""
+"Logs of the MEGAsync client. Your synced folders and settings are kept. "
+"Skipped while MEGAsync runs."
+msgstr ""
+"Nhật ký của ứng dụng MEGAsync. Thư mục đồng bộ và cài đặt của bạn được giữ. "
+"Bỏ qua khi MEGAsync đang chạy."
 
 #. pub_cache label
 msgid "Dart & Flutter pub cache"

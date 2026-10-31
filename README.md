@@ -76,8 +76,9 @@ pick); nothing is ticked until you choose, and **Select automatically** ticks ev
 your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
 Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash). **Startup Items** switches the apps and your systemd user services
 that start at login on or off (a service or timer also starts or stops right away; the system's own services are only shown); removing one of yours
-moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps and, if you tick
-them, the folders they leave in your home (to the Trash); folders of apps you removed earlier are a group of their own
+moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap and Flatpak apps — tick several (say,
+everything unused for 12+ months) to remove them with one confirmation and one password; an app that is running
+is skipped — and, if you tick them, the folders they leave in your home (to the Trash, with **Restore folders**); folders of apps you removed earlier are a group of their own
 at the end, not ticked, with **Undo** after moving them to the Trash. **Maintenance** runs the terminal app's maintenance
 tasks (updates, package repair, TRIM, font cache, locate…) with their output in a log window, asking for your
 password once per task, and switches the snap-versions and journal-size limits on or off; a task whose tool
