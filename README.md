@@ -66,7 +66,9 @@ folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app nee
 group. **Keyboard:** Ctrl+1…9 open System Overview, Smart Scan, the six cleanup pages and Space Lens, Ctrl+R (or F5) scans, searches or lists again on the open page, and Ctrl+? lists every shortcut. After a clean, the result shows *Free space: before → after*; if the clean moved anything to the Trash (old installers and downloads, stale build folders, editor data of deleted projects), **Undo** in the message puts it back for 10 seconds — everything else is deleted for good, and the confirmation says which. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
 as you. An item whose program is running is locked until you close it. **Space Lens** lists what
 takes up the space in your home folder (or any folder or drive), biggest first: click a folder to
-dig deeper, tick what you don't need and move it to the Trash, **Undo** puts it back; outside your
+dig deeper, tick what you don't need and move it to the Trash, **Undo** puts it back. On a writable
+drive mounted under `/media`, `/run/media` or `/mnt` things go to that drive's own Trash, so the space
+comes back on that drive; read-only and network drives, Timeshift backups and other places outside your
 home folder it only shows. **Duplicates** groups identical files (from 1 MB, in a folder or drive you
 pick); nothing is ticked until you choose, and **Select automatically** ticks every copy except the oldest
 (usually the original); you're warned if every copy of a file is ticked.

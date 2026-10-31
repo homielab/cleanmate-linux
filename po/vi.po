@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 22:32+0000\n"
+"POT-Creation-Date: 2026-10-30 23:53+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -54,7 +54,7 @@ msgstr "Hãy thử kích thước nhỏ hơn hoặc thư mục khác."
 
 #: gui/cleanmate_gui/duplicates.py:103 gui/cleanmate_gui/duplicates.py:325
 #: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:279
-#: gui/cleanmate_gui/spacelens.py:88 gui/cleanmate_gui/spacelens.py:350
+#: gui/cleanmate_gui/spacelens.py:89 gui/cleanmate_gui/spacelens.py:365
 #: gui/cleanmate_gui/uninstaller.py:271 gui/cleanmate_gui/uninstaller.py:307
 msgid "Move to Trash"
 msgstr "Chuyển vào Thùng rác"
@@ -93,7 +93,7 @@ msgid "{size} can be freed by keeping one copy of each, in {folder}"
 msgstr "Có thể giải phóng {size} nếu giữ một bản mỗi tệp, trong {folder}"
 
 #: gui/cleanmate_gui/duplicates.py:208 gui/cleanmate_gui/largefiles.py:190
-#: gui/cleanmate_gui/spacelens.py:239
+#: gui/cleanmate_gui/spacelens.py:249
 #, python-brace-format
 msgid "the {n} biggest of {found}"
 msgstr "{n} tệp lớn nhất trong {found}"
@@ -125,7 +125,7 @@ msgid "Move this copy to the Trash"
 msgstr "Chuyển bản này vào Thùng rác"
 
 #: gui/cleanmate_gui/duplicates.py:261 gui/cleanmate_gui/largefiles.py:228
-#: gui/cleanmate_gui/spacelens.py:291
+#: gui/cleanmate_gui/spacelens.py:306
 msgid "Show in Files"
 msgstr "Hiện trong Tệp"
 
@@ -149,7 +149,7 @@ msgid_plural ""
 msgstr[0] "Đã chọn mọi bản của {n} tệp: sẽ không giữ lại bản nào của chúng."
 
 #: gui/cleanmate_gui/duplicates.py:318 gui/cleanmate_gui/largefiles.py:272
-#: gui/cleanmate_gui/scanpage.py:432 gui/cleanmate_gui/spacelens.py:343
+#: gui/cleanmate_gui/scanpage.py:432 gui/cleanmate_gui/spacelens.py:358
 #: gui/cleanmate_gui/uninstaller.py:445
 #, python-brace-format
 msgid "… and {n} more"
@@ -162,7 +162,7 @@ msgid_plural "Move {n} files to the Trash?"
 msgstr[0] "Chuyển {n} tệp vào Thùng rác?"
 
 #: gui/cleanmate_gui/duplicates.py:321 gui/cleanmate_gui/largefiles.py:275
-#: gui/cleanmate_gui/spacelens.py:346
+#: gui/cleanmate_gui/spacelens.py:361
 #, python-brace-format
 msgid ""
 "{size}. You can undo this right away, or restore the files from the Trash "
@@ -172,7 +172,7 @@ msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:324 gui/cleanmate_gui/largefiles.py:278
 #: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:443
-#: gui/cleanmate_gui/settings.py:376 gui/cleanmate_gui/spacelens.py:349
+#: gui/cleanmate_gui/settings.py:376 gui/cleanmate_gui/spacelens.py:364
 #: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:460
 msgid "Cancel"
 msgstr "Huỷ"
@@ -190,25 +190,25 @@ msgid_plural "Moved {n} files ({size}) to the Trash"
 msgstr[0] "Đã chuyển {n} tệp ({size}) vào Thùng rác"
 
 #: gui/cleanmate_gui/duplicates.py:370 gui/cleanmate_gui/largefiles.py:323
-#: gui/cleanmate_gui/spacelens.py:396
+#: gui/cleanmate_gui/spacelens.py:411
 msgid "Nothing was moved"
 msgstr "Không có gì được chuyển"
 
 #: gui/cleanmate_gui/duplicates.py:372 gui/cleanmate_gui/largefiles.py:325
-#: gui/cleanmate_gui/spacelens.py:398
+#: gui/cleanmate_gui/spacelens.py:413
 #, python-brace-format
 msgid "{n} could not be moved: {reason}"
 msgid_plural "{n} could not be moved: {reason}"
 msgstr[0] "{n} tệp không chuyển được: {reason}"
 
 #: gui/cleanmate_gui/duplicates.py:376 gui/cleanmate_gui/largefiles.py:329
-#: gui/cleanmate_gui/scanpage.py:537 gui/cleanmate_gui/spacelens.py:402
+#: gui/cleanmate_gui/scanpage.py:537 gui/cleanmate_gui/spacelens.py:417
 #: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/uninstaller.py:340
 msgid "Undo"
 msgstr "Hoàn tác"
 
 #: gui/cleanmate_gui/duplicates.py:412 gui/cleanmate_gui/largefiles.py:365
-#: gui/cleanmate_gui/scanpage.py:573 gui/cleanmate_gui/spacelens.py:435
+#: gui/cleanmate_gui/scanpage.py:573 gui/cleanmate_gui/spacelens.py:450
 #: gui/cleanmate_gui/uninstaller.py:595
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
@@ -322,7 +322,7 @@ msgid "Biggest first, in {folder}"
 msgstr "Lớn nhất trước, trong {folder}"
 
 #: gui/cleanmate_gui/largefiles.py:198 gui/cleanmate_gui/scanpage.py:203
-#: gui/cleanmate_gui/spacelens.py:253
+#: gui/cleanmate_gui/spacelens.py:268
 msgid "All"
 msgstr "Tất cả"
 
@@ -907,7 +907,7 @@ msgstr "Ngoài thư mục của bạn"
 msgid "Largest folders in your home"
 msgstr "Thư mục lớn nhất trong thư mục riêng"
 
-#: gui/cleanmate_gui/overview.py:387 gui/cleanmate_gui/spacelens.py:75
+#: gui/cleanmate_gui/overview.py:387 gui/cleanmate_gui/spacelens.py:76
 msgid "Measuring…"
 msgstr "Đang đo…"
 
@@ -1084,7 +1084,7 @@ msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] "Đã chọn {n}"
 
-#: gui/cleanmate_gui/scanpage.py:378 gui/cleanmate_gui/spacelens.py:320
+#: gui/cleanmate_gui/scanpage.py:378 gui/cleanmate_gui/spacelens.py:335
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
@@ -1188,7 +1188,7 @@ msgid "Freed {size} · {n} item moved to the Trash"
 msgid_plural "Freed {size} · {n} items moved to the Trash"
 msgstr[0] "Đã giải phóng {size} · {n} mục đã vào Thùng rác"
 
-#: gui/cleanmate_gui/scanpage.py:576 gui/cleanmate_gui/spacelens.py:438
+#: gui/cleanmate_gui/scanpage.py:576 gui/cleanmate_gui/spacelens.py:453
 #, python-brace-format
 msgid "Put back {n} item from the Trash"
 msgid_plural "Put back {n} items from the Trash"
@@ -1527,70 +1527,83 @@ msgstr "Chưa dọn gì cả."
 msgid "Open the log folder"
 msgstr "Mở thư mục nhật ký"
 
-#: gui/cleanmate_gui/spacelens.py:55 gui/cleanmate_gui/window.py:224
+#: gui/cleanmate_gui/spacelens.py:56 gui/cleanmate_gui/window.py:224
 msgid "Up one folder"
 msgstr "Lên một thư mục"
 
-#: gui/cleanmate_gui/spacelens.py:63
+#: gui/cleanmate_gui/spacelens.py:64
 msgid "Explore another folder (also a drive)"
 msgstr "Xem thư mục khác (hoặc một ổ đĩa)"
 
-#: gui/cleanmate_gui/spacelens.py:77
+#: gui/cleanmate_gui/spacelens.py:78
 msgid "This folder is empty"
 msgstr "Thư mục này trống"
 
-#: gui/cleanmate_gui/spacelens.py:91
+#: gui/cleanmate_gui/spacelens.py:92
 msgid "Measure again"
 msgstr "Đo lại"
 
-#: gui/cleanmate_gui/spacelens.py:125
+#: gui/cleanmate_gui/spacelens.py:126
 msgid "Folder to explore"
 msgstr "Thư mục cần xem"
 
-#: gui/cleanmate_gui/spacelens.py:148
+#: gui/cleanmate_gui/spacelens.py:150
 msgid "Home"
 msgstr "Thư mục riêng"
 
-#: gui/cleanmate_gui/spacelens.py:192
+#: gui/cleanmate_gui/spacelens.py:198
 #, python-brace-format
 msgid "Adding up {folder}"
 msgstr "Đang tính dung lượng {folder}"
 
-#: gui/cleanmate_gui/spacelens.py:234
+#: gui/cleanmate_gui/spacelens.py:244
 #, python-brace-format
 msgid "{folder} · {size}"
 msgstr "{folder} · {size}"
 
-#: gui/cleanmate_gui/spacelens.py:237
+#: gui/cleanmate_gui/spacelens.py:247
 #, python-brace-format
 msgid "{n} item, biggest first"
 msgid_plural "{n} items, biggest first"
 msgstr[0] "{n} mục, lớn nhất trước"
 
-#: gui/cleanmate_gui/spacelens.py:244
+#: gui/cleanmate_gui/spacelens.py:254
 msgid "View only: you never clean this folder (Settings › Never clean)."
 msgstr ""
 "Chỉ xem: thư mục này nằm trong danh sách Không bao giờ dọn (Cài đặt › Không "
 "bao giờ dọn)."
 
-#: gui/cleanmate_gui/spacelens.py:247
-msgid ""
-"View only: things outside your home folder can't be moved to the Trash here."
-msgstr ""
-"Chỉ xem: không thể chuyển những gì nằm ngoài thư mục riêng vào Thùng rác ở "
-"đây."
+#: gui/cleanmate_gui/spacelens.py:258
+msgid "View only: this drive is read-only or a network drive."
+msgstr "Chỉ xem: ổ này chỉ đọc hoặc là ổ mạng."
 
-#: gui/cleanmate_gui/spacelens.py:254
+#: gui/cleanmate_gui/spacelens.py:260
+msgid ""
+"View only: nothing here can be moved to the Trash (the drive itself, its "
+"Trash or a backup)."
+msgstr ""
+"Chỉ xem: không có gì ở đây chuyển được vào Thùng rác (chính ổ đĩa, Thùng rác "
+"của ổ hoặc bản sao lưu)."
+
+#: gui/cleanmate_gui/spacelens.py:262
+msgid ""
+"View only: things outside your home folder and your drives can't be moved to "
+"the Trash here."
+msgstr ""
+"Chỉ xem: không thể chuyển những gì nằm ngoài thư mục riêng và các ổ của bạn "
+"vào Thùng rác ở đây."
+
+#: gui/cleanmate_gui/spacelens.py:269
 msgid "Select or deselect every item"
 msgstr "Chọn hoặc bỏ chọn mọi mục"
 
-#: gui/cleanmate_gui/spacelens.py:270
+#: gui/cleanmate_gui/spacelens.py:285
 #, python-brace-format
 msgid "{n} item · {percent}"
 msgid_plural "{n} items · {percent}"
 msgstr[0] "{n} mục · {percent}"
 
-#: gui/cleanmate_gui/spacelens.py:278
+#: gui/cleanmate_gui/spacelens.py:293
 msgid ""
 "Can't be moved to the Trash: you never clean it, or a folder in it (Settings "
 "› Never clean)"
@@ -1598,27 +1611,27 @@ msgstr ""
 "Không chuyển vào Thùng rác được: mục này hoặc một thư mục bên trong nằm "
 "trong danh sách Không bao giờ dọn (Cài đặt)"
 
-#: gui/cleanmate_gui/spacelens.py:281
+#: gui/cleanmate_gui/spacelens.py:296
 msgid ""
-"Can't be moved to the Trash here: it's outside your home folder, or your "
-"system needs it"
+"Can't be moved to the Trash here: it's outside your home folder and your "
+"writable drives, or your system or a backup needs it"
 msgstr ""
-"Không thể chuyển vào Thùng rác ở đây: nằm ngoài thư mục riêng của bạn, hoặc "
-"hệ thống cần nó"
+"Không thể chuyển vào Thùng rác ở đây: nằm ngoài thư mục riêng và các ổ ghi "
+"được của bạn, hoặc hệ thống hay bản sao lưu cần nó"
 
-#: gui/cleanmate_gui/spacelens.py:345
+#: gui/cleanmate_gui/spacelens.py:360
 #, python-brace-format
 msgid "Move {n} item to the Trash?"
 msgid_plural "Move {n} items to the Trash?"
 msgstr[0] "Chuyển {n} mục vào Thùng rác?"
 
-#: gui/cleanmate_gui/spacelens.py:390
+#: gui/cleanmate_gui/spacelens.py:405
 #, python-brace-format
 msgid "Dry run: {n} item ({size}) would be moved to the Trash"
 msgid_plural "Dry run: {n} items ({size}) would be moved to the Trash"
 msgstr[0] "Chạy thử: {n} mục ({size}) sẽ được chuyển vào Thùng rác"
 
-#: gui/cleanmate_gui/spacelens.py:395
+#: gui/cleanmate_gui/spacelens.py:410
 #, python-brace-format
 msgid "Moved {n} item ({size}) to the Trash"
 msgid_plural "Moved {n} items ({size}) to the Trash"
@@ -3167,13 +3180,13 @@ msgstr "Model đã tải của PyTorch, Whisper & Keras"
 
 #. ai_model_caches description
 msgid ""
-"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded "
-"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when "
-"a program needs one. A model in use is skipped."
+"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/."
+"cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a "
+"program needs one. A model in use is skipped."
 msgstr ""
-"Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải "
-"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi "
-"chương trình cần. Model đang dùng được bỏ qua."
+"Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải (~/."
+"cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi chương "
+"trình cần. Model đang dùng được bỏ qua."
 
 #~ msgid "System Overview and more in the terminal app"
 #~ msgstr "Tổng quan hệ thống và công cụ khác trong app terminal"

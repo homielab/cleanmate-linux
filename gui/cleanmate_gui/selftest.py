@@ -289,7 +289,8 @@ def large_files_test(win, report, wait, finish):
 
 def space_lens_test(win, report, wait, finish):
     """List a throwaway home by size, go three folders deep and back, check that a folder outside
-    home is view only, then move a folder to the Trash and undo it."""
+    home is view only, then move a folder to the Trash and undo it; on a fake writable drive move a file
+    into the drive's Trash and undo it, and check that a read-only drive is view only."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home = os.path.join(sandbox, "home")
@@ -375,7 +376,7 @@ def space_lens_test(win, report, wait, finish):
         report(os.path.isdir(videos) and "Videos" in names(), "dry run: the folder stays")
         if os.geteuid() == 0:
             report(True, "Trash and Undo skipped: the engine refuses them as root")
-            return done()
+            return to_drive()
         page.engine = Engine(real_engine.path, dry_run=False, env=env)
         page.undo_toast = None
         page.trash([videos])
@@ -394,6 +395,64 @@ def space_lens_test(win, report, wait, finish):
     def undone():
         report(os.path.isfile(os.path.join(videos, "film.mkv")) and names() == ["Projects", "Videos", "todo.txt"],
                "Undo from the toast puts the folder back where it was")
+        to_drive()
+
+    def to_drive():
+        page.engine = Engine(real_engine.path, dry_run=False, env=drive_env)
+        page.set_root(photos)
+        wait(lambda: idle() and page.folder == photos, on_drive, 60, "a drive's folder")
+
+    # drives: every folder in media counts as a mounted drive; RO is read-only in the fake mount table
+    media = os.path.join(sandbox, "media")
+    usb, photos, ro = os.path.join(media, "USB"), os.path.join(media, "USB", "Photos"), os.path.join(media, "RO")
+    picture, ro_file = os.path.join(photos, "beach.jpg"), os.path.join(ro, "old.bin")
+    drive_trash = os.path.join(usb, f".Trash-{os.geteuid()}", "files", "beach.jpg")
+    os.makedirs(photos)
+    os.makedirs(ro)
+    for path, size in ((picture, 30 << 20), (os.path.join(photos, "small.jpg"), 10), (ro_file, 1 << 20)):
+        with open(path, "wb") as f:
+            f.truncate(size)
+    mounts = os.path.join(sandbox, "mounts")
+    with open(mounts, "w") as f:
+        f.write(f"/dev/sdz1 {ro} vfat ro,nosuid 0 0\n")
+    drive_env = dict(env, CLEANMATE_VOLUME_ROOTS=media, CLEANMATE_MOUNTS=mounts)
+
+    def on_drive():
+        check = page.checks.get(picture)
+        labels = [b.get_child().get_label() for b in page.crumb_buttons]
+        report(page.root == usb and labels == ["USB", "Photos"] and page.up_button.get_sensitive(),
+               f"a folder on a drive: the path bar starts at the drive: {labels}")
+        report(check is not None and check.get_sensitive(), "a writable drive: things on it can be ticked")
+        if os.geteuid() == 0:
+            report(True, "drive Trash and Undo skipped: the engine refuses them as root")
+            return read_only()
+        page.undo_toast = None
+        check.set_active(True)
+        page.trash([picture])
+        wait(lambda: idle() and not os.path.exists(picture), drive_trashed, 60, "trash on a drive")
+
+    def drive_trashed():
+        report(os.path.isfile(drive_trash) and names() == ["small.jpg"],
+               "Move to Trash on a drive uses the drive's own Trash")
+        if not page.undo_toast:
+            report(False, "no Undo toast after moving to a drive's Trash")
+            return done()
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: idle() and os.path.isfile(picture), drive_undone, 60, "undo on a drive")
+
+    def drive_undone():
+        report(not os.path.exists(drive_trash) and names() == ["beach.jpg", "small.jpg"],
+               "Undo puts the file back on the drive")
+        read_only()
+
+    def read_only():
+        page.set_root(ro)
+        wait(lambda: idle() and page.folder == ro, ro_listed, 60, "a read-only drive")
+
+    def ro_listed():
+        check = page.checks.get(ro_file)
+        report(check is not None and not check.get_sensitive() and not page.trash_button.get_sensitive(),
+               "a read-only drive: view only")
         done()
 
     wait(idle, first, 120, "first Space Lens list")

@@ -7645,12 +7645,40 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] — the biggest files fir
 
 LENS_LIMIT=500 # the biggest entries listed by `--json lens`, like the terminal's Space Lens
 
-lens_movable() { # PATH (normalised) — Space Lens may only move what is in your home folder, not protected or excluded
-  [[ $1 == "$HOME"/* ]] && ! is_protected "$1" && ! touches_exclusion "$1"
+# Space Lens moves what is in your home folder (not protected), or on a drive mounted for you (VOLUME_ROOTS)
+# that is writable and not a network or FUSE file system — into that drive's own Trash, so Undo puts it back.
+# Never a drive's top folder, its Trash, a Timeshift backup on it, another file system mounted inside it,
+# something reached through a symlink to elsewhere, or a Never clean folder.
+declare -A DRIVE_OK=() # drive_mount_ok answers, once per drive and run
+lens_movable() { # PATH (normalised)
+  touches_exclusion "$1" && return 1
+  if [[ $1 == "$HOME"/* ]]; then ! is_protected "$1"; return; fi
+  lens_drive_movable "$1"
+}
+lens_drive_movable() { # PATH (normalised) — inside a writable drive of yours, movable into its Trash
+  local top parent
+  volume_top top "$1" || return 1 # below a drive's top, same file system, not in a Trash
+  case ${1#"$top"/} in timeshift | timeshift/* | timeshift-btrfs | timeshift-btrfs/*) return 1 ;; esac
+  parent=$(realpath -e -- "${1%/*}" 2>/dev/null) && [[ $parent == "$top" || $parent == "$top"/* ]] || return 1
+  if [[ -z ${DRIVE_OK[$top]:-} ]]; then
+    if drive_mount_ok "$top"; then DRIVE_OK[$top]=1; else DRIVE_OK[$top]=0; fi
+  fi
+  ((DRIVE_OK[$top]))
+}
+lens_drive() { # VAR PATH (normalised) → VAR = the top folder of the drive PATH is on (or is), or ""
+  local -n __dr=$1
+  local __r __rest
+  __dr=""
+  for __r in "${VOLUME_ROOTS[@]}"; do
+    [[ -n $__r && $2 == "$__r"/* ]] || continue
+    __rest=${2#"$__r"/}
+    volume_top_ok "$__r/${__rest%%/*}" && __dr=$__r/${__rest%%/*}
+    return 0
+  done
 }
 
 json_lens() { # [--path DIR] — DIR's files and folders with their size (du -x), biggest first
-  local dir=$HOME tmp b p n kind jp movable excluded listed=0 found=0 total=0 items=0
+  local dir=$HOME tmp b p n kind jp movable excluded listed=0 found=0 total=0 items=0 drive drive_trash=false
   local -A count=()
   while (($#)); do
     case $1 in
@@ -7683,8 +7711,11 @@ json_lens() { # [--path DIR] — DIR's files and folders with their size (du -x)
   rm -f "$tmp"
   json_str jp "$dir"
   if in_exclusion "$dir"; then excluded=true; else excluded=false; fi
-  printf '{"event":"done","path":%s,"bytes":%d,"items":%d,"count":%d,"found":%d,"excluded":%s}\n' \
-    "$jp" "$total" "$items" "$listed" "$found" "$excluded"
+  lens_drive drive "$dir"
+  [[ -n $drive ]] && drive_mount_ok "$drive" && drive_trash=true
+  json_str drive "$drive"
+  printf '{"event":"done","path":%s,"bytes":%d,"items":%d,"count":%d,"found":%d,"excluded":%s,"drive":%s,"drive_trash":%s}\n' \
+    "$jp" "$total" "$items" "$listed" "$found" "$excluded" "$drive" "$drive_trash"
 }
 
 DUPES_LIMIT=500 # the biggest groups listed by `--json dupes`
@@ -7779,7 +7810,7 @@ json_trash() { # [--home-only] PATH… — move these to the Trash; "trash" name
     if [[ $p != /* ]]; then json_file_task "$p" fail "Not an absolute path" 0; ((++failed)); continue; fi
     if ((home_only)) && ! lens_movable "$(realpath -m -s -- "$p")"; then
       if touches_exclusion "$(realpath -m -s -- "$p")"; then why="Excluded in Settings (Never clean)"
-      else why="Only items inside your home folder can be moved to the Trash here"; fi
+      else why="Only items inside your home folder or on a writable drive can be moved to the Trash here"; fi
       json_file_task "$p" fail "$why" 0; ((++failed)); continue
     fi
     if [[ ! -e $p && ! -L $p ]]; then json_file_task "$p" fail "Not found" 0; ((++failed)); continue; fi

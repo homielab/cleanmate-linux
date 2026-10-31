@@ -1623,7 +1623,7 @@ for l in sys.stdin:
     e = json.loads(l)
     if e["event"] == "task": print(e["state"], e["trash"] or "-", e["info"])
     elif e["event"] == "done": print("done", e.get("moved", e.get("restored")), e["failed"])'
-  local why="Only items inside your home folder can be moved to the Trash here"
+  local why="Only items inside your home folder or on a writable drive can be moved to the Trash here"
   out=$(user_cm --json trash --home-only "$outside/doc.txt" "$big/../../${outside##*/}/doc.txt" "$HOME_DIR/.config" \
     "$HOME_DIR/usr link" "$big" | python3 -c "$tasks")
   assert_eq "$out" "fail - $why"$'\n'"fail - $why"$'\n'"fail - $why"$'\n'"fail - $why"$'\nok Big moved to the Trash\ndone 1 4' \
@@ -1633,6 +1633,66 @@ for l in sys.stdin:
   out=$(user_cm --json restore Big | python3 -c "$tasks")
   assert_eq "$out" $'ok Big put back\ndone 1 0' "undo puts the folder back"
   assert_exists "$big/Deeper/Deepest/a.bin"
+}
+
+# Space Lens on drives mounted for you: writable local ones move into the drive's own Trash and come
+# back; read-only, network ones, the drive's top, its Trash, Timeshift backups and symlinks stay view only
+test_space_lens_on_external_drives() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out uid=$EUID vol usb key
+  ((EUID == 0)) && uid=65534
+  vol=$(mktemp -d -p "$WORK" lensmedia.XXXX)
+  usb=$vol/USB
+  sized "$usb/Photos/a.jpg" 3000; sized "$usb/big.iso" 9000; sized "$usb/.Trash-$uid/files/old.bin" 10
+  sized "$usb/timeshift/snapshots/s/x" 20; sized "$WORK/lens-elsewhere/e.bin" 30; ln -s "$WORK/lens-elsewhere" "$usb/link"
+  sized "$vol/RO/r.bin" 600; sized "$vol/NAS/n.bin" 800
+  printf 'server:/export %s/NAS nfs4 rw,relatime 0 0\n/dev/sdz1 %s/RO vfat ro,nosuid 0 0\n' "$vol" "$vol" >"$WORK/lens-mounts"
+  ((EUID == 0)) && chown -R 65534:65534 "$vol" "$WORK/lens-elsewhere"
+  local CLEANMATE_VOLUME_ROOTS=$vol CLEANMATE_MOUNTS=$WORK/lens-mounts
+  local lens='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(str(e["movable"]).lower(), e["path"].rsplit("/", 1)[1])
+    elif e["event"] == "done": print("done", e["drive"].rsplit("/", 1)[-1] or "-", str(e["drive_trash"]).lower())'
+  out=$(user_cm --json lens --path "$usb" | python3 -c "$lens" | sort)
+  assert_eq "$out" "done USB true
+false .Trash-$uid
+false timeshift
+true Photos
+true big.iso
+true link" "a writable drive: movable but its Trash and Timeshift backups"
+  out=$(user_cm --json lens --path "$usb/link" | python3 -c "$lens")
+  assert_eq "$out" $'false e.bin\ndone USB true' "through a symlink to elsewhere: view only"
+  out=$(user_cm --json lens --path "$vol/RO" | python3 -c "$lens")
+  assert_eq "$out" $'false r.bin\ndone RO false' "a read-only drive: view only"
+  out=$(user_cm --json lens --path "$vol/NAS" | python3 -c "$lens")
+  assert_eq "$out" $'false n.bin\ndone NAS false' "a network drive: view only"
+  out=$(user_cm --json lens --path "$vol" | python3 -c "$lens" | sort)
+  assert_eq "$out" $'done - false\nfalse NAS\nfalse RO\nfalse USB' "the drives themselves: view only"
+  local tasks='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task": print(e["state"], (e["trash"] or "-").replace(sys.argv[1], "<vol>"), e["info"])
+    elif e["event"] == "done": print("done", e.get("moved", e.get("restored")), e["failed"])'
+  local why="Only items inside your home folder or on a writable drive can be moved to the Trash here"
+  out=$(user_cm --json trash --home-only "$vol/RO/r.bin" "$vol/NAS/n.bin" "$usb" "$usb/timeshift/snapshots" \
+    "$usb/.Trash-$uid/files/old.bin" "$usb/link/e.bin" "$usb/Photos" | python3 -c "$tasks" "$vol")
+  assert_eq "$out" "fail - $why
+fail - $why
+fail - $why
+fail - $why
+fail - $why
+fail - $why
+ok <vol>/USB/.Trash-$uid/files/Photos moved to the Trash
+done 1 6" "trash --home-only takes a writable drive, refuses the rest"
+  assert_missing "$usb/Photos"; assert_exists "$usb/.Trash-$uid/files/Photos/a.jpg"
+  assert_exists "$vol/RO/r.bin"; assert_exists "$vol/NAS/n.bin"; assert_exists "$WORK/lens-elsewhere/e.bin"
+  assert_exists "$usb/timeshift/snapshots/s/x"
+  key=$usb/.Trash-$uid/files/Photos
+  out=$(user_cm --json restore "$key" | python3 -c "$tasks" "$vol")
+  assert_eq "$out" "ok <vol>/USB/.Trash-$uid/files/Photos put back"$'\ndone 1 0' "undo puts it back on the drive"
+  assert_exists "$usb/Photos/a.jpg"
 }
 
 dupe_groups() { # reads `--json dupes` → "bytes name,name…" per group (newest first), then "done …"

@@ -1,8 +1,9 @@
 """Space Lens: what takes up the space in a folder, biggest first; open folders to dig deeper,
 move what you don't need to the Trash, undo.
 
-The engine measures (`--json lens`), moves (`--json trash --home-only`) and puts things back
-(`--json restore`); this page only shows the list and keeps the choice.
+The engine measures (`--json lens`), moves (`--json trash --home-only`: your home folder, or a
+writable drive mounted for you, into its own Trash) and puts things back (`--json restore`); this page
+only shows the list and keeps the choice.
 """
 import os
 
@@ -145,7 +146,12 @@ class SpaceLensPage(Gtk.Box):
             child = self.crumbs.get_first_child()
         self.crumb_buttons = []
         home = os.path.expanduser("~")
-        first = _("Home") if self.root == home else short_path(self.root)
+        if self.root == home:
+            first = _("Home")
+        elif self.root == self.info.get("drive"):
+            first = os.path.basename(self.root)
+        else:
+            first = short_path(self.root)
         parts = [(first, self.root)]
         rel = os.path.relpath(self.folder, self.root)
         if rel != ".":
@@ -210,6 +216,10 @@ class SpaceLensPage(Gtk.Box):
             elif ok:
                 self.cache[path] = (entries, info)
             self.entries, self.info = entries, info
+            drive = info.get("drive")
+            if drive and self.root.startswith(drive + "/"):
+                self.root = drive  # on a drive the path bar starts at the drive
+            self.update_crumbs()
             self.show_results()
 
         self.running = self.engine.lens(path, on_event, on_done)
@@ -244,8 +254,13 @@ class SpaceLensPage(Gtk.Box):
             header.append(Gtk.Label(label=_("View only: you never clean this folder (Settings › Never clean)."),
                                     xalign=0, wrap=True, css_classes=["dim-label"]))
         elif not any(e["movable"] for e in self.entries):
-            header.append(Gtk.Label(label=_("View only: things outside your home folder can't be moved to the "
-                                             "Trash here."), xalign=0, wrap=True, css_classes=["dim-label"]))
+            if self.info.get("drive") and not self.info.get("drive_trash"):
+                text = _("View only: this drive is read-only or a network drive.")
+            elif self.info.get("drive_trash"):
+                text = _("View only: nothing here can be moved to the Trash (the drive itself, its Trash or a backup).")
+            else:
+                text = _("View only: things outside your home folder and your drives can't be moved to the Trash here.")
+            header.append(Gtk.Label(label=text, xalign=0, wrap=True, css_classes=["dim-label"]))
         self.results.append(header)
 
         group = Adw.PreferencesGroup()
@@ -278,8 +293,8 @@ class SpaceLensPage(Gtk.Box):
             check.set_tooltip_text(_("Can't be moved to the Trash: you never clean it, or a folder in it "
                                      "(Settings › Never clean)"))
         elif not e["movable"]:
-            check.set_tooltip_text(_("Can't be moved to the Trash here: it's outside your home folder, "
-                                     "or your system needs it"))
+            check.set_tooltip_text(_("Can't be moved to the Trash here: it's outside your home folder and your "
+                                     "writable drives, or your system or a backup needs it"))
         check.connect("toggled", self.on_toggled, path)
         self.checks[path] = check
         self.rows[path] = row
