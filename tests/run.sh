@@ -2463,6 +2463,42 @@ EOF
   assert_contains "$(<"$log")" "podman system prune -f"
 }
 
+test_cloud_sync_client_caches() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/cloudbin
+  mkdir -p "$h/Dropbox" "$h/Work Dropbox"
+  new "$h/.dropbox/logs/a.log"
+  old "$h/Dropbox/.dropbox.cache/2026-01-01_old/f"; touch -d '200 days ago' "$h/Dropbox/.dropbox.cache/2026-01-01_old"
+  old "$h/Dropbox/.dropbox.cache/2026-02-01_busy/f"; new "$h/Dropbox/.dropbox.cache/2026-02-01_busy/fresh"
+  old "$h/Work Dropbox/.dropbox.cache/w/f"; touch -d '200 days ago' "$h/Work Dropbox/.dropbox.cache/w"
+  new "$h/Dropbox/keep.txt"; new "$h/.dropbox/instance1/config.dbx"; new "$WORK/outside/.dropbox.cache/x"; old "$(dirname "$h")/outside2/.dropbox.cache/y"
+  printf '{"personal":{"path":"%s/Dropbox"},"business":{"path":"%s/Work Dropbox"},"other":{"path":"%s/outside"},"up":{"path":"%s/../outside2"}}' \
+    "$h" "$h" "$WORK" "$h" >"$h/.dropbox/info.json"
+  new "$h/.cache/Nextcloud/c"; new "$h/.local/share/Nextcloud/nextcloud.log.1"; new "$h/.local/share/Nextcloud/nextcloud.cfg"
+  new "$h/.cache/ownCloud/c"; new "$h/.local/share/data/Mega Limited/MEGAsync/logs/m.log"
+  new "$h/.local/share/data/Mega Limited/MEGAsync/MEGAsync.cfg"
+  out=$(cm --scan --only apps 2>&1)
+  assert_contains "$out" "Dropbox — cache & logs"; assert_contains "$out" "Nextcloud & ownCloud — cache & logs"
+  assert_contains "$out" "MEGAsync — logs"
+  # a running client: skipped
+  running_stub "$bin" dropbox megasync
+  select_only cloud_dropbox cloud_nextcloud cloud_mega
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only apps >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.dropbox/logs/a.log"; assert_exists "$h/.local/share/data/Mega Limited/MEGAsync/logs/m.log"
+  assert_missing "$h/.cache/Nextcloud/c"; assert_missing "$h/.local/share/Nextcloud/nextcloud.log.1"
+  assert_missing "$h/.cache/ownCloud/c"; assert_exists "$h/.local/share/Nextcloud/nextcloud.cfg"
+  # dry-run deletes nothing
+  cm --clean --yes --dry-run --only apps >/dev/null 2>&1 </dev/null
+  assert_exists "$h/Dropbox/.dropbox.cache/2026-01-01_old/f"
+  cm --clean --yes --only apps >/dev/null 2>&1 </dev/null
+  assert_missing "$h/.dropbox/logs/a.log"; assert_missing "$h/.local/share/data/Mega Limited/MEGAsync/logs/m.log"
+  assert_missing "$h/Dropbox/.dropbox.cache/2026-01-01_old"; assert_missing "$h/Work Dropbox/.dropbox.cache/w"
+  assert_exists "$h/Dropbox/.dropbox.cache/2026-02-01_busy/fresh" # changed lately: may still be uploading
+  assert_exists "$h/Dropbox/keep.txt"; assert_exists "$h/.dropbox/instance1/config.dbx"; assert_exists "$h/.dropbox/info.json"
+  assert_exists "$h/.local/share/data/Mega Limited/MEGAsync/MEGAsync.cfg"; assert_exists "$WORK/outside/.dropbox.cache/x"; assert_exists "$(dirname "$h")/outside2/.dropbox.cache/y"
+  rm -r "$(dirname "$h")/outside2"
+}
+
 test_uv_rustup_and_browser_test_caches() {
   fresh_home
   local out

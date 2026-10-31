@@ -2637,6 +2637,30 @@ msgid ""
 "stutter briefly the first time."
 msgstr ""
 
+#. cloud_dropbox label
+msgid "Dropbox — cache & logs"
+msgstr ""
+
+#. cloud_dropbox description
+msgid "Dropbox's logs and the .dropbox.cache of your Dropbox folder (older copies of files) untouched for 7 days. Your files and settings are kept. Skipped while Dropbox runs."
+msgstr ""
+
+#. cloud_nextcloud label
+msgid "Nextcloud & ownCloud — cache & logs"
+msgstr ""
+
+#. cloud_nextcloud description
+msgid "Logs and cache of the Nextcloud and ownCloud desktop clients. Your synced folders and settings are kept. Skipped while the client runs."
+msgstr ""
+
+#. cloud_mega label
+msgid "MEGAsync — logs"
+msgstr ""
+
+#. cloud_mega description
+msgid "Logs of the MEGAsync client. Your synced folders and settings are kept. Skipped while MEGAsync runs."
+msgstr ""
+
 #. priv_recent label
 msgid "Recent files list"
 msgstr ""

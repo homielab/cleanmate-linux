@@ -2730,6 +2730,30 @@ msgstr ""
 "Shader Steam đã biên dịch cho game của bạn. Steam tạo lại chúng; game có thể "
 "giật nhẹ lần đầu."
 
+#. cloud_dropbox label
+msgid "Dropbox — cache & logs"
+msgstr "Dropbox — bộ nhớ đệm & nhật ký"
+
+#. cloud_dropbox description
+msgid "Dropbox's logs and the .dropbox.cache of your Dropbox folder (older copies of files) untouched for 7 days. Your files and settings are kept. Skipped while Dropbox runs."
+msgstr "Nhật ký Dropbox và .dropbox.cache của thư mục Dropbox (bản cũ của tệp) không đổi trong 7 ngày. Tệp và cài đặt của bạn được giữ. Bỏ qua khi Dropbox đang chạy."
+
+#. cloud_nextcloud label
+msgid "Nextcloud & ownCloud — cache & logs"
+msgstr "Nextcloud & ownCloud — bộ nhớ đệm & nhật ký"
+
+#. cloud_nextcloud description
+msgid "Logs and cache of the Nextcloud and ownCloud desktop clients. Your synced folders and settings are kept. Skipped while the client runs."
+msgstr "Nhật ký và bộ nhớ đệm của ứng dụng Nextcloud và ownCloud. Thư mục đồng bộ và cài đặt của bạn được giữ. Bỏ qua khi ứng dụng đang chạy."
+
+#. cloud_mega label
+msgid "MEGAsync — logs"
+msgstr "MEGAsync — nhật ký"
+
+#. cloud_mega description
+msgid "Logs of the MEGAsync client. Your synced folders and settings are kept. Skipped while MEGAsync runs."
+msgstr "Nhật ký của ứng dụng MEGAsync. Thư mục đồng bộ và cài đặt của bạn được giữ. Bỏ qua khi MEGAsync đang chạy."
+
 #
 #. priv_recent label
 msgid "Recent files list"

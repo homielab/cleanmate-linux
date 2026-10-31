@@ -2833,6 +2833,67 @@ LIST_CAT=dev reg_list_item firebase_emulators "Firebase emulators" 0 item \
   "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). Downloaded again when you start them." \
   firebase_emulators "$HOME/.cache/firebase"
 
+# Cloud sync clients: Dropbox (its logs and the .dropbox.cache of each Dropbox folder named in
+# ~/.dropbox/info.json — what changed in the last 7 days stays, it may still wait to upload),
+# Nextcloud / ownCloud (logs and ~/.cache) and MEGAsync (logs). Never the synced folders, settings,
+# logins or databases. Skipped while the client runs or has a file open; not ticked; deleted for good.
+CLOUD_CACHE_DAYS=7
+dropbox_folders() { # the Dropbox folders of info.json ("personal", "business"): real folders in your home
+  local f=$HOME/.dropbox/info.json v p
+  [[ -f $f && ! -L $f ]] || return 0
+  if have jq; then
+    v=$(jq -r 'if type == "object" then [.[] | objects | .path | strings] | .[] else empty end' -- "$f" 2>/dev/null)
+  elif have python3; then
+    v=$(python3 -I -c 'import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+for e in (d.values() if isinstance(d, dict) else []):
+    if isinstance(e, dict) and isinstance(e.get("path"), str): print(e["path"])' "$f" 2>/dev/null)
+  else
+    return 0
+  fi
+  while IFS= read -r p; do
+    p=${p%/}
+    [[ $p == "$HOME"/?* && /$p/ != */../* && -d $p && ! -L $p ]] && printf '%s\n' "$p"
+  done <<<"$v"
+  return 0
+}
+cloud_free() { # [DAYS] — paths on stdin that are not excluded, not open and (with DAYS) untouched for DAYS days
+  local p open
+  open=$(open_files)
+  while IFS= read -r p; do
+    [[ -n $p ]] || continue
+    touches_exclusion "$p" && continue
+    open_under "$open" "$p" && continue
+    [[ -z ${1:-} || -z $(find "$p" -mtime -"$1" -print -quit 2>/dev/null) ]] && printf '%s\n' "$p"
+  done
+}
+cloud_dropbox() {
+  local d
+  contents "$HOME/.dropbox/logs" | cloud_free
+  while IFS= read -r d; do contents "$d/.dropbox.cache"; done < <(dropbox_folders) | cloud_free "$CLOUD_CACHE_DAYS"
+}
+cloud_nextcloud() {
+  local d
+  for d in Nextcloud ownCloud; do
+    contents "$HOME/.cache/$d"
+    [[ -d $HOME/.local/share/$d && ! -L $HOME/.local/share/$d ]] &&
+      find "$HOME/.local/share/$d" -mindepth 1 -maxdepth 1 -type f -name '*.log*' -print 2>/dev/null
+  done | cloud_free
+}
+cloud_mega() { contents "$HOME/.local/share/data/Mega Limited/MEGAsync/logs" | cloud_free; }
+LIST_CAT=apps reg_list_item cloud_dropbox "Dropbox — cache & logs" 0 item \
+  "Dropbox's logs and the .dropbox.cache of your Dropbox folder (older copies of files) untouched for 7 days. Your files and settings are kept. Skipped while Dropbox runs." \
+  cloud_dropbox "$HOME/.dropbox" 'dropbox'
+LIST_CAT=apps reg_list_item cloud_nextcloud "Nextcloud & ownCloud — cache & logs" 0 item \
+  "Logs and cache of the Nextcloud and ownCloud desktop clients. Your synced folders and settings are kept. Skipped while the client runs." \
+  cloud_nextcloud "$HOME/.cache/Nextcloud
+$HOME/.local/share/Nextcloud
+$HOME/.cache/ownCloud
+$HOME/.local/share/ownCloud" 'nextcloud|Nextcloud|owncloud|ownCloud'
+LIST_CAT=apps reg_list_item cloud_mega "MEGAsync — logs" 0 item \
+  "Logs of the MEGAsync client. Your synced folders and settings are kept. Skipped while MEGAsync runs." \
+  cloud_mega "$HOME/.local/share/data/Mega Limited/MEGAsync" 'megasync|MEGAsync'
+
 # Flutter/Dart's pub cache: downloaded packages and git checkouts, fetched again by `pub get`.
 # Never credentials.json, bin/ or global_packages/ (activated tools).
 reg_cache_item pub_cache dev "Dart & Flutter pub cache" 0 \
