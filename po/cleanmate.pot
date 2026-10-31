@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 10:25+0000\n"
+"POT-Creation-Date: 2026-10-31 10:40+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3220,6 +3220,18 @@ msgid ""
 "Android emulator system images no virtual device (AVD) uses, often several "
 "GB each. Deleted; download one again with Android Studio's SDK Manager. "
 "Close Android Studio and the emulator first."
+msgstr ""
+
+#. android_avd_snapshots label
+msgid "Android emulator snapshots"
+msgstr ""
+
+#. android_avd_snapshots description
+msgid ""
+"Saved states (quick-boot snapshots) of your Android emulator virtual "
+"devices, often several GB each. Deleted; the next start is a cold boot and "
+"the emulator saves a new one. Apps and data on the device are kept. Close "
+"the emulator first."
 msgstr ""
 
 #. jetbrains_old_versions label

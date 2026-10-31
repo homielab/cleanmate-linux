@@ -2841,6 +2841,55 @@ for l in sys.stdin:
 ~/.cache/whisper/base.en.pt False base.en — Whisper" "only Keras' and unclaimed folders, biggest first"
 }
 
+# Android emulator snapshots: one entry per AVD (also one an .ini points to elsewhere), never ticked,
+# only the snapshots folder goes, locked while the emulator runs.
+test_android_avd_snapshots() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/avdbin a f bp bt encp enct
+  for a in "$h/.android/avd/Pixel.avd" "$h/vms/Tab.avd" "$h/emu/avd/Wear.avd"; do
+    sized "$a/snapshots/default_boot/ram.bin" 50000
+    for f in userdata-qemu.img sdcard.img config.ini hardware-qemu.ini; do new "$a/$f"; done
+  done
+  sized "$h/vms/Tab.avd/snapshots/default_boot/ram.bin" 90000
+  printf 'path=%s/vms/Tab.avd\n' "$h" >"$h/.android/avd/Tab.ini"
+  printf 'path=%s/gone/Gone.avd\n' "$h" >"$h/.android/avd/Gone.ini"
+  mkdir -p "$h/.android/avd/Empty.avd/snapshots" "$h/real"; new "$h/real/x"; mkdir -p "$h/.android/avd/Link.avd"
+  ln -s "$h/real" "$h/.android/avd/Link.avd/snapshots"
+  printf 'export ANDROID_EMULATOR_HOME="$HOME/emu"\n' >"$h/.profile"
+  bp=$(du -sb "$h/.android/avd/Pixel.avd/snapshots" | cut -f1) bt=$(du -sb "$h/vms/Tab.avd/snapshots" | cut -f1)
+  encp=$(in_app "urlencode_path '$h/.android/avd/Pixel.avd/snapshots'") enct=$(in_app "urlencode_path '$h/vms/Tab.avd/snapshots'")
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["status"], e["note"], e["selected"], e["entries"], repr(e["locked"]))
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"])'
+  out=$(cm --json scan --only dev | grep '"id":"android_avd_snapshots"' | python3 -c "$list")
+  assert_eq "$out" "android_avd_snapshots found 3 AVDs False True ''" "three AVDs, not ticked"
+  out=$(cm --json details android_avd_snapshots | python3 -c "$list")
+  assert_contains "$out" "$enct $bt off Tab"; assert_contains "$out" "$encp $bp off Pixel"; assert_contains "$out" " off Wear"
+  [[ $out != *Link* && $out != *Empty* ]] && ok_ "symlinked and empty snapshots not listed" || fail "listed: $out"
+  out=$(cm --scan --only dev 2>&1)
+  assert_contains "$out" "Android emulator snapshots"
+  running_stub "$bin" "qemu-system-x86_64"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan --only dev | grep '"id":"android_avd_snapshots"' | python3 -c "$list")
+  assert_contains "$out" "'qemu-system-x86_64'"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean android_avd_snapshots --entries "$encp" 2>&1)
+  assert_contains "$out" '"id":"android_avd_snapshots","state":"skip"'
+  assert_exists "$h/.android/avd/Pixel.avd/snapshots/default_boot/ram.bin"
+  out=$(user_cm --json clean android_avd_snapshots --entries "$enct" | python3 -c "$list")
+  assert_eq "$out" "ok $bt" "only the chosen AVD"
+  assert_missing "$h/vms/Tab.avd/snapshots"; assert_exists "$h/.android/avd/Pixel.avd/snapshots/default_boot/ram.bin"
+  select_only android_avd_snapshots
+  user_cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  for a in "$h/.android/avd/Pixel.avd" "$h/vms/Tab.avd" "$h/emu/avd/Wear.avd"; do
+    assert_missing "$a/snapshots"
+    for f in userdata-qemu.img sdcard.img config.ini hardware-qemu.ini; do assert_exists "$a/$f"; done
+  done
+  assert_exists "$h/.android/avd/Tab.ini"; assert_exists "$h/real/x"; assert_exists "$h/.android/avd/Link.avd/snapshots"
+}
+
 # Android system images: only those no AVD uses are listed, each as an entry, never ticked;
 # an AVD that can't be read keeps all of them, and Android Studio or the emulator locks the item.
 test_unused_android_system_images() {

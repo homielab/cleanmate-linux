@@ -3328,7 +3328,7 @@ clean_entries_old_runtimes() { # encoded version folders (json_clean_entries onl
 # the AVD is deleted. SDKs: ~/Android/Sdk, ANDROID_HOME and ANDROID_SDK_ROOT (inside your home, no
 # symlinks on the way). An image is system-images/<android-N>/<tag>/<abi> with a source.properties
 # or package.xml; an AVD uses the one its config.ini's image.sysdir.N names. AVDs are read from
-# ~/.android/avd, ANDROID_AVD_HOME, ANDROID_USER_HOME/avd and ANDROID_SDK_HOME/.android/avd, both
+# ~/.android/avd, ANDROID_AVD_HOME, ANDROID_USER_HOME/avd, ANDROID_EMULATOR_HOME/avd and ANDROID_SDK_HOME/.android/avd, both
 # the <name>.avd folders and the <name>.ini files pointing elsewhere (path=). An AVD that can't be
 # read keeps every image. Deleted for good (the SDK Manager downloads one again); platforms,
 # build-tools, ndk, emulator and the AVDs are never touched. Locked while Android Studio, the
@@ -3350,12 +3350,12 @@ android_sdk_roots() { # SDK folders inside your home, no symlinks on the way
 avd_homes() { # folders AVDs are kept in; fails when a variable names one that can't be read as a plain path
   local n v
   printf '%s\n' "$HOME/.android/avd"
-  for n in ANDROID_AVD_HOME ANDROID_USER_HOME ANDROID_SDK_HOME; do
+  for n in ANDROID_AVD_HOME ANDROID_USER_HOME ANDROID_EMULATOR_HOME ANDROID_SDK_HOME; do
     v=$(env_value "$n")
     [[ -n $v ]] || continue
     [[ $v == /* && $v != *[\$\`[:cntrl:]]* ]] || return 1
     v=${v%/}
-    case $n in ANDROID_USER_HOME) v+=/avd ;; ANDROID_SDK_HOME) v+=/.android/avd ;; esac
+    case $n in ANDROID_USER_HOME | ANDROID_EMULATOR_HOME) v+=/avd ;; ANDROID_SDK_HOME) v+=/.android/avd ;; esac
     printf '%s\n' "$v"
   done
 }
@@ -3491,6 +3491,99 @@ clean_entries_android_images() { # encoded image folders (json_clean_entries onl
   done
   ((${#pick[@]})) || return 0
   delete_android_images "${pick[@]}"
+}
+
+# Snapshots of Android emulator virtual devices (AVDs): <name>.avd/snapshots, often GBs per AVD.
+# The emulator makes a new one (the next start is a cold boot). Only that folder: the AVD's disks
+# (userdata*.img, sdcard.img), config and .ini files stay. AVDs as android_images finds them, only
+# inside your home, no symlinks. Locked while the emulator runs. Not ticked; one entry per AVD.
+reg android_avd_snapshots dev "Android emulator snapshots" 0 "Saved states (quick-boot snapshots) of your Android emulator virtual devices, often several GB each. Deleted; the next start is a cold boot and the emulator saves a new one. Apps and data on the device are kept. Close the emulator first."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_android_avd_snapshots='^/[A-Za-z0-9/._~%-]+$' # the snapshots folder's full path, percent-encoded
+
+avd_dirs() { # every AVD folder: <name>.avd in the AVD homes, and where their .ini files point
+  local homes h d f line p
+  homes=$(avd_homes) || homes=$HOME/.android/avd
+  while IFS= read -r h; do
+    [[ -d $h && ! -L $h ]] || continue
+    for d in "$h"/*.avd; do [[ -d $d ]] && printf '%s\n' "$d"; done
+    for f in "$h"/*.ini; do
+      p=""
+      while IFS= read -r line; do
+        [[ $line =~ ^[[:space:]]*path[[:space:]]*=[[:space:]]*(.*[^[:space:]]) ]] && p=${BASH_REMATCH[1]%/}
+      done < <(ini_lines "$f")
+      [[ -n $p && -d $p ]] && printf '%s\n' "$p"
+    done
+  done <<<"$homes" | awk '!seen[$0]++'
+}
+avd_snapshots() { # → AS_DIR / AS_BYTES / AS_LABEL of snapshots folders, biggest first
+  local d s b lines=()
+  AS_DIR=() AS_BYTES=() AS_LABEL=()
+  while IFS= read -r d; do
+    s=$d/snapshots
+    [[ $d == "$HOME"/* && $d != *[[:cntrl:]]* && ! -L $d && -d $s && ! -L $s ]] || continue
+    [[ $(realpath -e -- "$s" 2>/dev/null) == "$s" ]] || continue
+    touches_exclusion "$s" && continue
+    [[ -n $(find "$s" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null) ]] || continue
+    b=$(du -sbx -- "$s" 2>/dev/null | cut -f1)
+    d=${d##*/}
+    lines+=("${b:-0}"$'\t'"$s"$'\t'"${d%.avd}")
+  done < <(avd_dirs)
+  ((${#lines[@]})) || return 0
+  while IFS=$'\t' read -r b s d; do
+    AS_BYTES+=("$b") AS_DIR+=("$s") AS_LABEL+=("$d")
+  done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
+}
+lockedby_android_avd_snapshots() { running_proc -x 'emulator|emulator64-.*|qemu-system-.*'; }
+precheck_android_avd_snapshots() {
+  local p
+  p=$(lockedby_android_avd_snapshots) || return 0
+  warn "Skipping ${ITEM_LABEL[android_avd_snapshots]}: close $p first."
+  return 1
+}
+delete_avd_snapshots() { # INDEX… of AS_DIR
+  local i rc=0
+  for i; do
+    is_protected "${AS_DIR[i]}" && { err "Refusing to touch protected path: ${AS_DIR[i]}"; rc=1; continue; }
+    run rm -rf -- "${AS_DIR[i]}" || rc=1
+  done
+  return "$rc"
+}
+scan_android_avd_snapshots() {
+  local b
+  avd_snapshots
+  ((${#AS_DIR[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${AS_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#AS_DIR[@]} AVD)"
+}
+clean_android_avd_snapshots() {
+  avd_snapshots
+  ((${#AS_DIR[@]})) || return 0
+  delete_avd_snapshots "${!AS_DIR[@]}"
+}
+details_android_avd_snapshots() {
+  local i
+  avd_snapshots
+  for i in "${!AS_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${AS_BYTES[i]}")" "$(human "${AS_BYTES[i]}")" "$NC" "${AS_LABEL[i]}" "${AS_DIR[i]/#$HOME/\~}"
+  done
+}
+entries_android_avd_snapshots() {
+  local i
+  avd_snapshots
+  for i in "${!AS_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${AS_DIR[i]}")" "${AS_BYTES[i]}" "${AS_LABEL[i]}"
+  done
+}
+clean_entries_android_avd_snapshots() {
+  local i id pick=()
+  avd_snapshots
+  for id; do
+    for i in "${!AS_DIR[@]}"; do [[ $(urlencode_path "${AS_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_avd_snapshots "${pick[@]}"
 }
 
 # Old JetBrains IDE and Android Studio versions. Each version keeps its settings, plugins, caches,
@@ -7551,7 +7644,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 # never empty a Trash behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 # the user picks which projects to rebuild, images or runtimes to download again and IDE versions to let go
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 # the user picks which projects to rebuild, images or runtimes to download again and IDE versions to let go
   plain_results
   printf '\n'
   start_cleanup
