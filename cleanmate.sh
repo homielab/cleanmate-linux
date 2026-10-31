@@ -5962,7 +5962,7 @@ app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<
   # folders each app keeps in your home: by package, launcher and program name (case-insensitive)
   local -A idx=() app_paths=()
   local d e n
-  for d in "${XDG_CONFIG_HOME:-$HOME/.config}" "$APPS_DIR_USER" "$HOME/.cache"; do
+  for d in "${XDG_CONFIG_HOME:-$HOME/.config}" "$APPS_DIR_USER" "${XDG_STATE_HOME:-$HOME/.local/state}" "$HOME/.cache"; do
     for e in "$d"/*/; do e=${e%/}; [[ -d $e && ! -L $e ]] && n=${e##*/} && idx[${n,,}]+="$e"$'\n'; done
   done
   local hidden=0 nm p pkgb datab last t
@@ -6006,6 +6006,36 @@ app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<
     while IFS= read -r nm; do [[ -n $nm ]] && t=${last_seen[$nm]:-0} && ((t > last)) && last=$t; done <<<"${a_desk[$key]}"
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$src" "$id" "${a_name[$key]:-$id}" "${pkgb:-0}" "${datab:-0}" "${last:-0}" \
       "${a_desk[$key]%%$'\n'*}" "$(IFS=$'\x1f'; printf '%s' "${list[*]}")" # paths last: may be empty
+  done
+}
+
+# ── Reset an app ──
+#
+# Resetting keeps the app installed and moves its data in your home to the
+# Trash, so it starts as if new: the folders the Uninstaller finds for it (see
+# app_inventory) — a Flatpak app's ~/.var/app/ID only its cache, config and data,
+# a snap's ~/snap/NAME only the folder of its current revision and common (older
+# revisions stay). Empty folders are left alone. Never as root, never while the
+# app runs, and nothing else: not its launcher, its program or other folders.
+
+reset_dir_ok() { # DIR → a real folder (not a symlink) with something in it, not protected
+  [[ -d $1 && ! -L $1 ]] && ! is_protected "$1" && [[ -n $(find "$1" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null) ]]
+}
+
+reset_paths() { # SRC ID PATHS(\x1f, from app_inventory) → the folders resetting the app moves to the Trash, one per line
+  local src=$1 id=$2 p d rev
+  local -a ps
+  IFS=$'\x1f' read -ra ps <<<"$3"
+  for p in "${ps[@]}"; do
+    [[ -n $p ]] || continue
+    if [[ $src == flatpak && $p == "$HOME/.var/app/$id" ]]; then
+      for d in cache config data; do reset_dir_ok "$p/$d" && printf '%s\n' "$p/$d"; done
+    elif [[ $src == snap && $p == "$HOME/snap/$id" ]]; then
+      rev=$(readlink -- "$p/current" 2>/dev/null); rev=${rev#"$p"/}
+      [[ $rev =~ ^[A-Za-z0-9._-]+$ && $rev != . && $rev != .. && $rev != common ]] && reset_dir_ok "$p/$rev" &&
+        printf '%s\n' "$p/$rev"
+      reset_dir_ok "$p/common" && printf '%s\n' "$p/common"
+    elif reset_dir_ok "$p"; then printf '%s\n' "$p"; fi
   done
 }
 
@@ -6270,7 +6300,8 @@ app_details() { # INDEX
       [[ -n $p ]] && V_LINES+=("  $(printf '%9s' "$(human "$(du_sum "$p")")")  ${p/#$HOME/\~}")
     done < <(tr '\037' '\n' <<<"${A_PATHS[i]}")
   else V_LINES+=("  ${DIM}No folders of its own found in your home.${NC}"); fi
-  V_LINES+=("" "  ${DIM}“Last used” comes from GNOME's record of opened apps, or the newest change in the app's folders.${NC}")
+  V_LINES+=("" "  ${DIM}“Last used” comes from GNOME's record of opened apps, or the newest change in the app's folders.${NC}"
+    "  ${DIM}r on the list resets the app: its data in your home goes to the Trash, the app stays installed.${NC}")
   ui_view "${A_NAME[i]}"
 }
 
@@ -6320,6 +6351,30 @@ uninstall_apps() { # uninstall U_SEL (indices into A_*), then offer their folder
   apps_view
 }
 
+reset_app() { # INDEX into A_* — keep the app, move its data in your home to the Trash (see reset_paths); z puts it back
+  local i=$1 prog p tot=0 n=0 list=()
+  ((EUID != 0)) || { toast "${RED}✘${NC} Resetting works on your home folder: run CleanMate as yourself, not as root"; return; }
+  if prog=$(app_running "${A_SRC[i]}" "${A_ID[i]}"); then
+    toast "${YELLOW}!${NC} Close $prog first: resetting ${A_NAME[i]} while it runs can lose what is open in it"; return
+  fi
+  mapfile -t list < <(reset_paths "${A_SRC[i]}" "${A_ID[i]}" "${A_PATHS[i]}")
+  ((${#list[@]})) || { toast "${DIM}${A_NAME[i]} keeps no data in your home: nothing to reset.${NC}"; return; }
+  CONFIRM_LINES=()
+  for p in "${list[@]}"; do
+    n=$(du_sum "$p"); tot=$((tot + n))
+    CONFIRM_LINES+=("$(printf '%9s' "$(human "$n")")  ${p/#$HOME/\~}")
+  done
+  ui_confirm "Reset ${A_NAME[i]}?" "The app stays; its $(plural ${#list[@]} folder) ($(human "$tot")) go to the Trash" n || return
+  UNDO_BATCH=() n=0
+  for p in "${list[@]}"; do move_to_trash "$p" >/dev/null 2>&1 && n=$((n + 1)); done
+  log "reset ${A_SRC[i]}:${A_ID[i]}"
+  if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would move $(plural ${#list[@]} folder) of ${A_NAME[i]} to Trash"
+  elif ((n < ${#list[@]})); then toast "${YELLOW}!${NC} Reset ${A_NAME[i]}: moved $n of ${#list[@]} folders to Trash — z puts them back"
+  else toast "${GREEN}✔${NC} Reset ${A_NAME[i]}: moved $(plural "$n" folder) to Trash — z puts them back"; fi
+  load_apps
+  apps_view
+}
+
 apps_menu() {
   local cur=0 scroll=0 i
   load_apps || return
@@ -6328,7 +6383,8 @@ apps_menu() {
     L_TITLE="Uninstaller" L_TOP=applist_top L_BOTTOM=applist_bottom L_ROW=applist_row L_FOCUSABLE="" L_TEXT=applist_text
     L_VIEW=0 L_COUNT=$((${#A_VIEW[@]} + (${#A_LEFT[@]} > 0))) L_CUR=$cur L_SCROLL=$scroll
     ((L_COUNT)) || L_VIEW=1
-    hints space select "!u" uninstall enter details s sort f filter / find p "all packages" q back
+    if ((${#UNDO_BATCH[@]})); then hints space select "!u" uninstall r reset z undo enter details s sort f filter / find q back
+    else hints space select "!u" uninstall r reset enter details s sort f filter / find p "all packages" q back; fi
     L_HINTS=$HINTS
     ui_list
     cur=$L_CUR scroll=$L_SCROLL
@@ -6336,6 +6392,8 @@ apps_menu() {
     case $KEY in
       space) [[ -n $i ]] && { if [[ -n ${U_SEL[$i]:-} ]]; then unset "U_SEL[$i]"; else U_SEL[$i]=1; fi; list_move 1; cur=$L_CUR; } ;;
       u) [[ -n $i ]] || continue; ((${#U_SEL[@]})) || U_SEL[$i]=1; uninstall_apps; cur=0 scroll=0 ;;
+      r) [[ -n $i ]] && reset_app "$i" ;;
+      z) ((${#UNDO_BATCH[@]})) || continue; undo_trash; undo_toast; load_apps; apps_view ;;
       enter | right)
         if [[ -n $i ]]; then app_details "$i"
         elif ((${#A_LEFT[@]})); then leftovers_menu; load_apps; apps_view; cur=0 scroll=0; fi ;;
@@ -8141,10 +8199,11 @@ json_main() { # SUBCOMMAND ARGS…
     activity) json_activity "$@" ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
+    reset) json_reset "$@" ;;
     maintenance) json_maintenance ;;
     maintain) json_maintain "$@" ;;
     overview) json_overview ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|apps|uninstall [--check] ID…|maintenance|maintain ID [on|off] [--user-steps]|overview"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview"; return 2 ;;
   esac
 }
 
@@ -8917,6 +8976,43 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
   printf '{"event":"done","removed":%d,"failed":%d,"skipped":%d}\n' "$gone" "$failed" "$skipped"
 }
 
+json_reset() { # [--check] KIND:ID [FOLDER…] — keep the app, move its data (or these folders of it) to the Trash;
+  # --check lists the folders ("data" events) and says which program of it runs
+  local check=0 a src id name pkgb datab last desk paths="" found=0 prog="" p b jp total=0
+  local -a list=() pick=()
+  [[ ${1:-} == --check ]] && { check=1; shift; }
+  a=${1:-}
+  [[ -n $a ]] || { json_error "No app given."; return 2; }
+  shift
+  ((check || EUID != 0)) || { json_error "Refusing to reset an app as root: its data is in your home"; return 2; }
+  while IFS=$'\t' read -r src id name pkgb datab last desk p; do
+    [[ $src:$id == "$a" ]] && found=1 paths=$p
+  done < <(app_inventory 2>/dev/null)
+  ((found)) || { json_error "Not an app CleanMate can reset: $a"; return 2; }
+  src=${a%%:*} id=${a#*:}
+  mapfile -t list < <(reset_paths "$src" "$id" "$paths")
+  prog=$(app_running "$src" "$id") || prog=""
+  if ((check)); then
+    for p in "${list[@]}"; do
+      b=$(du_sum "$p"); total=$((total + ${b:-0})); json_str jp "$p"
+      printf '{"event":"data","path":%s,"bytes":%d}\n' "$jp" "${b:-0}"
+    done
+    json_str jp "$prog"
+    printf '{"event":"done","count":%d,"bytes":%d,"running":%s}\n' "${#list[@]}" "$total" "$jp"
+    return
+  fi
+  [[ -z $prog ]] || { json_error "Close $prog first: resetting an app while it runs can lose what is open in it"; return 2; }
+  if (($#)); then # only folders of this app that resetting it would take
+    for p in "$@"; do
+      printf '%s\n' "${list[@]}" | grep -qxF -- "$p" || { json_error "Not a data folder of $a: $p"; return 2; }
+      pick+=("$p")
+    done
+  else pick=("${list[@]}"); fi
+  ((${#pick[@]})) || { json_error "Nothing to reset: this app keeps no data in your home."; return 2; }
+  log "reset $a"
+  json_trash "${pick[@]}"
+}
+
 # Maintenance: `maintenance` lists the items with their state, `maintain ID` runs
 # one, streaming each step ("task") and its output ("log"). Steps that need root
 # run when the engine is root (pkexec); the others only as you — the desktop app
@@ -9152,7 +9248,8 @@ For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
                     large [--min BYTES] [--days N] [--path DIR], lens [--path DIR],
                     dupes [--min BYTES] [--path DIR], startup, startup-set ID enable|disable|remove,
-                    trash [--home-only] PATH…, restore KEY…, apps, uninstall [--check] KIND:ID…
+                    trash [--home-only] PATH…, restore KEY…, apps, uninstall [--check] KIND:ID…,
+                    reset [--check] KIND:ID [FOLDER…]
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help
 

@@ -156,6 +156,10 @@ class Engine:
     def uninstall(self, ids, on_event, on_done, check=False, as_root=False):
         return self.run(["uninstall", *(["--check"] if check else []), *ids], on_event, on_done, as_root=as_root)
 
+    def reset(self, app_id, on_event, on_done, check=False, folders=()):
+        """Keep the app, move its data in your home (or these folders of it) to the Trash; check = only list them."""
+        return self.run(["reset", *(["--check"] if check else []), app_id, *folders], on_event, on_done)
+
     def maintenance(self, on_event, on_done):
         return self.run(["maintenance"], on_event, on_done)
 

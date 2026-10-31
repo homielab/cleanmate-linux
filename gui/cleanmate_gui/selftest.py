@@ -674,7 +674,8 @@ def uninstaller_test(win, report, wait, finish):
     apt and Snap through one pkexec, the running Flatpak app skipped, and put their folders back;
     the folder of a Flatpak app removed earlier is listed unticked, goes to the Trash and comes back;
     an AppImage app (launcher in your applications folder) goes to the Trash with its launcher, icon and
-    folder, and Restore brings all four back; all in a throwaway home."""
+    folder, and Restore brings all four back; Reset of one app is refused while it runs, then moves the
+    ticked folders of its data to the Trash (the app stays) and Restore brings them back; all in a throwaway home."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir, apps_dir = (os.path.join(sandbox, d) for d in ("home", "bin", "applications"))
@@ -715,12 +716,24 @@ def uninstaller_test(win, report, wait, finish):
     real_engine = page.engine
     checked = {}
     page.confirm = lambda apps, folders, check: checked.update(check)  # the dialog itself needs a click
+    asked = {}
+    real_confirm_reset = page.confirm_reset
+    page.confirm_reset = lambda app, data: asked.update(app=app, data=data)
+    toasts = []
+    real_toast = win.toast
+
+    def toast(text, *args, **kwargs):
+        toasts.append(text)
+        return real_toast(text, *args, **kwargs)
+    win.toast = toast
 
     def idle():
         return not page.busy
 
     def done():
         page.engine = real_engine
+        page.confirm_reset = real_confirm_reset
+        win.toast = real_toast
         shutil.rmtree(sandbox, ignore_errors=True)
         settings_test(win, report, wait, finish)
 
@@ -939,8 +952,59 @@ def uninstaller_test(win, report, wait, finish):
     def ai_restored():
         report(all(os.path.exists(p) for p in (appimage, ai_launcher, ai_icon, os.path.join(ai_data, "settings"))),
                "Restore puts the AppImage app back: file, launcher, icon and folder")
-        wait(lambda: idle() and any(a["kind"] == "appimage" for a in page.apps.values()), done, 30,
+        wait(lambda: idle() and any(a["kind"] == "appimage" for a in page.apps.values()), reset_start, 30,
              "list after restoring the AppImage app")
+
+    spotify = "flatpak:com.spotify.Client"
+
+    def reset_start():
+        for d in ("cache", "config"):
+            os.makedirs(os.path.join(spotify_data, d), exist_ok=True)
+            with open(os.path.join(spotify_data, d, "x"), "w") as f:
+                f.write("data\n")
+        for i in list(page.selected):
+            page.checks[i].set_active(False)
+        page.checks[spotify].set_active(True)
+        page.checks["apt:gimp"].set_active(True)
+        report(not page.reset_button.get_sensitive(), "Reset needs exactly one app ticked")
+        page.checks["apt:gimp"].set_active(False)
+        report(page.reset_button.get_sensitive(), "one app ticked: Reset is offered")
+        toasts.clear()
+        page.reset_check()  # Spotify still runs (`flatpak ps`)
+        wait(lambda: idle() and toasts, reset_refused, 60, "reset check of a running app")
+
+    def reset_refused():
+        report(not asked and any("com.spotify.Client" in t for t in toasts),
+               f"a running app is not reset, the toast says which program: {toasts}")
+        os.remove(os.path.join(home, "spotify-runs"))
+        page.reset_check()
+        wait(lambda: idle() and asked, reset_asked, 60, "reset check")
+
+    def reset_asked():
+        paths = sorted(d["path"] for d in asked["data"])
+        report(paths == [os.path.join(spotify_data, "cache"), os.path.join(spotify_data, "config")],
+               f"Reset lists the app's data folders: {paths}")
+        dialog = real_confirm_reset(asked["app"], asked["data"])
+        report(len(dialog.checks) == 2 and all(c.get_active() for c in dialog.checks),
+               "the confirmation lists each folder, ticked")
+        for c in dialog.checks:
+            c.set_active(c.path.endswith("config"))  # keep the cache
+        page.undo_toast = None
+        dialog.emit("response", "reset")
+        dialog.force_close()
+        wait(lambda: idle() and page.undo_toast and spotify in page.apps, reset_done, 60, "reset")
+
+    def reset_done():
+        log = open(os.path.join(home, "removed.log")).read() if os.path.exists(os.path.join(home, "removed.log")) else ""
+        report(not os.path.exists(os.path.join(spotify_data, "config")) and os.path.isdir(os.path.join(spotify_data, "cache"))
+               and "flatpak uninstall" not in log and spotify in page.apps,
+               "Reset moves only the ticked folder to the Trash; the app stays")
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: idle() and os.path.isdir(os.path.join(spotify_data, "config")), reset_restored, 60, "restore after reset")
+
+    def reset_restored():
+        report(os.path.exists(os.path.join(spotify_data, "config", "x")), "Restore after Reset puts the folder back")
+        wait(idle, done, 30, "list after the reset")
 
     wait(idle, first_list, 120, "first app list")
 

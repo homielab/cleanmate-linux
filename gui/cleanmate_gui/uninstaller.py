@@ -4,7 +4,8 @@ The engine lists the apps (`--json apps`, parts of Ubuntu are never listed),
 checks and removes them (`--json uninstall`: several at once, apt and Snap
 through one pkexec, Flatpak and AppImage as you, running apps skipped; an
 AppImage, its launcher and icon go to the Trash) and moves the chosen leftover folders
-to the Trash (`--json trash`) once the app is gone. Folders of apps removed earlier (`leftover` events) are a group of
+to the Trash (`--json trash`) once the app is gone. Reset keeps one app and moves its data
+in your home to the Trash (`--json reset`: listed first, refused while it runs). Folders of apps removed earlier (`leftover` events) are a group of
 their own at the end, never ticked. This page only shows them and keeps the choice.
 """
 import os
@@ -137,6 +138,11 @@ class UninstallerPage(Gtk.Box):
         self.remove_button.set_tooltip_text(_("Asks once, and for your password once for all apt and Snap apps"))
         self.remove_button.connect("clicked", lambda *_: self.check())
         self.bar.pack_end(self.remove_button)
+        self.reset_button = Gtk.Button(label=_("Reset…"))
+        self.reset_button.set_tooltip_text(_("Keeps the app and moves its data in your home to the Trash, "
+                                             "so it starts as if new. Select one app."))
+        self.reset_button.connect("clicked", lambda *_: self.reset_check())
+        self.bar.pack_end(self.reset_button)
         again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("List apps again"))
         again.connect("clicked", lambda *_: self.load())
         self.bar.pack_end(again)
@@ -461,6 +467,7 @@ class UninstallerPage(Gtk.Box):
         self.remove_button.set_label(ngettext("Uninstall {n} app…", "Uninstall {n} apps…", len(apps))
                                      if len(apps) > 1 else _("Uninstall"))
         self.remove_button.set_sensitive(bool(apps) and not self.busy)
+        self.reset_button.set_sensitive(len(apps) == 1 and not self.busy)
         self.sync_all_check()
         self.update_batch(apps)
 
@@ -705,6 +712,113 @@ class UninstallerPage(Gtk.Box):
             self.running = self.engine.uninstall(user_ids, on_event, lambda ok, st: run_root())
         else:
             run_root()
+
+    # ── resetting ──
+    def reset_check(self):
+        """One app ticked: list its data in your home (the engine says whether it runs), then ask."""
+        apps, _folders = self.chosen()
+        if len(apps) != 1 or self.busy:
+            return
+        app = apps[0]
+        self.busy = True
+        self.update_summary()
+        self.window.set_busy(True)
+        data, info = [], {}
+
+        def on_event(e):
+            if e["event"] == "data":
+                data.append(e)
+            elif e["event"] in ("done", "error"):
+                info.update(e)
+
+        def on_done(ok, status):
+            self.running, self.busy = None, False
+            self.window.set_busy(False)
+            self.update_summary()
+            if info.get("event") != "done":
+                self.window.toast(info.get("message") or _("Couldn't find the data of this app."), timeout=8)
+            elif info.get("running"):
+                self.window.toast(_("Close {program} first: resetting {name} while it runs can lose what is open "
+                                    "in it.").format(program=info["running"], name=app["name"]), timeout=8)
+            elif not data:
+                self.window.toast(_("{name} keeps no data in your home: nothing to reset.").format(name=app["name"]))
+            else:
+                self.confirm_reset(app, data)
+
+        self.running = self.engine.reset(app["id"], on_event, on_done, check=True)
+
+    def confirm_reset(self, app, data):
+        """Each folder with its size, all ticked; Reset moves the ticked ones to the Trash. Returns the dialog."""
+        checks = []
+        lines = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        dialog = Adw.AlertDialog(
+            heading=_("Reset {name}?").format(name=app["name"]),
+            body=_("The app stays installed. The ticked folders of its data go to the Trash, so it starts as if "
+                   "new — you can put them back."),
+            extra_child=Gtk.ScrolledWindow(child=lines, propagate_natural_height=True, max_content_height=260,
+                                           hscrollbar_policy=Gtk.PolicyType.NEVER))
+
+        def on_toggled(*_args):
+            dialog.set_response_enabled("reset", any(c.get_active() for c in checks))
+
+        for d in data:
+            row = Gtk.Box(spacing=12)
+            check = Gtk.CheckButton(active=True, hexpand=True, tooltip_text=d["path"])
+            check.set_child(Gtk.Label(label=short_path(d["path"]), xalign=0, ellipsize=Pango.EllipsizeMode.MIDDLE))
+            check.path = d["path"]
+            check.connect("toggled", on_toggled)
+            checks.append(check)
+            row.append(check)
+            row.append(Gtk.Label(label=human(d["bytes"]), css_classes=["numeric", "dim-label"]))
+            lines.append(row)
+        dialog.checks = checks
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("reset", _("Reset"))
+        dialog.set_response_appearance("reset", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", lambda d, r: r == "reset" and self.reset(app, [c.path for c in checks
+                                                                                  if c.get_active()]))
+        dialog.present(self.window)
+        return dialog
+
+    def reset(self, app, folders):
+        """Move these folders of the app to the Trash; a toast offers Restore for 10 s."""
+        if self.busy or not folders:
+            return
+        self.busy = True
+        self.update_summary()
+        self.window.set_busy(True)
+        moved, done, failed = {}, [], []
+
+        def on_event(e):
+            if e["event"] == "error":
+                failed.append(e["message"])
+            elif e["event"] == "task" and e["state"] == "ok":
+                done.append(e["id"])
+                if e["trash"]:
+                    moved[e["trash"]] = e["id"]
+            elif e["event"] == "task":
+                failed.append(f"{short_path(e['id'])}: {e['info']}")
+
+        def on_done(ok, status):
+            self.running, self.busy = None, False
+            self.window.set_busy(False)
+            if self.engine.dry_run:
+                self.window.toast(ngettext("Dry run: {n} folder would be moved to the Trash",
+                                           "Dry run: {n} folders would be moved to the Trash", len(done)))
+            elif moved:
+                msg = ngettext("Reset {name}: moved {n} folder to the Trash",
+                               "Reset {name}: moved {n} folders to the Trash", len(moved), name=app["name"])
+                if failed:
+                    msg += " · " + failed[0]
+                self.undo_toast = self.window.toast(msg, _("Restore"), lambda: self.restore(moved), timeout=10)
+                self.window.refresh_disk()
+            elif failed:
+                self.window.toast(failed[0], timeout=8)
+            self.load()
+
+        self.running = self.engine.reset(app["id"], on_event, on_done, folders=folders)
 
     def restore(self, moved, apps=False):
         """Put the leftover folders of the last uninstall back; apt, Snap and Flatpak apps stay removed,

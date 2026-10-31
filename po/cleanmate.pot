@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 14:08+0000\n"
+"POT-Creation-Date: 2026-10-31 17:39+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -58,7 +58,7 @@ msgstr ""
 #: gui/cleanmate_gui/duplicates.py:103 gui/cleanmate_gui/duplicates.py:325
 #: gui/cleanmate_gui/largefiles.py:101 gui/cleanmate_gui/largefiles.py:279
 #: gui/cleanmate_gui/spacelens.py:89 gui/cleanmate_gui/spacelens.py:365
-#: gui/cleanmate_gui/uninstaller.py:297 gui/cleanmate_gui/uninstaller.py:333
+#: gui/cleanmate_gui/uninstaller.py:303 gui/cleanmate_gui/uninstaller.py:339
 msgid "Move to Trash"
 msgstr ""
 
@@ -157,7 +157,7 @@ msgstr[1] ""
 
 #: gui/cleanmate_gui/duplicates.py:318 gui/cleanmate_gui/largefiles.py:272
 #: gui/cleanmate_gui/scanpage.py:432 gui/cleanmate_gui/spacelens.py:358
-#: gui/cleanmate_gui/uninstaller.py:548
+#: gui/cleanmate_gui/uninstaller.py:555
 #, python-brace-format
 msgid "… and {n} more"
 msgstr ""
@@ -180,7 +180,8 @@ msgstr ""
 #: gui/cleanmate_gui/duplicates.py:324 gui/cleanmate_gui/largefiles.py:278
 #: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:443
 #: gui/cleanmate_gui/settings.py:376 gui/cleanmate_gui/spacelens.py:364
-#: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:569
+#: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:576
+#: gui/cleanmate_gui/uninstaller.py:775
 msgid "Cancel"
 msgstr ""
 
@@ -213,13 +214,13 @@ msgstr[1] ""
 
 #: gui/cleanmate_gui/duplicates.py:376 gui/cleanmate_gui/largefiles.py:329
 #: gui/cleanmate_gui/scanpage.py:537 gui/cleanmate_gui/spacelens.py:417
-#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/uninstaller.py:366
+#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/uninstaller.py:372
 msgid "Undo"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:412 gui/cleanmate_gui/largefiles.py:365
 #: gui/cleanmate_gui/scanpage.py:573 gui/cleanmate_gui/spacelens.py:450
-#: gui/cleanmate_gui/uninstaller.py:729
+#: gui/cleanmate_gui/uninstaller.py:843
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
 msgstr ""
@@ -337,7 +338,7 @@ msgid_plural "{n} files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:129 gui/cleanmate_gui/uninstaller.py:459
+#: gui/cleanmate_gui/i18n.py:129 gui/cleanmate_gui/uninstaller.py:465
 #, python-brace-format
 msgid "{n} folder"
 msgid_plural "{n} folders"
@@ -923,8 +924,8 @@ msgid "Never let system logs grow past {mb} MB (Settings → Journal size limit)
 msgstr ""
 
 #: gui/cleanmate_gui/maintenance.py:197 gui/cleanmate_gui/scanpage.py:232
-#: gui/cleanmate_gui/scanpage.py:249 gui/cleanmate_gui/uninstaller.py:250
-#: gui/cleanmate_gui/uninstaller.py:544
+#: gui/cleanmate_gui/scanpage.py:249 gui/cleanmate_gui/uninstaller.py:256
+#: gui/cleanmate_gui/uninstaller.py:551
 msgid "Needs your password"
 msgstr ""
 
@@ -1565,7 +1566,7 @@ msgid ""
 msgstr ""
 
 #: gui/cleanmate_gui/scanpage.py:471 gui/cleanmate_gui/scanpage.py:515
-#: gui/cleanmate_gui/uninstaller.py:596 gui/cleanmate_gui/uninstaller.py:648
+#: gui/cleanmate_gui/uninstaller.py:603 gui/cleanmate_gui/uninstaller.py:655
 msgid "waiting"
 msgstr ""
 
@@ -1581,20 +1582,20 @@ msgstr ""
 msgid "done"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:634
+#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:641
 msgid "skipped"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:634
+#: gui/cleanmate_gui/scanpage.py:499 gui/cleanmate_gui/uninstaller.py:641
 msgid "failed"
 msgstr ""
 
 #: gui/cleanmate_gui/scanpage.py:508 gui/cleanmate_gui/scanpage.py:515
-#: gui/cleanmate_gui/uninstaller.py:642 gui/cleanmate_gui/uninstaller.py:648
+#: gui/cleanmate_gui/uninstaller.py:649 gui/cleanmate_gui/uninstaller.py:655
 msgid "waiting for your password…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:518 gui/cleanmate_gui/uninstaller.py:650
+#: gui/cleanmate_gui/scanpage.py:518 gui/cleanmate_gui/uninstaller.py:657
 msgid "Skipped — no password was entered"
 msgstr ""
 
@@ -1625,7 +1626,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: gui/cleanmate_gui/scanpage.py:576 gui/cleanmate_gui/spacelens.py:453
-#: gui/cleanmate_gui/uninstaller.py:732
+#: gui/cleanmate_gui/uninstaller.py:846
 #, python-brace-format
 msgid "Put back {n} item from the Trash"
 msgid_plural "Put back {n} items from the Trash"
@@ -1841,6 +1842,7 @@ msgid "Remembered selections"
 msgstr ""
 
 #: gui/cleanmate_gui/settings.py:182 gui/cleanmate_gui/settings.py:377
+#: gui/cleanmate_gui/uninstaller.py:776
 msgid "Reset"
 msgstr ""
 
@@ -2073,7 +2075,7 @@ msgid ""
 "it."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:120 gui/cleanmate_gui/uninstaller.py:218
+#: gui/cleanmate_gui/startup.py:120 gui/cleanmate_gui/uninstaller.py:224
 msgid "Apps"
 msgstr ""
 
@@ -2164,133 +2166,143 @@ msgstr ""
 msgid "{name} is back"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:22
+#: gui/cleanmate_gui/uninstaller.py:23
 msgid "Size"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:22
+#: gui/cleanmate_gui/uninstaller.py:23
 msgid "Last used"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:22
+#: gui/cleanmate_gui/uninstaller.py:23
 msgid "Name"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:23
+#: gui/cleanmate_gui/uninstaller.py:24
 msgid "All apps"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:23
+#: gui/cleanmate_gui/uninstaller.py:24
 msgid "Unused for 1+ month"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:23
+#: gui/cleanmate_gui/uninstaller.py:24
 msgid "Unused for 3+ months"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:24
+#: gui/cleanmate_gui/uninstaller.py:25
 msgid "Unused for 6+ months"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:24
+#: gui/cleanmate_gui/uninstaller.py:25
 msgid "Unused for 12+ months"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:27
+#: gui/cleanmate_gui/uninstaller.py:28
 msgid "This Flatpak app is no longer installed"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:28
+#: gui/cleanmate_gui/uninstaller.py:29
 msgid "This snap is no longer installed"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:43
+#: gui/cleanmate_gui/uninstaller.py:44
 msgid "last use unknown"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:46
+#: gui/cleanmate_gui/uninstaller.py:47
 msgid "used today"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:48
+#: gui/cleanmate_gui/uninstaller.py:49
 #, python-brace-format
 msgid "used {n} day ago"
 msgid_plural "used {n} days ago"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:50
+#: gui/cleanmate_gui/uninstaller.py:51
 #, python-brace-format
 msgid "used {n} month ago"
 msgid_plural "used {n} months ago"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:51
+#: gui/cleanmate_gui/uninstaller.py:52
 #, python-brace-format
 msgid "used {n} year ago"
 msgid_plural "used {n} years ago"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:55
+#: gui/cleanmate_gui/uninstaller.py:56
 #, python-brace-format
 msgid "Skipped: {program} is running — close it and try again"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:97
+#: gui/cleanmate_gui/uninstaller.py:98
 msgid "Search apps"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:100
+#: gui/cleanmate_gui/uninstaller.py:101
 msgid "Sort by"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:104
+#: gui/cleanmate_gui/uninstaller.py:105
 msgid "Filter by last use"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:115
+#: gui/cleanmate_gui/uninstaller.py:116
 msgid "Finding your apps…"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:116
+#: gui/cleanmate_gui/uninstaller.py:117
 msgid "And the space each one uses."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:117
+#: gui/cleanmate_gui/uninstaller.py:118
 msgid "No apps found"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:118
+#: gui/cleanmate_gui/uninstaller.py:119
 msgid "Only apps with a launcher are listed."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:136 gui/cleanmate_gui/uninstaller.py:462
-#: gui/cleanmate_gui/uninstaller.py:570
+#: gui/cleanmate_gui/uninstaller.py:137 gui/cleanmate_gui/uninstaller.py:468
+#: gui/cleanmate_gui/uninstaller.py:577
 msgid "Uninstall"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:137
+#: gui/cleanmate_gui/uninstaller.py:138
 msgid "Asks once, and for your password once for all apt and Snap apps"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:140
+#: gui/cleanmate_gui/uninstaller.py:141
+msgid "Reset…"
+msgstr ""
+
+#: gui/cleanmate_gui/uninstaller.py:142
+msgid ""
+"Keeps the app and moves its data in your home to the Trash, so it starts as "
+"if new. Select one app."
+msgstr ""
+
+#: gui/cleanmate_gui/uninstaller.py:146
 msgid "List apps again"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:205
+#: gui/cleanmate_gui/uninstaller.py:211
 #, python-brace-format
 msgid "{n} app · {size}"
 msgid_plural "{n} apps · {size}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:208
+#: gui/cleanmate_gui/uninstaller.py:214
 msgid "Size = the app + its folders in your home."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:210
+#: gui/cleanmate_gui/uninstaller.py:216
 #, python-brace-format
 msgid "{n} part of Ubuntu itself can't be removed safely and isn't listed."
 msgid_plural ""
@@ -2298,240 +2310,274 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:219
+#: gui/cleanmate_gui/uninstaller.py:225
 msgid "All shown"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:220
+#: gui/cleanmate_gui/uninstaller.py:226
 msgid "Select or deselect every app the list shows"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:244
+#: gui/cleanmate_gui/uninstaller.py:250
 #, python-brace-format
 msgid ""
 "AppImage file {path}\n"
 "App {size} · your data {data}"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:247
+#: gui/cleanmate_gui/uninstaller.py:253
 #, python-brace-format
 msgid ""
 "{kind} package {package}\n"
 "App {size} · your data {data}"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:277
+#: gui/cleanmate_gui/uninstaller.py:283
 msgid "Moved to the Trash after uninstalling"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:281
+#: gui/cleanmate_gui/uninstaller.py:287
 msgid "Also move this folder to the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:294
+#: gui/cleanmate_gui/uninstaller.py:300
 msgid "Leftovers of removed apps"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:295
+#: gui/cleanmate_gui/uninstaller.py:301
 msgid ""
 "Folders in your home that no installed app uses. Nothing is ticked; they go "
 "to the Trash, so you can put them back."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:305
+#: gui/cleanmate_gui/uninstaller.py:311
 msgid "No app with this name is installed"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:333
+#: gui/cleanmate_gui/uninstaller.py:339
 #, python-brace-format
 msgid "Move {size} to Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:362
+#: gui/cleanmate_gui/uninstaller.py:368 gui/cleanmate_gui/uninstaller.py:808
 #, python-brace-format
 msgid "Dry run: {n} folder would be moved to the Trash"
 msgid_plural "Dry run: {n} folders would be moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:365
+#: gui/cleanmate_gui/uninstaller.py:371
 #, python-brace-format
 msgid "Moved {n} folder to the Trash"
 msgid_plural "Moved {n} folders to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:387
+#: gui/cleanmate_gui/uninstaller.py:393
 #, python-brace-format
 msgid "{n} app has no last-used date — Show"
 msgid_plural "{n} apps have no last-used date — Show"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:456
+#: gui/cleanmate_gui/uninstaller.py:462
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} app"
 msgid_plural "Selected <b>{size}</b> in {n} apps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:461
+#: gui/cleanmate_gui/uninstaller.py:467
 #, python-brace-format
 msgid "Uninstall {n} app…"
 msgid_plural "Uninstall {n} apps…"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:481
+#: gui/cleanmate_gui/uninstaller.py:488
 #, python-brace-format
 msgid "{n} app selected"
 msgid_plural "{n} apps selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:482
+#: gui/cleanmate_gui/uninstaller.py:489
 msgid ""
 "Removed together: one confirmation, and your password once for apt and Snap "
 "apps."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:487
+#: gui/cleanmate_gui/uninstaller.py:494
 #, python-brace-format
 msgid "{n} folder to the Trash"
 msgid_plural "{n} folders to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:489
+#: gui/cleanmate_gui/uninstaller.py:496
 msgid "folders kept"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:491
+#: gui/cleanmate_gui/uninstaller.py:498
 msgid "no folders in your home"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:498
+#: gui/cleanmate_gui/uninstaller.py:505
 msgid "Leave this app out"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:526
+#: gui/cleanmate_gui/uninstaller.py:533
 msgid "Couldn't check what removing these apps does."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:534
+#: gui/cleanmate_gui/uninstaller.py:541
 #, python-brace-format
 msgid "Close {names} first: apps that are running aren't removed."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:542
+#: gui/cleanmate_gui/uninstaller.py:549
 msgid "running — skipped"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:549
+#: gui/cleanmate_gui/uninstaller.py:556
 #, python-brace-format
 msgid "Uninstall {n} app?"
 msgid_plural "Uninstall {n} apps?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:552
+#: gui/cleanmate_gui/uninstaller.py:559
 #, python-brace-format
 msgid "{n} app is running and will be skipped: {names}."
 msgid_plural "{n} apps are running and will be skipped: {names}."
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:556
+#: gui/cleanmate_gui/uninstaller.py:563
 #, python-brace-format
 msgid "Also removes {n} other package!"
 msgid_plural "Also removes {n} other packages!"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:557
+#: gui/cleanmate_gui/uninstaller.py:564
 #, python-brace-format
 msgid "apt will also remove: {packages}."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:559
+#: gui/cleanmate_gui/uninstaller.py:566
 #, python-brace-format
 msgid "{n} folder ({size}) will go to the Trash — you can undo that."
 msgid_plural "{n} folders ({size}) will go to the Trash — you can undo that."
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:563
+#: gui/cleanmate_gui/uninstaller.py:570
 msgid "Your folders in your home are kept."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:565
+#: gui/cleanmate_gui/uninstaller.py:572
 msgid "AppImage apps go to the Trash with their launcher — you can undo that."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:567
+#: gui/cleanmate_gui/uninstaller.py:574
 msgid "Apps with a lock need your password, asked once for all of them."
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:602
+#: gui/cleanmate_gui/uninstaller.py:609
 msgid "Uninstalling…"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:626 gui/cleanmate_gui/uninstaller.py:648
+#: gui/cleanmate_gui/uninstaller.py:633 gui/cleanmate_gui/uninstaller.py:655
 msgid "removing…"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:634
+#: gui/cleanmate_gui/uninstaller.py:641
 msgid "removed"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:652
+#: gui/cleanmate_gui/uninstaller.py:659
 msgid "Not removed"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:679
+#: gui/cleanmate_gui/uninstaller.py:686
 #, python-brace-format
 msgid "Dry run: {n} app would be uninstalled"
 msgid_plural "Dry run: {n} apps would be uninstalled"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:681
+#: gui/cleanmate_gui/uninstaller.py:688
 #, python-brace-format
 msgid ", {n} folder would be moved to the Trash"
 msgid_plural ", {n} folders would be moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:684
+#: gui/cleanmate_gui/uninstaller.py:691
 #, python-brace-format
 msgid "Uninstalled {n} app"
 msgid_plural "Uninstalled {n} apps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:686
+#: gui/cleanmate_gui/uninstaller.py:693
 #, python-brace-format
 msgid "; moved {n} folder to the Trash"
 msgid_plural "; moved {n} folders to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:689
+#: gui/cleanmate_gui/uninstaller.py:696
 #, python-brace-format
 msgid "; {n} app skipped because it is running"
 msgid_plural "; {n} apps skipped because they are running"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/uninstaller.py:694
+#: gui/cleanmate_gui/uninstaller.py:701 gui/cleanmate_gui/uninstaller.py:815
 msgid "Restore"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:697
+#: gui/cleanmate_gui/uninstaller.py:704
 msgid "Restore folders"
 msgstr ""
 
-#: gui/cleanmate_gui/uninstaller.py:735
+#: gui/cleanmate_gui/uninstaller.py:739
+msgid "Couldn't find the data of this app."
+msgstr ""
+
+#: gui/cleanmate_gui/uninstaller.py:741
+#, python-brace-format
+msgid ""
+"Close {program} first: resetting {name} while it runs can lose what is open "
+"in it."
+msgstr ""
+
+#: gui/cleanmate_gui/uninstaller.py:744
+#, python-brace-format
+msgid "{name} keeps no data in your home: nothing to reset."
+msgstr ""
+
+#: gui/cleanmate_gui/uninstaller.py:755
+#, python-brace-format
+msgid "Reset {name}?"
+msgstr ""
+
+#: gui/cleanmate_gui/uninstaller.py:756
+msgid ""
+"The app stays installed. The ticked folders of its data go to the Trash, so "
+"it starts as if new — you can put them back."
+msgstr ""
+
+#: gui/cleanmate_gui/uninstaller.py:811
+#, python-brace-format
+msgid "Reset {name}: moved {n} folder to the Trash"
+msgid_plural "Reset {name}: moved {n} folders to the Trash"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/uninstaller.py:849
 #, python-brace-format
 msgid "Put back {n} folder from the Trash"
 msgid_plural "Put back {n} folders from the Trash"

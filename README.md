@@ -81,7 +81,8 @@ that start at login on or off (a service or timer also starts or stops right awa
 moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap, Flatpak and AppImage apps — tick several (say,
 everything unused for 12+ months) to remove them with one confirmation and one password; an app that is running
 is skipped — and, if you tick them, the folders they leave in your home (to the Trash, with **Restore folders**); folders of apps you removed earlier are a group of their own
-at the end, not ticked, with **Undo** after moving them to the Trash. **Maintenance** runs the terminal app's maintenance
+at the end, not ticked, with **Undo** after moving them to the Trash. **Reset…** keeps one app installed and moves
+its data in your home to the Trash, so it starts as if new (pick which folders; **Restore** puts them back). **Maintenance** runs the terminal app's maintenance
 tasks (updates, package repair, TRIM, font cache, locate…) with their output in a log window, asking for your
 password once per task, and switches the snap-versions and journal-size limits on or off; a task whose tool
 isn't installed is locked. The app opens on **System Overview**: your system and package counts, each disk
@@ -155,6 +156,9 @@ the browser runs; Firefox needs `sqlite3` (it clears the records, so bookmarks i
   Folders the desktop or many apps share (dconf, GTK, fonts, keyrings…), folders with programs in
   them, changed in the last 30 days or with a file open are never listed. Nothing is ticked; they go
   to the Trash (`z` puts them back).
+  `r` resets the selected app: it stays installed, its folders in your home (for a Flatpak app its
+  cache, config and data; for a snap its current revision and `common`) go to the Trash, so it
+  starts as if new — `z` puts them back. Refused while the app runs.
 - **Maintenance** — update everything (with a list of what will change first), repair packages,
   TRIM, free RAM, and lasting limits so old snap versions and system logs don't pile up again.
 - **System Overview** — storage, free-space history, space outside your folders (Timeshift

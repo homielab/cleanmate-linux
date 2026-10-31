@@ -2378,6 +2378,99 @@ for l in sys.stdin:
   assert_missing "$HOME_DIR/removed.log"
 }
 
+# Reset: the app stays, its data in your home goes to the Trash and comes back
+# with restore; a Flatpak app's .var folder and a snap's ~/snap folder only in
+# part, a running app is refused.
+test_reset_app() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/resetbin proc=$WORK/resetproc h=$HOME_DIR out keys k
+  app_fixtures "$bin"
+  printf '[Desktop Entry]\nType=Application\nName=VLC\nExec=/snap/bin/vlc\nX-SnapInstanceName=vlc\n' >"$h/sys/vlc_vlc.desktop"
+  cat >"$bin/snap" <<'EOS'
+#!/bin/sh
+case $1 in list) printf 'Name Version Rev\nvlc 3.0 42\n' ;; remove) echo "snap $*" >>"$HOME/removed.log" ;; esac
+EOS
+  cat >"$bin/flatpak" <<'EOS'
+#!/bin/sh
+case $1 in
+  list) printf 'com.spotify.Client\t123.0 MB\n' ;;
+  ps) [ -f "$HOME/spotify-runs" ] && echo com.spotify.Client ;;
+  uninstall) echo "flatpak $*" >>"$HOME/removed.log" ;;
+esac
+EOS
+  chmod +x "$bin/snap" "$bin/flatpak"
+  new "$h/.cache/gimp/thumbs"; new "$h/.local/state/gimp/session"; mkdir -p "$h/.local/share/gimp" # empty: left alone
+  new "$h/.config/other/keep"
+  local fp=$h/.var/app/com.spotify.Client
+  new "$fp/config/prefs"; new "$fp/data/db"; new "$fp/.ld.so/keep"
+  new "$h/snap/vlc/42/.config/vlcrc"; new "$h/snap/vlc/41/.config/vlcrc"; new "$h/snap/vlc/common/c"
+  ln -s 42 "$h/snap/vlc/current"
+  mkdir -p "$proc/4242"
+  echo '0::/user.slice/user-1000.slice/user@1000.service/app.slice/snap.vlc.vlc-6f1c.scope' >"$proc/4242/cgroup"
+  echo vlc >"$proc/4242/comm"
+  local CLEANMATE_APP_DIRS="$h/sys" BASE_PATH="$bin:$BASE_PATH" CLEANMATE_PROC=$WORK/resetproc-none
+  local ev='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "data": print("data", e["path"], e["bytes"] > 0)
+    elif e["event"] == "task": print(e["id"], e["state"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])
+    elif e["event"] == "done": print("done", " ".join(k + "=" + str(v > 0 if k in ("bytes", "freed") else v) for k, v in e.items() if k != "event"))'
+  out=$(cm --json reset --check apt:gimp | python3 -c "$ev" | sed "s|$h/||g" | sort)
+  assert_eq "$out" $'data .cache/gimp True\ndata .config/GIMP True\ndata .local/state/gimp True\ndone count=3 bytes=True running=' \
+    "apt app: its folders in .config, .cache and .local/state; not empty ones, not other apps'"
+  out=$(cm --json reset --check flatpak:com.spotify.Client | python3 -c "$ev" | sed "s|$h/||g" | sort)
+  assert_eq "$out" $'data .var/app/com.spotify.Client/cache True\ndata .var/app/com.spotify.Client/config True\ndata .var/app/com.spotify.Client/data True\ndone count=3 bytes=True running=' \
+    "Flatpak app: cache, config and data of its .var folder"
+  out=$(cm --json reset --check snap:vlc | python3 -c "$ev" | sed "s|$h/||g" | sort)
+  assert_eq "$out" $'data snap/vlc/42 True\ndata snap/vlc/common True\ndone count=2 bytes=True running=' \
+    "snap: the current revision and common, not older revisions"
+  out=$(cm --json reset --check apt:busybox | python3 -c "$ev"); assert_eq "$out" "error Not an app CleanMate can reset: apt:busybox" "part of Ubuntu refused"
+  out=$(CLEANMATE_PROC=$proc cm --json reset --check snap:vlc | python3 -c "$ev" | tail -n 1)
+  assert_eq "$out" "done count=2 bytes=True running=vlc" "check says the snap runs"
+  out=$(CLEANMATE_PROC=$proc user_cm --json reset snap:vlc | python3 -c "$ev")
+  assert_eq "$out" "error Close vlc first: resetting an app while it runs can lose what is open in it" "a running app is not reset"
+  assert_exists "$h/snap/vlc/42/.config/vlcrc"
+  touch "$h/spotify-runs"
+  out=$(user_cm --json reset flatpak:com.spotify.Client | python3 -c "$ev"); assert_contains "$out" "error Close com.spotify.Client first"
+  rm -- "$h/spotify-runs"
+  if ((EUID == 0)); then
+    out=$(cm --json reset apt:gimp | python3 -c "$ev"); assert_eq "$out" "error Refusing to reset an app as root: its data is in your home" "never as root"
+  fi
+  out=$(user_cm --json --dry-run reset apt:gimp | python3 -c "$ev" | tail -n 1)
+  assert_eq "$out" "done moved=3 failed=0 freed=True" "dry run"
+  assert_exists "$h/.config/GIMP/2.10/gimprc"
+  out=$(user_cm --json reset apt:gimp "$h/.config/other" | python3 -c "$ev" | sed "s|$h/||g")
+  assert_eq "$out" "error Not a data folder of apt:gimp: .config/other" "only the app's own folders"
+  out=$(user_cm --json reset apt:gimp "$h/.config/GIMP" "$h/.cache/gimp" | python3 -c "$ev" | sed "s|$h/||g")
+  assert_eq "$out" $'.config/GIMP ok moved to the Trash\n.cache/gimp ok moved to the Trash\ndone moved=2 failed=0 freed=True' "the ticked folders only"
+  assert_missing "$h/.config/GIMP"; assert_missing "$h/.cache/gimp"; assert_exists "$h/.local/state/gimp/session"
+  out=$(user_cm --json reset flatpak:com.spotify.Client | python3 -c "$ev" | tail -n 1); assert_eq "$out" "done moved=3 failed=0 freed=True" "Flatpak reset"
+  assert_missing "$fp/cache"; assert_missing "$fp/config"; assert_missing "$fp/data"; assert_exists "$fp/.ld.so/keep"
+  out=$(user_cm --json reset snap:vlc | python3 -c "$ev" | tail -n 1); assert_eq "$out" "done moved=2 failed=0 freed=True" "snap reset"
+  assert_missing "$h/snap/vlc/42"; assert_missing "$h/snap/vlc/common"; assert_exists "$h/snap/vlc/41/.config/vlcrc"
+  assert_missing "$h/removed.log" # the apps stay installed
+  assert_exists "$h/.config/other/keep"; assert_exists "$h/sys/gimp.desktop"
+  out=$(user_cm --json apps | python3 -c 'import sys, json
+print(" ".join(sorted(json.loads(l)["id"] for l in sys.stdin if json.loads(l)["event"] == "app")))')
+  assert_eq "$out" "apt:foo apt:gimp flatpak:com.spotify.Client snap:vlc" "every app still listed"
+  keys=(); for k in "$h/.local/share/Trash/files"/*; do keys+=("${k##*/}"); done
+  assert_eq "${#keys[@]}" 7 "seven folders in the Trash"
+  out=$(user_cm --json restore "${keys[@]}" | python3 -c "$ev" | tail -n 1); assert_eq "$out" "done restored=7 failed=0" "restore puts them back"
+  assert_exists "$h/.config/GIMP/2.10/gimprc"; assert_exists "$fp/config/prefs"; assert_exists "$h/snap/vlc/42/.config/vlcrc"
+  assert_exists "$h/snap/vlc/common/c"
+  # the terminal app: r resets the app under the cursor, z puts it back
+  if ((EUID != 0)); then
+    out=$(in_app "ASSUME_YES=1; toast() { printf '%s\n' \"\$1\"; }; load_apps() { :; }; apps_view() { :; }
+      A_SRC=(flatpak) A_ID=(com.spotify.Client) A_NAME=(Spotify) A_PATHS=('$fp')
+      reset_app 0; [[ -e '$fp/config' ]] && echo still; echo \${#UNDO_BATCH[@]}; undo_trash; echo \$UNDO_OK \$UNDO_FAILED" |
+      sed 's/\x1b\[[0-9;]*m//g')
+    assert_eq "$out" $'✔ Reset Spotify: moved 3 folders to Trash — z puts them back\n3\n3 0' "terminal app: reset and put back"
+    assert_exists "$fp/config/prefs"
+  fi
+}
+
 test_leftovers_of_removed_apps() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -2495,6 +2588,10 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     ((EUID == 0)) || assert_contains "$out" "one password for the apt and Snap apps together"
     ((EUID == 0)) || assert_contains "$out" "the running app says why it was skipped"
     ((EUID == 0)) || assert_contains "$out" "Restore folders in the toast puts the folders of all the removed apps back"
+    ((EUID == 0)) || assert_contains "$out" "Reset needs exactly one app ticked"
+    ((EUID == 0)) || assert_contains "$out" "a running app is not reset, the toast says which program"
+    ((EUID == 0)) || assert_contains "$out" "Reset moves only the ticked folder to the Trash; the app stays"
+    ((EUID == 0)) || assert_contains "$out" "Restore after Reset puts the folder back"
     ((EUID == 0)) || assert_contains "$out" "a changed number and switch are saved for the terminal app"
     ((EUID == 0)) || assert_contains "$out" "turning automatic cleaning on enables the weekly timer"
     ((EUID == 0)) || assert_contains "$out" "picking Tiếng Việt saves it and offers a restart"
