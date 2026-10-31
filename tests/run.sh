@@ -37,6 +37,29 @@ if [[ -t 1 ]]; then G=$'\e[32m' R=$'\e[31m' Y=$'\e[33m' D=$'\e[2m' N=$'\e[0m'; e
 
 fresh_home() { HOME_DIR=$(mktemp -d -p "$WORK" home.XXXX); mkdir -p "$HOME_DIR/.config/cleanmate"; }
 
+tbytes() { # PATH… → bytes of everything inside, folders counted 0 (du -b gives folders a size that depends on the file system)
+  find "$@" -not -type d -printf '%s\n' | awk '{ t += $1 } END { printf "%.0f\n", t }'
+}
+
+path_without() { # NAME… → a PATH like BASE_PATH where none of the commands exist (CI images ship node, go, …)
+  local dir name hit shim out=() n=0
+  while IFS= read -r dir; do
+    hit=0
+    for name in "$@"; do [[ -e $dir/$name ]] && hit=1; done
+    if ((hit)); then
+      shim=$WORK/pathshim.$((n++)); mkdir -p "$shim"
+      for f in "$dir"/*; do
+        [[ -e $f ]] || continue
+        name=${f##*/}; case " $* " in *" $name "*) continue ;; esac
+        ln -s "$f" "$shim/$name"
+      done
+      dir=$shim
+    fi
+    out+=("$dir")
+  done < <(tr ':' '\n' <<<"$BASE_PATH")
+  (IFS=:; printf '%s' "${out[*]}")
+}
+
 cm() { # run the app non-interactively inside the fake home
   "${AS_USER[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb \
     CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} \
@@ -256,7 +279,7 @@ test_stale_node_modules_rules() {
 # pnpm and Bun hard-link node_modules files to their store: only what deleting frees is counted
 test_hard_linked_store_files_not_counted() {
   fresh_home
-  local h=$HOME_DIR p=$HOME_DIR/code/web r=$HOME_DIR/code/rs out total
+  local h=$HOME_DIR p=$HOME_DIR/code/web r=$HOME_DIR/code/rs out
   sized "$h/.local/share/pnpm/store/v3/files/ab/big" 100000
   mkdir -p "$p/node_modules/.pnpm/lib" "$r/target/debug"
   ln "$h/.local/share/pnpm/store/v3/files/ab/big" "$p/node_modules/.pnpm/lib/index.js"
@@ -266,12 +289,10 @@ test_hard_linked_store_files_not_counted() {
   ln "$h/.local/share/pnpm/store/v3/files/ab/big" "$r/target/debug/dep"; sized "$r/target/debug/app" 4000
   new "$r/Cargo.toml"
   touch -d '200 days ago' "$p"/* "$p" "$r"/* "$r"
-  total=$(du -sb "$p/node_modules" | cut -f1)
   out=$(in_app 'find_stale_node_modules' | cut -f1)
-  assert_eq "$out" "$((total - 100000))" "node_modules: the store's file left out, a link pair inside counted once"
-  total=$(du -sb "$r/target" | cut -f1)
+  assert_eq "$out" "5000" "node_modules: the store's file left out, a link pair inside counted once"
   out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
-  assert_eq "$out" "$((total - 100000))" "target/: the store's file left out"
+  assert_eq "$out" "4000" "target/: the store's file left out"
 }
 
 test_ai_tools_keep_memory_and_logins() {
@@ -1405,7 +1426,7 @@ for l in sys.stdin:
     elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
     elif e["event"] == "error": print("error", e["message"])'
   local b_rusty b_py b_pods
-  b_rusty=$(du -sb "$rusty/target" | cut -f1) b_py=$(du -sb "$py/.venv" | cut -f1) b_pods=$(du -sb "$pods/Pods" | cut -f1)
+  b_rusty=$(tbytes "$rusty/target") b_py=$(tbytes "$py/.venv") b_pods=$(tbytes "$pods/Pods")
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   mkdir -p "$WORK/buildbin"; cp "$(command -v sleep)" "$WORK/buildbin/cargo"; chmod 755 "$WORK/buildbin" "$WORK/buildbin/cargo"
   "${hold[@]}" sh -c 'cd "$1" && exec "$2" 60' _ "$c/building" "$WORK/buildbin/cargo" >/dev/null 2>&1 &
@@ -2986,6 +3007,7 @@ $(in_app "urlencode_path '$c/WebStorm2023.9'") $bw off WebStorm 2023.9" "one ent
 test_old_runtime_versions() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
+  local np; np=$(path_without node nodejs go); local BASE_PATH=$np
   local h=$HOME_DIR out pid hold=() f b18 b22 b17 b319 enc18 enc22
   local n=$h/.nvm/versions/node j=$h/.sdkman/candidates/java g=$h/.sdkman/candidates/gradle fv=$h/fvm/versions
   ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
@@ -3061,6 +3083,7 @@ $(in_app "urlencode_path '$fv/3.19.0'") $b319 off Flutter 3.19.0" "one entry per
 test_old_pyenv_rbenv_rustup_go_versions() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
+  local np; np=$(path_without node nodejs go); local BASE_PATH=$np
   local h=$HOME_DIR out pid hold=() f enc
   local py=$h/.pyenv/versions rb=$h/.rbenv/versions rs=$h/.rustup/toolchains sdk=$h/sdk host=x86_64-unknown-linux-gnu
   ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
