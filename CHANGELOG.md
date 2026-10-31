@@ -20,6 +20,8 @@ All notable changes are listed here. The format follows
 
 - **Smart Scan** no longer waits about a second for **Unused packages** on a computer with many packages: apt now works out the list from the installed packages alone, without loading the package lists, and the answer is kept in `~/.cache/cleanmate` until a package is installed, removed or marked, apt's settings change or another kernel runs (a day at most). With 2700 packages (Ubuntu 24.04 container) this item takes 0.09 s instead of 1.25 s, under 0.02 s on the next scan, and a whole Smart Scan 0.64 s instead of 1.44 s; the packages found and what cleaning removes are unchanged.
 
+- **Smart Scan** starts and finishes sooner: simple items (caches, AI tool folders, Trash) are scanned a few per process instead of one process each, the scan wakes when an item is done instead of every 0.1 s, and loading reads your shell startup files once instead of running `grep` per variable. Measured in an Ubuntu 24.04 container on a busy machine (the scan of `tests/bench-scan.sh`, old and new version taking turns, median of 15): a first scan 0.62 s instead of 1.18 s, a scan again 0.58 s instead of 1.05 s. Results are unchanged.
+
 ### Fixed
 
 - **Project build folders** could leave out a project at random during Smart Scan, when another item was reading a folder of it at the same moment.

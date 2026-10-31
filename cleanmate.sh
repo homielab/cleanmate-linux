@@ -941,6 +941,10 @@ for _id in apt_cache orphans residual journal old_logs big_logs crash coredump s
 unset _id
 # items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
 declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1 [jetbrains_old_versions]=1)
+# items whose scan only looks at a few folders (test, du): a scan runs them in a
+# few shared processes, one after the other, since a process each costs more than
+# the scan. reg_cache_item and reg_list_item add theirs; any other item gets its own.
+declare -A ITEM_LIGHT=([bun]=1 [cargo]=1 [gobuild]=1 [gradle]=1 [maven]=1 [npm]=1 [pip]=1 [pnpm]=1 [yarn]=1 [thumbs]=1 [trash]=1)
 
 # ── detail helpers ──
 
@@ -1911,7 +1915,7 @@ reg_cache_item() { # ID CATEGORY LABEL DEFAULT DESCRIPTION PATHS [PROCESS_REGEX]
   [[ $id =~ ^[a-z0-9_]+$ ]] || return 1 # ids become function names below
   reg "$id" "$2" "$3" "$4" "$5"
   ITEM_PATHS[$id]=$6
-  ITEM_PROCS[$id]=${7:-}
+  ITEM_PROCS[$id]=${7:-} ITEM_LIGHT[$id]=1
   eval "scan_$id() { cache_item_scan $id; }
         clean_$id() { cache_item_clean $id; }
         details_$id() { cache_item_details $id; }"
@@ -2450,7 +2454,7 @@ reg_list_item() { # ID LABEL DEFAULT NOUN DESCRIPTION LIST_FN ROOTS [PROCESS_REG
   local id=$1 # category: ai, or LIST_CAT=… in front of the call
   [[ $id =~ ^[a-z0-9_]+$ ]] || return 1
   reg "$id" "${LIST_CAT:-ai}" "$2" "$3" "$5"
-  LIST_NOUN[$id]=$4 LIST_FN[$id]=$6 LIST_ROOTS[$id]=$7 ITEM_PROCS[$id]=${8:-} LIST_RUN_DEFAULT[$id]=${9:-y}
+  LIST_NOUN[$id]=$4 LIST_FN[$id]=$6 LIST_ROOTS[$id]=$7 ITEM_PROCS[$id]=${8:-} LIST_RUN_DEFAULT[$id]=${9:-y} ITEM_LIGHT[$id]=1
   eval "scan_$id() { list_scan $id; }
         clean_$id() { list_clean $id; }
         details_$id() { list_details $id; }"
@@ -3098,34 +3102,48 @@ details_maven() { detail_paths "${MAVEN_PATHS[@]}"; }
 # A folder a tool is pointed to by an environment variable: the live environment first, then
 # the last `export NAME=value` in the shell startup files (read as text, never run). Only a
 # plain path inside HOME ($HOME, ${HOME} or ~ allowed) counts; anything else is ignored.
-env_value() { # NAME → its value (live environment, else the shell startup files) with ~ and $HOME expanded, or nothing
-  local name=$1 v="" f line
-  v=${!name:-}
-  if [[ -z $v ]]; then
-    for f in .profile .bash_profile .bashrc .zshenv .zprofile .zshrc; do
-      [[ -f $HOME/$f && ! -L $HOME/$f ]] || continue
-      line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$name=" "$HOME/$f" 2>/dev/null | tail -n 1)
-      [[ -n $line ]] || continue
-      v=${line#*"$name"=}
-      v=${v%%[[:space:]]#*}
-      v=${v#\"}; v=${v%\"}; v=${v#\'}; v=${v%\'}
-    done
-  fi
-  v=${v/#\~/$HOME}; v=${v/#\$\{HOME\}/$HOME}; v=${v/#\$HOME/$HOME}
-  [[ -n $v ]] && printf '%s\n' "$v"
-  return 0
+declare -A ENV_PROFILE=() # NAME → its last NAME=… line in the startup files (a later file wins)
+env_profile_read() { # once, while loading: a grep per variable and file cost more than reading them
+  local f line re='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)='
+  for f in .profile .bash_profile .bashrc .zshenv .zprofile .zshrc; do
+    [[ -f $HOME/$f && ! -L $HOME/$f && -r $HOME/$f ]] || continue
+    while IFS= read -r line || [[ -n $line ]]; do
+      [[ $line =~ $re ]] && ENV_PROFILE[${BASH_REMATCH[2]}]=$line
+    done 2>/dev/null <"$HOME/$f"
+  done
 }
-env_home_dir() { # NAME → path, or nothing
-  local v
-  v=$(env_value "$1")
-  [[ $v == "$HOME"/* && $v != *[\$\`\;\&\|\<\>\(\)\\]* && $v != *..* && ! -L $v ]] && printf '%s\n' "${v%/}"
-  return 0
+env_profile_read
+env_valuev() { # VAR NAME → NAME's value (live environment, else the shell startup files) with ~ and $HOME expanded, or ""
+  local -n __ev=$1
+  local __n=$2 __v
+  __v=${!__n:-}
+  if [[ -z $__v && -n ${ENV_PROFILE[$__n]+x} ]]; then
+    __v=${ENV_PROFILE[$__n]}
+    __v=${__v#*"$__n"=}
+    __v=${__v%%[[:space:]]#*}
+    __v=${__v#\"}; __v=${__v%\"}; __v=${__v#\'}; __v=${__v%\'}
+  fi
+  __v=${__v/#\~/$HOME}; __v=${__v/#\$\{HOME\}/$HOME}; __v=${__v/#\$HOME/$HOME}
+  __ev=$__v
+}
+env_value() { local v; env_valuev v "$1"; [[ -n $v ]] && printf '%s\n' "$v"; return 0; } # NAME → its value, or nothing
+env_home_dirv() { # VAR NAME → NAME's folder when it's a plain path inside HOME, else ""
+  local -n __ehd=$1
+  local __hv
+  env_valuev __hv "$2"
+  if [[ $__hv == "$HOME"/* && $__hv != *[\$\`\;\&\|\<\>\(\)\\]* && $__hv != *..* && ! -L $__hv ]]; then __ehd=${__hv%/}; else __ehd=""; fi
+}
+env_home_dir() { local v; env_home_dirv v "$1"; [[ -n $v ]] && printf '%s\n' "$v"; return 0; } # NAME → path, or nothing
+uniq_lines() { # LINE… → each once, in order (no awk: called while loading)
+  local -A __seen=()
+  local l
+  for l; do [[ -n ${__seen[x$l]+x} ]] || { __seen[x$l]=1; printf '%s\n' "$l"; }; done
 }
 env_home_paths() { # NAME SUBFOLDER|"" DEFAULT... → the default folders plus NAME's (+ /SUBFOLDER), one per line
   local e
-  e=$(env_home_dir "$1")
+  env_home_dirv e "$1"
   [[ -n $e && -n $2 ]] && e+=/$2
-  { printf '%s\n' "${@:3}"; [[ -n $e ]] && printf '%s\n' "$e"; } | awk '!seen[$0]++'
+  uniq_lines "${@:3}" ${e:+"$e"}
 }
 
 reg_cache_item uv_cache dev "uv cache" 1 \
@@ -3176,30 +3194,34 @@ LIST_CAT=dev reg_list_item firebase_emulators "Firebase emulators" 0 item \
 # value deletes nothing else. Never Deno's location_data, Poetry's virtualenvs, pipx's venvs and py,
 # ccache.conf, Bazel's output bases or ~/.nuget/packages.
 sub_paths() { # "NAME NAME…" BASE… → BASE/NAME for each (NAME "." = BASE itself), one per line, no duplicates
-  local subs=$1 b n
+  local subs=$1 b n out=()
   shift
   for b; do
     [[ -n $b ]] || continue
-    for n in $subs; do [[ $n == . ]] && printf '%s\n' "$b" || printf '%s\n' "$b/$n"; done
-  done | awk '!seen[$0]++'
+    for n in $subs; do if [[ $n == . ]]; then out+=("$b"); else out+=("$b/$n"); fi; done
+  done
+  ((${#out[@]})) && uniq_lines "${out[@]}"
+  return 0
 }
 xdg_cache() { env_home_dir XDG_CACHE_HOME; }
+_xc="" # XDG_CACHE_HOME's folder, for the items below
+env_home_dirv _xc XDG_CACHE_HOME
 HEX_NAMES="0 1 2 3 4 5 6 7 8 9 a b c d e f"
 reg_cache_item deno_cache dev "Deno cache" 0 \
   "Modules and npm packages Deno downloaded, plus its compiled code. Downloaded again on the next run; localStorage data of scripts (location_data) is kept." \
-  "$(sub_paths "remote npm gen registries dl deps" "$HOME/.cache/deno" "$(xdg_cache)/deno" "$(env_home_dir DENO_DIR)")" "deno"
+  "$(sub_paths "remote npm gen registries dl deps" "$HOME/.cache/deno" "$_xc/deno" "$(env_home_dir DENO_DIR)")" "deno"
 reg_cache_item zig_cache dev "Zig cache" 0 \
   "Build outputs and fetched packages of Zig. Made again by the next build." \
-  "$(sub_paths "o h z p tmp" "$HOME/.cache/zig" "$(xdg_cache)/zig" "$(env_home_dir ZIG_GLOBAL_CACHE_DIR)")" "zig|zls"
+  "$(sub_paths "o h z p tmp" "$HOME/.cache/zig" "$_xc/zig" "$(env_home_dir ZIG_GLOBAL_CACHE_DIR)")" "zig|zls"
 reg_cache_item bazel_cache dev "Bazel cache" 0 \
   "Dependencies Bazel downloaded and its unpacked install. Made again by the next build; the output folders of your workspaces are kept." \
-  "$(sub_paths "cache install" "$HOME/.cache/bazel/_bazel_${USER:-$(id -un)}" "$(xdg_cache)/bazel/_bazel_${USER:-$(id -un)}")" "bazel.*|bazelisk"
+  "$(sub_paths "cache install" "$HOME/.cache/bazel/_bazel_${USER:-$(id -un)}" "$_xc/bazel/_bazel_${USER:-$(id -un)}")" "bazel.*|bazelisk"
 reg_cache_item ccache_cache dev "ccache cache" 0 \
   "Compiler outputs ccache saved. Made again by the next build; ccache.conf is kept." \
-  "$(sub_paths "$HEX_NAMES tmp" "$HOME/.cache/ccache" "$HOME/.ccache" "$(xdg_cache)/ccache" "$(env_home_dir CCACHE_DIR)")" "ccache"
+  "$(sub_paths "$HEX_NAMES tmp" "$HOME/.cache/ccache" "$HOME/.ccache" "$_xc/ccache" "$(env_home_dir CCACHE_DIR)")" "ccache"
 reg_cache_item sccache_cache dev "sccache cache" 0 \
   "Compiler outputs sccache saved. Made again by the next build." \
-  "$(sub_paths "$HEX_NAMES" "$HOME/.cache/sccache" "$(xdg_cache)/sccache" "$(env_home_dir SCCACHE_DIR)")" "sccache"
+  "$(sub_paths "$HEX_NAMES" "$HOME/.cache/sccache" "$_xc/sccache" "$(env_home_dir SCCACHE_DIR)")" "sccache"
 reg_cache_item nuget_cache dev "NuGet cache" 0 \
   "Package metadata and downloads NuGet cached (HTTP caches). Downloaded again by the next restore; ~/.nuget/packages is kept." \
   "$HOME/.local/share/NuGet/v3-cache
@@ -3207,10 +3229,10 @@ $HOME/.local/share/NuGet/http-cache
 $HOME/.nuget/v3-cache" "dotnet|nuget"
 reg_cache_item poetry_cache dev "Poetry cache" 0 \
   "Packages Poetry downloaded. Downloaded again by poetry install; your virtualenvs are kept." \
-  "$(sub_paths "cache artifacts" "$HOME/.cache/pypoetry" "$(xdg_cache)/pypoetry" "$(env_home_dir POETRY_CACHE_DIR)")" "poetry"
+  "$(sub_paths "cache artifacts" "$HOME/.cache/pypoetry" "$_xc/pypoetry" "$(env_home_dir POETRY_CACHE_DIR)")" "poetry"
 reg_cache_item pipx_cache dev "pipx run cache" 0 \
   "Environments of apps started with pipx run. Made again on the next run; apps installed with pipx install and its Pythons are kept." \
-  "$(sub_paths . "$HOME/.cache/pipx" "$(xdg_cache)/pipx"; sub_paths .cache "$HOME/.local/pipx" "$(env_home_dir PIPX_HOME)")" "pipx"
+  "$(sub_paths . "$HOME/.cache/pipx" "$_xc/pipx"; sub_paths .cache "$HOME/.local/pipx" "$(env_home_dir PIPX_HOME)")" "pipx"
 
 for _id in deno zig bazel ccache sccache nuget poetry pipx; do ITEM_OPEN[${_id}_cache]=1; done
 ITEM_ARGS[bazel_cache]="_bazel_${USER:-$(id -un)}" # the Bazel server is a java process
@@ -3235,8 +3257,9 @@ precommit_entries() {
 LIST_CAT=dev reg_list_item precommit_cache "pre-commit cache" 0 item \
   "Hook repositories and environments pre-commit made. Installed again on the next commit (slower once)." \
   precommit_entries "$HOME/.cache/pre-commit
-$(xdg_cache)/pre-commit
+$_xc/pre-commit
 $(env_home_dir PRE_COMMIT_HOME)" "pre-commit"
+unset _xc
 
 # Cloud sync clients: Dropbox (its logs and the .dropbox.cache of each Dropbox folder named in
 # ~/.dropbox/info.json — what changed in the last 7 days stays, it may still wait to upload),
@@ -4976,48 +4999,76 @@ draw_scan_frame() { # DONE TOTAL CURRENT
   draw_footer "$HINTS"; frame_flush
 }
 
+SCAN_BATCHES=4 # shared processes for the light items
+
+scan_worker() { # FILE ID… — scan the items one after the other: a line each in FILE, then FILE.ok
+  local _sw_id _sw_rc _sw_lock
+  for _sw_id in "${@:2}"; do
+    SCAN_BYTES=0 SCAN_NOTE="" _sw_lock=""
+    "scan_$_sw_id" </dev/null >/dev/null 2>&1; _sw_rc=$?
+    ((_sw_rc == 0)) && declare -F "lockedby_$_sw_id" >/dev/null && _sw_lock=$("lockedby_$_sw_id" </dev/null 2>/dev/null)
+    # fields split by \x1f: tabs are IFS whitespace, so an empty lock would vanish
+    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$_sw_id" "$_sw_rc" "${SCAN_BYTES:-0}" "${_sw_lock%%$'\n'*}" "${SCAN_NOTE%%$'\n'*}"
+  done >"$1"
+  : >"$1.ok"
+}
+
+scan_collect() { # FILE — the results a worker wrote (only whole lines: one cut short by a kill is left out)
+  local id rc bytes lock note
+  [[ -f $1 ]] || return 0
+  while IFS=$'\x1f' read -r id rc bytes lock note; do
+    [[ -n ${ITEM_CAT[$id]:-} ]] || continue
+    [[ -n ${SCAN_GOT[$id]:-} ]] || ((++SCAN_DONE))
+    RES_RC[$id]=$rc RES_BYTES[$id]=${bytes:-0} RES_LOCK[$id]=$lock RES_NOTE[$id]=$note SCAN_GOT[$id]=1
+  done <"$1"
+}
+
 # Scan all items of the given categories in parallel; fills SCANNED (ordered
 # by category, junk first, biggest first), SCAN_MS and SCAN_COUNT.
 scan_items() { # CATEGORY...
-  SCANNED=() SCAN_CATS=("$@") SCAN_IDS=() SCAN_GOT=()
-  local found=() id cat tmp rc bytes lock note t0 done_n pending k json_last=-1
-  declare -A pid_of=()
+  SCANNED=() SCAN_CATS=("$@") SCAN_IDS=() SCAN_GOT=() SCAN_DONE=0
+  local found=() id cat tmp t0 now pending first=0 k h i json_last=-1 wait_n=0 watch="" reaped light=()
+  local -a w_ids=() w_pid=() w_done=()
+  local -A live=() cat_n=()
   for cat in "$@"; do
     for id in "${ITEM_IDS[@]}"; do [[ ${ITEM_CAT[$id]} == "$cat" ]] && SCAN_IDS+=("$id"); done
   done
   tmp=$(mktemp -d -p "$SESSION_TMP") || return 1
   t0=$(now_ms)
 
+  # a process for each item that runs other programs or walks big trees, a few for the rest
   for id in "${SCAN_IDS[@]}"; do
-    (
-      SCAN_BYTES=0 SCAN_NOTE=""
-      "scan_$id" </dev/null >/dev/null 2>&1; rc=$?
-      lock=""; ((rc == 0)) && lock=$(item_locked "$id" </dev/null 2>/dev/null)
-      # fields split by \x1f: tabs are IFS whitespace, so an empty lock would vanish
-      printf '%s\x1f%s\x1f%s\x1f%s\n' "$rc" "${SCAN_BYTES:-0}" "$lock" "$SCAN_NOTE" >"$tmp/$id.part" && mv "$tmp/$id.part" "$tmp/$id"
-    ) &
-    pid_of[$id]=$!
+    if [[ -n ${ITEM_LIGHT[$id]:-} ]]; then light+=("$id"); else w_ids+=("$id"); fi
+  done
+  k=${#w_ids[@]}
+  for ((i = 0; i < ${#light[@]}; i++)); do w_ids[k + i % SCAN_BATCHES]+="${w_ids[k + i % SCAN_BATCHES]:+ }${light[i]}"; done
+  for k in "${!w_ids[@]}"; do
+    # shellcheck disable=SC2086 # the IDs are words
+    scan_worker "$tmp/$k" ${w_ids[k]} &
+    w_pid[k]=$! live[$!]=$k
   done
 
+  # Wake when a worker ends (wait -n, bash 5.1+); the terminal app also redraws
+  # and reads keys, so it looks every 0.1 s.
+  ((!UI_ACTIVE && (BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 1)))) && wait_n=1
   while :; do
-    done_n=0 pending=""
-    for id in "${SCAN_IDS[@]}"; do
-      if [[ -n ${SCAN_GOT[$id]} ]]; then ((++done_n))
-      elif [[ -e $tmp/$id ]]; then
-        IFS=$'\x1f' read -r rc bytes lock note <"$tmp/$id"
-        RES_RC[$id]=$rc RES_BYTES[$id]=${bytes:-0} RES_LOCK[$id]=$lock RES_NOTE[$id]=$note SCAN_GOT[$id]=1
-        ((++done_n))
-      else pending=${pending:-${ITEM_LABEL[$id]}}; fi
+    for k in "${!w_ids[@]}"; do
+      [[ -z ${w_done[k]:-} && -e $tmp/$k.ok ]] && { scan_collect "$tmp/$k"; w_done[k]=1; }
     done
-    ((done_n == ${#SCAN_IDS[@]})) && break
-    if (($(now_ms) - t0 > SCAN_TIMEOUT * 1000)); then
-      for id in "${SCAN_IDS[@]}"; do [[ -n ${SCAN_GOT[$id]} ]] || kill_tree "${pid_of[$id]}"; done
+    ((SCAN_DONE == ${#SCAN_IDS[@]})) && break
+    while [[ -n ${SCAN_GOT[${SCAN_IDS[first]}]:-} ]]; do ((++first)); done
+    pending=${ITEM_LABEL[${SCAN_IDS[first]}]}
+    now=${EPOCHREALTIME/[.,]/}
+    if ((now / 1000 - t0 >= SCAN_TIMEOUT * 1000)); then
+      for k in "${!w_ids[@]}"; do
+        [[ -n ${w_done[k]:-} ]] || { kill_tree "${w_pid[k]}"; scan_collect "$tmp/$k"; }
+      done
       break
     fi
     if ((UI_ACTIVE)); then
-      draw_scan_frame "$done_n" "${#SCAN_IDS[@]}" "$pending"
+      draw_scan_frame "$SCAN_DONE" "${#SCAN_IDS[@]}" "$pending"
       if read_key 0.1 && [[ $KEY == q || $KEY == esc ]]; then
-        for id in "${SCAN_IDS[@]}"; do [[ -n ${SCAN_GOT[$id]} ]] || kill_tree "${pid_of[$id]}"; done
+        for k in "${!w_ids[@]}"; do [[ -n ${w_done[k]:-} ]] || kill_tree "${w_pid[k]}"; done
         rm -rf "$tmp"
         SCANNED=()
         toast "${YELLOW}!${NC} Scan cancelled."
@@ -5025,15 +5076,26 @@ scan_items() { # CATEGORY...
       fi
     else
       if ((JSON)); then
-        if ((done_n != ${json_last:--1})); then
+        if ((SCAN_DONE != json_last)); then
           json_str k "$pending"
-          printf '{"event":"progress","done":%d,"total":%d,"current":%s}\n' "$done_n" "${#SCAN_IDS[@]}" "$k"
-          json_last=$done_n
+          printf '{"event":"progress","done":%d,"total":%d,"current":%s}\n' "$SCAN_DONE" "${#SCAN_IDS[@]}" "$k"
+          json_last=$SCAN_DONE
         fi
-      elif [[ -t 1 ]]; then printf '\r\e[K  Scanning %d/%d  %s…' "$done_n" "${#SCAN_IDS[@]}" "$pending"; fi
-      sleep 0.1
+      elif [[ -t 1 ]]; then printf '\r\e[K  Scanning %d/%d  %s…' "$SCAN_DONE" "${#SCAN_IDS[@]}" "$pending"; fi
+      if ((wait_n)); then
+        [[ -n $watch ]] || { sleep "$SCAN_TIMEOUT" & watch=$!; } # wakes the wait at the time limit
+        reaped=""
+        wait -n -p reaped "${!live[@]}" "$watch"
+        if [[ -n $reaped && -n ${live[$reaped]:-} ]]; then
+          k=${live[$reaped]}
+          unset "live[$reaped]"
+          # ended without finishing (killed): what it found counts, the rest is reported as timed out
+          [[ -n ${w_done[k]:-} || -e $tmp/$k.ok ]] || { scan_collect "$tmp/$k"; w_done[k]=1; }
+        fi
+      else sleep 0.1; fi
     fi
   done
+  [[ -n $watch ]] && { kill "$watch" 2>/dev/null; wait "$watch" 2>/dev/null; }
   ((UI_ACTIVE)) || { [[ -t 1 ]] && printf '\r\e[K'; }
   SCAN_MS=$(($(now_ms) - t0))
   SCAN_COUNT=${#SCAN_IDS[@]}
@@ -5041,7 +5103,8 @@ scan_items() { # CATEGORY...
   for id in "${SCAN_IDS[@]}"; do
     [[ -n ${SCAN_GOT[$id]} ]] || RES_RC[$id]=3 RES_BYTES[$id]=0 RES_LOCK[$id]="" RES_NOTE[$id]="scan timed out"
     ((RES_RC[$id] == 1)) && continue
-    RES_HUMAN[$id]=$(human "${RES_BYTES[$id]}")
+    humanv h "${RES_BYTES[$id]}"
+    RES_HUMAN[$id]=$h
     SEL[$id]=0
     if ((RES_RC[$id] == 0)); then
       if [[ -n ${ITEM_ONCE[$id]:-} ]]; then SEL[$id]=${ITEM_DEFAULT[$id]}
@@ -5051,14 +5114,14 @@ scan_items() { # CATEGORY...
   done
   rm -rf "$tmp"
 
-  for cat in "$@"; do
-    while IFS=$'\t' read -r _ _ id; do SCANNED+=("$id"); done < <(
-      for id in "${found[@]}"; do
-        [[ ${ITEM_CAT[$id]} == "$cat" ]] &&
-          printf '%d\t%d\t%s\n' "$((RES_RC[$id] == 0 ? 0 : 1))" "${RES_BYTES[$id]}" "$id"
-      done | sort -t$'\t' -k1,1n -k2,2rn
-    )
-  done
+  # categories in the order given, then found before clean, then biggest first (ties: by ID)
+  i=0
+  for cat in "$@"; do cat_n[$cat]=$((i++)); done
+  while IFS=$'\t' read -r _ _ _ id; do SCANNED+=("$id"); done < <(
+    for id in "${found[@]}"; do
+      printf '%d\t%d\t%d\t%s\n' "${cat_n[${ITEM_CAT[$id]}]}" "$((RES_RC[$id] == 0 ? 0 : 1))" "${RES_BYTES[$id]}" "$id"
+    done | sort -t$'\t' -k1,1n -k2,2n -k3,3rn
+  )
   save_scan_cache
   record_disk_usage
   return 0
@@ -8337,21 +8400,22 @@ json_str() { # VAR TEXT → a JSON string literal (colours and control character
   printf -v "$1" '"%s"' "$s"
 }
 
-json_item() { # ID [with scan results] → one "item" event
-  local id=$1 cat label desc note lock status=found
+json_item() { # ID [with scan results] → one "item" event (no subshells: called for every item)
+  local id=$1 cat label desc note lock status=found def=false root=false trash=false sel=false ent=false
   json_str cat "${ITEM_CAT[$id]}"; json_str label "${ITEM_LABEL[$id]}"; json_str desc "${ITEM_DESC[$id]}"
+  ((ITEM_DEFAULT[$id])) && def=true
+  [[ -n ${ITEM_ROOT[$id]:-} ]] && root=true
+  [[ -n ${ITEM_TRASH[$id]:-} ]] && trash=true
   if [[ ${2:-} == scanned ]]; then
     json_str note "${RES_NOTE[$id]}"; json_str lock "${RES_LOCK[$id]:-}"
     case ${RES_RC[$id]} in 0) status=found ;; 3) status=timeout ;; *) status=clean ;; esac
+    ((${SEL[$id]:-0})) && sel=true
+    has_entries "$id" && ent=true
     printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s,"trash":%s}\n' \
-      "$id" "$cat" "$label" "$desc" "$( ((ITEM_DEFAULT[$id])) && echo true || echo false)" \
-      "$([[ -n ${ITEM_ROOT[$id]:-} ]] && echo true || echo false)" "$status" "${RES_BYTES[$id]:-0}" "$note" \
-      "$( ((${SEL[$id]:-0})) && echo true || echo false)" "$lock" "$(json_bool has_entries "$id")" \
-      "$([[ -n ${ITEM_TRASH[$id]:-} ]] && echo true || echo false)"
+      "$id" "$cat" "$label" "$desc" "$def" "$root" "$status" "${RES_BYTES[$id]:-0}" "$note" "$sel" "$lock" "$ent" "$trash"
   else
     printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"trash":%s}\n' \
-      "$id" "$cat" "$label" "$desc" "$( ((ITEM_DEFAULT[$id])) && echo true || echo false)" \
-      "$([[ -n ${ITEM_ROOT[$id]:-} ]] && echo true || echo false)" "$([[ -n ${ITEM_TRASH[$id]:-} ]] && echo true || echo false)"
+      "$id" "$cat" "$label" "$desc" "$def" "$root" "$trash"
   fi
 }
 

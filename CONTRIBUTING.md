@@ -23,7 +23,8 @@ docs/                       screenshots, roadmap, publishing guide
   remembered selections.
 - **The registry.** Every cleanable thing is an *item*: `reg ID CATEGORY "Label" DEFAULT "Description"`
   plus three functions — `scan_ID` (how much is there?), `clean_ID` (remove it) and, optionally,
-  `details_ID` (what exactly?). Scans run in parallel, one subshell per item.
+  `details_ID` (what exactly?). Scans run in parallel: an item gets its own process, except the
+  light ones (`ITEM_LIGHT`), which share a few.
 - **Privileges.** Items that need root are listed in `ITEM_ROOT`. The terminal app uses `sudo`;
   the desktop app uses `pkexec`, and the engine refuses non-system items when it runs as root.
 
@@ -41,6 +42,11 @@ details_my_cache() { detail_paths "$HOME/.cache/my-app"; }                 # opt
 apps), `reg_list_item` (AI tools; `LIST_CAT=dev reg_list_item …` for another group), `reg_model_item` (one item per downloaded AI model) and
 `reg_privacy_item` (histories) — they generate the three
 functions for you.
+
+A `scan_ID` that only looks at a few folders (`test`, `du`, `dev_scan`) and runs no other program
+or big `find` can go in `ITEM_LIGHT`: a scan then runs it in a shared process, which costs less
+than one of its own. `reg_cache_item` and `reg_list_item` items are light already. A light scan
+must not `cd`, `exit` or leave variables behind that the next item reads.
 
 Rules of thumb:
 
