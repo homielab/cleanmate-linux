@@ -50,7 +50,7 @@ PAGES = [
     ("dupes", _("Duplicates"), "edit-copy-symbolic", None,
      _("Find identical files, keep one copy of each and move the others to the Trash. You can undo it.")),
     ("uninstall", _("Uninstaller"), "application-x-addon-symbolic", None,
-     _("Remove apps from apt, Snap and Flatpak, and the folders they leave in your home.")),
+     _("Remove apps from apt, Snap, Flatpak and AppImage, and the folders they leave in your home.")),
     ("startup", _("Startup Items"), "system-reboot-symbolic", None,
      _("Choose which apps and services start when you log in.")),
     ("maintenance", _("Maintenance"), "emblem-system-symbolic", None,

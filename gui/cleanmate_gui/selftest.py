@@ -673,13 +673,15 @@ def uninstaller_test(win, report, wait, finish):
     through search, sort and filter), check, dry-run; then remove three apps at once for real (stubs):
     apt and Snap through one pkexec, the running Flatpak app skipped, and put their folders back;
     the folder of a Flatpak app removed earlier is listed unticked, goes to the Trash and comes back;
-    all in a throwaway home."""
+    an AppImage app (launcher in your applications folder) goes to the Trash with its launcher, icon and
+    folder, and Restore brings all four back; all in a throwaway home."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir, apps_dir = (os.path.join(sandbox, d) for d in ("home", "bin", "applications"))
     gone = os.path.join(home, ".var", "app", "org.example.Gone")  # a Flatpak app removed earlier
     proc = os.path.join(sandbox, "proc")
-    for d in (bin_dir, apps_dir, os.path.join(home, ".config", "GIMP"), os.path.join(home, "snap", "vlc"),
+    my_apps = os.path.join(home, ".local", "share", "applications")
+    for d in (bin_dir, apps_dir, my_apps, os.path.join(home, ".config", "GIMP"), os.path.join(home, "snap", "vlc"),
               os.path.join(home, ".var", "app", "com.spotify.Client"), gone, proc):
         os.makedirs(d)
     for name, text in STUBS.items():
@@ -700,8 +702,11 @@ def uninstaller_test(win, report, wait, finish):
             f.write("data\n")
     spotify_data = os.path.join(home, ".var", "app", "com.spotify.Client")
     gimp_data, vlc_data = os.path.join(home, ".config", "GIMP"), os.path.join(home, "snap", "vlc")
+    appimage = os.path.join(home, "Applications", "Zqnote-1.0-x86_64.AppImage")
+    ai_launcher, ai_data = os.path.join(my_apps, "zqnote.desktop"), os.path.join(home, ".config", "Zqnote")
+    ai_icon = os.path.join(home, ".local", "share", "icons", "zqnote.png")
     env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
-           "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_APP_DIRS": apps_dir,
+           "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_APP_DIRS": my_apps + ":" + apps_dir,
            "CLEANMATE_PROC": proc,  # no process of these apps runs (Spotify: `flatpak ps` when asked)
            "CLEANMATE_NO_UPDATE_CHECK": "1", "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
 
@@ -886,7 +891,56 @@ def uninstaller_test(win, report, wait, finish):
     def orphan_back():
         report(os.path.isdir(os.path.join(gone, ".")) and os.path.exists(os.path.join(gone, "data")),
                "Undo puts the leftover folder back")
-        done()
+        os.makedirs(os.path.dirname(appimage))
+        os.makedirs(os.path.dirname(ai_icon))
+        os.makedirs(ai_data)
+        for path, text in ((appimage, "\0" * 2000), (ai_icon, "png\n"), (os.path.join(ai_data, "settings"), "data\n"),
+                           (ai_launcher, f"[Desktop Entry]\nType=Application\nName=Zqnote\nExec={appimage} %U\nIcon=zqnote\n")):
+            with open(path, "w") as f:
+                f.write(text)
+        os.chmod(appimage, 0o755)
+        page.load()
+        wait(lambda: idle() and any(a["kind"] == "appimage" for a in page.apps.values()), ai_listed, 60, "AppImage listed")
+
+    def ai_listed():
+        ai = next(i for i, a in page.apps.items() if a["kind"] == "appimage")
+        a = page.apps[ai]
+        report(a["name"] == "Zqnote" and a["bytes"] == 2000 and [l["path"] for l in a["leftovers"]] == [ai_data]
+               and page.rows[ai].get_subtitle().startswith("AppImage"),
+               f"an AppImage app is listed with its size and folder: {a['name']}, {a['bytes']}, {a['leftovers']}")
+        for i in list(page.selected):  # Spotify, skipped before, is still ticked
+            page.checks[i].set_active(False)
+        page.checks[ai].set_active(True)
+        checked.clear()
+        page.check()
+        wait(lambda: idle() and checked, ai_checked, 60, "check of the AppImage app")
+
+    def ai_checked():
+        apps, folders = page.chosen()
+        report(checked.get("ok") and not checked.get("running") and [a["kind"] for a in apps] == ["appimage"]
+               and len(folders) == 1, f"the AppImage app and its folder chosen: {len(apps)}, {len(folders)}")
+        page.uninstall(apps, folders, {})
+        wait(lambda: idle() and page.work_title.get_text().startswith(
+            lead("Uninstalled {n} app", "Uninstalled {n} apps")), ai_removed, 60, "AppImage uninstall")
+
+    def ai_removed():
+        trash = os.path.join(home, ".local", "share", "Trash", "files")
+        moved = sorted(n for n in os.listdir(trash) if n.lower().startswith("zqnote"))
+        prompts = open(os.path.join(home, "pkexec.log")).read().splitlines()
+        report(not any(os.path.exists(p) for p in (appimage, ai_launcher, ai_icon, ai_data)) and len(moved) == 4
+               and len(prompts) == 1, f"the AppImage, its launcher, icon and folder go to the Trash, no password: {moved}")
+        if not page.undo_toast:
+            report(False, "no Restore toast after uninstalling the AppImage app")
+            return done()
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: idle() and all(os.path.exists(p) for p in (appimage, ai_launcher, ai_icon, ai_data)),
+             ai_restored, 60, "restore the AppImage app")
+
+    def ai_restored():
+        report(all(os.path.exists(p) for p in (appimage, ai_launcher, ai_icon, os.path.join(ai_data, "settings"))),
+               "Restore puts the AppImage app back: file, launcher, icon and folder")
+        wait(lambda: idle() and any(a["kind"] == "appimage" for a in page.apps.values()), done, 30,
+             "list after restoring the AppImage app")
 
     wait(idle, first_list, 120, "first app list")
 

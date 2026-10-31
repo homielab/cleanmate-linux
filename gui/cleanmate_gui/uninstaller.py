@@ -1,14 +1,16 @@
-"""Uninstaller: your apps (apt, Snap, Flatpak) with the folders they leave in your home.
+"""Uninstaller: your apps (apt, Snap, Flatpak, AppImage) with the folders they leave in your home.
 
 The engine lists the apps (`--json apps`, parts of Ubuntu are never listed),
 checks and removes them (`--json uninstall`: several at once, apt and Snap
-through one pkexec, running apps skipped) and moves the chosen leftover folders
+through one pkexec, Flatpak and AppImage as you, running apps skipped; an
+AppImage, its launcher and icon go to the Trash) and moves the chosen leftover folders
 to the Trash (`--json trash`) once the app is gone. Folders of apps removed earlier (`leftover` events) are a group of
 their own at the end, never ticked. This page only shows them and keeps the choice.
 """
 import os
 import re
 import time
+from urllib.parse import unquote
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
@@ -20,7 +22,8 @@ from .scanpage import size_widgets
 SORTS = [(_("Size"), "size"), (_("Last used"), "used"), (_("Name"), "name")]
 UNUSED = [(_("All apps"), 0), (_("Unused for 1+ month"), 1), (_("Unused for 3+ months"), 3),
           (_("Unused for 6+ months"), 6), (_("Unused for 12+ months"), 12)]
-KIND_LABELS = {"apt": "apt", "snap": "Snap", "flatpak": "Flatpak"}
+KIND_LABELS = {"apt": "apt", "snap": "Snap", "flatpak": "Flatpak", "appimage": "AppImage"}
+USER_KINDS = ("flatpak", "appimage")  # removed as you; apt and Snap need your password
 LEFTOVER_REASONS = {"flatpak": _("This Flatpak app is no longer installed"),
                     "snap": _("This snap is no longer installed")}
 
@@ -237,9 +240,13 @@ class UninstallerPage(Gtk.Box):
         kind = KIND_LABELS.get(a["kind"], a["kind"])
         package = a["id"].split(":", 1)[1]
         subtitle = " · ".join(x for x in (kind, used_ago(a["last_used"])) if x)
-        tip = _("{kind} package {package}\nApp {size} · your data {data}").format(
-            kind=kind, package=package, size=human(a["bytes"]), data=human(a["data_bytes"]))
-        if a["kind"] != "flatpak":
+        if a["kind"] == "appimage":
+            tip = _("AppImage file {path}\nApp {size} · your data {data}").format(
+                path=short_path(unquote(package)), size=human(a["bytes"]), data=human(a["data_bytes"]))
+        else:
+            tip = _("{kind} package {package}\nApp {size} · your data {data}").format(
+                kind=kind, package=package, size=human(a["bytes"]), data=human(a["data_bytes"]))
+        if a["kind"] not in USER_KINDS:
             tip += "\n" + _("Needs your password")
         if a["leftovers"]:
             row = Adw.ExpanderRow(title=a["name"], subtitle=subtitle, use_markup=False, tooltip_text=tip,
@@ -533,7 +540,7 @@ class UninstallerPage(Gtk.Box):
             row.append(Gtk.Label(label=a["name"], xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
             if a["id"] in running:
                 row.append(Gtk.Label(label=_("running — skipped"), css_classes=["dim-label"]))
-            elif a["kind"] != "flatpak":
+            elif a["kind"] not in USER_KINDS:
                 row.append(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password")))
             row.append(Gtk.Label(label=human(a["bytes"]), css_classes=["numeric", "dim-label"]))
             lines.append(row)
@@ -554,7 +561,9 @@ class UninstallerPage(Gtk.Box):
                                  size=human(sum(l["bytes"] for l in folders))))
         else:
             body.append(_("Your folders in your home are kept."))
-        if any(a["kind"] != "flatpak" and a["id"] not in running for a in apps):
+        if any(a["kind"] == "appimage" and a["id"] not in running for a in apps):
+            body.append(_("AppImage apps go to the Trash with their launcher — you can undo that."))
+        if any(a["kind"] not in USER_KINDS and a["id"] not in running for a in apps):
             body.append(_("Apps with a lock need your password, asked once for all of them."))
         dialog = Adw.AlertDialog(heading=heading, body=" ".join(body), extra_child=lines)
         dialog.add_response("cancel", _("Cancel"))
@@ -566,17 +575,18 @@ class UninstallerPage(Gtk.Box):
         dialog.present(self.window)
 
     def uninstall(self, apps, folders, running=None):
-        """Flatpak apps as you, then every apt and Snap app in one engine run through pkexec (one password).
-        `running` (app id → program, from the check) are skipped without asking for a password."""
+        """Flatpak and AppImage apps as you, then every apt and Snap app in one engine run through pkexec
+        (one password). `running` (app id → program, from the check) are skipped without asking for a password."""
         if self.busy:
             return
         self.busy = True
         dry = self.engine.dry_run
         running = running or {}
-        user_ids = [a["id"] for a in apps if a["kind"] == "flatpak" and a["id"] not in running]
+        user_ids = [a["id"] for a in apps if a["kind"] in USER_KINDS and a["id"] not in running]
         # apt and Snap need root: the standard password dialog (never in a dry run, which changes nothing)
-        root_ids = [a["id"] for a in apps if a["kind"] != "flatpak" and a["id"] not in running]
+        root_ids = [a["id"] for a in apps if a["kind"] not in USER_KINDS and a["id"] not in running]
         removed, skipped = set(), set()
+        app_moved = {}  # trash name → path of the AppImage files that went to the Trash
         rows = {}
         child = self.work_list.get_first_child()
         while child:
@@ -608,6 +618,8 @@ class UninstallerPage(Gtk.Box):
         def on_event(e):
             if e["event"] == "error":
                 self.window.toast(e["message"], timeout=8)
+            if e["event"] == "trashed" and e["trash"]:
+                app_moved[e["trash"]] = e["path"]
             if e["event"] != "task" or e["id"] not in rows:
                 return
             if e["state"] == "run":
@@ -677,7 +689,11 @@ class UninstallerPage(Gtk.Box):
                 msg += ngettext("; {n} app skipped because it is running", "; {n} apps skipped because they are running",
                                 len(skipped))
             self.work_title.set_text(msg)
-            if moved:
+            if app_moved:  # the AppImage files and their folders: one Restore puts them all back
+                everything = {**app_moved, **moved}
+                self.undo_toast = self.window.toast(msg, _("Restore"), lambda: self.restore(everything, apps=True),
+                                                    timeout=10)
+            elif moved:
                 self.undo_toast = self.window.toast(msg, _("Restore folders"), lambda: self.restore(moved), timeout=10)
             else:
                 self.window.toast(msg)
@@ -690,8 +706,9 @@ class UninstallerPage(Gtk.Box):
         else:
             run_root()
 
-    def restore(self, moved):
-        """Put the leftover folders of the last uninstall back (the apps stay removed)."""
+    def restore(self, moved, apps=False):
+        """Put the leftover folders of the last uninstall back; apt, Snap and Flatpak apps stay removed,
+        AppImage apps (`apps`: they are among `moved`) come back with them."""
         if self.busy or not moved:
             return
         self.busy = True
@@ -711,6 +728,9 @@ class UninstallerPage(Gtk.Box):
             if failed:
                 self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
                     back=len(back), failed=len(failed), reason=failed[0]["info"]))
+            elif apps:
+                self.window.toast(ngettext("Put back {n} item from the Trash", "Put back {n} items from the Trash",
+                                           len(back)))
             else:
                 self.window.toast(ngettext("Put back {n} folder from the Trash", "Put back {n} folders from the Trash",
                                            len(back)))

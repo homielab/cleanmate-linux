@@ -5304,7 +5304,21 @@ task_uninstall() { # SRC:ID[:INDEX]
     apt*) uninstall_batch apt "$id" ;;
     snap) uninstall_batch snap "$id" ;;
     flatpak) run flatpak uninstall -y --noninteractive --delete-data "$id" ;;
+    appimage) # to the Trash, as you; @@undo lines let the terminal app put it back
+      ((EUID != 0)) || { err "AppImage apps are removed as you, not as root"; return 1; }
+      local file rc e
+      urldecode_path file "$id"
+      UNDO_BATCH=()
+      appimage_remove "$file"; rc=$?
+      for e in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$e"; done
+      return "$rc" ;;
   esac
+}
+
+task_uninstall_post() { # SRC:ID RC IDX OUTFILE — what went to the Trash, for z on the home screen
+  local line
+  while IFS= read -r line; do APP_UNDO+=("${line#@@undo$'\t'}"); done < <(grep '^@@undo' "$4")
+  return 0
 }
 
 uninstall_batch() { # apt|snap ID… — one command removes them all (needs root)
@@ -5322,6 +5336,7 @@ app_installed() { # SRC ID → still installed? (after a removal that failed, so
     apt) s=$(dpkg-query -W -f='${db:Status-Abbrev}' "$2" 2>/dev/null) && [[ $s =~ ^.[^nc] ]] ;;
     snap) snap list "$2" >/dev/null 2>&1 ;;
     flatpak) flatpak info "$2" >/dev/null 2>&1 ;;
+    appimage) urldecode_path s "$2"; [[ -e $s ]] ;;
     *) return 1 ;;
   esac
 }
@@ -5329,11 +5344,22 @@ app_installed() { # SRC ID → still installed? (after a removal that failed, so
 # Removing an app while it runs can lose what is open in it, so a running app
 # is skipped. Flatpak says which apps run (`flatpak ps`); a snap's processes
 # sit in its own cgroups (snap.NAME.APP-….scope); an apt app runs a file of
-# its package, or a command it ships under that name (a script).
+# its package, or a command it ships under that name (a script); an AppImage
+# runs as a process whose program (or first argument) is that file.
 PROC_DIR=${CLEANMATE_PROC:-/proc} # tests: a fake process table
 app_running() { # SRC ID → the name of its running program; fails when none runs
-  local src=$1 id=$2 files f re
+  local src=$1 id=$2 files f re c a
   case $src in
+    appimage)
+      urldecode_path f "$id"
+      if [[ -z $(find "$PROC_DIR"/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null | grep -m1 -xF -- "$f") ]]; then
+        for c in "$PROC_DIR"/[0-9]*/cmdline; do
+          a=""; [[ -r $c ]] && IFS= read -r -d '' a <"$c" 2>/dev/null
+          [[ $a == "$f" ]] && break
+        done
+        [[ $a == "$f" ]] || return 1
+      fi
+      printf '%s\n' "${f##*/}" ;;
     flatpak)
       have flatpak && flatpak ps --columns=application 2>/dev/null | grep -qxF -- "$id" || return 1
       printf '%s\n' "$id" ;;
@@ -5497,6 +5523,85 @@ exec_name() { # Exec= line → the program's name (skipping env, flatpak run, �
   done
 }
 
+# ── AppImage apps ──
+#
+# An AppImage is a single program file; a launcher in your own applications
+# folder (made by hand, AppImageLauncher or Gear Lever) turns it into an app.
+# Such an app is listed with kind "appimage" and ID = the file's path
+# (urlencoded). Uninstalling moves the file, its launchers and the icons only
+# they use (in ~/.local/share/icons, hicolor or the top) to the Trash, as you,
+# so Restore puts it all back. AppImages without a launcher (in Downloads)
+# belong to Old installers.
+
+is_appimage() { # FILE → named *.AppImage, or an ELF program that says it is one
+  local hex
+  [[ ${1,,} == *.appimage ]] && return 0
+  hex=$(head -c 11 -- "$1" 2>/dev/null | od -An -v -tx1 | tr -d ' \n')
+  [[ $hex == 7f454c46* ]] || return 1
+  [[ ${hex:16:4} == 4149 ]] && return 0 # "AI" at byte 8: the AppImage magic (types 1 and 2)
+  (($(LC_ALL=C head -c 4096 -- "$1" 2>/dev/null | grep -ac AppImage) > 0))
+}
+
+appimage_file() { # Exec= line → the AppImage file in your home it runs; fails when it runs anything else
+  local cmd=$1 w
+  while :; do
+    cmd=${cmd#"${cmd%%[! ]*}"}
+    [[ -n $cmd ]] || return 1
+    if [[ $cmd == \"* ]]; then w=${cmd#\"} && w=${w%%\"*} && cmd=${cmd#\"*\"}
+    else w=${cmd%% *} && cmd=${cmd#"$w"}; fi
+    [[ $w == env || $w == *=* || $w == -* ]] || break # env VAR=1 /path/App.AppImage
+  done
+  [[ $w == "$HOME"/* && -f $w && ! -L $w && $(realpath -e -- "$w" 2>/dev/null) == "$w" ]] || return 1
+  is_appimage "$w" || return 1
+  printf '%s\n' "$w"
+}
+
+appimage_names() { # FILE NAME LAUNCHER → names its folders in your home may have (letters, digits, . _ -)
+  local stem=${1##*/} desk=${3##*/} wm
+  stem=${stem%.[Aa][Pp][Pp][Ii][Mm][Aa][Gg][Ee]}
+  desk=${desk%.desktop}; desk=${desk#appimagekit_+([[:xdigit:]])-}
+  wm=$(desktop_get "$3" StartupWMClass)
+  printf '%s\n' "$stem" "$2" "${2// /-}" "${2// /}" "$desk" "$wm" |
+    sed -E 's/[-_ .]+v?[0-9].*$//; s/[-_](x86_64|amd64|x64|aarch64|arm64|linux)$//I; s/[^A-Za-z0-9._-]//g' | sort -u
+}
+
+appimage_launchers() { # FILE → the launchers in your applications folder that run it
+  local f
+  for f in "$APPS_DIR_USER"/applications/*.desktop; do
+    [[ -f $f && ! -L $f ]] || continue
+    [[ $(appimage_file "$(desktop_get "$f" Exec)") == "$1" ]] && printf '%s\n' "$f"
+  done
+}
+
+appimage_icons() { # LAUNCHER… → icon files in your icons folder that only these launchers name
+  local f icon others=$'\n' dir=$APPS_DIR_USER/icons mine
+  mine=$'\n'$(printf '%s\n' "$@")$'\n'
+  for f in "$APPS_DIR_USER"/applications/*.desktop; do
+    [[ -f $f && $mine != *$'\n'"$f"$'\n'* ]] || continue
+    others+=$(desktop_get "$f" Icon)$'\n'
+  done
+  for f; do
+    icon=$(desktop_get "$f" Icon)
+    [[ -n $icon && $others != *$'\n'"$icon"$'\n'* ]] || continue # another app shows it too
+    if [[ $icon == /* ]]; then
+      [[ ($icon == "$dir"/+([!/]) || $icon == "$dir"/hicolor/*) && -f $icon && ! -L $icon ]] && printf '%s\n' "$icon"
+    elif [[ $icon =~ ^[A-Za-z0-9._-]+$ && -d $dir ]]; then # a name: the files of that name (icon themes stay)
+      find "$dir" -maxdepth 1 -type f \( -name "$icon.png" -o -name "$icon.svg" -o -name "$icon.svgz" -o -name "$icon.xpm" \) 2>/dev/null
+      [[ -d $dir/hicolor ]] && find "$dir/hicolor" -path '*/apps/*' -type f \
+        \( -name "$icon.png" -o -name "$icon.svg" -o -name "$icon.svgz" -o -name "$icon.xpm" \) 2>/dev/null
+    fi
+  done | sort -u
+}
+
+appimage_remove() { # FILE — the AppImage, then its launchers and their icons go to the Trash (UNDO_BATCH)
+  local p rc=0 launchers=() icons=()
+  mapfile -t launchers < <(appimage_launchers "$1")
+  ((${#launchers[@]})) && mapfile -t icons < <(appimage_icons "${launchers[@]}")
+  move_to_trash "$1" || return 1 # the file stays: so do its launchers
+  for p in "${launchers[@]}" "${icons[@]}"; do move_to_trash "$p" || rc=1; done
+  return "$rc"
+}
+
 gnome_last_seen() { # desktop-id<TAB>epoch, from GNOME Shell's own record of app use
   [[ -f $GNOME_APP_STATE ]] || return 0
   grep -o '<application [^>]*>' "$GNOME_APP_STATE" 2>/dev/null |
@@ -5504,24 +5609,30 @@ gnome_last_seen() { # desktop-id<TAB>epoch, from GNOME Shell's own record of app
 }
 
 app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<TAB>data_bytes<TAB>last_used<TAB>launcher id<TAB>paths(\x1f)
-  local file name ex hid snap fp base key src id line
+  local file name ex hid snap fp base key src id line img
   local -A seen=() a_src=() a_id=() a_name=() a_desk=() a_exec=() owner=() psize=() pskip=() fpsize=() last_seen=() claims=()
   local -a keys=() debfiles=() others=()
   while IFS=$'\x1f' read -r file name ex hid snap fp; do
     base=${file##*/}
     [[ -n ${seen[$base]:-} ]] && continue # a launcher in your own folder overrides the system one
     seen[$base]=1
-    if ((hid)) || [[ $file == "$APPS_DIR_USER/applications/"* && -z $fp && -z $snap ]]; then
+    img=""
+    if ((!hid)) && [[ $file == "$APPS_DIR_USER/applications/"* && -z $fp && -z $snap ]]; then
+      img=$(appimage_file "$ex") # your own launcher of an AppImage
+    fi
+    if [[ -z $img ]] && { ((hid)) || [[ $file == "$APPS_DIR_USER/applications/"* && -z $fp && -z $snap ]]; }; then
       others+=("${base%.desktop}" "$(exec_name "$ex")") # not listed, but its folders aren't "unshared"
       continue
     fi
-    if [[ -n $fp || $file == */flatpak/exports/* ]]; then src=flatpak id=${fp:-${base%.desktop}}
+    if [[ -n $img ]]; then src=appimage id=$(urlencode_path "$img")
+    elif [[ -n $fp || $file == */flatpak/exports/* ]]; then src=flatpak id=${fp:-${base%.desktop}}
     elif [[ -n $snap || $file == /var/lib/snapd/desktop/* ]]; then src=snap id=${snap:-${base%%_*}}
     else src=apt id=""; debfiles+=("$file"); fi # if dpkg owns it
     key=$src:${id:-$file}
     if [[ -z ${a_src[$key]:-} ]]; then keys+=("$key"); a_src[$key]=$src a_id[$key]=$id a_name[$key]=$name; fi
     a_desk[$key]+="${base%.desktop}"$'\n'
     [[ $src == apt ]] && a_exec[$key]+="$(exec_name "$ex")"$'\n' # snaps/flatpaks keep their data in ~/snap, ~/.var/app
+    [[ $src == appimage ]] && a_exec[$key]+="$(appimage_names "$img" "$name" "$file")"$'\n'
   done < <(desktop_entries)
 
   # apt: which package owns each launcher; then sizes and what must stay
@@ -5603,6 +5714,7 @@ app_inventory() { # → "#hidden<TAB>N", then src<TAB>id<TAB>name<TAB>pkg_bytes<
       apt) pkgb=${psize[$id]:-0} ;;
       snap) pkgb=$(du_sum /var/lib/snapd/snaps/"${id}"_*.snap) ;;
       flatpak) pkgb=${fpsize[$id]:-0} ;;
+      appimage) urldecode_path img "$id"; pkgb=$(du_sum "$img") ;;
     esac
     datab=0 last=0
     ((${#list[@]})) && datab=$(du_sum "${list[@]}") &&
@@ -5788,6 +5900,7 @@ used_ago() { # EPOCH → "today" / "12 days ago" / "5 months ago" / "2 years ago
 
 declare -a A_SRC=() A_ID=() A_NAME=() A_PKG=() A_DATA=() A_LAST=() A_PATHS=() A_VIEW=()
 declare -a A_LEFT=() # kind<TAB>bytes<TAB>path from orphan_folders: the last row of the list
+declare -a APP_UNDO=() # trash keys of the AppImage apps the last uninstall moved to the Trash
 A_HIDDEN=0 A_SORT=size A_FILTER=all
 
 load_apps() {
@@ -5836,9 +5949,9 @@ applist_row() {
     return
   fi
   if [[ -n ${U_SEL[$i]:-} ]]; then box="${GREEN}●${NC}"; else box="${DIM}○${NC}"; fi
-  case ${A_SRC[i]} in snap) c=$MAGENTA ;; flatpak) c=$BLUE ;; *) c=$CYAN ;; esac
-  fitv src "${A_SRC[i]}" 7
-  fitv lbl "${A_NAME[i]}" $((UI_W - 44))
+  case ${A_SRC[i]} in snap) c=$MAGENTA ;; flatpak) c=$BLUE ;; appimage) c=$YELLOW ;; *) c=$CYAN ;; esac
+  fitv src "${A_SRC[i]}" 8
+  fitv lbl "${A_NAME[i]}" $((UI_W - 45))
   (($2)) && lbl="${BOLD}$lbl${NC}"
   humanv sz $((A_PKG[i] + A_DATA[i])); printf -v sz '%9s' "$sz"
   used=$(used_ago "${A_LAST[i]}"); printf -v used '%-14s' "$used"
@@ -5861,8 +5974,9 @@ applist_bottom() {
 }
 
 app_details() { # INDEX
-  local i=$1 p
-  V_LINES=("" "  ${BOLD}${A_NAME[i]}${NC}  ${DIM}${A_SRC[i]} · ${A_ID[i]}${NC}" ""
+  local i=$1 p id=${A_ID[$1]}
+  [[ ${A_SRC[i]} == appimage ]] && urldecode_path id "$id" && id=${id/#$HOME/\~}
+  V_LINES=("" "  ${BOLD}${A_NAME[i]}${NC}  ${DIM}${A_SRC[i]} · $id${NC}" ""
     "  $(printf '%-14s' "App") $(human "${A_PKG[i]}")"
     "  $(printf '%-14s' "Your data") $(human "${A_DATA[i]}")"
     "  $(printf '%-14s' "Last used") $(used_ago "${A_LAST[i]}")" "")
@@ -5881,7 +5995,7 @@ uninstall_apps() { # uninstall U_SEL (indices into A_*), then offer their folder
   for i in "${!U_SEL[@]}"; do
     names+=("${A_NAME[i]}")
     [[ ${A_SRC[i]} == apt ]] && apt_pkgs+=("${A_ID[i]}")
-    [[ ${A_SRC[i]} != flatpak ]] && needs_root=1
+    [[ ${A_SRC[i]} == apt || ${A_SRC[i]} == snap ]] && needs_root=1 # Flatpak and AppImage apps: as you
   done
   body=$(printf '%s, ' "${names[@]}"); body=${body%, }
   title="Uninstall $(plural ${#names[@]} app)?"
@@ -5896,7 +6010,9 @@ uninstall_apps() { # uninstall U_SEL (indices into A_*), then offer their folder
   ((needs_root)) && { ensure_sudo "Removing apps needs administrator rights." || return; }
   new_tasks
   for i in "${!U_SEL[@]}"; do add_task "Uninstall ${A_NAME[i]} (${A_SRC[i]})" task_uninstall "${A_SRC[i]}:${A_ID[i]}:$i"; done
+  APP_UNDO=() # AppImage apps go to the Trash: z on the home screen puts them back
   run_tasks "Uninstalling"
+  ((${#APP_UNDO[@]})) && UNDO_BATCH=("${APP_UNDO[@]}")
   refresh_sysinfo
   show_run_results "Uninstall complete"
   local left=() p tot=0
@@ -5908,11 +6024,13 @@ uninstall_apps() { # uninstall U_SEL (indices into A_*), then offer their folder
     for p in "${left[@]}"; do tot=$((tot + $(du_sum "$p"))); done
     body=$(printf '%s, ' "${left[@]/#$HOME/\~}"); body=${body%, }
     if ui_confirm "Move their $(plural ${#left[@]} folder) ($(human "$tot")) to the Trash?" "$body" n; then
-      UNDO_BATCH=()
+      UNDO_BATCH=("${APP_UNDO[@]}")
       for p in "${left[@]}"; do move_to_trash "$p" >/dev/null 2>&1; done
       if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would move $(plural ${#left[@]} folder) to Trash"
       else toast "${GREEN}✔${NC} Moved $(plural ${#left[@]} folder) to Trash — z on the home screen puts them back"; fi
     fi
+  elif ((${#APP_UNDO[@]})); then
+    toast "${GREEN}✔${NC} AppImage apps went to the Trash — z on the home screen puts them back"
   fi
   load_apps
   apps_view
@@ -8443,6 +8561,7 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
     [[ -n ${known[$a]:-} ]] || { json_error "Not an app CleanMate can remove: $a"; return 2; }
     src=${a%%:*}
     if ((EUID == 0 && !check)) && [[ $src == flatpak ]]; then json_error "Flatpak apps are removed as you, not as root: $a"; return 2; fi
+    if ((EUID == 0 && !check)) && [[ $src == appimage ]]; then json_error "AppImage apps are removed as you, not as root: $a"; return 2; fi
   done
   for a in "$@"; do # a running app is skipped
     prog=$(app_running "${a%%:*}" "${a#*:}") || continue
@@ -8467,13 +8586,28 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
     [[ -n ${busy[$a]:-} ]] || continue
     json_file_task "$a" skip "Skipped: ${busy[$a]} is running — close it and try again" 0; ((++skipped))
   done
-  for src in apt snap flatpak; do # apt and Snap: one command for all of them; Flatpak one by one
+  for src in apt snap flatpak appimage; do # apt and Snap: one command for all of them; Flatpak and AppImage one by one
     ids=() rc_of=() out_of=()
     for a in "$@"; do [[ ${a%%:*} == "$src" && -z ${busy[$a]:-} ]] && ids+=("${a#*:}"); done
     ((${#ids[@]})) || continue
     for id in "${ids[@]}"; do json_file_task "$src:$id" run "" 0; done
     if [[ $src == flatpak ]]; then
       for id in "${ids[@]}"; do out_of[$id]=$(task_uninstall "flatpak:$id" 2>&1 </dev/null); rc_of[$id]=$?; done
+    elif [[ $src == appimage ]]; then # to the Trash: a "trashed" event per file, for Restore
+      local file e errf ja jt
+      errf=$(mktemp -p "$SESSION_TMP") || return 1
+      for id in "${ids[@]}"; do
+        urldecode_path file "$id"
+        UNDO_BATCH=()
+        appimage_remove "$file" >/dev/null 2>"$errf" </dev/null; rc_of[$id]=$?
+        out_of[$id]=$(sed 's/\x1b\[[0-9;]*m//g; s/^ *✘ //' "$errf")
+        json_str ja "appimage:$id"
+        for e in "${UNDO_BATCH[@]}"; do
+          json_str jp "${e#*$'\t'}"; json_str jt "${e%%$'\t'*}"
+          printf '{"event":"trashed","app":%s,"path":%s,"trash":%s}\n' "$ja" "$jp" "$jt"
+        done
+      done
+      rm -f "$errf"
     else
       out=$(uninstall_batch "$src" "${ids[@]}" 2>&1 </dev/null); rc=$?
       for id in "${ids[@]}"; do out_of[$id]=$out rc_of[$id]=$rc; done

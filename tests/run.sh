@@ -2088,6 +2088,77 @@ for l in sys.stdin:
     out=$(cm --json uninstall apt:gimp | python3 -c "$ev"); assert_contains "$out" "apt:gimp fail" # no password: sudo -n fails
   fi
 }
+test_appimage_apps() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/aibin h=$HOME_DIR out keys k proc=$WORK/aiproc
+  local apps=$HOME_DIR/.local/share/applications icons=$HOME_DIR/.local/share/icons
+  local img=$HOME_DIR/Applications/Zqnote-1.2.3-x86_64.AppImage tool=$HOME_DIR/.local/bin/zqtool
+  local desk=$apps/appimagekit_0a1b2c-Zqnote.desktop icon=$icons/hicolor/256x256/apps/zqnote.png
+  app_fixtures "$bin" # apt and Flatpak apps around it
+  mkdir -p "$apps" "${img%/*}" "${tool%/*}" "${icon%/*}" "$h/scripts" "$proc"
+  head -c 3000 /dev/zero >"$img"
+  { printf '\177ELF\002\001\001\000AI\002'; head -c 989 /dev/zero; } >"$tool" # no .AppImage name: the magic says it
+  printf '#!/bin/sh\n' >"$h/scripts/zqrun.sh"
+  chmod +x "$img" "$tool" "$h/scripts/zqrun.sh"
+  desk "$desk" "Zqnote" "\"$img\" %U" "Icon=zqnote"
+  desk "$apps/zqtool.desktop" "Zq Tool" "env ZQ=1 $tool --quiet" "Icon=$icons/zqtool.svg"
+  desk "$apps/zqrun.desktop" "Zq Run" "$h/scripts/zqrun.sh" "Icon=zqshared" # a script: not an AppImage
+  desk "$apps/zqother.desktop" "Zq Other" "$h/scripts/zqrun.sh --other" "Icon=zqshared"
+  head -c 400 /dev/zero >"$icon"; new "$icons/zqtool.svg"; new "$icons/zqshared.png"
+  mkdir -p "$h/.config/Zqnote"; head -c 2000 /dev/zero >"$h/.config/Zqnote/settings.json"
+  local CLEANMATE_APP_DIRS="$apps:$HOME_DIR/sys" BASE_PATH="$bin:$BASE_PATH" CLEANMATE_PROC=$proc
+  out=$(user_cm --json apps | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "app":
+        print(e["id"], e["kind"], e["name"], e["bytes"], e["data_bytes"] >= 2000 if e["kind"] == "appimage" else "-",
+              " ".join(x["path"] for x in e["leftovers"]))' | sed "s|$HOME_DIR/||g" | sort)
+  assert_eq "$out" $'appimage:.local/bin/zqtool appimage Zq Tool 1000 False \nappimage:Applications/Zqnote-1.2.3-x86_64.AppImage appimage Zqnote 3000 True .config/Zqnote\napt:foo apt Foo 102400 - \napt:gimp apt GNU Image Manipulation Program 20480000 - .config/GIMP\nflatpak:com.spotify.Client flatpak Spotify 123000000 - .var/app/com.spotify.Client' \
+    "AppImage apps listed with their file size and data; scripts and apt launchers are not AppImages"
+  local id ev='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "trashed": print("trashed", e["app"].split("/")[-1], e["path"].split("/")[-1], e["trash"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["id"].split("/")[-1], e["state"], e["info"])
+    elif e["event"] == "error": print("error", e["message"])
+    elif e["event"] == "done" and "failed" in e: print("done", e.get("removed", e.get("restored")), e["failed"], e.get("skipped", 0))'
+  id=appimage:$(in_app "urlencode_path '$img'")
+  if ((EUID == 0)); then
+    out=$(cm --json uninstall "$id" | python3 -c "$ev"); assert_contains "$out" "error AppImage apps are removed as you"
+    assert_exists "$img"
+  fi
+  # running: its file is the program of a process, or the first word of its command line
+  mkdir -p "$proc/4242" "$proc/5151"; ln -s "$tool" "$proc/4242/exe"; printf '%s\0--x\0' "$img" >"$proc/5151/cmdline"
+  out=$(user_cm --json uninstall "$id" "appimage:$(in_app "urlencode_path '$tool'")" | python3 -c "$ev")
+  assert_eq "$out" $'Zqnote-1.2.3-x86_64.AppImage skip Skipped: Zqnote-1.2.3-x86_64.AppImage is running — close it and try again\nzqtool skip Skipped: zqtool is running — close it and try again\ndone 0 0 2' \
+    "running AppImage apps are skipped"
+  rm -r "$proc/4242" "$proc/5151"
+  out=$(user_cm --json --dry-run uninstall "$id" | python3 -c "$ev")
+  assert_eq "$out" $'Zqnote-1.2.3-x86_64.AppImage ok would be uninstalled\ndone 1 0 0' "dry run"
+  assert_exists "$img"; assert_exists "$desk"; assert_exists "$icon"
+  out=$(user_cm --json uninstall "$id" | python3 -c "$ev")
+  assert_eq "$out" $'trashed Zqnote-1.2.3-x86_64.AppImage Zqnote-1.2.3-x86_64.AppImage Zqnote-1.2.3-x86_64.AppImage\ntrashed Zqnote-1.2.3-x86_64.AppImage appimagekit_0a1b2c-Zqnote.desktop appimagekit_0a1b2c-Zqnote.desktop\ntrashed Zqnote-1.2.3-x86_64.AppImage zqnote.png zqnote.png\nZqnote-1.2.3-x86_64.AppImage ok uninstalled\ndone 1 0 0' \
+    "the AppImage, its launcher and its icon go to the Trash"
+  out=$(user_cm --json trash "$h/.config/Zqnote" | python3 -c "$ev") # the desktop app then trashes the ticked folders
+  assert_contains "$out" "ok moved to the Trash"
+  assert_missing "$img"; assert_missing "$desk"; assert_missing "$icon"; assert_missing "$h/.config/Zqnote"
+  assert_exists "$tool"; assert_exists "$icons/zqtool.svg"; assert_exists "$icons/zqshared.png"; assert_exists "$apps/zqrun.desktop"
+  assert_eq "$(find "$h/.local/share/Trash/files" -mindepth 1 -maxdepth 1 | wc -l)" 4 "four things in the Trash"
+  out=$(user_cm --json apps | grep -c Zqnote); assert_eq "$out" 0 "gone from the list"
+  keys=(); for k in "$h/.local/share/Trash/files"/*; do keys+=("${k##*/}"); done
+  out=$(user_cm --json restore "${keys[@]}" | python3 -c "$ev")
+  assert_contains "$out" "done 4 0 0"
+  assert_exists "$img"; assert_exists "$desk"; assert_exists "$icon"; assert_exists "$h/.config/Zqnote/settings.json"
+  # the terminal app: the task reports what went to the Trash, and z puts it back
+  if ((EUID != 0)); then
+    out=$(in_app "out=\$(task_uninstall 'appimage:${id#appimage:}:0' 2>&1) || exit 1
+      printf '%s\n' \"\$out\" >\"\$HOME/task.out\"; APP_UNDO=(); task_uninstall_post x 0 0 \"\$HOME/task.out\"
+      UNDO_BATCH=(\"\${APP_UNDO[@]}\"); echo \${#UNDO_BATCH[@]}; [[ -e '$img' ]] && echo still; undo_trash; echo \$UNDO_OK \$UNDO_FAILED")
+    assert_eq "$out" $'3\n3 0' "terminal app: uninstall and put back"
+    assert_exists "$img"; assert_exists "$desk"; assert_exists "$icon"
+  fi
+}
 
 # Several apps at once: apt and Snap each in one command (one password in the
 # desktop app), Flatpak as you; a running app is skipped, and one that fails
