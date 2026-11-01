@@ -171,6 +171,10 @@ class Engine:
     def overview(self, on_event, on_done):
         return self.run(["overview"], on_event, on_done)
 
+    def check(self, kinds, on_event, on_done):
+        """Low disk alert / scan reminder: the engine sends the desktop notification itself."""
+        return self.run(["check", *kinds], on_event, on_done)
+
     def version(self):
         try:
             out = GLib.spawn_sync(None, ["bash", self.path, "--version"], None,

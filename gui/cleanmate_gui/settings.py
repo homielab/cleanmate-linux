@@ -1,4 +1,4 @@
-"""Settings: language, automatic cleaning, updates and how long things are kept.
+"""Settings: language, low disk alert, scan reminder, automatic cleaning, updates and how long things are kept.
 
 These are the terminal app's settings. The engine reads them (`--json settings`) and changes them
 (`--json settings-set KEY VALUE`) in the same file and systemd user timer, with the same ranges;
@@ -6,6 +6,8 @@ this page only shows them. A change is saved at once (numbers a moment after you
 "Remember recent files" is GNOME's own setting (gsettings), as in the terminal app; the activity log is
 the engine's (`--json activity`). The language is the desktop app's own (the terminal app stays English); it shows after a restart.
 Never clean lists the folders of `~/.config/cleanmate/exclude` (`settings-set exclusions add|remove PATH`).
+The low disk alert and the scan reminder are notifications the engine sends from a daily systemd user timer
+(`cleanmate-check.timer`, on while either is on) and, for the low disk alert, when the app opens.
 """
 import datetime
 import os
@@ -20,11 +22,16 @@ LANGUAGE_TITLES = {"system": _("Same as system"), "en": "English", "vi": "Tiến
 
 SCHEDULES = ["off", "daily", "weekly", "monthly"]
 SCHEDULE_TITLES = {"off": _("Off"), "daily": _("Daily"), "weekly": _("Weekly"), "monthly": _("Monthly")}
+REMINDERS = ["off", "weekly", "monthly"]
+LOW_DISK = [0, 5, 10, 15, 20]  # % of free space; the engine takes 0–50 (the terminal app can set any)
+
+
+def low_disk_title(pct):
+    return _("Off") if pct == 0 else _("Below {pct} free").format(pct=f"{pct}%")
+
 
 # key → (title, subtitle); the groups and order of the terminal app's Settings
 NUMBERS = {
-    "low_disk_pct": (_("Low disk alert"), _("Notify when free space drops below this percentage, checked with "
-                                            "automatic cleaning. 0 turns it off.")),
     "journal_days": (_("Journal logs"), _("Days of system logs to keep")),
     "journal_mb": (_("Journal size limit"), _("Megabytes of system logs to keep at most")),
     "log_max_mb": (_("Oversized logs"), _("Empty live logs larger than this many megabytes")),
@@ -139,6 +146,29 @@ class SettingsPage(Adw.PreferencesPage):
         self.rows["language"] = language
         general.add(language)
 
+        systemd = self.info.get("systemd", True)
+        values = sorted(set(LOW_DISK) | {self.settings.get("low_disk_pct", {}).get("value", 10)})
+        low = Adw.ComboRow(title=_("Low disk alert"),
+                           subtitle=_("A notification when the system disk is almost full. Checked daily and when "
+                                      "CleanMate opens.") if systemd else
+                           _("A notification when the system disk is almost full. Checked when CleanMate opens."),
+                           model=Gtk.StringList.new([low_disk_title(v) for v in values]))
+        low.values = values
+        low.connect("notify::selected", self.on_low_disk)
+        self.rows["low_disk_pct"] = low
+        general.add(low)
+
+        remind = Adw.ComboRow(title=_("Scan reminder"),
+                              subtitle=_("A notification when you haven't scanned for a while. Click it to open "
+                                         "CleanMate."),
+                              model=Gtk.StringList.new([SCHEDULE_TITLES[r] for r in REMINDERS]))
+        if not systemd:
+            remind.set_sensitive(False)
+            remind.set_subtitle(_("Needs systemd, which isn't available here"))
+        remind.connect("notify::selected", self.on_remind)
+        self.rows["remind"] = remind
+        general.add(remind)
+
         general = self.group(_("Automatic cleaning"))
         combo = Adw.ComboRow(title=_("Automatic cleaning"),
                              subtitle=_("Runs a Smart Clean of user and developer junk and tells you what it freed"),
@@ -149,7 +179,6 @@ class SettingsPage(Adw.PreferencesPage):
         combo.connect("notify::selected", self.on_schedule)
         self.rows["schedule"] = combo
         general.add(combo)
-        general.add(self.number_row("low_disk_pct"))
 
         updates = self.group(_("Updates"))
         check = Adw.SwitchRow(title=_("Daily update check"),
@@ -231,6 +260,13 @@ class SettingsPage(Adw.PreferencesPage):
         self.syncing = True
         if key == "schedule":
             row.set_selected(SCHEDULES.index(s["value"]) if s["value"] in SCHEDULES else 0)
+        elif key == "remind":
+            row.set_selected(REMINDERS.index(s["value"]) if s["value"] in REMINDERS else 0)
+        elif key == "low_disk_pct":
+            if s["value"] not in row.values:  # set in the terminal app
+                row.values = sorted(set(row.values) | {s["value"]})
+                row.set_model(Gtk.StringList.new([low_disk_title(v) for v in row.values]))
+            row.set_selected(row.values.index(s["value"]))
         elif key == "language":
             value = s["value"] if s["value"] in i18n.LANGUAGES else "system"
             row.set_selected(i18n.LANGUAGES.index(value))
@@ -259,6 +295,14 @@ class SettingsPage(Adw.PreferencesPage):
     def on_schedule(self, row, _pspec):
         if not self.syncing:
             self.change("schedule", SCHEDULES[row.get_selected()])
+
+    def on_remind(self, row, _pspec):
+        if not self.syncing:
+            self.change("remind", REMINDERS[row.get_selected()])
+
+    def on_low_disk(self, row, _pspec):
+        if not self.syncing:
+            self.change("low_disk_pct", str(row.values[row.get_selected()]))
 
     def on_language(self, row, _pspec):
         if not self.syncing:
@@ -358,6 +402,12 @@ class SettingsPage(Adw.PreferencesPage):
             elif key == "schedule":
                 self.toast(_("Automatic cleaning: {when}").format(when=SCHEDULE_TITLES[value])
                            if value != "off" else _("Automatic cleaning is off"))
+            elif key == "remind":
+                self.toast(_("Scan reminder: {when}").format(when=SCHEDULE_TITLES[value])
+                           if value != "off" else _("Scan reminder is off"))
+            elif key == "low_disk_pct":
+                self.toast(_("Low disk alert below {pct} free").format(pct=f"{value}%")
+                           if value != "0" else _("Low disk alert is off"))
             elif key == "selections":
                 self.toast(_("Smart Scan is back to its default choices"))
             elif key == "exclusions":

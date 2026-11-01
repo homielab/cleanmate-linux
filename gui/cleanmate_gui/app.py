@@ -68,6 +68,8 @@ class App(Adw.Application):
         if self.selftest:
             from .selftest import run
             run(self, win)
+        else:  # the low disk alert, in the background; no scan reminder while you have the app open
+            self.engine.check(["low_disk"], lambda e: None, lambda ok, status: None)
 
 
 def main(argv=None):

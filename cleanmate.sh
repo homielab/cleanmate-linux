@@ -10,7 +10,7 @@
 #   Large & Old Files · Duplicates · Uninstaller · Startup Items · Maintenance
 #   System Overview · Settings (automatic cleaning via a systemd user timer)
 #
-# Usage:  ./cleanmate.sh [--dry-run] [--scan|--clean [--yes]] [--only LIST] [--auto] [--help]
+# Usage:  ./cleanmate.sh [--dry-run] [--scan|--clean [--yes]] [--only LIST] [--auto] [--check] [--help]
 #         ./cleanmate.sh --install      # then just type: cm
 #
 # Run it as your normal user; sudo is requested only for system-level tasks.
@@ -7698,8 +7698,8 @@ declare -A SETTING_RANGE=(
 SETTING_KEYS=(update_check low_disk_pct journal_days journal_mb log_max_mb app_log_days tmp_days cache_days
   node_modules_days installer_days download_days ai_history_days) # the order of the Settings screens
 # Settings with a fixed list of values, the default first. `language` is the desktop app's (the terminal
-# app stays English): it reads the file itself at start-up.
-declare -A SETTING_CHOICES=([language]="system en vi")
+# app stays English): it reads the file itself at start-up. `remind`: the scan reminder (see run_checks).
+declare -A SETTING_CHOICES=([language]="system en vi" [remind]="off weekly monthly")
 SETTING_VALUE_RE='^[0-9a-z]+$' # what a line of the settings file may hold; each key checks its own values
 
 setting_valid() { # KEY VALUE → a number within the key's range
@@ -7737,6 +7737,7 @@ apply_settings() {
   setting APPLOG_DAYS app_log_days
   setting AI_HISTORY_DAYS ai_history_days
   setting UPDATE_CHECK update_check
+  setting_choice REMIND remind
   local _i
   for _i in "${ITEM_IDS[@]}"; do # keep "older than N days" descriptions in sync
     [[ ${ITEM_CAT[$_i]} == ai ]] && ITEM_DESC[$_i]=${ITEM_DESC[$_i]//older than+([0-9]) days/older than $AI_HISTORY_DAYS days}
@@ -7880,8 +7881,13 @@ outside_exclusions() { # VAR START… → VAR = the starting folders (tidied) th
 }
 
 notify() { # TITLE BODY [ICON] [URGENCY]
+  # desktop-entry names our launcher, so clicking the notification opens CleanMate (GNOME); the snap's
+  # launcher is <snap>_cleanmate.desktop
   have notify-send || return 0
-  notify-send -a "CleanMate" -i "${3:-user-trash-full}" -u "${4:-normal}" "$1" "$2" 2>/dev/null
+  local entry=$APP_ID
+  [[ -n ${SNAP_INSTANCE_NAME:-} ]] && entry=${SNAP_INSTANCE_NAME}_cleanmate
+  notify-send -a "CleanMate" -i "${3:-user-trash-full}" -u "${4:-normal}" -h "string:desktop-entry:$entry" \
+    "$1" "$2" 2>/dev/null
   return 0
 }
 
@@ -7932,6 +7938,172 @@ EOF
     { toast "${RED}✘${NC} Could not enable the systemd timer."; return 1; }
   if [[ $exe == "$BIN_PATH" ]]; then toast "${GREEN}✔${NC} Automatic cleaning: $1."
   else toast "${GREEN}✔${NC} Automatic cleaning: $1 — runs ${exe/#$HOME/\~}; install the launcher so moving it won't break this."; fi
+}
+
+# ── Low disk alert and scan reminder ──
+#
+# `--check` (run daily by cleanmate-check.timer, and by the desktop app when it opens) sends a desktop
+# notification when / is almost full (Settings › Low disk alert) or when no scan ran for a week or a
+# month (Settings › Scan reminder). It cleans nothing. The timer is on while either setting is on.
+
+NOTIFIED_FILE="$LOG_DIR/notified.tsv" # KIND<TAB>epoch of the last notification of each kind
+CHECK_KINDS=(low_disk remind)
+declare -A REMIND_DAYS=([weekly]=7 [monthly]=30)
+
+notified_at() { # VAR KIND → VAR = epoch of the last notification of KIND, 0 when none
+  local -n __at=$1
+  local k t
+  __at=0
+  [[ -f $NOTIFIED_FILE ]] || return 0
+  while IFS=$'\t' read -r k t; do
+    [[ $k == "$2" && $t =~ ^[0-9]{1,12}$ ]] && __at=$((10#$t))
+  done <"$NOTIFIED_FILE"
+  return 0
+}
+
+mark_notified() { # KIND — remember that KIND was notified now
+  local k t
+  mkdir -p "$LOG_DIR" || return 1
+  {
+    if [[ -f $NOTIFIED_FILE ]]; then
+      while IFS=$'\t' read -r k t; do
+        [[ $k =~ ^[a-z_]+$ && $k != "$1" && $t =~ ^[0-9]+$ ]] && printf '%s\t%s\n' "$k" "$t"
+      done <"$NOTIFIED_FILE"
+    fi
+    printf '%s\t%s\n' "$1" "$EPOCHSECONDS"
+  } >"$NOTIFIED_FILE.tmp" && mv -f "$NOTIFIED_FILE.tmp" "$NOTIFIED_FILE"
+}
+
+last_scan_time() { # VAR → VAR = epoch of the last scan or cleanup by either app, 0 when none
+  local -n __ls=$1
+  local id
+  __ls=${STATS[last_time]:-0}
+  for id in "${!LAST_AT[@]}"; do ((LAST_AT[$id] > __ls)) && __ls=${LAST_AT[$id]}; done
+  return 0
+}
+
+check_low_disk() { # → CK_DUE, CK_SENT, CK_PCT (free %, floor), CK_AVAIL; notifies at most once a day
+  local size avail at
+  CK_DUE=0 CK_SENT=0 CK_PCT=-1 CK_AVAIL=0
+  read -r size avail < <(LC_ALL=C df -B1 --output=size,avail / 2>/dev/null | tail -n 1)
+  [[ $size =~ ^[0-9]+$ && $avail =~ ^[0-9]+$ ]] && ((size > 0)) || return 0
+  CK_PCT=$((avail * 100 / size)) CK_AVAIL=$avail
+  ((LOW_DISK_PCT > 0 && CK_PCT < LOW_DISK_PCT)) || return 0
+  CK_DUE=1
+  notified_at at low_disk
+  ((EPOCHSECONDS - at >= 86400)) || return 0
+  ((DRY_RUN)) && return 0
+  notify "Disk almost full" "Only $(human "$avail") ($CK_PCT%) free on /. Open CleanMate to free up space." \
+    drive-harddisk critical
+  mark_notified low_disk && CK_SENT=1
+}
+
+check_remind() { # → CK_DUE, CK_SENT, CK_LAST (epoch of the last scan, 0 = never); notifies once per period
+  local days at
+  CK_DUE=0 CK_SENT=0
+  last_scan_time CK_LAST
+  [[ $REMIND != off ]] || return 0
+  days=${REMIND_DAYS[$REMIND]}
+  ((EPOCHSECONDS - CK_LAST >= days * 86400)) || return 0
+  CK_DUE=1
+  notified_at at remind
+  ((EPOCHSECONDS - at >= days * 86400)) || return 0
+  ((DRY_RUN)) && return 0
+  if ((CK_LAST)); then
+    notify "Time for a Smart Scan" "Your last scan was $(((EPOCHSECONDS - CK_LAST) / 86400)) days ago. Open CleanMate to see what can be cleaned." system-search
+  else
+    notify "Time for a Smart Scan" "Open CleanMate to see what can be cleaned." system-search
+  fi
+  mark_notified remind && CK_SENT=1
+}
+
+check_timer_sync() { # turn cleanmate-check.timer on while the low disk alert or the scan reminder is on, else off
+  local exe=$SELF t=$SYSTEMD_USER_DIR/cleanmate-check.timer s=$SYSTEMD_USER_DIR/cleanmate-check.service
+  have systemctl && ((!DRY_RUN && EUID != 0)) || return 0
+  [[ -x $BIN_PATH ]] && exe=$BIN_PATH
+  if ((LOW_DISK_PCT > 0)) || [[ $REMIND != off ]]; then
+    if [[ -f $t ]] && grep -qxF "ExecStart=\"$exe\" --check" "$s" 2>/dev/null &&
+      systemctl --user is-enabled -q cleanmate-check.timer 2>/dev/null; then
+      return 0 # in place and pointing at this copy
+    fi
+    mkdir -p "$SYSTEMD_USER_DIR" || return 1
+    cat >"$s" <<UNIT
+[Unit]
+Description=CleanMate — low disk alert and scan reminder
+
+[Service]
+Type=oneshot
+ExecStart="$exe" --check
+Nice=19
+UNIT
+    cat >"$t" <<UNIT
+[Unit]
+Description=Check the free disk space and the last scan for CleanMate
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target
+UNIT
+    systemctl --user daemon-reload 2>/dev/null && systemctl --user enable --now cleanmate-check.timer >/dev/null 2>&1
+  else
+    [[ -f $t || -f $s ]] || return 0
+    systemctl --user disable --now cleanmate-check.timer >/dev/null 2>&1
+    rm -f -- "$t" "$s"
+    systemctl --user daemon-reload 2>/dev/null
+    return 0
+  fi
+}
+
+run_checks() { # --check: the low disk alert and the scan reminder, one line each
+  local k last
+  for k in "${CHECK_KINDS[@]}"; do
+    case $k in
+      low_disk)
+        check_low_disk
+        if ((CK_PCT < 0)); then printf 'Low disk alert: could not read the free space of /\n'
+        elif ((!LOW_DISK_PCT)); then printf 'Low disk alert: off (%d%% free on /)\n' "$CK_PCT"
+        elif ((CK_SENT)); then printf 'Low disk alert: notified, %d%% free on / (below %d%%)\n' "$CK_PCT" "$LOW_DISK_PCT"
+        elif ((CK_DUE)); then printf 'Low disk alert: %d%% free on / (below %d%%), already notified today%s\n' \
+          "$CK_PCT" "$LOW_DISK_PCT" "$( ((DRY_RUN)) && echo " or dry run")"
+        else printf 'Low disk alert: fine, %d%% free on / (alert below %d%%)\n' "$CK_PCT" "$LOW_DISK_PCT"; fi ;;
+      remind)
+        check_remind
+        last=never; ((CK_LAST)) && last="$(((EPOCHSECONDS - CK_LAST) / 86400)) days ago"
+        if [[ $REMIND == off ]]; then printf 'Scan reminder: off (last scan: %s)\n' "$last"
+        elif ((CK_SENT)); then printf 'Scan reminder: notified (last scan: %s)\n' "$last"
+        elif ((CK_DUE)); then printf 'Scan reminder: due (last scan: %s), already reminded%s\n' "$last" "$( ((DRY_RUN)) && echo " or dry run")"
+        else printf 'Scan reminder: %s, last scan %s\n' "$REMIND" "$last"; fi ;;
+    esac
+  done
+}
+
+json_check() { # [KIND…] — the same checks for the desktop app: one "check" event per kind
+  local k kinds=("$@") due sent
+  ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
+  ((${#kinds[@]})) || kinds=("${CHECK_KINDS[@]}")
+  for k in "${kinds[@]}"; do
+    [[ " ${CHECK_KINDS[*]} " == *" $k "* ]] || { json_error "Unknown check: $k (use low_disk, remind)"; return 2; }
+  done
+  check_timer_sync
+  for k in "${kinds[@]}"; do
+    case $k in
+      low_disk)
+        check_low_disk
+        due=false sent=false; ((CK_DUE)) && due=true; ((CK_SENT)) && sent=true
+        printf '{"event":"check","kind":"low_disk","due":%s,"notified":%s,"free_pct":%d,"avail":%d,"threshold":%d}\n' \
+          "$due" "$sent" "$CK_PCT" "$CK_AVAIL" "$LOW_DISK_PCT" ;;
+      remind)
+        check_remind
+        due=false sent=false; ((CK_DUE)) && due=true; ((CK_SENT)) && sent=true
+        printf '{"event":"check","kind":"remind","due":%s,"notified":%s,"last_scan":%d,"every":"%s"}\n' \
+          "$due" "$sent" "$CK_LAST" "$REMIND" ;;
+    esac
+  done
+  printf '{"event":"done"}\n'
 }
 
 # The desktop app (gui/) and the icon (data/) ship in the repository. A clone has
@@ -8021,6 +8193,7 @@ do_install() { # copy to ~/.local/bin, add the `cm` shorthand and an app-grid en
   INSTALL_LOG+=("${GREEN}✔${NC} Added “CleanMate” to your app grid$( ((gui)) && echo " (desktop app)")")
   local sched; sched=$(schedule_get)
   [[ $sched != off ]] && schedule_set "$sched" # point the timer at the installed copy
+  check_timer_sync # the low disk alert and scan reminder's daily check, also at the installed copy
   case ":$PATH:" in
     *":${BIN_PATH%/*}:"* | *":${BIN_PATH%/*}/:"*) ;; # with or without a trailing slash
     *) INSTALL_LOG+=("${YELLOW}!${NC} $bindir is not in your PATH yet — log out and back in, or run:"
@@ -8055,13 +8228,14 @@ cli_uninstall() { # --uninstall: remove commands, launcher, timer; optionally se
     if [[ -n ${SNAP:-} ]]; then printf '    sudo snap remove cleanmate\n'; else printf '    sudo apt remove cleanmate\n'; fi
     return 0
   fi
-  printf '  This removes cleanmate, cm, the app-grid entry and automatic cleaning.\n'
+  printf '  This removes cleanmate, cm, the app-grid entry, automatic cleaning and the daily check.\n'
   confirm "Uninstall CleanMate?" || return 1
   if have systemctl && ((!DRY_RUN)); then
-    systemctl --user disable --now cleanmate.timer >/dev/null 2>&1
+    systemctl --user disable --now cleanmate.timer cleanmate-check.timer >/dev/null 2>&1
   fi
   for f in "$BIN_PATH" "$ALIAS_PATH" "$APP_FILE" "$ICON_FILE" \
-    "$SYSTEMD_USER_DIR/cleanmate.timer" "$SYSTEMD_USER_DIR/cleanmate.service"; do
+    "$SYSTEMD_USER_DIR/cleanmate.timer" "$SYSTEMD_USER_DIR/cleanmate.service" \
+    "$SYSTEMD_USER_DIR/cleanmate-check.timer" "$SYSTEMD_USER_DIR/cleanmate-check.service"; do
     [[ -e $f || -L $f ]] || continue
     [[ $f == "$ALIAS_PATH" && $(readlink "$f") != cleanmate ]] && continue # not ours
     run rm -f -- "$f" && ok "Removed ${f/#$HOME/\~}"
@@ -8081,11 +8255,12 @@ edit_number() { # KEY PROMPT — a number within the key's range (SETTING_RANGE)
   read -ra r <<<"${SETTING_RANGE[$1]}"
   ui_input "$2" "${CFG[$1]:-}" || return
   if setting_valid "$1" "$REPLY_TEXT"; then
-    save_setting "$1" "$((10#$REPLY_TEXT))" || { toast "${RED}✘${NC} Could not save ${SETTINGS_FILE/#$HOME/\~}."; return; }
+    save_setting "$1" "$((10#$REPLY_TEXT))" || { toast "${RED}✘${NC} Could not save ${SETTINGS_FILE/#$HOME/\~}."; return 1; }
     apply_settings
     toast "${GREEN}✔${NC} Saved."
   else
     toast "${RED}✘${NC} Enter a number from ${r[0]} to ${r[1]}."
+    return 1
   fi
 }
 
@@ -8097,7 +8272,8 @@ settings_menu() {
     M_KEY=() M_LABEL=() M_DESC=()
     mh "General"
     mi 1 "Automatic cleaning" "${s^} $( [[ $s == off ]] && echo "— runs a Smart Clean of user & developer junk" || echo "— user & developer junk, you get a notification")"
-    mi 2 "Low disk alert" "$( ((LOW_DISK_PCT)) && echo "Notify below ${LOW_DISK_PCT}% free (checked with automatic cleaning)" || echo "Off")"
+    mi 2 "Low disk alert" "$( ((LOW_DISK_PCT)) && echo "Notify below ${LOW_DISK_PCT}% free on / (checked daily)" || echo "Off")"
+    mi r "Scan reminder" "$(case $REMIND in off) echo "Off" ;; *) echo "${REMIND^} — a notification when you haven't scanned for a ${REMIND%ly}" ;; esac)"
     mi 3 "Recent files history" "$(recent_policy)"
     mi 4 "Install app launcher" "$(if packaged; then echo "Installed by your package manager"
       elif [[ -x $BIN_PATH && -f $APP_FILE ]]; then echo "Installed — run cleanmate or cm"
@@ -8131,7 +8307,19 @@ settings_menu() {
         if ui_menu "Automatic cleaning"; then
           case $MENU_IDX in 0) schedule_set off ;; 1) schedule_set daily ;; 2) schedule_set weekly ;; 3) schedule_set monthly ;; esac
         fi ;;
-      "Low disk alert") edit_number low_disk_pct "Warn below this % of free space (0 = off):" ;;
+      "Low disk alert") edit_number low_disk_pct "Warn below this % of free space (0 = off):" && check_timer_sync ;;
+      "Scan reminder")
+        M_KEY=(1 2 3) M_LABEL=("Off" "Weekly" "Monthly")
+        M_DESC=("No reminder" "When you haven't scanned for a week" "When you haven't scanned for a month")
+        if ui_menu "Scan reminder"; then
+          local -a when
+          read -ra when <<<"${SETTING_CHOICES[remind]}"
+          if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would set the scan reminder to: ${when[MENU_IDX]}"
+          elif save_setting remind "${when[MENU_IDX]}"; then
+            apply_settings; check_timer_sync
+            toast "${GREEN}✔${NC} Scan reminder: ${when[MENU_IDX]}."
+          else toast "${RED}✘${NC} Could not save ${SETTINGS_FILE/#$HOME/\~}."; fi
+        fi ;;
       "Recent files history") recent_menu ;;
       "Install app launcher") install_launcher ;;
       "Check for updates now") ui_update ;;
@@ -8347,7 +8535,6 @@ cli_update() { # --update
 }
 
 auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by the timer
-  local avail size pct
   INTERACTIVE=0 ASSUME_YES=1
   local id b left=() body title
   printf 'CleanMate — automatic Smart Clean (%s)\n\n' "$(date '+%F %T')"
@@ -8376,16 +8563,12 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     printf '\n  %s: %s\n' "$title" "$body"
     notify "$title" "$body"
   fi
-  read -r size avail < <(df -B1 --output=size,avail / | tail -n1)
-  pct=$((avail * 100 / size))
-  if ((LOW_DISK_PCT > 0 && pct < LOW_DISK_PCT)); then
-    notify "Disk almost full" "Only $(human "$avail") ($pct%) free on /. Open CleanMate to free up space." drive-harddisk critical
-  fi
+  check_low_disk # at most once a day, shared with the daily check
 }
 
 # ───────────────────────────── JSON protocol (for the GUI) ──────────────────
 #
-# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|settings|settings-set|apps|uninstall|maintenance|maintain|overview …` prints one JSON object per line on
+# `cm --json items|scan|details|clean|large|lens|dupes|trash|restore|startup|startup-set|settings|settings-set|apps|uninstall|maintenance|maintain|overview|check …` prints one JSON object per line on
 # stdout and nothing else. See docs/ROADMAP.md for the event list.
 
 JSON=0
@@ -8493,7 +8676,8 @@ json_main() { # SUBCOMMAND ARGS…
     maintenance) json_maintenance ;;
     maintain) json_maintain "$@" ;;
     overview) json_overview ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview"; return 2 ;;
+    check) json_check "$@" ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
   esac
 }
 
@@ -9045,9 +9229,12 @@ json_setting() { # KEY → one "setting" event with what is in effect now
         true) v=1 ;; false) v=0 ;; *) return 0 ;;
       esac
       printf '{"event":"setting","key":"recent_files","value":%d}\n' "$v" ;;
-    language)
-      setting_choice v language
-      printf '{"event":"setting","key":"language","value":"%s","choices":["system","en","vi"],"default":"system"}\n' "$v" ;;
+    language | remind) # a fixed list of values, the default first
+      local -a c
+      read -ra c <<<"${SETTING_CHOICES[$1]}"
+      setting_choice v "$1"
+      printf '{"event":"setting","key":"%s","value":"%s","choices":[%s],"default":"%s"}\n' "$1" "$v" \
+        "$(printf '"%s",' "${c[@]}" | sed 's/,$//')" "${c[0]}" ;;
     exclusions)
       local e xjson=""
       for e in "${EXCLUDES[@]}"; do json_str v "$e"; xjson+=${xjson:+,}$v; done
@@ -9062,11 +9249,12 @@ json_setting() { # KEY → one "setting" event with what is in effect now
 json_settings() {
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   local k
-  for k in language schedule "${SETTING_KEYS[@]}" selections recent_files exclusions; do json_setting "$k"; done
+  for k in language schedule remind "${SETTING_KEYS[@]}" selections recent_files exclusions; do json_setting "$k"; done
   printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool have systemctl)" "$(json_bool packaged)"
 }
 
-json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, selections reset, recent_files 0|1,
+json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, remind off|weekly|monthly,
+  # selections reset, recent_files 0|1,
   # exclusions add|remove PATH, or a number in range
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   if [[ ${1:-} == exclusions ]]; then
@@ -9087,11 +9275,11 @@ json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, languag
       schedule_set "$val" || state=fail
       info=${UI_TOAST//$'\e'\[*([0-9;])m/}
       info=${info#"✔ "} info=${info#"✘ "} ;;
-    language)
-      [[ " ${SETTING_CHOICES[language]} " == *" $val "* ]] ||
-        { json_error "language must be one of: ${SETTING_CHOICES[language]}"; return 2; }
+    language | remind)
+      [[ " ${SETTING_CHOICES[$key]} " == *" $val "* ]] ||
+        { json_error "$key must be one of: ${SETTING_CHOICES[$key]}"; return 2; }
       if ((DRY_RUN)); then info="would be set to $val"
-      elif save_setting language "$val"; then info="set to $val"
+      elif save_setting "$key" "$val"; then info="set to $val"
       else state=fail info="Could not save ${SETTINGS_FILE/#$HOME/\~}"; fi ;;
     selections)
       [[ $val == reset ]] || { json_error "selections can only be reset"; return 2; }
@@ -9113,6 +9301,10 @@ json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, languag
       elif save_setting "$key" "$val"; then info="set to $val"
       else state=fail info="Could not save ${SETTINGS_FILE/#$HOME/\~}"; fi ;;
   esac
+  if [[ $state == ok && ($key == remind || $key == low_disk_pct) ]]; then
+    apply_settings
+    check_timer_sync # the daily check runs while either is on
+  fi
   json_str info "$info"
   printf '{"event":"task","id":"%s","state":"%s","info":%s}\n' "$key" "$state" "$info"
   ((DRY_RUN)) && load_settings # show what is saved, not what would be
@@ -9537,6 +9729,8 @@ Scan & clean without the app
                     (privacy is only included when named)
       --auto        What automatic cleaning runs: user & developer junk, then a
                     desktop notification
+      --check       What the daily check runs: notify when / is almost full (Low disk
+                    alert) or no scan ran for a while (Scan reminder); cleans nothing
 
 Install & update
       --install     Install the cm command, the desktop app and the app-grid entry
@@ -9647,6 +9841,8 @@ while (($#)); do
     -c | --clean) MODE=clean ;;
     -y | --yes) ASSUME_YES=1 ;;
     --auto) MODE=auto ;;
+    --check) # also an option of --json uninstall / reset
+      if [[ $MODE == json && ${#JSON_ARGS[@]} -gt 0 ]]; then JSON_ARGS+=("$1"); else MODE=check; fi ;;
     --no-mouse) MOUSE=0 ;;
     --only)
       shift
@@ -9691,6 +9887,9 @@ case $MODE in
   scan) INTERACTIVE=0; scan_report; exit 0 ;;
   clean) INTERACTIVE=0; smart_clean; exit 0 ;;
   auto) auto_mode; exit 0 ;;
+  check)
+    ((EUID != 0)) || { err "Settings are per user: run --check as yourself, not as root."; exit 2; }
+    check_timer_sync; run_checks; exit ;;
   install) INTERACTIVE=0; cli_install; exit ;;
   uninstall) INTERACTIVE=0; cli_uninstall; exit ;;
   update) INTERACTIVE=0; cli_update; exit ;;

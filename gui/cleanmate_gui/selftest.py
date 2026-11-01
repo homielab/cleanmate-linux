@@ -1011,7 +1011,8 @@ def uninstaller_test(win, report, wait, finish):
 
 def settings_test(win, report, wait, finish):
     """Settings of a throwaway home with a fake `systemctl --user`: show the saved values, change a
-    number, turn automatic cleaning on (the timer is enabled), pick a language (Restart starts the app
+    number, turn automatic cleaning on (the timer is enabled), turn the scan reminder on and both it and the
+    low disk alert off (the daily check timer comes and goes), pick a language (Restart starts the app
     again, here through a stub), forget remembered selections and add and remove a Never clean folder."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
@@ -1021,6 +1022,7 @@ def settings_test(win, report, wait, finish):
         os.makedirs(d)
     settings_file, selection = os.path.join(conf, "settings"), os.path.join(conf, "selection")
     timer = os.path.join(home, ".config", "systemd", "user", "cleanmate.timer")
+    check_timer = os.path.join(home, ".config", "systemd", "user", "cleanmate-check.timer")
     for path, text in ((settings_file, "journal_days=14\n"), (selection, "apt_cache=1\n"),
                        (os.path.join(bin_dir, "systemctl"),
                         '#!/bin/sh\nshift\nmkdir -p "$HOME/enabled"\ncase $1 in is-enabled) test -e "$HOME/enabled/$3" ;; '
@@ -1070,6 +1072,8 @@ def settings_test(win, report, wait, finish):
         row = page.rows.get("journal_days")
         report(row is not None and row.get_value() == 14 and page.rows["journal_mb"].get_value() == 100
                and page.rows["schedule"].get_selected() == 0 and page.rows["language"].get_selected() == 0
+               and page.rows["low_disk_pct"].values[page.rows["low_disk_pct"].get_selected()] == 10
+               and page.rows["remind"].get_selected() == 0
                and not page.rows["language"].restart_button.get_visible(),
                "settings show the saved values and defaults")
         row.set_value(30)
@@ -1093,6 +1097,22 @@ def settings_test(win, report, wait, finish):
         text = open(timer).read() if os.path.exists(timer) else ""
         report("OnCalendar=weekly" in text and os.path.exists(os.path.join(home, "enabled", "cleanmate.timer")),
                "turning automatic cleaning on enables the weekly timer")
+        page.rows["remind"].set_selected(1)
+        wait(idle, reminded, 30, "scan reminder")
+
+    def reminded():
+        text = open(check_timer).read() if os.path.exists(check_timer) else ""
+        report("remind=weekly" in saved() and "OnCalendar=daily" in text
+               and os.path.exists(os.path.join(home, "enabled", "cleanmate-check.timer")),
+               "turning the scan reminder on saves it and enables the daily check")
+        page.rows["low_disk_pct"].set_selected(0)
+        page.rows["remind"].set_selected(0)
+        wait(idle, checks_off, 30, "low disk alert and reminder off")
+
+    def checks_off():
+        report("low_disk_pct=0" in saved() and "remind=off" in saved() and not os.path.exists(check_timer)
+               and not os.path.exists(os.path.join(home, "enabled", "cleanmate-check.timer")),
+               "with the low disk alert and the scan reminder off the daily check goes away")
         page.rows["language"].set_selected(2)
         wait(idle, language_set, 30, "language")
 

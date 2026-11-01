@@ -2033,6 +2033,7 @@ test_json_settings() {
   out=$(user_cm --json settings | settings_list)
   assert_eq "$out" "language system
 schedule off
+remind off
 update_check 1 0-1/1
 low_disk_pct 10 0-50/10
 journal_days 14 1-365/7
@@ -2103,6 +2104,88 @@ done true false" "every setting with its range and default; bad values fall back
   out=$(user_cm --json settings-set schedule daily | settings_list)
   assert_contains "$out" "fail schedule Could not enable the systemd timer."
   assert_contains "$out" "schedule off"
+}
+
+test_low_disk_alert_and_scan_reminder() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/checkbin out now f=$HOME_DIR/.config/cleanmate/settings u=$HOME_DIR/.config/systemd/user
+  local st=$HOME_DIR/.local/state/cleanmate log=$HOME_DIR/notify.log
+  mkdir -p "$bin" "$HOME_DIR/.local/bin" "$st"
+  # notify-send logs to ~/notify.log, df reads "SIZE AVAIL" of / from ~/df, systemctl --user keeps
+  # enabled units as files in ~/enabled — the real ones are never run
+  printf '#!/bin/sh\necho "$*" >>"$HOME/notify.log"\n' >"$bin/notify-send"
+  printf '#!/bin/sh\necho "1B-blocks Avail"\ncat "$HOME/df"\n' >"$bin/df"
+  printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift; mkdir -p "$HOME/enabled"' \
+    'case $1 in is-enabled) test -e "$HOME/enabled/$3" ;; enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac' \
+    >"$HOME_DIR/.local/bin/systemctl"
+  chmod +x "$bin/"* "$HOME_DIR/.local/bin/systemctl"
+  local BASE_PATH="$bin:$BASE_PATH"
+  echo "100000000000 5000000000" >"$HOME_DIR/df" # 5 % free
+  : >"$log"
+  if ((EUID == 0)); then
+    out=$(cm --check 2>&1); assert_contains "$out" "not as root"
+    out=$(cm --json check 2>&1); assert_contains "$out" "not as root"
+  fi
+  # low disk alert, on by default (10 %): one notification a day; the daily timer is switched on
+  out=$(user_cm --check)
+  assert_contains "$out" "Low disk alert: notified, 5% free on / (below 10%)"
+  assert_contains "$out" "Scan reminder: off (last scan: never)"
+  assert_eq "$(grep -c 'Disk almost full' "$log")" 1 "one low disk notification"
+  assert_contains "$(cat "$log")" "string:desktop-entry:com.homielab.CleanMate"
+  assert_contains "$(cat "$u/cleanmate-check.timer")" "OnCalendar=daily"
+  assert_contains "$(cat "$u/cleanmate-check.service")" "--check"
+  assert_exists "$HOME_DIR/enabled/cleanmate-check.timer"
+  out=$(user_cm --check)
+  assert_contains "$out" "already notified today"
+  assert_eq "$(grep -c 'Disk almost full' "$log")" 1 "no second notification within a day"
+  now=$(date +%s)
+  printf 'low_disk\t%s\n' $((now - 90000)) >"$st/notified.tsv" # the last one 25 hours ago
+  user_cm --check >/dev/null
+  assert_eq "$(grep -c 'Disk almost full' "$log")" 2 "notified again the next day"
+  rm -f "$st/notified.tsv"
+  out=$(user_cm --dry-run --check); assert_contains "$out" "dry run"
+  assert_eq "$(grep -c 'Disk almost full' "$log")" 2 "a dry run notifies nothing"
+  echo "100000000000 50000000000" >"$HOME_DIR/df"
+  out=$(user_cm --check); assert_contains "$out" "Low disk alert: fine, 50% free on / (alert below 10%)"
+  echo "100000000000 5000000000" >"$HOME_DIR/df"
+  echo "low_disk_pct=0" >"$f"
+  out=$(user_cm --check); assert_contains "$out" "Low disk alert: off (5% free on /)"
+  assert_eq "$(grep -c 'Disk almost full' "$log")" 2 "threshold 0: no notification"
+  # both off: the timer goes away
+  assert_missing "$u/cleanmate-check.timer"; assert_missing "$u/cleanmate-check.service"
+  assert_missing "$HOME_DIR/enabled/cleanmate-check.timer"
+  # scan reminder: weekly, the last cleanup 8 days ago → reminded once a week
+  printf 'last_time=%s\n' $((now - 8 * 86400)) >"$st/stats"
+  out=$(user_cm --json settings-set remind weekly | settings_list)
+  assert_eq "$out" $'ok remind set to weekly\nremind weekly\ndone  ' "set the scan reminder"
+  assert_exists "$HOME_DIR/enabled/cleanmate-check.timer"
+  out=$(user_cm --check)
+  assert_contains "$out" "Scan reminder: notified (last scan: 8 days ago)"
+  assert_contains "$(cat "$log")" "Time for a Smart Scan Your last scan was 8 days ago."
+  out=$(user_cm --check); assert_contains "$out" "Scan reminder: due (last scan: 8 days ago), already reminded"
+  assert_eq "$(grep -c 'Time for a Smart Scan' "$log")" 1 "one reminder a week"
+  # a scan 2 days ago (either app) puts it off
+  rm -f "$st/notified.tsv"
+  printf 'thumbs\t0\t0\t%s\n' $((now - 2 * 86400)) >"$st/last-scan.tsv"
+  out=$(user_cm --check); assert_contains "$out" "Scan reminder: weekly, last scan 2 days ago"
+  assert_eq "$(grep -c 'Time for a Smart Scan' "$log")" 1 "no reminder after a recent scan"
+  # the desktop app's check
+  out=$(user_cm --json check low_disk remind | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "check": print(e["kind"], e["due"], e["notified"], e.get("free_pct"), e.get("every"), e.get("last_scan", 0) > 0)
+    else: print(e["event"])')
+  assert_eq "$out" $'low_disk False False 5 None False\nremind False False None weekly True\ndone' "--json check"
+  out=$(user_cm --json check foo 2>&1); assert_contains "$out" "Unknown check: foo"
+  out=$(user_cm --json settings-set remind daily 2>&1); assert_contains "$out" "remind must be one of: off weekly monthly"
+  # low disk on again, reminder off: the timer stays; both off: it goes
+  user_cm --json settings-set low_disk_pct 15 >/dev/null
+  user_cm --json settings-set remind off >/dev/null
+  assert_exists "$u/cleanmate-check.timer"
+  user_cm --json settings-set low_disk_pct 0 >/dev/null
+  assert_missing "$u/cleanmate-check.timer"
+  assert_contains "$(cat "$HOME_DIR/systemctl.log")" "--user disable --now cleanmate-check.timer"
 }
 
 test_never_clean_exclusions() {

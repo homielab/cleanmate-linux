@@ -192,8 +192,16 @@ the browser runs; Firefox needs `sqlite3` (it clears the records, so bookmarks i
 *Settings → Automatic cleaning* runs a weekly (or daily, monthly) clean of user and developer
 junk and notifies you: *"Freed 1.2 GB. Worth a look: Docker build cache 2.0 GB, Google Chrome
 1.8 GB."* It never empties the Trash, never touches browsers, apps or Cargo, Python and CocoaPods
-build folders, never needs your password, and can warn you when the disk is almost full. In the desktop app it's in *Settings* in the main
+build folders and never needs your password. In the desktop app it's in *Settings* in the main
 menu (Ctrl+,); both apps share the same settings.
+
+## Low disk alert and scan reminder
+
+CleanMate notifies you when `/` has less than 10 % free (*Settings → Low disk alert*: 5–20 % or
+Off; once a day at most) and, if you turn on *Settings → Scan reminder*, when you haven't scanned
+for a week or a month. A daily systemd user timer (`cleanmate-check.timer`) checks while either is
+on, and the desktop app checks the disk when it opens. Click the notification to open CleanMate.
+Check now with `cm --check`.
 
 ## Command line
 
@@ -202,6 +210,7 @@ cm --scan                        # what would Smart Scan find? (changes nothing)
 cm --clean                       # Smart Scan, confirm once, clean
 cm --clean --yes --only logs     # clean logs without asking
 cm --scan --only privacy         # what history is stored?
+cm --check                       # low disk alert and scan reminder now
 cm --help                        # all options
 ```
 
