@@ -60,8 +60,8 @@ path_without() { # NAME… → a PATH like BASE_PATH where none of the commands 
   (IFS=:; printf '%s' "${out[*]}")
 }
 
-cm() { # run the app non-interactively inside the fake home
-  "${AS_USER[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb \
+cm() { # run the app non-interactively inside the fake home (in English unless TEST_LANG is set)
+  "${AS_USER[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG="${TEST_LANG:-C.UTF-8}" TERM=dumb \
     CLEANMATE_NO_UPDATE_CHECK=1 ${CLEANMATE_UPDATE_URL:+CLEANMATE_UPDATE_URL=$CLEANMATE_UPDATE_URL} \
     ${CLEANMATE_APP_DIRS:+CLEANMATE_APP_DIRS=$CLEANMATE_APP_DIRS} \
     ${CLEANMATE_SYSTEM_AUTOSTART:+CLEANMATE_SYSTEM_AUTOSTART=$CLEANMATE_SYSTEM_AUTOSTART} \
@@ -87,7 +87,7 @@ user_cm() { # like cm; as root it runs as nobody, who owns the fake home for the
 }
 
 in_app() { # run bash code with the script's functions loaded (sourced, nothing starts)
-  env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 bash -c "source \"\$1\"; $1" _ "$SCRIPT"
+  env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG="${TEST_LANG:-C.UTF-8}" bash -c "source \"\$1\"; $1" _ "$SCRIPT"
 }
 
 select_only() { # ID... — selection file with exactly these items switched on
@@ -914,6 +914,29 @@ volume rm scratch" "two volumes, one rm each"
   [[ $(<"$log") == *"volume rm"* || $(<"$log") == *"rmi"* ]] && fail "unlisted entries must not be removed" || ok_ "in-use volume and images untouched"
   out=$(in_app 'DOCKER_HOST=tcp://10.0.0.5:2375 json_entries docker_volumes')
   assert_eq "$out" "" "no entries for a remote Docker"
+}
+
+test_docker_sizes_in_a_decimal_comma_language() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  local l lang=""
+  for l in vi_VN.UTF-8 de_DE.UTF-8 fr_FR.UTF-8; do
+    [[ $(env LC_ALL="$l" printf '%.1f' 1 2>/dev/null) == 1,0 ]] && { lang=$l; break; }
+  done
+  [[ -n $lang ]] || { SKIPPED="no locale with a decimal comma installed (locale-gen vi_VN.UTF-8)"; return; }
+  fresh_home
+  local log=$WORK/docker-comma.log out
+  : >"$log"
+  docker_entries_stub "$WORK/dockercomma" "$log"
+  local BASE_PATH="$WORK/dockercomma:$BASE_PATH" TEST_LANG=$lang
+  # Docker writes "1.5GB" whatever the language
+  out=$(cm --json details docker_volumes | entry_notes)
+  assert_contains "$out" "pgdata 1500000000 data"
+  out=$(cm --json scan --only dev)
+  assert_contains "$(grep '"id":"docker_build"' <<<"$out")" '"bytes":3500000000'
+  echo '1.41 1.45' >"$WORK/dockercomma/api" # prune removes them all: sized from `docker system df`
+  out=$(cm --json scan --only dev | grep '"id":"docker_volumes"')
+  assert_contains "$out" '"bytes":1600000000'
+  assert_eq "$(in_app 'si_to_bytes 1,5GB')" 1500000000 "a size written with a decimal comma"
 }
 
 test_free_space_history() {

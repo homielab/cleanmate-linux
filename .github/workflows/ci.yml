@@ -40,6 +40,8 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 libgtk-4-bin
       - name: Install gettext (translations are compiled into the .deb) and sqlite3 (browser privacy test)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext sqlite3
+      - name: Add a language with a decimal comma (sizes must read the same in every language)
+        run: sudo locale-gen vi_VN.UTF-8
       - name: Run tests
         run: tests/run.sh
 

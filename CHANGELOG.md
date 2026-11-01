@@ -26,6 +26,7 @@ All notable changes are listed here. The format follows
 ### Fixed
 
 - **Project build folders** could leave out a project at random during Smart Scan, when another item was reading a folder of it at the same moment.
+- **Docker** sizes (both apps) were wrong or missing when the system language writes decimals with a comma (Vietnamese, German, French…): a 1.5 GB volume showed as 1 GB, and unused volumes or the build cache sized by `docker system df` could show 0 B and drop out of the scan. Sizes like Docker's "1.5GB" now read the same in every language.
 
 ## [2.0.0] — 2026-10-31
 

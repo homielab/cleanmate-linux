@@ -4262,7 +4262,8 @@ clean_entries_vscode_old_extensions() { # encoded folders (json_clean_entries on
   delete_editor_extensions "${pick[@]}"
 }
 
-si_to_bytes() { local v=${1%B}; v=${v/k/K}; numfmt --from=si "$v" 2>/dev/null || echo 0; }
+# "1.5GB" (or "1,5 GB" from a tool that follows a decimal-comma language) → bytes, whatever the language
+si_to_bytes() { local v=${1%B}; v=${v/k/K}; LC_ALL=C numfmt --from=si "${v/,/.}" 2>/dev/null || echo 0; }
 # Docker: one item per kind of leftover, sized from `docker system df`.
 docker_ok() { have docker && timeout 5 docker info >/dev/null 2>&1; }
 docker_reclaimable() { # TYPE (Images, Containers, Local Volumes, Build Cache) → bytes
@@ -4303,7 +4304,8 @@ details_docker_build() { docker system df 2>/dev/null | sed 's/^/  /'; return 0;
   ENTRY_RE_docker_build='^[a-z0-9]{20,32}$'                 # BuildKit record IDs are base-32
   ENTRY_RE_docker_volumes='^[A-Za-z0-9][A-Za-z0-9_.-]+$' # Docker's own rule for volume names
 }
-# awk: bytes("1.09MB") — the SI units `docker system df` prints (like si_to_bytes); N/A → 0
+# awk: bytes("1.09MB") — the SI units `docker system df` prints (like si_to_bytes); N/A → 0.
+# Run it with LC_ALL=C: in a decimal-comma language awk reads "1.5" as 1.
 DOCKER_AWK_BYTES='function bytes(s,  n, u) {
   n = s + 0; u = toupper(substr(s, match(s, /[^0-9.]/), 1))
   return int(n * (u == "K" ? 1e3 : u == "M" ? 1e6 : u == "G" ? 1e9 : u == "T" ? 1e12 : 1) + 0.5)
@@ -4325,7 +4327,7 @@ entries_docker_build() { # records not in use, biggest first; a shared one frees
   docker_ok && docker_local || return 1
   docker system df -v --format \
     '{{range .BuildCache}}{{.ID}}|{{.Size}}|{{.InUse}}|{{.Shared}}|{{.CacheType}}|{{.LastUsedSince}}|{{.Description}}{{println}}{{end}}' \
-    2>/dev/null | awk -F'|' "$DOCKER_AWK_BYTES"'
+    2>/dev/null | LC_ALL=C awk -F'|' "$DOCKER_AWK_BYTES"'
       $1 ~ /^[a-z0-9]+$/ && length($1) >= 20 && length($1) <= 32 && $3 != "true" { # see ENTRY_RE_docker_build
         d = $7; for (i = 8; i <= NF; i++) d = d "|" $i
         if (d == "") d = $5
@@ -4345,7 +4347,7 @@ entries_docker_images() { # images no container uses, biggest first; dangling on
   dangling=$(docker images -f dangling=true --no-trunc --format '{{.ID}}' 2>/dev/null | cut -f1 | paste -sd' ' -)
   docker system df -v --format \
     '{{range .Images}}{{.ID}}|{{.Containers}}|{{.Size}}|{{.UniqueSize}}|{{.CreatedSince}}|{{.Repository}}|{{.Tag}}{{println}}{{end}}' \
-    2>/dev/null | awk -F'|' -v dangling="$dangling" "$DOCKER_AWK_BYTES"'
+    2>/dev/null | LC_ALL=C awk -F'|' -v dangling="$dangling" "$DOCKER_AWK_BYTES"'
       BEGIN { n = split(dangling, d, " "); for (i = 1; i <= n; i++) skip[d[i]] = 1 }
       $2 == "0" && !($1 in skip) && !seen[$1]++ && $1 ~ /^sha256:[0-9a-f]+$/ && length($1) == 71 { # see ENTRY_RE_docker_images
         name = ($6 == "<none>") ? substr($1, 8, 12) : ($7 == "<none>" || $7 == "") ? $6 : ($6 ":" $7)
@@ -4367,7 +4369,7 @@ clean_entries_docker_images() { # by all of its tags: an image with two tags nee
 docker_unused_volumes() { # volumes no container uses, biggest first, as entries; note: anonymous, or data (a named one)
   docker system df -v --format \
     '{{range .Volumes}}{{.Name}}|{{.Links}}|{{.Size}}|{{.Driver}}|{{.Labels}}{{println}}{{end}}' \
-    2>/dev/null | awk -F'|' "$DOCKER_AWK_BYTES"'
+    2>/dev/null | LC_ALL=C awk -F'|' "$DOCKER_AWK_BYTES"'
       $2 == "0" && $1 ~ /^[A-Za-z0-9][A-Za-z0-9_.-]+$/ { # see ENTRY_RE_docker_volumes
         labels = $5; for (i = 6; i <= NF; i++) labels = labels "|" $i
         hex = length($1) == 64 && $1 ~ /^[0-9a-f]+$/
