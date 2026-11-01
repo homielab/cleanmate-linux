@@ -207,7 +207,7 @@ for a week or a month. A daily systemd user timer (`cleanmate-check.timer`) chec
 on, and the desktop app checks the disk when it opens. Click the notification to open CleanMate.
 Check now with `cm --check`.
 
-## Command line
+## Command line & AI agents
 
 ```bash
 cm --scan                        # what would Smart Scan find? (changes nothing)
@@ -217,6 +217,24 @@ cm --scan --only privacy         # what history is stored?
 cm --check                       # low disk alert and scan reminder now
 cm --version                     # version and system details for a bug report
 cm --help                        # all options
+```
+
+`--dry-run` works with everything. `--only` takes `system,logs,user,browser,apps,ai,models,dev,privacy`
+(`privacy` only when named).
+
+**Machine-readable output.** `cm --json CMD` prints one JSON object per line and nothing else:
+
+```bash
+cm --json scan --only logs,dev   # items with id, category, label, bytes, locked, root, trash
+cm --json --dry-run clean ID…    # preview
+cm --json clean ID…              # task events, then freed bytes and Trash restore keys
+```
+
+**AI agents.** An [Agent Skill](https://agentskills.io) in `skills/cleanmate/` teaches Claude Code, Codex
+and others to scan first, show you the result and clean only what you confirm:
+
+```bash
+bunx skills add homielab/cleanmate-linux
 ```
 
 ## Update & uninstall

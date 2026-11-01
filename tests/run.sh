@@ -244,6 +244,25 @@ for l in sys.stdin:
   assert_missing "$HOME_DIR/.cache/google-chrome/Default/Cache/a"
 }
 
+# The agent skill: valid frontmatter, and every cm flag and --json command its examples use exists.
+test_agent_skill_matches_cli() {
+  fresh_home
+  local f=$ROOT/skills/cleanmate/SKILL.md help flag cmd out
+  assert_exists "$f"; assert_exists "$ROOT/skills/cleanmate/reference.md"
+  assert_contains "$(head -n 1 "$f")" "---"
+  assert_contains "$(sed -n 2p "$f")" "name: cleanmate"
+  assert_contains "$(sed -n 3p "$f")" "description: "
+  help=$(bash "$SCRIPT" --help)
+  for flag in $(grep -ho 'cm \(--[a-z]* \)*--[a-z-]*' "$f" "$ROOT/skills/cleanmate/reference.md" | grep -o -- '--[a-z-]*' | sort -u); do
+    [[ $flag == --json || $flag == --help ]] && continue
+    [[ $help == *"$flag"* ]] || { FAILED=1; echo "skill uses $flag, not in --help"; }
+  done
+  for cmd in $(grep -ho 'cm --json \(--dry-run \)\?[a-z]*' "$f" | awk '{print $NF}' | sort -u); do
+    [[ $help == *"$cmd"* ]] || { FAILED=1; echo "skill uses --json $cmd, not in --help"; }
+  done
+  out=$(bash "$SCRIPT" --json scan --only nonsense 2>&1); assert_contains "$out" "Unknown category"
+}
+
 test_app_cache_keeps_app_data() {
   fresh_home
   new "$HOME_DIR/.config/Slack/Cache/c"
