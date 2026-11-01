@@ -296,14 +296,14 @@ test_hard_linked_store_files_not_counted() {
 }
 
 # sizes of project folders are measured in parallel and cached between scans, but never trusted once
-# the folder changed (at its top level) or the entry is a week old
+# the folder changed (two levels down) or the entry is a week old
 test_project_sizes_cached() {
   fresh_home
   local p=$HOME_DIR/code/web r=$HOME_DIR/code/rs c=$HOME_DIR/.cache/cleanmate out i
   for i in 1 2 3 4 5 6; do
     sized "$HOME_DIR/code/p$i/node_modules/x/i.js" "$((i * 100))"; new "$HOME_DIR/code/p$i/package.json"; new "$HOME_DIR/code/p$i/yarn.lock"
   done
-  sized "$p/node_modules/a/x.js" 3000; new "$p/package.json"; new "$p/package-lock.json"
+  sized "$p/node_modules/a/b/x.js" 3000; new "$p/package.json"; new "$p/package-lock.json"
   sized "$r/target/debug/app" 4000; new "$r/Cargo.toml"
   touch -d '200 days ago' "$HOME_DIR"/code/*/* "$HOME_DIR"/code/*
   out=$(in_app 'find_stale_node_modules' | sort -t $'\t' -k2,2)
@@ -316,12 +316,12 @@ test_project_sizes_cached() {
   sized "$p/node_modules/b/y.js" 1000
   out=$(in_app 'find_stale_node_modules' | grep -F "$p/")
   assert_eq "${out%%$'\t'*}" "4000" "node_modules: a package added, measured again"
-  sized "$p/node_modules/a/x.js" 5000 # deeper down: the folder's top level looks the same
+  sized "$p/node_modules/a/b/x.js" 5000 # edited in place three levels down: the signature looks the same
   sed -i "s|^\([^\t]*\)\t[0-9]*\t4000\t|\1\t$(($(date +%s) - 8 * 86400))\t4000\t|" "$c/sizes-node_modules.tsv"
   out=$(in_app 'find_stale_node_modules' | grep -F "$p/")
   assert_eq "${out%%$'\t'*}" "6000" "node_modules: a size cached over a week ago, measured again"
   sed -i "s|^[^\t]*\t\([0-9]*\t6000\t\)|0.0.0.0.0.0\t\1|" "$c/sizes-node_modules.tsv"
-  sized "$p/node_modules/a/x.js" 2000
+  sized "$p/node_modules/a/b/x.js" 2000
   out=$(in_app 'find_stale_node_modules' | grep -F "$p/")
   assert_eq "${out%%$'\t'*}" "3000" "node_modules: a cached size of another state of the folder, measured again"
   out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
@@ -335,6 +335,43 @@ test_project_sizes_cached() {
   rm -r "$r/target"
   in_app 'stale_build_dirs'
   assert_missing "$c/sizes-stale_build_dirs.tsv"
+}
+
+# a cached size is measured again when something changes up to three levels down, or when CleanMate
+# moves something inside to the Trash or back — at the next scan, not a week later
+test_project_sizes_see_deep_changes() {
+  fresh_home
+  local p=$HOME_DIR/code/web r=$HOME_DIR/code/rs c=$HOME_DIR/.cache/cleanmate out
+  sized "$p/node_modules/a/lib/big.bin" 5000; sized "$p/node_modules/a/index.js" 100
+  new "$p/package.json"; new "$p/package-lock.json"
+  sized "$r/target/debug/deps/x/big.rlib" 6000; sized "$r/target/debug/app" 4000; new "$r/Cargo.toml"
+  find "$HOME_DIR/code" -exec touch -h -d '200 days ago' {} +
+  out=$(in_app 'find_stale_node_modules' | cut -f1)
+  assert_eq "$out" "5100" "node_modules: measured"
+  rm "$p/node_modules/a/lib/big.bin"
+  out=$(in_app 'find_stale_node_modules' | cut -f1)
+  assert_eq "$out" "100" "node_modules: a file removed three levels down, measured again"
+  out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
+  assert_eq "$out" "10000" "target/: measured"
+  out=$(user_cm --json trash "$r/target/debug/deps/x/big.rlib")
+  assert_contains "$out" '"state":"ok"'
+  out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
+  assert_eq "$out" "4000" "target/: a file four levels down moved to the Trash by CleanMate, measured again"
+  user_cm --json restore big.rlib >/dev/null
+  assert_exists "$r/target/debug/deps/x/big.rlib"
+  out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
+  assert_eq "$out" "10000" "target/: the file put back, measured again"
+  assert_missing "$c/sizes-stale_build_dirs.forget"
+  # cleaned as an entry, then Undo: the size cached before is never shown again
+  sed -i "s|\t10000\t$r/target\$|\t1\t$r/target|" "$c/sizes-stale_build_dirs.tsv"
+  user_cm --json clean stale_build_dirs --entries "$(in_app "urlencode_path '$r'")" >/dev/null
+  assert_missing "$r/target"
+  user_cm --json restore target >/dev/null
+  assert_exists "$r/target/debug/app"
+  out=$(in_app 'stale_build_dirs; echo "${SB_BYTES[*]}"')
+  assert_eq "$out" "10000" "target/: cleaned and put back, measured again"
+  out=$(user_cm --json --dry-run trash "$r/target/debug/app")
+  assert_missing "$c/sizes-stale_build_dirs.forget"
 }
 
 test_ai_tools_keep_memory_and_logins() {

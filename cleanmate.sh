@@ -812,6 +812,7 @@ trash_into() { # PATH DIR KEY_PREFIX PATH_VALUE — move PATH into the Trash fol
     >"$info/$name.trashinfo" || return 1
   if mv -- "$p" "$files/$name" 2>/dev/null; then
     log "trash $p"
+    sizes_forget "$p"
     UNDO_BATCH+=("$prefix$name"$'\t'"$p")
     return 0
   fi
@@ -847,7 +848,7 @@ move_to_trash() { # PATH — never deletes permanently
   if [[ $p == "$HOME"/* ]]; then trash_put "$p"; return; fi
   np=$(realpath -m -s -- "$p")
   if volume_top top "$np" && volume_trash_put "$np" "$top"; then return 0; fi
-  if have gio; then run gio trash -- "$p"
+  if have gio; then run gio trash -- "$p" && sizes_forget "$np"
   else err "Can't move $p to the Trash (it's outside your home folder and gio is missing)"; return 1; fi
 }
 
@@ -866,6 +867,7 @@ undo_trash() { # put the last batch back → UNDO_OK, UNDO_FAILED
     if mkdir -p -- "${orig%/*}" && mv -n -T -- "$f" "$orig" 2>/dev/null && [[ ! -e $f && ! -L $f ]]; then
       rm -f -- "$TL_DIR/info/$TL_NAME.trashinfo"
       log "restore $orig"
+      sizes_forget "$orig"
       UNDO_OK=$((UNDO_OK + 1))
     else UNDO_FAILED=$((UNDO_FAILED + 1)); fi
   done
@@ -2816,27 +2818,41 @@ own_bytes() { # PATH… → bytes deleting them frees, like du -sbx, but a file 
     END { for (k in seen) if (seen[k] >= links[k]) t += size[k]; printf "%.0f\n", t }'
 }
 # Sizes of project folders, measured nproc at a time and cached in CACHE_DIR between scans. A cached
-# size is used only while the folders and what is directly inside them are unchanged (count, inodes,
-# times, sizes and links), and for SIZE_CACHE_DAYS at most, so a change deeper down shows within days.
+# size is used only while the folders, what is directly in them and the folders in those are unchanged
+# (count, inodes, times, sizes and links): a file added or removed up to three levels down changes one
+# of those times.
+# What CleanMate moves to the Trash or puts back is noted in sizes-NAME.forget (sizes_forget), and the
+# next scan measures each cached folder it is in or contains again. SIZE_CACHE_DAYS caps the rest
+# (an edit deeper down).
 SIZE_CACHE_DAYS=7
-path_sigs() { # PATH… → "PATH<TAB>signature" of each, one find for all
-  find "$@" -maxdepth 1 -printf '%H\t%i %T@ %s %n\n' 2>/dev/null | awk -F'\t' '
+path_sigs() { # PATH… → "PATH<TAB>signature" of each: it and what is in it, and the folders in those
+  # (their files need no stat: adding or removing one changes the time of the folder above)
+  { find "$@" -maxdepth 1 -printf '%H\t%i %T@ %s %n\n'; find "$@" -mindepth 2 -maxdepth 2 -type d -printf '%H\t%i %T@ %s %n\n'; } 2>/dev/null | awk -F'\t' '
     { split($2, a, " "); i = index(a[2], "."); k = $1; n[k]++; ino[k] += a[1]; sz[k] += a[3]; ln[k] += a[4]
       if (i) { sec[k] += substr(a[2], 1, i - 1); ns[k] += substr(a[2], i + 1) } else sec[k] += a[2] }
     END { for (k in n) printf "%s\t%.0f.%.0f.%.0f.%.0f.%.0f.%.0f\n", k, n[k], ino[k], sec[k], ns[k], sz[k], ln[k] }'
 }
 sized_paths() { # NAME MEASURE — stdin: lines of tab-separated paths; stdout: the bytes `MEASURE PATH…` gives for each line, in order
-  local name=$1 measure=$2 file now jobs line sig t b i out p ps running recs=() all=() cache=()
+  local name=$1 measure=$2 file forget taken="" src now jobs line sig t b i out p ps running recs=() all=() cache=()
   local -A c_sig=() c_time=() c_bytes=() sig_of=()
-  file=$CACHE_DIR/sizes-$name.tsv
+  file=$CACHE_DIR/sizes-$name.tsv forget=$CACHE_DIR/sizes-$name.forget
   printf -v now '%(%s)T' -1
   mapfile -t recs
-  ((${#recs[@]})) || { rm -f -- "$file"; return 0; }
+  ((${#recs[@]})) || { rm -f -- "$file" "$forget"; return 0; }
+  # take the paths noted so far (one noted meanwhile waits for the next scan)
+  [[ -f $forget && ! -L $forget ]] && mv -f -- "$forget" "$forget.$BASHPID" 2>/dev/null && taken=$forget.$BASHPID
   if [[ -f $file && ! -L $file ]]; then
+    src=$file
+    if [[ -n $taken ]]; then # leave out the folders a noted path is in, is, or contains
+      src=$taken.keep
+      awk -F'\t' 'FNR == NR { if ($0 != "") f[$0]; next }
+        { for (i = 4; i <= NF; i++) for (t in f) if ($i == t || index($i, t "/") == 1 || index(t, $i "/") == 1) next; print }' \
+        "$taken" "$file" >"$src" 2>/dev/null || : >"$src"
+    fi
     while IFS=$'\t' read -r sig t b line; do
       [[ $t =~ ^[0-9]+$ && $b =~ ^[0-9]+$ ]] && ((t <= now && now - t < SIZE_CACHE_DAYS * 86400)) || continue
       c_sig[$line]=$sig c_time[$line]=$t c_bytes[$line]=$b
-    done <"$file"
+    done <"$src"
   fi
   for line in "${recs[@]}"; do IFS=$'\t' read -ra ps <<<"$line"; all+=("${ps[@]}"); done
   while IFS=$'\t' read -r p sig; do sig_of[$p]=$sig; done < <(path_sigs "${all[@]}")
@@ -2864,6 +2880,16 @@ sized_paths() { # NAME MEASURE — stdin: lines of tab-separated paths; stdout: 
   # only the folders seen now: the file never grows past one line per folder
   mkdir -p "$CACHE_DIR" 2>/dev/null && printf '%s\n' "${cache[@]}" >"$file.$BASHPID" 2>/dev/null &&
     mv -f "$file.$BASHPID" "$file" 2>/dev/null
+  [[ -z $taken ]] || rm -f -- "$taken" "$taken.keep"
+  return 0
+}
+sizes_forget() { # PATH — CleanMate moved it to the Trash or back: cached sizes of folders it is in, is or
+  # contains are measured again at the next scan. No subprocess: it runs once per file.
+  local f
+  ((DRY_RUN)) && return 0
+  for f in "$CACHE_DIR"/sizes-*.tsv; do
+    [[ -f $f && ! -L $f ]] && printf '%s\n' "$1" >>"${f%.tsv}.forget" 2>/dev/null
+  done
   return 0
 }
 find_stale_node_modules() { # bytes<TAB>path of stale node_modules, outside your excluded folders
