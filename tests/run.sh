@@ -3203,6 +3203,38 @@ test_gpu_shader_cache_item() {
   assert_exists "$WORK/outside/mesa_shader_cache/o"
 }
 
+test_game_launcher_caches() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/glstub x=$HOME_DIR/.var/app
+  local list='import json,sys
+for l in sys.stdin:
+    e = json.loads(l)
+    if e.get("event") == "entry": print(e["id"], e["bytes"], e["selected"], e["label"])'
+  old "$h/.cache/winetricks/vcrun2019/vc_redist.x64.exe"; old "$h/.cache/wine/wine-mono-9.0.0-x86.msi"
+  old "$h/.cache/lutris/banners/game.jpg"; old "$h/.cache/lutris/runtime/dxvk/d3d11.dll" 1
+  old "$x/com.heroicgameslauncher.hgl/cache/blob"
+  old "$h/.wine/drive_c/windows/system32/a.dll"; old "$h/Games/foo/drive_c/save.dat"; old "$h/.config/heroic/config.json"
+  out=$(cm --json details game_launcher_caches | python3 -c "$list")
+  assert_eq "$(grep -c '^/' <<<"$out")" "4" "four cache folders"
+  assert_contains "$out" "winetricks"; assert_contains "$out" "Wine (Gecko, Mono)"
+  assert_contains "$out" "Lutris: banners"; assert_contains "$out" "Heroic (Flatpak)"
+  [[ $out == *runtime* || $out == *drive_c* || $out == *.wine* ]] && fail "a prefix or runtime was listed" || ok_ "prefixes and runtime not listed"
+  [[ $(grep -c ' True ' <<<"$out") == 4 ]] && ok_ "all ticked" || fail "entries not ticked: $out"
+  running_stub "$bin" winetricks
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only user 2>&1 </dev/null)
+  assert_contains "$out" "Skipping Game launcher caches: close winetricks first."
+  assert_exists "$h/.cache/winetricks/vcrun2019/vc_redist.x64.exe"
+  local e1; e1=$(cm --json details game_launcher_caches | python3 -c "$list" | grep winetricks | cut -d' ' -f1)
+  user_cm --json clean game_launcher_caches --entries "$e1" >/dev/null 2>&1
+  assert_missing "$h/.cache/winetricks/vcrun2019"; assert_exists "$h/.cache/winetricks"
+  assert_exists "$h/.cache/wine/wine-mono-9.0.0-x86.msi"
+  user_cm --clean --yes --only user >/dev/null 2>&1 </dev/null
+  assert_missing "$h/.cache/wine/wine-mono-9.0.0-x86.msi"; assert_missing "$h/.cache/lutris/banners/game.jpg"
+  assert_missing "$x/com.heroicgameslauncher.hgl/cache/blob"
+  assert_exists "$h/.cache/lutris/runtime/dxvk/d3d11.dll"; assert_exists "$h/.wine/drive_c/windows/system32/a.dll"
+  assert_exists "$h/Games/foo/drive_c/save.dat"; assert_exists "$h/.config/heroic/config.json"
+}
+
 test_search_index_items() {
   fresh_home
   local nt; nt=$(path_without localsearch3 tracker3 balooctl6 balooctl) # the branch without the tools

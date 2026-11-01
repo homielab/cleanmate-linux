@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 17:23+0000\n"
+"POT-Creation-Date: 2026-11-01 18:29+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3422,6 +3422,17 @@ msgstr ""
 msgid ""
 "podman system prune: stopped containers, untagged image layers and unused "
 "networks. Volumes and tagged images are kept."
+msgstr ""
+
+#. game_launcher_caches label
+msgid "Game launcher caches"
+msgstr ""
+
+#. game_launcher_caches description
+msgid ""
+"Installers that winetricks and Wine downloaded, and the cover art and "
+"temporary installers of Lutris and Heroic. Downloaded again when needed; "
+"Wine prefixes, games and saves are kept. Close the launchers and games first."
 msgstr ""
 
 #. browser_firefox label

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 17:23+0000\n"
+"POT-Creation-Date: 2026-11-01 18:29+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -3510,6 +3510,21 @@ msgstr ""
 "podman system prune: container đã dừng, layer image không tag và mạng không "
 "dùng. Volume và image có tag được giữ."
 
+#
+#. game_launcher_caches label
+msgid "Game launcher caches"
+msgstr "Bộ nhớ đệm launcher game"
+
+#. game_launcher_caches description
+msgid ""
+"Installers that winetricks and Wine downloaded, and the cover art and "
+"temporary installers of Lutris and Heroic. Downloaded again when needed; "
+"Wine prefixes, games and saves are kept. Close the launchers and games first."
+msgstr ""
+"Bộ cài mà winetricks và Wine đã tải, cùng ảnh bìa và bộ cài tạm của Lutris và "
+"Heroic. Sẽ được tải lại khi cần; prefix Wine, game và bản lưu được giữ nguyên. "
+"Hãy đóng launcher và game trước."
+
 #. browser_firefox label
 msgid "Firefox"
 msgstr "Firefox"
@@ -4326,10 +4341,10 @@ msgid ""
 "asdf and mise first."
 msgstr ""
 "Phiên bản Node.js, Python, Ruby, Java và các runtime khác do asdf hoặc mise "
-"cài, không phải bản mới nhất của công cụ đó và không được ghim trong "
-"~/.tool-versions, cài đặt của mise hay một dự án trong thư mục home. Xoá "
-"hẳn; cài lại bằng asdf install hoặc mise install. Bỏ qua phiên bản đang "
-"chạy. Hãy đóng asdf và mise trước."
+"cài, không phải bản mới nhất của công cụ đó và không được ghim trong ~/.tool-"
+"versions, cài đặt của mise hay một dự án trong thư mục home. Xoá hẳn; cài "
+"lại bằng asdf install hoặc mise install. Bỏ qua phiên bản đang chạy. Hãy "
+"đóng asdf và mise trước."
 
 #. android_images label
 msgid "Android system images (unused)"

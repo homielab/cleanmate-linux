@@ -1846,6 +1846,85 @@ clean_entries_trash_drives() { # encoded drive folders (json_clean_entries only 
   return "$rc"
 }
 
+# Game launcher caches: installers winetricks and Wine downloaded (DirectX, VC runtimes, fonts,
+# wine-gecko, wine-mono) and the cover art and temporary installers of Lutris and Heroic, deb and
+# Flatpak. All downloaded again when needed. Never a Wine prefix (~/.wine, ~/Games), Lutris
+# runtime/runners, save games or launcher settings. One entry per folder, emptied (the folder
+# stays); ticked. Skipped while a launcher, Wine, Proton, winetricks or gamescope runs.
+reg game_launcher_caches user "Game launcher caches" 1 "Installers that winetricks and Wine downloaded, and the cover art and temporary installers of Lutris and Heroic. Downloaded again when needed; Wine prefixes, games and saves are kept. Close the launchers and games first."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_game_launcher_caches='^/[A-Za-z0-9/._~%-]+$' # the cache folder's full path, percent-encoded
+game_launcher_cache_dirs() { # → "label<TAB>folder" of the cache folders that exist and are not empty
+  local x=$HOME/.var/app l d s
+  while IFS=$'\t' read -r l d; do
+    [[ -d $d && ! -L $d && $d != *[[:cntrl:]]* ]] || continue
+    [[ -n $(find "$d" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null) ]] || continue
+    touches_exclusion "$d" && continue
+    printf '%s\t%s\n' "$l" "$d"
+  done < <(
+    printf 'winetricks\t%s\n' "$HOME/.cache/winetricks"
+    printf 'Wine (Gecko, Mono)\t%s\n' "$HOME/.cache/wine"
+    for s in banners coverart installer installers tmp; do
+      printf 'Lutris: %s\t%s\n' "$s" "$HOME/.cache/lutris/$s"
+      printf 'Lutris (Flatpak): %s\t%s\n' "$s" "$x/net.lutris.Lutris/cache/lutris/$s"
+    done
+    for s in store_cache icons images; do printf 'Heroic: %s\t%s\n' "$s" "$HOME/.config/heroic/$s"; done
+    printf 'Heroic (Flatpak)\t%s\n' "$x/com.heroicgameslauncher.hgl/cache")
+}
+game_launcher_caches() { # → GL_DIR / GL_BYTES / GL_LABEL, biggest first
+  local l d b
+  GL_DIR=() GL_BYTES=() GL_LABEL=()
+  while IFS=$'\t' read -r b l d; do GL_BYTES+=("$b") GL_LABEL+=("$l") GL_DIR+=("$d"); done < <(
+    game_launcher_cache_dirs | while IFS=$'\t' read -r l d; do printf '%s\t%s\t%s\n' "$(du_sum "$d")" "$l" "$d"; done |
+      LC_ALL=C sort -t $'\t' -k1,1nr -k2,2)
+}
+lockedby_game_launcher_caches() { running_proc -xi "$GAME_PROCS|legendary"; }
+precheck_game_launcher_caches() {
+  local p
+  p=$(lockedby_game_launcher_caches) || return 0
+  warn "Skipping ${ITEM_LABEL[game_launcher_caches]}: close $p first."
+  return 1
+}
+scan_game_launcher_caches() {
+  local b
+  game_launcher_caches
+  ((${#GL_DIR[@]})) || return 1
+  SCAN_BYTES=0
+  for b in "${GL_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE=$(plural ${#GL_DIR[@]} folder)
+  ((SCAN_BYTES > 0)) || return 2
+}
+clean_game_launcher_caches() {
+  local d rc=0
+  game_launcher_caches
+  for d in "${GL_DIR[@]}"; do empty_dir "$d" || rc=1; done
+  return "$rc"
+}
+details_game_launcher_caches() {
+  local i
+  game_launcher_caches
+  for i in "${!GL_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${GL_BYTES[i]}")" "$(human "${GL_BYTES[i]}")" "$NC" "${GL_LABEL[i]}" "${GL_DIR[i]/#$HOME/\~}"
+  done
+}
+entries_game_launcher_caches() {
+  local i
+  game_launcher_caches
+  for i in "${!GL_DIR[@]}"; do
+    printf '%s\t%s\t1\t%s\n' "$(urlencode_path "${GL_DIR[i]}")" "${GL_BYTES[i]}" "${GL_LABEL[i]}"
+  done
+}
+clean_entries_game_launcher_caches() { # encoded cache folders (json_clean_entries only passes ones listed now)
+  local i id rc=0
+  game_launcher_caches
+  for id; do
+    for i in "${!GL_DIR[@]}"; do
+      [[ $(urlencode_path "${GL_DIR[i]}") == "$id" ]] && { empty_dir "${GL_DIR[i]}" || rc=1; }
+    done
+  done
+  return "$rc"
+}
+
 # ── Browsers & apps: one item per browser / app ──
 #
 # Cache items are data-driven: ITEM_PATHS holds the cache folders (one per
@@ -2767,7 +2846,8 @@ clean_entries_vscode_stale_workspaces() { # encoded folders (json_clean_entries 
 app_cache_find() {
   # Exclude with -path tests, not -prune: -delete implies -depth, which disables -prune.
   local ex=(thumbnails pip go-build yarn pnpm mozilla google-chrome chromium BraveSoftware
-    microsoft-edge vivaldi opera huggingface lm-studio firebase JetBrains 'Google/AndroidStudio*' spotify/Storage) skip=() e # AI models, old IDE versions and Spotify's cache are items of their own
+    microsoft-edge vivaldi opera huggingface lm-studio firebase JetBrains 'Google/AndroidStudio*' spotify/Storage
+    winetricks wine lutris/banners lutris/coverart lutris/installer lutris/installers lutris/tmp) skip=() e # AI models, old IDE versions and Spotify's cache are items of their own
   for e in "${ex[@]}"; do skip+=(-path "$HOME/.cache/$e/*" -o); done
   unset 'skip[-1]'
   find "$HOME/.cache" -type f -not \( "${skip[@]}" \) -mtime +"$CACHE_DAYS" -atime +"$CACHE_DAYS" "$@" 2>/dev/null
