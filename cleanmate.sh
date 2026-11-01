@@ -26,6 +26,10 @@ MODE=menu
 ASSUME_YES=0
 INTERACTIVE=1
 SUDO_ASKED=0
+_u='\u'
+USER_NAME=${USER:-${_u@P}} # as `id -un`, without starting it (\u of a prompt)
+[[ $USER_NAME == "I have no name!" ]] && USER_NAME="" # bash's answer when the user has no name
+unset _u
 LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/cleanmate"
 LOG_FILE="$LOG_DIR/clean.log"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cleanmate"
@@ -663,11 +667,18 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 du_bytes() { du -sbx -- "$1" 2>/dev/null | cut -f1; } # PATH → its bytes, this file system only
 
-du_sum() { # total bytes of the existing paths given
-  local p ex=()
-  for p in "$@"; do [[ -e $p ]] && ex+=("$p"); done
-  ((${#ex[@]})) || { echo 0; return; }
-  try_root du -scb -- "${ex[@]}" 2>/dev/null | tail -n1 | cut -f1
+du_sum() { local b rc; du_sumv b "$@"; rc=$?; printf '%s\n' "$b"; return "$rc"; } # total bytes of the existing paths given
+du_sumv() { # VAR PATH… → VAR = total bytes of the existing paths given
+  local -n __ds=$1
+  local __p __dx=() __o
+  shift
+  for __p; do [[ -e $__p ]] && __dx+=("$__p"); done
+  ((${#__dx[@]})) || { __ds=0; return 0; }
+  __o=$(try_root du -scb -- "${__dx[@]}" 2>/dev/null)
+  __p=$? # du's status, as from du_sum
+  __o=${__o##*$'\n'}
+  __ds=${__o%%$'\t'*}
+  return "$__p"
 }
 
 sum_lines() { awk '{s += $1} END {printf "%d\n", s}'; }
@@ -717,7 +728,7 @@ UNDO_BATCH=() # "<trash key><TAB><original path>" of the last trash action
 # Drives the desktop mounts for you (udisks) and the classic /mnt. Tests set
 # CLEANMATE_VOLUME_ROOTS (":"-separated); there every folder in a root counts as a drive.
 if [[ -n ${CLEANMATE_VOLUME_ROOTS:-} ]]; then IFS=: read -ra VOLUME_ROOTS <<<"$CLEANMATE_VOLUME_ROOTS"
-else VOLUME_ROOTS=("/media/${USER:-$(id -un)}" "/run/media/${USER:-$(id -un)}" /mnt); fi
+else VOLUME_ROOTS=("/media/$USER_NAME" "/run/media/$USER_NAME" /mnt); fi
 
 urlencode_path() { # PATH → percent-encoded, as the Trash spec wants for Path=
   local LC_ALL=C s=$1 i c out=""
@@ -947,10 +958,13 @@ declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 
 # inside a container): an unattended clean (--clean --yes, --auto) leaves them even when ticked; only
 # `--json clean ID` naming them, or a clean the user confirms, removes them
 declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1)
-# items whose scan only looks at a few folders (test, du): a scan runs them in a
-# few shared processes, one after the other, since a process each costs more than
-# the scan. reg_cache_item and reg_list_item add theirs; any other item gets its own.
-declare -A ITEM_LIGHT=([bun]=1 [cargo]=1 [gobuild]=1 [gradle]=1 [maven]=1 [npm]=1 [pip]=1 [pnpm]=1 [yarn]=1 [thumbs]=1 [trash]=1)
+# items whose scan only looks at a few folders (test, du) and runs no other tool that
+# could hang: a scan runs them in a few shared processes, one after the other, since a
+# process each costs more than the scan. reg_cache_item and reg_list_item add theirs;
+# any other item (dpkg, docker, a walk over your home, other drives) gets its own.
+declare -A ITEM_LIGHT=([bun]=1 [cargo]=1 [gobuild]=1 [gradle]=1 [maven]=1 [npm]=1 [pip]=1 [pnpm]=1 [yarn]=1 [thumbs]=1 [trash]=1
+  [android_avd_snapshots]=1 [android_images]=1 [android_sdk_old]=1 [game_launcher_caches]=1 [game_runners_old]=1
+  [jetbrains_old_versions]=1 [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vscode_old_extensions]=1)
 
 # ── detail helpers ──
 
@@ -977,7 +991,7 @@ scan_apt_cache() {
   local debs
   mapfile -t debs < <(compgen -G '/var/cache/apt/archives/*.deb')
   ((${#debs[@]})) || return 2
-  SCAN_BYTES=$(du_sum "${debs[@]}")
+  du_sumv SCAN_BYTES "${debs[@]}"
   SCAN_NOTE="$(plural ${#debs[@]} "downloaded installer")"
   ((SCAN_BYTES > 0)) || return 2
 }
@@ -1186,7 +1200,7 @@ scan_snap_old() {
   for n in "${revs[@]}"; do
     read -r n r <<<"$n"; files+=("/var/lib/snapd/snaps/${n}_${r}.snap")
   done
-  SCAN_BYTES=$(du_sum "${files[@]}")
+  du_sumv SCAN_BYTES "${files[@]}"
   SCAN_NOTE="$(plural ${#revs[@]} "disabled revision")"
 }
 clean_snap_old() {
@@ -1262,7 +1276,7 @@ details_old_kernels() {
 }
 
 # Untouched (neither modified nor read) for 10+ days and owned by you.
-tmp_find() { find /tmp /var/tmp -xdev -mindepth 1 -user "$(id -u)" -type f -mtime +"$TMP_DAYS" -atime +"$TMP_DAYS" "$@" 2>/dev/null; }
+tmp_find() { find /tmp /var/tmp -xdev -mindepth 1 -user "$EUID" -type f -mtime +"$TMP_DAYS" -atime +"$TMP_DAYS" "$@" 2>/dev/null; }
 scan_tmp() {
   local n
   read -r n SCAN_BYTES < <(tmp_find -printf '%s\n' | count_sum)
@@ -1270,7 +1284,7 @@ scan_tmp() {
   ((n > 0)) || return 2
 }
 clean_tmp() {
-  if ((DRY_RUN)); then run find /tmp /var/tmp -xdev -mindepth 1 -user "$(id -u)" -type f -mtime +"$TMP_DAYS" -atime +"$TMP_DAYS" -delete
+  if ((DRY_RUN)); then run find /tmp /var/tmp -xdev -mindepth 1 -user "$EUID" -type f -mtime +"$TMP_DAYS" -atime +"$TMP_DAYS" -delete
   else log "tmp_find -delete"; tmp_find -delete || true; fi # other users' folders in /tmp are unreadable: expected
 }
 details_tmp() { tmp_find -printf '%s\t%p\n' | detail_files 30; }
@@ -1406,7 +1420,7 @@ old_downloads() { # → OD_DIR, and OD_NAME / OD_KIND (f or d) / OD_BYTES / OD_D
   ! downloads_outside "$OD_DIR" && [[ -d $OD_DIR ]] || return 0
   old_installers # listed there, not here
   for name in "${OI_NAME[@]}"; do installers+=$name$'\n'; done
-  open=$'\n'$(open_files)$'\n'
+  open_filesv open
   printf -v now '%(%s)T' -1
   cut=$((now - OLD_DOWNLOAD_DAYS * 86400))
   while IFS=$'\t' read -r -d '' b n y name; do
@@ -1525,7 +1539,7 @@ old_screenshots() { # → OS_DIR, and OS_PATH (inside OS_DIR) / OS_BYTES / OS_DA
   local b m a rel p open now mins
   OS_DIR=$(pictures_dir) OS_PATH=() OS_BYTES=() OS_DAYS=()
   [[ $OS_DIR == "$HOME"/* && ! -L $OS_DIR && -d $OS_DIR && $OS_DIR != "$(downloads_dir)" ]] || return 0
-  open=$'\n'$(open_files)$'\n'
+  open_filesv open
   printf -v now '%(%s)T' -1
   mins=$((OLD_DOWNLOAD_DAYS * 1440))
   while IFS=$'\t' read -r -d '' b m a rel; do
@@ -1610,7 +1624,7 @@ abandoned_downloads() { # → AD_DIR, and AD_NAME / AD_MATE (moved along, or emp
   local b m a n name mate mb mm ma open now cut
   AD_DIR=$(downloads_dir) AD_NAME=() AD_MATE=() AD_BYTES=() AD_DAYS=()
   ! downloads_outside "$AD_DIR" && [[ -d $AD_DIR ]] || return 0
-  open=$'\n'$(open_files)$'\n'
+  open_filesv open
   printf -v now '%(%s)T' -1
   cut=$((now - ABANDONED_DAYS * 86400))
   while IFS=$'\t' read -r -d '' b n name mate; do
@@ -1705,7 +1719,7 @@ clean_entries_abandoned_downloads() { # encoded names (json_clean_entries only p
 # ── User ──
 
 scan_thumbs() {
-  SCAN_BYTES=$(du_sum "$HOME/.cache/thumbnails")
+  du_sumv SCAN_BYTES "$HOME/.cache/thumbnails"
   SCAN_NOTE="~/.cache/thumbnails"
   ((SCAN_BYTES > 0)) || return 2
 }
@@ -1715,7 +1729,7 @@ details_thumbs() { detail_paths "$HOME/.cache/thumbnails"; }
 TRASH_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/Trash"
 scan_trash() {
   local n
-  SCAN_BYTES=$(du_sum "$TRASH_DIR/files")
+  du_sumv SCAN_BYTES "$TRASH_DIR/files"
   n=$(find "$TRASH_DIR/files" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)
   SCAN_NOTE=$(plural "$n" item)
   ((n > 0)) || return 2
@@ -1939,26 +1953,47 @@ declare -A ITEM_PATHS=() ITEM_PROCS=()
 
 declare -A ITEM_OPEN=() ITEM_ARGS=() # ITEM_OPEN: skip folders with a file open; ITEM_ARGS: running when a command line has this
 
-cache_item_dirs() { # ID → existing cache folders, one per line
-  local p open=""
-  [[ -n ${ITEM_OPEN[$1]:-} ]] && open=$'\n'$(open_files)$'\n'
-  while IFS= read -r p; do
-    [[ -n $p && -d $p && ! -L $p ]] || continue
-    [[ -z $open ]] || ! open_under "$open" "$p" || continue
-    printf '%s\n' "$p"
-  done <<<"${ITEM_PATHS[$1]}"
+cache_item_dirsv() { # ARRAY ID → the existing cache folders into ARRAY
+  local -n __cd=$1
+  local __p __open __keep=()
+  __cd=()
+  while IFS= read -r __p; do
+    [[ -n $__p && -d $__p && ! -L $__p ]] && __cd+=("$__p")
+  done <<<"${ITEM_PATHS[$2]}"
+  ((${#__cd[@]})) && [[ -n ${ITEM_OPEN[$2]:-} ]] || return 0
+  open_filesv __open
+  for __p in "${__cd[@]}"; do open_under "$__open" "$__p" || __keep+=("$__p"); done
+  __cd=("${__keep[@]}")
+}
+cache_item_dirs() { local d; cache_item_dirsv d "$1"; ((${#d[@]} == 0)) || printf '%s\n' "${d[@]}"; } # ID → the same, one per line
+
+names_notev() { # VAR PATH… → "a, b, c, …": the first three names (sorted, each once), … when there are more paths
+  local -n __nn=$1
+  local -A __seen=()
+  local __n __u=() __i __j
+  shift
+  for __n in "${@##*/}"; do [[ -n ${__seen[x$__n]+x} ]] || { __seen[x$__n]=1; __u+=("$__n"); }; done
+  for ((__i = 1; __i < ${#__u[@]}; __i++)); do # a few names: insertion sort, in the locale's order like sort
+    __n=${__u[__i]}
+    for ((__j = __i - 1; __j >= 0; __j--)); do
+      [[ ${__u[__j]} > $__n ]] || break
+      __u[__j + 1]=${__u[__j]}
+    done
+    __u[__j + 1]=$__n
+  done
+  __nn=""
+  for ((__i = 0; __i < ${#__u[@]} && __i < 3; __i++)); do __nn+=${__nn:+, }${__u[__i]}; done
+  (($# > 3)) && __nn+=", …"
+  return 0
 }
 
 cache_item_scan() {
-  local dirs n
-  mapfile -t dirs < <(cache_item_dirs "$1")
+  local dirs
+  cache_item_dirsv dirs "$1"
   ((${#dirs[@]})) || return 1
-  SCAN_BYTES=$(du_sum "${dirs[@]}")
+  du_sumv SCAN_BYTES "${dirs[@]}"
   if ((${#dirs[@]} == 1)); then SCAN_NOTE=${dirs[0]/#$HOME/\~}
-  else
-    n=$(printf '%s\n' "${dirs[@]##*/}" | sort -u | head -n 3 | paste -sd, - | sed 's/,/, /g')
-    SCAN_NOTE="$n$( ((${#dirs[@]} > 3)) && echo ", …")"
-  fi
+  else names_notev SCAN_NOTE "${dirs[@]}"; fi
   ((SCAN_BYTES > 0)) && return 0
   [[ ${ITEM_CAT[$1]} == apps ]] && return 1 # don't list apps with empty caches
   return 2
@@ -2130,7 +2165,7 @@ priv_scan() {
   local files f n=0 mode=${PRIV_MODE[$1]}
   mapfile -t files < <(priv_files "$1")
   ((${#files[@]})) || return 1
-  SCAN_BYTES=$(du_sum "${files[@]}")
+  du_sumv SCAN_BYTES "${files[@]}"
   if [[ -n ${PRIV_NOUN[$1]} ]]; then
     for f in "${files[@]}"; do n=$((n + $(priv_count "$f" "$mode"))); done
     SCAN_NOTE=$(plural "$n" "${PRIV_NOUN[$1]}")
@@ -2319,7 +2354,7 @@ bpriv_scan() {
   mapfile -t profiles < <(bpriv_profiles "$1")
   ((${#profiles[@]})) || return 1
   for p in "${profiles[@]}"; do mapfile -t -O "${#files[@]}" files < <(bpriv_files "$1" "$p"); done
-  SCAN_BYTES=$(du_sum "${files[@]}")
+  du_sumv SCAN_BYTES "${files[@]}"
   if ! have sqlite3; then # Firefox can't be cleared without it; the others only lose the counts
     [[ ${BPRIV_KIND[$1]} == firefox ]] && { SCAN_NOTE="needs sqlite3"; return 2; }
     SCAN_NOTE="install sqlite3 to count entries"
@@ -2505,7 +2540,7 @@ list_scan() {
   ((present)) || return 1 # tool not installed
   mapfile -t paths < <(list_paths "$1")
   ((${#paths[@]})) || return 2
-  SCAN_BYTES=$(du_sum "${paths[@]}")
+  du_sumv SCAN_BYTES "${paths[@]}"
   ((SCAN_BYTES > 0)) || return 2
   SCAN_NOTE=$(plural ${#paths[@]} "${LIST_NOUN[$1]}")
   [[ ${ITEM_DESC[$1]} == *"older than"* ]] && SCAN_NOTE+=" · older than ${AI_HISTORY_DAYS}d"
@@ -2769,7 +2804,7 @@ path_gone() { # PATH → true only when PATH is certainly missing: the nearest e
 stale_workspaces() { # → EW_DIR (storage folder) / EW_BYTES / EW_LABEL, biggest first
   local editor root d name b m now open i lines=() dirs=() sizes=()
   EW_DIR=() EW_BYTES=() EW_LABEL=()
-  open=$'\n'$(open_files)$'\n'
+  open_filesv open
   exclusion_prune
   printf -v now '%(%s)T' -1
   while IFS=$'\t' read -r editor root; do
@@ -3159,7 +3194,7 @@ dev_scan() { # NOTE PATH...
   local p any=0
   for p in "$@"; do [[ -e $p ]] && any=1; done
   ((any)) || return 1
-  SCAN_BYTES=$(du_sum "$@")
+  du_sumv SCAN_BYTES "$@"
   SCAN_NOTE=$note
   ((SCAN_BYTES > 0)) || return 2
 }
@@ -3244,25 +3279,37 @@ env_home_dirv() { # VAR NAME → NAME's folder when it's a plain path inside HOM
   if [[ $__hv == "$HOME"/* && $__hv != *[\$\`\;\&\|\<\>\(\)\\]* && $__hv != *..* && ! -L $__hv ]]; then __ehd=${__hv%/}; else __ehd=""; fi
 }
 env_home_dir() { local v; env_home_dirv v "$1"; [[ -n $v ]] && printf '%s\n' "$v"; return 0; } # NAME → path, or nothing
-uniq_lines() { # LINE… → each once, in order (no awk: called while loading)
+# The path helpers below add lines to a variable instead of printing them: they run while loading,
+# where each $(…) would start a process.
+uniq_linesv() { # VAR LINE… → adds each line once, in order, to VAR's lines
+  local -n __ulv=$1
   local -A __seen=()
-  local l
-  for l; do [[ -n ${__seen[x$l]+x} ]] || { __seen[x$l]=1; printf '%s\n' "$l"; }; done
+  local __l
+  shift
+  for __l; do
+    [[ -n ${__seen[x$__l]+x} ]] && continue
+    __seen[x$__l]=1
+    __ulv+=${__ulv:+$'\n'}$__l
+  done
 }
-env_home_paths() { # NAME SUBFOLDER|"" DEFAULT... → the default folders plus NAME's (+ /SUBFOLDER), one per line
-  local e
-  env_home_dirv e "$1"
-  [[ -n $e && -n $2 ]] && e+=/$2
-  uniq_lines "${@:3}" ${e:+"$e"}
+env_home_pathsv() { # VAR NAME SUBFOLDER|"" DEFAULT... → adds the default folders plus NAME's (+ /SUBFOLDER) to VAR's lines
+  local __e
+  env_home_dirv __e "$2"
+  [[ -n $__e && -n $3 ]] && __e+=/$3
+  uniq_linesv "$1" "${@:4}" ${__e:+"$__e"}
 }
 
+_p="" # the folders of the item below
+env_home_pathsv _p UV_CACHE_DIR "" "$HOME/.cache/uv"
 reg_cache_item uv_cache dev "uv cache" 1 \
   "uv's package and wheel cache (~/.cache/uv). Re-downloaded on next use; your environments are kept." \
-  "$(env_home_paths UV_CACHE_DIR "" "$HOME/.cache/uv")" "uv|uvx"
+  "$_p" "uv|uvx"
+_p=""
+env_home_pathsv _p RUSTUP_HOME downloads "$HOME/.rustup/downloads"
+env_home_pathsv _p RUSTUP_HOME tmp "$HOME/.rustup/tmp"
 reg_cache_item rustup_downloads dev "rustup downloads" 1 \
   "Leftover rustup downloads and temp files. Your installed toolchains are kept." \
-  "$(env_home_paths RUSTUP_HOME downloads "$HOME/.rustup/downloads")
-$(env_home_paths RUSTUP_HOME tmp "$HOME/.rustup/tmp")" "rustup"
+  "$_p" "rustup"
 reg_cache_item browser_test_cache dev "Playwright, Puppeteer & Cypress browsers" 0 \
   "Browsers downloaded for test tools (~/.cache/ms-playwright, puppeteer, Cypress). Re-downloaded on next install or test run." \
   "$HOME/.cache/ms-playwright
@@ -3273,15 +3320,21 @@ $HOME/.cache/Cypress" "node|playwright"
 # emulators it downloaded. The CLI runs as `node`, so a log a process still has open is skipped
 # instead of looking for the CLI by name. Never configstore/firebase-tools.json (login),
 # crashlytics/, extensions/ or logs inside projects.
-open_files() { # every file a process of yours (all of them as root) has open; not folders: scanning opens
-  # them for a moment (other items run at the same time), programs keep files open. The path is
-  # checked, not the fd: one closed between find's steps passes `-xtype d`
-  local l
-  while IFS= read -r l; do
-    [[ $l == /* && ! -d $l ]] && printf '%s\n' "$l"
-  done < <(find /proc/[0-9]*/fd -type l -printf '%l\n' 2>/dev/null)
+open_filesv() { # VAR → every file a process of yours (all of them as root) has open, a line each, with a newline
+  # before and after the list (for open_under); not folders: scanning opens them for a moment (other items
+  # run at the same time), programs keep files open. The path is checked, not the fd: one closed between
+  # find's steps passes `-xtype d`
+  local -n __of=$1
+  local __l __all
+  __all=$(find /proc/[0-9]*/fd -type l -printf '%l\n' 2>/dev/null)
+  __of=$'\n'
+  while IFS= read -r __l; do
+    [[ $__l == /* && ! -d $__l ]] && __of+=$__l$'\n'
+  done <<<"$__all"
+  [[ $__of == $'\n' ]] && __of=$'\n\n'
   return 0
 }
+open_files() { local f; open_filesv f; f=${f#$'\n'}; [[ $f == $'\n' ]] || printf '%s' "$f"; } # → the same, one per line
 firebase_logs() {
   local d=$HOME/.cache/firebase f open
   [[ -d $d && ! -L $d ]] || return 0
@@ -3303,44 +3356,61 @@ LIST_CAT=dev reg_list_item firebase_emulators "Firebase emulators" 0 item \
 # cache folders of its tool, also under a folder set by the tool's variable or XDG_CACHE_HOME, so a wrong
 # value deletes nothing else. Never Deno's location_data, Poetry's virtualenvs, pipx's venvs and py,
 # ccache.conf, Bazel's output bases or ~/.nuget/packages.
-sub_paths() { # "NAME NAME…" BASE… → BASE/NAME for each (NAME "." = BASE itself), one per line, no duplicates
-  local subs=$1 b n out=()
-  shift
-  for b; do
-    [[ -n $b ]] || continue
-    for n in $subs; do if [[ $n == . ]]; then out+=("$b"); else out+=("$b/$n"); fi; done
+sub_pathsv() { # VAR "NAME NAME…" BASE… → adds BASE/NAME for each (NAME "." = BASE itself) to VAR's lines, no duplicates
+  local __var=$1 __subs=$2 __b __n __out=()
+  shift 2
+  for __b; do
+    [[ -n $__b ]] || continue
+    for __n in $__subs; do if [[ $__n == . ]]; then __out+=("$__b"); else __out+=("$__b/$__n"); fi; done
   done
-  ((${#out[@]})) && uniq_lines "${out[@]}"
+  ((${#__out[@]})) && uniq_linesv "$__var" "${__out[@]}"
   return 0
 }
-xdg_cache() { env_home_dir XDG_CACHE_HOME; }
 _xc="" # XDG_CACHE_HOME's folder, for the items below
 env_home_dirv _xc XDG_CACHE_HOME
 HEX_NAMES="0 1 2 3 4 5 6 7 8 9 a b c d e f"
+_p="" _d=""
+env_home_dirv _d DENO_DIR
+sub_pathsv _p "remote npm gen registries dl deps" "$HOME/.cache/deno" "$_xc/deno" "$_d"
 reg_cache_item deno_cache dev "Deno cache" 0 \
   "Modules and npm packages Deno downloaded, plus its compiled code. Downloaded again on the next run; localStorage data of scripts (location_data) is kept." \
-  "$(sub_paths "remote npm gen registries dl deps" "$HOME/.cache/deno" "$_xc/deno" "$(env_home_dir DENO_DIR)")" "deno"
+  "$_p" "deno"
+_p=""
+env_home_dirv _d ZIG_GLOBAL_CACHE_DIR
+sub_pathsv _p "o h z p tmp" "$HOME/.cache/zig" "$_xc/zig" "$_d"
 reg_cache_item zig_cache dev "Zig cache" 0 \
   "Build outputs and fetched packages of Zig. Made again by the next build." \
-  "$(sub_paths "o h z p tmp" "$HOME/.cache/zig" "$_xc/zig" "$(env_home_dir ZIG_GLOBAL_CACHE_DIR)")" "zig|zls"
+  "$_p" "zig|zls"
+_p=""
+sub_pathsv _p "cache install" "$HOME/.cache/bazel/_bazel_$USER_NAME" "$_xc/bazel/_bazel_$USER_NAME"
 reg_cache_item bazel_cache dev "Bazel cache" 0 \
   "Dependencies Bazel downloaded and its unpacked install. Made again by the next build; the output folders of your workspaces are kept." \
-  "$(sub_paths "cache install" "$HOME/.cache/bazel/_bazel_${USER:-$(id -un)}" "$_xc/bazel/_bazel_${USER:-$(id -un)}")" "bazel.*|bazelisk"
+  "$_p" "bazel.*|bazelisk"
+_p=""
+env_home_dirv _d CCACHE_DIR
+sub_pathsv _p "$HEX_NAMES tmp" "$HOME/.cache/ccache" "$HOME/.ccache" "$_xc/ccache" "$_d"
 reg_cache_item ccache_cache dev "ccache cache" 0 \
   "Compiler outputs ccache saved. Made again by the next build; ccache.conf is kept." \
-  "$(sub_paths "$HEX_NAMES tmp" "$HOME/.cache/ccache" "$HOME/.ccache" "$_xc/ccache" "$(env_home_dir CCACHE_DIR)")" "ccache"
+  "$_p" "ccache"
+_p=""
+env_home_dirv _d SCCACHE_DIR
+sub_pathsv _p "$HEX_NAMES" "$HOME/.cache/sccache" "$_xc/sccache" "$_d"
 reg_cache_item sccache_cache dev "sccache cache" 0 \
   "Compiler outputs sccache saved. Made again by the next build." \
-  "$(sub_paths "$HEX_NAMES" "$HOME/.cache/sccache" "$_xc/sccache" "$(env_home_dir SCCACHE_DIR)")" "sccache"
+  "$_p" "sccache"
 GAME_PROCS='steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*' # launchers and games (process names)
 _gl=() # folders with a variable part in their name (radv_builtin_shaders*, qtshadercache*)
 for _b in "$HOME"/.cache/radv_builtin_shaders* "$HOME"/.cache/qtshadercache*; do [[ -d $_b ]] && _gl+=("$_b"); done
+_p=""
+uniq_linesv _p "$HOME/.cache/mesa_shader_cache" "$HOME/.cache/mesa_shader_cache_db" "${_gl[@]}" "$HOME/.cache/nvidia/GLCache" "$HOME/.nv/GLCache"
+env_home_dirv _d MESA_SHADER_CACHE_DIR
+env_home_dirv _b MESA_GLSL_CACHE_DIR
+sub_pathsv _p "mesa_shader_cache mesa_shader_cache_db" "$_xc" "$_d" "$_b"
+env_home_dirv _d __GL_SHADER_DISK_CACHE_PATH
+sub_pathsv _p GLCache "$_d"
 reg_cache_item gpu_shader_cache apps "GPU shader cache" 0 \
   "Shaders that Mesa, NVIDIA and Qt compiled for your graphics card. The system builds them again; a game may stutter briefly the first time." \
-  "$(uniq_lines "$HOME/.cache/mesa_shader_cache" "$HOME/.cache/mesa_shader_cache_db" "${_gl[@]}" "$HOME/.cache/nvidia/GLCache" "$HOME/.nv/GLCache"
-    sub_paths "mesa_shader_cache mesa_shader_cache_db" "$_xc" "$(env_home_dir MESA_SHADER_CACHE_DIR)" "$(env_home_dir MESA_GLSL_CACHE_DIR)"
-    sub_paths GLCache "$(env_home_dir __GL_SHADER_DISK_CACHE_PATH)")" \
-  "$GAME_PROCS"
+  "$_p" "$GAME_PROCS"
 unset _gl _b
 # Desktop search indexes: reset with the tool's own command when it is installed
 # (it stops the indexer and starts over), else delete the folder while the indexer is not running.
@@ -3377,23 +3447,32 @@ reg_cache_item nuget_cache dev "NuGet cache" 0 \
   "$HOME/.local/share/NuGet/v3-cache
 $HOME/.local/share/NuGet/http-cache
 $HOME/.nuget/v3-cache" "dotnet|nuget"
+_p=""
+env_home_dirv _d POETRY_CACHE_DIR
+sub_pathsv _p "cache artifacts" "$HOME/.cache/pypoetry" "$_xc/pypoetry" "$_d"
 reg_cache_item poetry_cache dev "Poetry cache" 0 \
   "Packages Poetry downloaded. Downloaded again by poetry install; your virtualenvs are kept." \
-  "$(sub_paths "cache artifacts" "$HOME/.cache/pypoetry" "$_xc/pypoetry" "$(env_home_dir POETRY_CACHE_DIR)")" "poetry"
+  "$_p" "poetry"
+_p=""
+env_home_dirv _d PIPX_HOME
+sub_pathsv _p . "$HOME/.cache/pipx" "$_xc/pipx"
+sub_pathsv _p .cache "$HOME/.local/pipx" "$_d"
 reg_cache_item pipx_cache dev "pipx run cache" 0 \
   "Environments of apps started with pipx run. Made again on the next run; apps installed with pipx install and its Pythons are kept." \
-  "$(sub_paths . "$HOME/.cache/pipx" "$_xc/pipx"; sub_paths .cache "$HOME/.local/pipx" "$(env_home_dir PIPX_HOME)")" "pipx"
+  "$_p" "pipx"
 
 for _id in deno zig bazel ccache sccache nuget poetry pipx; do ITEM_OPEN[${_id}_cache]=1; done
-ITEM_ARGS[bazel_cache]="_bazel_${USER:-$(id -un)}" # the Bazel server is a java process
-unset _id
+ITEM_ARGS[bazel_cache]="_bazel_$USER_NAME" # the Bazel server is a java process
+unset _id _p _d
 
 # pre-commit keeps hook repositories and their environments in one folder (PRE_COMMIT_HOME); only those names go,
 # and only in a folder that has pre-commit's db.db.
 precommit_entries() {
-  local b n open kept
-  open=$'\n'$(open_files)$'\n'
-  for b in "$HOME/.cache/pre-commit" "$(xdg_cache)/pre-commit" "$(env_home_dir PRE_COMMIT_HOME)"; do
+  local b n open kept x h
+  open_filesv open
+  env_home_dirv x XDG_CACHE_HOME
+  env_home_dirv h PRE_COMMIT_HOME
+  for b in "$HOME/.cache/pre-commit" "$x/pre-commit" "$h"; do
     [[ -n $b && -d $b && ! -L $b && -f $b/db.db && ! -L $b/db.db ]] || continue # only pre-commit's own folder
     kept=0
     for n in "$b"/repo* "$b"/patch* "$b/README" "$b/.lock" "$b/db.db"; do
@@ -3404,12 +3483,13 @@ precommit_entries() {
     done
   done | awk '!seen[$0]++'
 }
+env_home_dirv _d PRE_COMMIT_HOME
 LIST_CAT=dev reg_list_item precommit_cache "pre-commit cache" 0 item \
   "Hook repositories and environments pre-commit made. Installed again on the next commit (slower once)." \
   precommit_entries "$HOME/.cache/pre-commit
 $_xc/pre-commit
-$(env_home_dir PRE_COMMIT_HOME)" "pre-commit"
-unset _xc
+$_d" "pre-commit"
+unset _xc _d
 
 # Cloud sync clients: Dropbox (its logs and the .dropbox.cache of each Dropbox folder named in
 # ~/.dropbox/info.json — what changed in the last 7 days stays, it may still wait to upload),
@@ -3437,7 +3517,7 @@ for e in (d.values() if isinstance(d, dict) else []):
 }
 cloud_free() { # [DAYS] — paths on stdin that are not excluded, not open and (with DAYS) untouched for DAYS days
   local p open
-  open=$'\n'$(open_files)$'\n'
+  open_filesv open
   while IFS= read -r p; do
     [[ -n $p ]] || continue
     touches_exclusion "$p" && continue
@@ -3499,10 +3579,13 @@ LIST_CAT=apps reg_list_item app_spotify "Spotify — cache" 0 item \
 
 # Flutter/Dart's pub cache: downloaded packages and git checkouts, fetched again by `pub get`.
 # Never credentials.json, bin/ or global_packages/ (activated tools).
+_p=""
+env_home_pathsv _p PUB_CACHE hosted "$HOME/.pub-cache/hosted"
+env_home_pathsv _p PUB_CACHE git/cache "$HOME/.pub-cache/git/cache"
 reg_cache_item pub_cache dev "Dart & Flutter pub cache" 0 \
   "Packages Dart and Flutter downloaded (~/.pub-cache/hosted, git/cache). Fetched again by 'pub get'; activated tools and your pub login are kept." \
-  "$(env_home_paths PUB_CACHE hosted "$HOME/.pub-cache/hosted")
-$(env_home_paths PUB_CACHE git/cache "$HOME/.pub-cache/git/cache")" "dart|dartaotruntime|flutter"
+  "$_p" "dart|dartaotruntime|flutter"
+unset _p
 
 # Old runtime versions: Node.js versions nvm installed ($NVM_DIR/versions/node/vX.Y.Z), SDKMAN
 # candidates ($SDKMAN_DIR/candidates/<java, gradle…>/<version>), Flutter versions fvm installed
@@ -3522,9 +3605,12 @@ reg old_runtimes dev "Old runtime versions" 0 "Node.js (nvm), Python (pyenv), Ru
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_old_runtimes='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
 
-runtime_dir() { # PATH → PATH when it is a folder inside your home with no symlinks on the way
-  [[ $1 == "$HOME"/* && -d $1 && ! -L $1 && $(realpath -e -- "$1" 2>/dev/null) == "$1" ]] && printf '%s\n' "$1"
+runtime_dirv() { # VAR PATH → VAR = PATH when it is a folder inside your home with no symlinks on the way; else "", fails
+  local -n __rd=$1
+  __rd=""
+  [[ $2 == "$HOME"/* && -d $2 && ! -L $2 && $(realpath -e -- "$2" 2>/dev/null) == "$2" ]] && __rd=$2
 }
+runtime_dir() { local v; runtime_dirv v "$1" && printf '%s\n' "$v"; } # PATH → PATH when runtime_dirv takes it
 
 nvm_version() { # NVM_DIR NAME → the installed version folder name (vX.Y.Z) NAME means, following aliases
   local d=$1 v=$2 n f best=""
@@ -3661,8 +3747,9 @@ go_kept() { # SDK → the SDKs in SDK in use: the one each go command (PATH, you
 runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN, fvm, pyenv, rbenv, rustup and ~/sdk that isn't kept
   local d f c v t n keep node
   # nvm: keep the default, the node on PATH and what any of your own aliases names
-  d=$(runtime_dir "$(env_home_dir NVM_DIR)") || d=""
-  [[ -n $d ]] || d=$(runtime_dir "$HOME/.nvm")
+  env_home_dirv d NVM_DIR
+  runtime_dirv d "$d"
+  [[ -n $d ]] || runtime_dirv d "$HOME/.nvm"
   if [[ -n $d && -d $d/versions/node && ! -L $d/versions/node ]] && [[ -f $d/alias/default ]] &&
     keep=$(nvm_version "$d" "$(head -c 200 -- "$d/alias/default" 2>/dev/null)"); then
     keep=$'\n'$keep$'\n'
@@ -3678,8 +3765,9 @@ runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN,
     done
   fi
   # SDKMAN: keep each candidate's current; a candidate without one keeps everything
-  d=$(runtime_dir "$(env_home_dir SDKMAN_DIR)") || d=""
-  [[ -n $d ]] || d=$(runtime_dir "$HOME/.sdkman")
+  env_home_dirv d SDKMAN_DIR
+  runtime_dirv d "$d"
+  [[ -n $d ]] || runtime_dirv d "$HOME/.sdkman"
   if [[ -n $d && -d $d/candidates && ! -L $d/candidates ]]; then
     for c in "$d"/candidates/*/; do
       c=${c%/}
@@ -3695,7 +3783,7 @@ runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN,
   fi
   # fvm: keep the global default; none set keeps everything
   for d in "$HOME/fvm" "$(env_home_dir FVM_CACHE_PATH)"; do
-    d=$(runtime_dir "$d") || continue
+    runtime_dirv d "$d" || continue
     [[ -d $d/versions && ! -L $d/versions && -L $d/default ]] || continue
     t=$(readlink -- "$d/default") || continue
     t=${t%/} t=${t##*/}
@@ -3709,8 +3797,9 @@ runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN,
   # from; pyenv also keeps a version holding virtualenvs (envs/). Links in versions/ are envs: never listed.
   for t in pyenv rbenv; do
     if [[ $t == pyenv ]]; then c=PYENV_ROOT v=Python; else c=RBENV_ROOT v=Ruby; fi
-    d=$(runtime_dir "$(env_home_dir "$c")") || d=""
-    [[ -n $d ]] || d=$(runtime_dir "$HOME/.$t")
+    env_home_dirv d "$c"
+    runtime_dirv d "$d"
+    [[ -n $d ]] || runtime_dirv d "$HOME/.$t"
     [[ -n $d && -d $d/versions && ! -L $d/versions ]] || continue
     if [[ $t == pyenv ]]; then keep=$(named_versions "$d/versions" "$d/version" python- 0) || continue
     else keep=$(named_versions "$d/versions" "$d/version" ruby- 1) || continue
@@ -3724,8 +3813,9 @@ runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN,
     done
   done
   # rustup: keep the default toolchain and every override in settings.toml, and one the PATH runs from
-  d=$(runtime_dir "$(env_home_dir RUSTUP_HOME)") || d=""
-  [[ -n $d ]] || d=$(runtime_dir "$HOME/.rustup")
+  env_home_dirv d RUSTUP_HOME
+  runtime_dirv d "$d"
+  [[ -n $d ]] || runtime_dirv d "$HOME/.rustup"
   if [[ -n $d && -d $d/toolchains && ! -L $d/toolchains ]] && keep=$(rust_kept "$d/settings.toml"); then
     keep=$'\n'$keep$'\n'$(path_versions "$d/toolchains")$'\n'
     for f in "$d"/toolchains/*/; do
@@ -3734,7 +3824,7 @@ runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN,
     done
   fi
   # Go SDKs golang.org/dl downloaded to ~/sdk: keep the ones in use (go_kept)
-  d=$(runtime_dir "$HOME/sdk") || d=""
+  runtime_dirv d "$HOME/sdk"
   if [[ -n $d ]] && compgen -G "$d/go*" >/dev/null && keep=$(go_kept "$d"); then
     keep=$'\n'$keep$'\n'
     for f in "$d"/go*/; do
@@ -3748,7 +3838,8 @@ runtime_versions() { # → KIND\tLABEL\tFOLDER for every version of nvm, SDKMAN,
 old_runtimes() { # → OR_DIR / OR_BYTES / OR_LABEL of versions to offer, biggest first; OR_BUSY = labels of running ones
   local kind label d b used lines=()
   OR_DIR=() OR_BYTES=() OR_LABEL=() OR_BUSY=()
-  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$'\n'$(open_files)$'\n'
+  open_filesv used
+  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$used
   while IFS=$'\t' read -r kind label d; do
     [[ -n $d && $d != *[[:cntrl:]]* && $label != *[[:cntrl:]]* ]] || continue
     touches_exclusion "$d" && continue
@@ -3763,10 +3854,9 @@ old_runtimes() { # → OR_DIR / OR_BYTES / OR_LABEL of versions to offer, bigges
 }
 
 runtimes_found() { # nvm, SDKMAN, fvm, pyenv, rbenv, rustup or a Go SDK in ~/sdk is there
-  local d
-  for d in "$(env_home_dir NVM_DIR)" "$HOME/.nvm" "$(env_home_dir SDKMAN_DIR)" "$HOME/.sdkman" "$HOME/fvm" \
-    "$(env_home_dir FVM_CACHE_PATH)" "$(env_home_dir PYENV_ROOT)" "$HOME/.pyenv" "$(env_home_dir RBENV_ROOT)" \
-    "$HOME/.rbenv" "$(env_home_dir RUSTUP_HOME)" "$HOME/.rustup"; do
+  local d e=()
+  for d in NVM_DIR SDKMAN_DIR FVM_CACHE_PATH PYENV_ROOT RBENV_ROOT RUSTUP_HOME; do env_home_dirv "e[${#e[@]}]" "$d"; done
+  for d in "$HOME/.nvm" "$HOME/.sdkman" "$HOME/fvm" "${e[@]}" "$HOME/.pyenv" "$HOME/.rbenv" "$HOME/.rustup"; do
     [[ -n $d && -d $d ]] && return 0
   done
   compgen -G "$HOME/sdk/go*" >/dev/null
@@ -4113,7 +4203,8 @@ asdf_mise_old() { # → AM_DIR / AM_BYTES / AM_LABEL of the versions to offer, b
     done
   done < <(am_roots)
   ((${#cand[@]})) || return 0
-  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$'\n'$(open_files)$'\n'
+  open_filesv used
+  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$used
   for line in "${cand[@]}"; do
     if open_under "$used" "${line%%$'\t'*}"; then AM_BUSY+=("${line#*$'\t'}"); else keep+=("$line"); fi
   done
@@ -4318,7 +4409,8 @@ unity_old_editors() { # → UE_DIR / UE_BYTES / UE_LABEL of the versions to offe
     cand+=("$d"$'\t'"Unity ${d##*/}")
   done
   ((${#cand[@]})) || return 0
-  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$'\n'$(open_files)$'\n'
+  open_filesv used
+  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$used
   for line in "${cand[@]}"; do
     if open_under "$used" "${line%%$'\t'*}"; then UE_BUSY+=("${line#*$'\t'}"); else keep+=("$line"); fi
   done
@@ -4414,11 +4506,14 @@ ENTRY_RE_android_images='^/[A-Za-z0-9/._~%-]+$' # the image folder's full path, 
 declare -A AU_USED=() # <android-N>/<tag>/<abi> of the images AVDs use
 
 android_sdk_roots() { # SDK folders inside your home, no symlinks on the way
-  local d
-  { printf '%s\n' "$HOME/Android/Sdk"; env_home_dir ANDROID_HOME; env_home_dir ANDROID_SDK_ROOT; } | awk '!seen[$0]++' |
-    while IFS= read -r d; do
-      [[ $d == "$HOME"/* && -d $d && ! -L $d && $(realpath -e -- "$d" 2>/dev/null) == "$d" ]] && printf '%s\n' "$d"
-    done
+  local d a b
+  env_home_dirv a ANDROID_HOME
+  env_home_dirv b ANDROID_SDK_ROOT
+  [[ $a == "$HOME/Android/Sdk" ]] && a=""
+  [[ $b == "$HOME/Android/Sdk" || $b == "$a" ]] && b=""
+  for d in "$HOME/Android/Sdk" "$a" "$b"; do
+    runtime_dirv d "$d" && printf '%s\n' "$d"
+  done
   return 0
 }
 
@@ -4426,7 +4521,7 @@ avd_homes() { # folders AVDs are kept in; fails when a variable names one that c
   local n v
   printf '%s\n' "$HOME/.android/avd"
   for n in ANDROID_AVD_HOME ANDROID_USER_HOME ANDROID_EMULATOR_HOME ANDROID_SDK_HOME; do
-    v=$(env_value "$n")
+    env_valuev v "$n"
     [[ -n $v ]] || continue
     [[ $v == /* && $v != *[\$\`[:cntrl:]]* ]] || return 1
     v=${v%/}
@@ -4864,7 +4959,7 @@ runner_dirs() { # → "launcher<TAB>folder" of every folder of runner versions i
   local x=$HOME/.var/app l d r
   local -A seen=()
   while IFS=$'\t' read -r l d; do
-    r=$(realpath -e -- "$d" 2>/dev/null) || continue
+    [[ -e $d ]] && r=$(realpath -e -- "$d" 2>/dev/null) || continue
     [[ $r == "$HOME"/* && -d $r && $r != *[[:cntrl:]]* && -z ${seen[$r]:-} ]] || continue
     seen[$r]=1
     [[ $r == "$x"/* ]] && l+=" (Flatpak)"
@@ -5098,7 +5193,7 @@ ide_old_versions() { # → IV_ID / IV_DIRS (newline-separated) / IV_BYTES / IV_L
     i=$((i + 1))
     for vendor in JetBrains Google; do
       for root in "$conf" "$data" "$cache"; do
-        vd=$(runtime_dir "$root/$vendor") || continue
+        runtime_dirv vd "$root/$vendor" || continue
         [[ $vendor == Google ]] && ! compgen -G "$vd/AndroidStudio*" >/dev/null && continue
         IV_FOUND=1
         for d in "$vd"/*/; do
@@ -5114,7 +5209,7 @@ ide_old_versions() { # → IV_ID / IV_DIRS (newline-separated) / IV_BYTES / IV_L
     done
   done < <(ide_roots)
   ((${#vdirs[@]})) || return 0
-  used=$'\n'$(open_files)$'\n'
+  open_filesv used
   for key in "${!vdirs[@]}"; do
     prod=${kprod[$key]} ver=${kver[$key]}
     [[ $ver != "${newest[${key%/*}/$prod]}" ]] || continue
@@ -5293,7 +5388,7 @@ editor_old_extensions() { # → EX_ID / EX_DIRS (newline-separated) / EX_BYTES /
     ((${#old[@]})) || continue
     [[ -n ${running[$procs]:-} ]] || { running_proc -x "($procs)" >/dev/null && running[$procs]=1 || running[$procs]=0; }
     if [[ ${running[$procs]} == 1 ]]; then EX_BUSY+=("$editor"); continue; fi
-    [[ -n $open ]] || open=$'\n'$(open_files)$'\n'
+    [[ -n $open ]] || open_filesv open
     for d in "${old[@]}"; do
       touches_exclusion "$d" && continue
       open_under "$open" "$d" && continue
@@ -5627,6 +5722,7 @@ if isinstance(v, str): print(v)' "$f" 2>/dev/null)
 }
 lms_add_downloads_folder() {
   local d e
+  [[ -f $HOME/.lmstudio/settings.json || -f $HOME/.cache/lm-studio/settings.json ]] || return 0 # no process to start
   while IFS= read -r d; do
     for e in "${LMS_DIRS[@]}"; do [[ $e == "$d" ]] && continue 2; done
     LMS_DIRS+=("$d") # model_safe_path still checks every model in it
@@ -5665,7 +5761,7 @@ model_scan() {
       SCAN_BYTES=$b SCAN_NOTE="get it back with: ollama pull $ref" ;;
     *)
       model_safe_path "$ref" || return 1
-      SCAN_BYTES=$(du_sum "$ref") SCAN_NOTE=${ref/#$HOME/\~} ;;
+      du_sumv SCAN_BYTES "$ref"; SCAN_NOTE=${ref/#$HOME/\~} ;;
   esac
   ((SCAN_BYTES > 0)) || return 2
 }
@@ -5709,20 +5805,23 @@ reg_model_item() { # KIND REF LABEL DESCRIPTION
 }
 
 # Ollama keeps an interrupted download as blobs/sha256-<hash>-partial[-N]; no model uses it.
-ollama_blob_dirs() { env_home_paths OLLAMA_MODELS blobs "$HOME/.ollama/models/blobs"; }
+ollama_blob_dirsv() { env_home_pathsv "$1" OLLAMA_MODELS blobs "$HOME/.ollama/models/blobs"; } # VAR → adds the folders
 ollama_partial() {
-  local d f
+  local d f blobs=""
+  ollama_blob_dirsv blobs
   while IFS= read -r d; do
     [[ -d $d && ! -L $d ]] || continue
     for f in "$d"/sha256-*-partial "$d"/sha256-*-partial-*; do
       [[ -f $f && ! -L $f ]] && printf '%s\n' "$f"
     done
-  done < <(ollama_blob_dirs)
+  done <<<"$blobs"
   return 0
 }
+_p=""
+ollama_blob_dirsv _p
 LIST_CAT=models reg_list_item ollama_partial "Ollama — unfinished downloads" 0 download \
   "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again." \
-  ollama_partial "$(ollama_blob_dirs)" "ollama"
+  ollama_partial "$_p" "ollama"
 
 # Models Python libraries downloaded and fetch again when a program needs them: PyTorch Hub weights (each
 # file in <torch>/hub/checkpoints), Whisper models (each *.pt in <cache>/whisper), sentence-transformers
@@ -5734,26 +5833,34 @@ LIST_CAT=models reg_list_item ollama_partial "Ollama — unfinished downloads" 0
 # a file open in is skipped (no lock by name: python runs plenty of other things). Deleted for good; never
 # torch/kernels, Hub repos (hub/<owner>_<repo>_<ref>), keras.json or the Hugging Face cache (its own
 # items). Not ticked, not remembered; automatic cleaning leaves AI models alone.
-model_cache_roots() { # → kind<TAB>folder for each place a library keeps its downloads; a folder two claim: none
-  local x t s k c
-  x=$(env_home_dir XDG_CACHE_HOME) t=$(env_home_dir TORCH_HOME)
-  s=$(env_home_dir SENTENCE_TRANSFORMERS_HOME) k=$(env_home_dir KERAS_HOME)
-  {
-    for c in "$HOME/.cache" ${x:+"$x"}; do
-      printf 'torch\t%s\nwhisper\t%s\nst\t%s\n' "$c/torch/hub/checkpoints" "$c/whisper" "$c/torch/sentence_transformers"
-    done
-    [[ -n $t ]] && printf 'torch\t%s\nst\t%s\n' "$t/hub/checkpoints" "$t/sentence_transformers"
-    [[ -n $s ]] && printf 'st\t%s\n' "$s"
-    printf 'keras\t%s\n' "$HOME/.keras"
-    [[ -n $k && -f $k/keras.json && ! -L $k/keras.json ]] && printf 'keras\t%s\n' "$k"
-  } | awk -F'\t' '{ kind[$2] = (kind[$2] == "" || kind[$2] == $1) ? $1 : "-"; if (!seen[$2]++) order[++n] = $2 }
-    END { for (i = 1; i <= n; i++) if (kind[order[i]] != "-") print kind[order[i]] "\t" order[i] }'
+model_cache_rootsv() { # VAR → kind<TAB>folder lines for each place a library keeps its downloads; a folder two claim: none
+  local -n __mcr=$1
+  local x t s k c kv
+  local -a order=() kinds=()
+  local -A kind=()
+  env_home_dirv x XDG_CACHE_HOME; env_home_dirv t TORCH_HOME
+  env_home_dirv s SENTENCE_TRANSFORMERS_HOME; env_home_dirv k KERAS_HOME
+  for c in "$HOME/.cache" ${x:+"$x"}; do
+    kinds+=(torch "$c/torch/hub/checkpoints" whisper "$c/whisper" st "$c/torch/sentence_transformers")
+  done
+  [[ -n $t ]] && kinds+=(torch "$t/hub/checkpoints" st "$t/sentence_transformers")
+  [[ -n $s ]] && kinds+=(st "$s")
+  kinds+=(keras "$HOME/.keras")
+  [[ -n $k && -f $k/keras.json && ! -L $k/keras.json ]] && kinds+=(keras "$k")
+  for ((c = 0; c < ${#kinds[@]}; c += 2)); do
+    kv=${kind[x${kinds[c + 1]}]-}
+    [[ -n ${kind[x${kinds[c + 1]}]+x} ]] || order+=("${kinds[c + 1]}")
+    if [[ -z $kv || $kv == "${kinds[c]}" ]]; then kind[x${kinds[c + 1]}]=${kinds[c]}; else kind[x${kinds[c + 1]}]=-; fi
+  done
+  __mcr=""
+  for c in "${order[@]}"; do [[ ${kind[x$c]} == - ]] || __mcr+=${kind[x$c]}$'\t'$c$'\n'; done
+  __mcr=${__mcr%$'\n'}
 }
 
 model_caches() { # → path<TAB>label of each downloaded model to offer
   local roots open kind root p r _k name label cands
-  roots=$(model_cache_roots)
-  open=$'\n'$(open_files)$'\n'
+  model_cache_rootsv roots
+  open_filesv open
   while IFS=$'\t' read -r kind root; do
     [[ -n $root && -d $root && ! -L $root ]] || continue
     cands=()
@@ -5800,10 +5907,14 @@ model_cache_list() { # → MC_PATH / MC_BYTES / MC_LABEL of the models to offer,
   done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
 }
 
+_p="" _r=""
+model_cache_rootsv _r
+while IFS=$'\t' read -r _ _d; do _p+=${_p:+$'\n'}$_d; done <<<"$_r"
 LIST_CAT=models reg_list_item ai_model_caches "PyTorch, Whisper & Keras — models" 0 model \
   "Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a program needs one. A model in use is skipped." \
-  ai_model_caches "$(model_cache_roots | cut -f2)"
+  ai_model_caches "$_p"
 ITEM_ONCE[ai_model_caches]=1
+unset _p _r _d
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_ai_model_caches='^/[A-Za-z0-9/._~%-]+$' # the model's full path, percent-encoded (urlencode_path)
 entries_ai_model_caches() {
@@ -5828,7 +5939,7 @@ clean_entries_ai_model_caches() { # encoded paths (json_clean_entries only passe
 
 discover_models() {
   local n _b d m name
-  while IFS=$'\t' read -r n _b; do
+  have ollama && while IFS=$'\t' read -r n _b; do
     [[ -n $n ]] && reg_model_item ollama "$n" "Ollama — $n" \
       "A model Ollama downloaded. Removed with 'ollama rm'; layers other models use are kept."
   done < <(ollama_models)
@@ -6069,7 +6180,8 @@ SCAN_TIMEOUT=120
 
 kill_tree() { local c; for c in $(pgrep -P "$1"); do kill_tree "$c"; done; kill "$1" 2>/dev/null; }
 
-now_ms() { local t=${EPOCHREALTIME/[.,]/}; echo $((t / 1000)); }
+now_msv() { local -n __nm=$1; local __t=${EPOCHREALTIME/[.,]/}; __nm=$((__t / 1000)); } # VAR → milliseconds since 1970
+now_ms() { local t; now_msv t; echo "$t"; }
 
 fs_avail() { # free bytes on the filesystems holding / and $HOME
   df -B1 --output=avail,target / "$HOME" 2>/dev/null | tail -n +2 | sort -u -k2,2 | sum_lines
@@ -6145,7 +6257,7 @@ scan_items() { # CATEGORY...
     for id in "${ITEM_IDS[@]}"; do [[ ${ITEM_CAT[$id]} == "$cat" ]] && SCAN_IDS+=("$id"); done
   done
   tmp=$(mktemp -d -p "$SESSION_TMP") || return 1
-  t0=$(now_ms)
+  now_msv t0
 
   # a process for each item that runs other programs or walks big trees, a few for the rest
   for id in "${SCAN_IDS[@]}"; do
@@ -6208,7 +6320,8 @@ scan_items() { # CATEGORY...
   done
   [[ -n $watch ]] && { kill "$watch" 2>/dev/null; wait "$watch" 2>/dev/null; }
   ((UI_ACTIVE)) || { [[ -t 1 ]] && printf '\r\e[K'; }
-  SCAN_MS=$(($(now_ms) - t0))
+  now_msv now
+  SCAN_MS=$((now - t0))
   SCAN_COUNT=${#SCAN_IDS[@]}
 
   for id in "${SCAN_IDS[@]}"; do
@@ -8326,7 +8439,7 @@ sr_redact_lines() { # VAR LINE… → VAR = the lines without the home folder (�
     __lines+=("$__out")
   done
   ((${#__lines[@]})) || { __srl=(); return 0; }
-  __u=${USER:-$(id -un 2>/dev/null)}
+  __u=${USER:-$USER_NAME}
   __full=$(getent passwd "$__u" 2>/dev/null | cut -d: -f5)
   __full=${__full%%,*}
   read -ra __toks <<<"$__full"
@@ -11071,7 +11184,9 @@ GUI_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cleanmate/gui"
 
 # Installed by a package (.deb): files live in ../share/cleanmate next to the
 # command, and apt — not this script — handles updates and removal.
-PKG_SHARE="$(dirname "$SELF")/../share/cleanmate"
+SELF_DIR=. # dirname of SELF, without starting it
+[[ $SELF == */* ]] && { SELF_DIR=${SELF%/*}; SELF_DIR=${SELF_DIR:-/}; }
+PKG_SHARE="$SELF_DIR/../share/cleanmate"
 packaged() { [[ -f $PKG_SHARE/packaged || -n ${SNAP:-} ]]; }
 pkg_update_hint() { # how this copy gets updates
   if [[ -n ${SNAP:-} ]]; then printf '    Snaps update automatically (or: sudo snap refresh cleanmate)\n'

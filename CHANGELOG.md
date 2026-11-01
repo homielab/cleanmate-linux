@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Changed
 
+- **Smart Scan** is about a third faster: the engine loads faster and starts 40 % fewer helper processes while scanning (a whole scan on a 4-core Ubuntu 24.04 machine: 0.09 s instead of 0.14 s). Results are unchanged.
 - **Command line**: `cm --clean --yes` and automatic cleaning no longer remove Docker volumes or stopped containers, even when they are ticked in the app — they may hold databases or other data and are deleted for good. Each one skipped is named, with how to clean it on purpose (in the app, or `cm --json clean docker_volumes`). `cm --json items` and `scan` mark these items with `data_loss`, and the Agent Skill cleans them only when you name them.
 
 ### Added

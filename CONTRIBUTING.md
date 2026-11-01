@@ -43,10 +43,16 @@ apps), `reg_list_item` (AI tools; `LIST_CAT=dev reg_list_item …` for another g
 `reg_privacy_item` (histories) — they generate the three
 functions for you.
 
-A `scan_ID` that only looks at a few folders (`test`, `du`, `dev_scan`) and runs no other program
-or big `find` can go in `ITEM_LIGHT`: a scan then runs it in a shared process, which costs less
-than one of its own. `reg_cache_item` and `reg_list_item` items are light already. A light scan
-must not `cd`, `exit` or leave variables behind that the next item reads.
+A `scan_ID` that only looks at folders in your home (`test`, `du`, `dev_scan`) and runs no program
+that could hang (a package manager, `docker`, a tool's own CLI) or a walk over the whole home can go
+in `ITEM_LIGHT`: a scan then runs it in a shared process, which costs less than one of its own.
+`reg_cache_item` and `reg_list_item` items are light already. A light scan must not `cd`, `exit` or
+leave variables behind that the next item reads; globals it fills carry its own prefix (`IV_`, `GR_`…).
+
+Each `$(…)` starts a process (about half a millisecond). Code that runs on every start (item
+registration) or in a scan uses the helpers that set a variable instead of printing:
+`env_valuev`, `env_home_dirv`, `runtime_dirv`, `du_sumv`, `open_filesv`, `pluralv`, `humanv` —
+`env_valuev v NAME`, not `v=$(env_value NAME)`.
 
 Rules of thumb:
 
