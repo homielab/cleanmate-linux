@@ -137,7 +137,7 @@ test_human_sizes_match_numfmt() {
   for b in 0 1023 1024 1536 999999 1048576 2000000 1932735283 5368709120 1099511627776; do
     mine=$(in_app "humanv x $b; echo \"\$x\"")
     if ((b < 1024)); then theirs="$b B"
-    else theirs=$(numfmt --to=iec --round=nearest --suffix=B --format='%.1f' "$b" | sed 's/\([0-9]\)\([KMGTP]\)/\1 \2/'); fi
+    else theirs=$(LC_ALL=C numfmt --to=iec --round=nearest --suffix=B --format='%.1f' "$b" | sed 's/\([0-9]\)\([KMGTP]\)/\1 \2/'); fi
     assert_eq "$mine" "$theirs" "human $b"
   done
 }
@@ -1449,7 +1449,7 @@ for l in sys.stdin:
   assert_contains "$out" "Work 150 off Work/ · untouched for 10 days"
   assert_contains "$(user_cm --json items)" "opened or changed for more than 7 days"
   user_cm --json settings-set download_days 90 >/dev/null
-  assert_eq "$(user_cm --json details old_downloads | python3 -c "$list" | cut -d' ' -f1 | sort | paste -sd' ' -)" \
+  assert_eq "$(user_cm --json details old_downloads | python3 -c "$list" | cut -d' ' -f1 | LC_ALL=C sort | paste -sd' ' -)" \
     "Trip old.pdf open.txt" "download_days 90"
   # a Downloads folder outside the home folder is never scanned; the item says why
   mkdir -p "$HOME_DIR/.local/bin" "$WORK/data/dl2"
@@ -1612,7 +1612,7 @@ a.crdownload 1000 off a.crdownload · untouched for 120 days
 full.part 400 off full.part · untouched for 120 days
 Upper.CRDOWNLOAD 100 off Upper.CRDOWNLOAD · untouched for 120 days" "one entry per download, the file next to it counted in"
   # Old installers and Old downloads leave them (and the file of the real name) to this item
-  out=$(user_cm --json details old_downloads | python3 -c "$list" | cut -d' ' -f1 | sort | paste -sd' ' -)
+  out=$(user_cm --json details old_downloads | python3 -c "$list" | cut -d' ' -f1 | LC_ALL=C sort | paste -sd' ' -)
   assert_eq "$out" "notes.txt sub" "old downloads skips unfinished downloads"
   # Never clean
   user_cm --json settings-set exclusions add "$dl" >/dev/null
@@ -1875,7 +1875,7 @@ for l in sys.stdin:
     e = json.loads(l)
     if e["event"] == "entry": print(str(e["movable"]).lower(), e["path"].rsplit("/", 1)[1])
     elif e["event"] == "done": print("done", e["drive"].rsplit("/", 1)[-1] or "-", str(e["drive_trash"]).lower())'
-  out=$(user_cm --json lens --path "$usb" | python3 -c "$lens" | sort)
+  out=$(user_cm --json lens --path "$usb" | python3 -c "$lens" | LC_ALL=C sort)
   assert_eq "$out" "done USB true
 false .Trash-$uid
 false timeshift
@@ -1888,7 +1888,7 @@ true link" "a writable drive: movable but its Trash and Timeshift backups"
   assert_eq "$out" $'false r.bin\ndone RO false' "a read-only drive: view only"
   out=$(user_cm --json lens --path "$vol/NAS" | python3 -c "$lens")
   assert_eq "$out" $'false n.bin\ndone NAS false' "a network drive: view only"
-  out=$(user_cm --json lens --path "$vol" | python3 -c "$lens" | sort)
+  out=$(user_cm --json lens --path "$vol" | python3 -c "$lens" | LC_ALL=C sort)
   assert_eq "$out" $'done - false\nfalse NAS\nfalse RO\nfalse USB' "the drives themselves: view only"
   local tasks='import sys, json
 for l in sys.stdin:
@@ -2553,7 +2553,7 @@ for l in sys.stdin:
     e = json.loads(l)
     if e["event"] == "app":
         print(e["id"], e["kind"], e["bytes"], e["desktop"], " ".join(f"{x['"'"'path'"'"']}={x['"'"'bytes'"'"'] > 0}" for x in e["leftovers"]))
-    else: print(e["event"], e.get("hidden", ""))' | sed "s|$HOME_DIR/||g" | sort)
+    else: print(e["event"], e.get("hidden", ""))' | sed "s|$HOME_DIR/||g" | LC_ALL=C sort)
   assert_eq "$out" $'apt:foo apt 102400 foo \napt:gimp apt 20480000 gimp .config/GIMP=True\ndone 2\nflatpak:com.spotify.Client flatpak 123000000 com.spotify.Client .var/app/com.spotify.Client=True' \
     "apps listed with leftovers; parts of Ubuntu hidden"
   local ev='import sys, json
@@ -2612,7 +2612,7 @@ for l in sys.stdin:
     e = json.loads(l)
     if e["event"] == "app":
         print(e["id"], e["kind"], e["name"], e["bytes"], e["data_bytes"] >= 2000 if e["kind"] == "appimage" else "-",
-              " ".join(x["path"] for x in e["leftovers"]))' | sed "s|$HOME_DIR/||g" | sort)
+              " ".join(x["path"] for x in e["leftovers"]))' | sed "s|$HOME_DIR/||g" | LC_ALL=C sort)
   assert_eq "$out" $'appimage:.local/bin/zqtool appimage Zq Tool 1000 False \nappimage:Applications/Zqnote-1.2.3-x86_64.AppImage appimage Zqnote 3000 True .config/Zqnote\napt:foo apt Foo 102400 - \napt:gimp apt GNU Image Manipulation Program 20480000 - .config/GIMP\nflatpak:com.spotify.Client flatpak Spotify 123000000 - .var/app/com.spotify.Client' \
     "AppImage apps listed with their file size and data; scripts and apt launchers are not AppImages"
   local id ev='import sys, json

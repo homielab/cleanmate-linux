@@ -25,11 +25,16 @@ jobs:
           desktop-file-validate data/com.homielab.CleanMate.desktop
 
   test:
-    name: Tests (${{ matrix.os }})
+    name: Tests (${{ matrix.os }}, ${{ matrix.locale }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
+        # vi_VN and de_DE write decimals with a comma: numbers must still parse and read the same
+        locale: [C.UTF-8]
+        include:
+          - { os: ubuntu-24.04, locale: vi_VN.UTF-8 }
+          - { os: ubuntu-24.04, locale: de_DE.UTF-8 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -41,8 +46,11 @@ jobs:
       - name: Install gettext (translations are compiled into the .deb) and sqlite3 (browser privacy test)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext sqlite3
       - name: Add a language with a decimal comma (sizes must read the same in every language)
-        run: sudo locale-gen vi_VN.UTF-8
+        run: sudo locale-gen vi_VN.UTF-8 de_DE.UTF-8
       - name: Run tests
+        env:
+          LANG: ${{ matrix.locale }}
+          LC_ALL: ${{ matrix.locale }}
         run: tests/run.sh
 
   ppa:
