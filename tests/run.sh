@@ -4202,6 +4202,127 @@ for l in sys.stdin:
   unset -f details
 }
 
+# asdf and mise: per tool the newest stays, and what ~/.tool-versions, mise's settings and the projects in
+# your home pin; mise's alias links are neither listed nor touched
+test_old_asdf_and_mise_versions() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out pid hold=() f enc bin=$WORK/misebin
+  local an=$h/.asdf/installs/nodejs ap=$h/.asdf/installs/python aj=$h/.asdf/installs/java
+  local mn=$h/.local/share/mise/installs/node mr=$h/.local/share/mise/installs/ruby mg=$h/.local/share/mise/installs/go
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  local labels='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["label"], e["bytes"], "on" if e["selected"] else "off")
+    elif e["event"] == "item": print(e["status"], e["note"], repr(e["locked"]), e["selected"], e["entries"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"])
+    elif e["event"] == "error": print("error", e["message"])'
+  details() { user_cm --json details old_runtimes_asdf_mise | python3 -c "$labels" | cut -d' ' -f1-3 | LC_ALL=C sort | paste -sd'|' -; }
+  assert_eq "$(user_cm --json scan --only dev | grep -c '"id":"old_runtimes_asdf_mise"')" "0" "no asdf or mise: not shown"
+  # asdf: nodejs 20 (a partial pin) and lts, python with a prerelease, java pinned in a way that can't be read
+  for f in 20.10.0 20.11.1 22.1.0 ref-main; do sized "$an/$f/bin/node" 1000; done
+  sized "$an/18.19.0/bin/node" 3000
+  for f in 3.10.0 3.11.4 3.12.1 3.13.0rc1; do sized "$ap/$f/bin/python" 1000; done
+  for f in temurin-17.0.9+9 temurin-21.0.2+13; do sized "$aj/$f/bin/java" 1000; done
+  new "$h/.asdf/shims/node"; new "$h/.asdf/plugins/nodejs/bin/install"
+  # mise: alias links lts and 20, ruby pinned 3.2, go pinned by a project's .tool-versions (asdf's name golang)
+  for f in 18.0.0 20.18.0 22.11.0; do sized "$mn/$f/bin/node" 1000; done
+  ln -s 22.11.0 "$mn/lts"; ln -s "$mn/20.18.0" "$mn/20"; new "$mn/.mise.backend"
+  for f in 3.1.4 3.2.2 3.3.0; do sized "$mr/$f/bin/ruby" 1000; done
+  for f in 1.21.0 1.22.0 1.23.0; do sized "$mg/$f/bin/go" 1000; done
+  printf 'nodejs 20 # LTS\npython 3.11.4\n' >"$h/.tool-versions"
+  mkdir -p "$h/code/app/.mise" "$h/work/api" "$h/work/jvm"
+  printf '[env]\nnode = "18"\n\n[tools]\nnode = "lts"\nruby = [\n  "3.2",\n]\n' >"$h/code/app/mise.toml"
+  printf 'golang 1.21.0\n' >"$h/work/api/.tool-versions"
+  printf '[tools.java]\nversion = "{{ env.JAVA }}"\n' >"$h/work/jvm/.mise.toml"
+  out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes_asdf_mise"' | python3 -c "$labels")
+  assert_eq "$out" "found 6 versions not pinned, not the newest '' False True" "found, not ticked, one by one"
+  assert_eq "$(details)" "go 1.22.0 (mise)|node 18.0.0 (mise)|nodejs 18.19.0 (asdf)|nodejs 20.10.0 (asdf)|python 3.10.0 (asdf)|ruby 3.1.4 (mise)" \
+    "only versions neither pinned nor the newest"
+  assert_eq "$(user_cm --json details old_runtimes_asdf_mise | python3 -c "$labels" | head -n 1 | cut -d' ' -f4-)" \
+    "$(tbytes "$an/18.19.0") off" "each version with its size, biggest first"
+  out=$(cm --scan --only dev 2>&1)
+  assert_contains "$out" "Old runtime versions (asdf, mise)"
+  # mise running: the item is skipped and says why
+  running_stub "$bin" mise
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json scan --only dev | grep '"id":"old_runtimes_asdf_mise"' | python3 -c "$labels")
+  assert_contains "$out" "'mise'"
+  assert_contains "$(BASE_PATH="$bin:$BASE_PATH" cm --scan --only dev 2>&1)" "close mise first"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean old_runtimes_asdf_mise 2>&1)
+  assert_contains "$out" '"id":"old_runtimes_asdf_mise","state":"skip"'
+  assert_exists "$an/18.19.0/bin/node"
+  # a version a program runs from is skipped, and the scan says so
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  rm "$ap/3.10.0/bin/python"; cp "$(command -v sleep)" "$ap/3.10.0/bin/python"
+  "${hold[@]}" "$ap/3.10.0/bin/python" 60 >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes_asdf_mise"' | python3 -c "$labels")
+  assert_contains "$out" "5 versions not pinned, not the newest; skipped while running: python 3.10.0 (asdf)"
+  # automatic cleaning leaves them alone even when ticked
+  select_only old_runtimes_asdf_mise
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$an/18.19.0/bin/node"
+  out=$(user_cm --json clean old_runtimes_asdf_mise --entries "../etc" | python3 -c "$labels")
+  assert_contains "$out" "error Not an entry ID of old_runtimes_asdf_mise: ../etc"
+  enc=$(in_app "urlencode_path '$mn/18.0.0'")
+  out=$(user_cm --json clean old_runtimes_asdf_mise --entries "$enc" | python3 -c "$labels")
+  assert_eq "$out" "ok" "one version"
+  assert_missing "$mn/18.0.0"; assert_exists "$an/18.19.0/bin/node"
+  out=$(user_cm --json clean old_runtimes_asdf_mise | python3 -c "$labels")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" "ok" "the rest"
+  for f in "$an/18.19.0" "$an/20.10.0" "$mg/1.22.0"; do assert_missing "$f"; done
+  for f in "$an/20.11.1/bin/node" "$an/22.1.0/bin/node" "$an/ref-main/bin/node" "$ap/3.10.0/bin/python" "$ap/3.11.4/bin/python" \
+    "$ap/3.12.1/bin/python" "$ap/3.13.0rc1/bin/python" "$aj/temurin-17.0.9+9/bin/java" "$aj/temurin-21.0.2+13/bin/java" \
+    "$h/.asdf/shims/node" "$h/.asdf/plugins/nodejs/bin/install" "$mn/20.18.0/bin/node" "$mn/22.11.0/bin/node" "$mn/lts" "$mn/20" \
+    "$mn/.mise.backend" "$mr/3.2.2/bin/ruby" "$mr/3.3.0/bin/ruby" "$mg/1.21.0/bin/go" "$mg/1.23.0/bin/go" "$h/.tool-versions" \
+    "$h/code/app/mise.toml" "$h/work/api/.tool-versions" "$h/work/jvm/.mise.toml"; do
+    assert_exists "$f"
+  done
+  assert_missing "$mr/3.1.4" # pinned 3.2 keeps only the newest 3.2.x
+  # mise's global config.toml and MISE_DATA_DIR from your profile; a profile renaming the settings files keeps everything
+  sized "$mn/16.0.0/bin/node" 10; sized "$mr/3.0.0/bin/ruby" 10
+  mkdir -p "$h/.config/mise"; printf '[tools]\nnode = { version = "16" }\n' >"$h/.config/mise/config.toml"
+  assert_eq "$(details)" "python 3.10.0 (asdf)|ruby 3.0.0 (mise)" "the global config.toml pins node 16"
+  mkdir -p "$h/mise-data"; mv "$h/.local/share/mise/installs" "$h/mise-data/installs"
+  printf 'export MISE_DATA_DIR="$HOME/mise-data"\n' >"$h/.profile"
+  assert_eq "$(details)" "python 3.10.0 (asdf)|ruby 3.0.0 (mise)" "MISE_DATA_DIR from the profile"
+  mkdir -p "$h/big"; head -c 300000 /dev/zero | tr '\0' '#' >"$h/big/.tool-versions"
+  assert_eq "$(details)" "" "a pin file too big to read: every version kept"
+  rm "$h/big/.tool-versions"
+  printf 'export MISE_DATA_DIR="$HOME/mise-data"\nexport MISE_DEFAULT_CONFIG_FILENAME=tools.toml\n' >"$h/.profile"
+  assert_eq "$(details)" "" "renamed settings files: every version kept"
+  unset -f details
+}
+
+# How a pin keeps versions: a partial version keeps the newest match, lts Node's two newest even majors, a
+# flavor only its own; the newest release stays next to a newer prerelease
+test_asdf_mise_pin_rules() {
+  fresh_home
+  local f=$HOME_DIR/installs/node j=$HOME_DIR/installs/java
+  mkdir -p "$f/18.20.0" "$f/18.20.4" "$f/20.11.1" "$f/21.0.0" "$f/22.1.0" "$f/23.0.0-rc.1" "$j/temurin-17.0.9" "$j/temurin-21.0.2" \
+    "$j/zulu-17.0.8" "$j/zulu-17.0.9"
+  kept() { # FOLDER PIN… → the names it keeps, sorted
+    local dir=$1 pins="" p
+    shift
+    for p; do pins+=$p$'\n'; done
+    in_app "AM_PINS_RC=0; AM_PINS[${dir##*/}]=$(printf '%q' "$pins"); names=(); for n in '$dir'/*/; do n=\${n%/}; names+=(\"\${n##*/}\"); done
+      am_kept '$dir' \"\${names[@]}\"; printf '%s\\n' \"\${!AM_KEPT[@]}\" | LC_ALL=C sort | paste -sd' ' -"
+  }
+  assert_eq "$(kept "$f")" "22.1.0 23.0.0-rc.1" "no pin: the newest and the newest release"
+  assert_eq "$(kept "$f" 18)" "18.20.4 22.1.0 23.0.0-rc.1" "18 keeps the newest 18.x"
+  assert_eq "$(kept "$f" v18.20)" "18.20.4 22.1.0 23.0.0-rc.1" "v18.20 too"
+  assert_eq "$(kept "$f" lts)" "20.11.1 22.1.0 23.0.0-rc.1" "lts: the two newest even majors"
+  assert_eq "$(kept "$f" 18.20.0 latest system)" "18.20.0 22.1.0 23.0.0-rc.1" "an exact version; latest and system add nothing"
+  assert_eq "$(kept "$f" 19)" "22.1.0 23.0.0-rc.1" "nothing installed matches"
+  assert_eq "$(kept "$f" 'sub-1:latest')" "18.20.0 18.20.4 20.11.1 21.0.0 22.1.0 23.0.0-rc.1" "a pin that can't be read keeps all"
+  assert_eq "$(kept "$j")" "temurin-21.0.2 zulu-17.0.9" "the newest of each flavor"
+  assert_eq "$(kept "$j" temurin-17)" "temurin-17.0.9 temurin-21.0.2 zulu-17.0.9" "a flavor's pin keeps only its own"
+  unset -f kept
+}
+
 test_firebase_zcode_mimocode_keep_logins_and_sessions() {
   fresh_home
   local h=$HOME_DIR fb=$HOME_DIR/.cache/firebase out holder
@@ -4676,6 +4797,8 @@ notes = {
     "3 projects idle for 90+ days": "3 dự án không dùng từ 90+ ngày",
     "2 versions not your default; skipped while running: Node 20, Python 3.11":
         "2 phiên bản không phải bản mặc định; bỏ qua vì đang chạy: Node 20, Python 3.11",
+    "3 versions not pinned, not the newest; skipped while running: node 18.0.0 (mise)":
+        "3 phiên bản không được ghim, không phải bản mới nhất; bỏ qua vì đang chạy: node 18.0.0 (mise)",
     "skipped while running: GoLand": "bỏ qua vì đang chạy: GoLand",
     "1 image no AVD uses": "1 image không AVD nào dùng",
     "3 AVDs": "3 AVD",

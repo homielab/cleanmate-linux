@@ -196,6 +196,7 @@ def _sentences():
         (r"\{c0\} with entries", _("{count} with entries")),
         (r"\{c0\} that no longer exist", _("{count} that no longer exist")),
         (r"\{c0\} not your default", _("{count} not your default")),
+        (r"\{c0\} not pinned, not the newest", _("{count} not pinned, not the newest")),
         (r"\{c0\} no AVD uses", _("{count} no AVD uses")),
         (r"\{c0\} replaced by a newer one", _("{count} replaced by a newer one")),
         (r"\{c0\} — may contain data", _("{count} — may contain data")),

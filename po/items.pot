@@ -879,6 +879,14 @@ msgstr ""
 msgid "Node.js (nvm), Python (pyenv), Ruby (rbenv), Rust toolchains (rustup), Go SDKs (~/sdk), SDKMAN candidates (Java, Gradle, Maven…) and Flutter (fvm) versions that aren't your default. Deleted; install one again with the same tool. A version that is running is skipped."
 msgstr ""
 
+#. old_runtimes_asdf_mise label
+msgid "Old runtime versions (asdf, mise)"
+msgstr ""
+
+#. old_runtimes_asdf_mise description
+msgid "Node.js, Python, Ruby, Java and other versions asdf or mise installed that are neither the newest of their tool nor pinned in ~/.tool-versions, mise's settings or a project in your home folder. Deleted; install one again with asdf install or mise install. A version that is running is skipped. Close asdf and mise first."
+msgstr ""
+
 #. android_images label
 msgid "Android system images (unused)"
 msgstr ""

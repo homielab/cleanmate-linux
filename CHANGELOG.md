@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- **Developer Junk** (both apps): old asdf and mise runtime versions (Node.js, Python, Ruby, Java…, often 100 MB–1 GB each). The newest version of each tool is kept, as is every version pinned in `~/.tool-versions`, mise's settings or the `.tool-versions` / `mise.toml` of a project in your home; a pin like `20` or `lts` keeps the newest match. Not pre-selected, deleted for good (`asdf install` or `mise install` brings one back), skipped while asdf or mise runs, a version a program runs from is skipped; each version on its own in the desktop app.
 - **Developer Junk** (both apps): old Proton and Wine versions — Proton-GE, Wine-GE and other builds (often 0.5–1 GB each) that Steam (`compatibilitytools.d`), Lutris, Heroic and Bottles leave behind, deb and Flatpak. The newest of each and the versions a game or bottle is set to use are kept; Steam's own Proton is never touched. Not pre-selected, deleted for good (the launcher or ProtonUp-Qt downloads any version again), skipped while a launcher, Wine, Proton or gamescope runs; each version on its own in the desktop app.
 
 ## [2.1.0] — 2026-11-01

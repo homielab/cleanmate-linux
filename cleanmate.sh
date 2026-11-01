@@ -3741,6 +3741,363 @@ clean_entries_old_runtimes() { # encoded version folders (json_clean_entries onl
   delete_runtimes "${pick[@]}"
 }
 
+# Old runtime versions asdf and mise installed: <installs>/<tool>/<version>, 0.1–1 GB each for Node,
+# Python, Ruby or Java, never removed by the tool. asdf installs to ~/.asdf/installs (ASDF_DATA_DIR),
+# mise to ~/.local/share/mise/installs (MISE_DATA_DIR, XDG_DATA_HOME); only real folders inside your
+# home with no symlinks on the way, so mise's alias links (latest, lts, 20) never. Kept, never listed:
+# - the newest version of each tool per flavor (temurin-21.0.2, zulu-17.0.9: Java distributions) and
+#   the newest release when a prerelease is newer; a name without a version (ref-main) is kept;
+# - every version pinned in the global settings (~/.tool-versions, ~/.mise.toml, mise's config.toml,
+#   conf.d/*.toml) or by a project in your home (.tool-versions, mise.toml, .mise.toml,
+#   .mise/config.toml…, looked for like stale build folders, also in excluded folders: reading them
+#   only keeps more). Both tools' files count for both (mise reads .tool-versions; asdf's nodejs is
+#   mise's node). A partial version (20), latest or lts keeps the newest installed match, or what
+#   mise's alias link of that name points to; a pin that can't be read ({{ env.NODE }}) keeps every
+#   version of that tool, and a profile that moves the settings in a way that can't be read keeps all;
+# - a version your PATH runs from.
+# Versions a program runs from (/proc/*/exe, open files) are skipped and the scan says which. Deleted
+# for good (asdf install / mise install installs them again); shims, plugins, downloads and the
+# settings files are never touched. Skipped while asdf or mise runs. Not ticked; the desktop app lists
+# each version.
+reg old_runtimes_asdf_mise dev "Old runtime versions (asdf, mise)" 0 "Node.js, Python, Ruby, Java and other versions asdf or mise installed that are neither the newest of their tool nor pinned in ~/.tool-versions, mise's settings or a project in your home folder. Deleted; install one again with asdf install or mise install. A version that is running is skipped. Close asdf and mise first."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_old_runtimes_asdf_mise='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
+AM_VERSION_RE='^(([A-Za-z][A-Za-z0-9.]*-)*)[vV]?([0-9]{1,9}(\.[0-9]{1,9})*)(.*)$' # flavor-, v, numbers, suffix
+AM_PROJECT_FILES=(.tool-versions mise.toml .mise.toml mise.local.toml .mise.local.toml .mise/config.toml
+  .mise/config.local.toml mise/config.toml .config/mise.toml .config/mise/config.toml) # relative to a project
+declare -A AM_PINS=() # tool (am_tool_keyv) → the versions the settings files pin for it, one per line
+declare -A AM_KEPT=() # set by am_kept: the version names of one tool folder that stay
+AM_PINS_RC="" AM_SPECS=()
+
+am_roots() { # → "asdf|mise<TAB>FOLDER" of each install folder there (inside your home, no symlinks on the way)
+  local e d listed=$'\n' found=()
+  found=("asdf"$'\t'"$HOME/.asdf/installs")
+  env_home_dirv e ASDF_DATA_DIR; [[ -n $e ]] && found+=("asdf"$'\t'"$e/installs")
+  found+=("mise"$'\t'"$HOME/.local/share/mise/installs")
+  env_home_dirv e MISE_DATA_DIR; [[ -n $e ]] && found+=("mise"$'\t'"$e/installs")
+  env_home_dirv e XDG_DATA_HOME; [[ -n $e ]] && found+=("mise"$'\t'"$e/mise/installs")
+  for e in "${found[@]}"; do
+    d=${e#*$'\t'}
+    [[ $listed != *$'\n'"$d"$'\n'* ]] && runtime_dir "$d" >/dev/null || continue
+    listed+=$d$'\n'
+    printf '%s\n' "$e"
+  done
+}
+
+am_parse() { # NAME → AV_FLAVOR (temurin-, lower-cased; mostly empty), AV_NUMS (21.0.2), AV_SUFFIX (rc1; empty for
+  # a release) and AV_KEY, which sorts as the version does (20 = 20.0.0, a release after its prereleases) and is
+  # the same for the same version; fails when NAME holds no version (lts, ref-main, sub-1:latest, {{ env.NODE }})
+  local i p parts=()
+  [[ $1 =~ ^[A-Za-z0-9.+_-]+$ && $1 =~ $AM_VERSION_RE ]] || return 1
+  AV_FLAVOR=${BASH_REMATCH[1],,} AV_NUMS=${BASH_REMATCH[3]} AV_SUFFIX=${BASH_REMATCH[5]}
+  AV_SUFFIX=${AV_SUFFIX#"${AV_SUFFIX%%[!._-]*}"} AV_SUFFIX=${AV_SUFFIX%"${AV_SUFFIX##*[!._-]}"}
+  IFS=. read -ra parts <<<"$AV_NUMS"
+  AV_KEY=""
+  for ((i = 0; i < 12; i++)); do printf -v p '%09d.' "$((10#${parts[i]:-0}))"; AV_KEY+=$p; done
+  if [[ -n $AV_SUFFIX ]]; then AV_KEY+=" 0 ${AV_SUFFIX,,}"; else AV_KEY+=" 1"; fi
+}
+
+am_tool_keyv() { # VAR NAME → the tool NAME means: npm:@antfu/ni and mise's folder npm-antfu-ni are one, so are
+  # asdf's nodejs and mise's node
+  local -n __k=$1
+  local __s=${2,,}
+  __s=${__s#core:} __s=${__s//[^a-z0-9]/}
+  case $__s in nodejs) __s=node ;; golang) __s=go ;; esac
+  __k=$__s
+}
+
+am_add_pins() { # TOOL SPEC… → AM_PINS
+  local k s
+  am_tool_keyv k "$1"
+  shift
+  [[ -n $k ]] || return 0
+  for s; do [[ -n $s ]] && AM_PINS[$k]+=$s$'\n'; done
+  return 0
+}
+
+am_toml_specs() { # VALUE → AM_SPECS: the versions a mise [tools] value names: "20", ["3.11", "3.12"], { version = "21" }, 20
+  local v=$1 re
+  AM_SPECS=()
+  v=${v#"${v%%[![:space:]]*}"}
+  if [[ $v == \{* ]]; then
+    re=$'(^|[^A-Za-z0-9_])version[[:space:]]*=[[:space:]]*("([^"]*)"|\'([^\']*)\')'
+    [[ $v =~ $re ]] && AM_SPECS=("${BASH_REMATCH[3]}${BASH_REMATCH[4]}")
+    return 0
+  fi
+  re=$'^[^"\']*("([^"]*)"|\'([^\']*)\')(.*)$'
+  local rest=$v
+  while [[ $rest =~ $re ]]; do
+    AM_SPECS+=("${BASH_REMATCH[2]}${BASH_REMATCH[3]}")
+    rest=${BASH_REMATCH[4]}
+  done
+  ((${#AM_SPECS[@]})) || [[ $v == \[* ]] && return 0
+  v=${v%%[[:space:]#]*}
+  [[ -n $v ]] && AM_SPECS=("$v")
+  return 0
+}
+
+am_read_tool_versions() { # TEXT → AM_PINS: .tool-versions lines are "<tool> <version>…", # starts a comment
+  local line words=()
+  while IFS= read -r line; do
+    line=${line%%#*}
+    read -ra words <<<"${line//$'\r'/}"
+    ((${#words[@]} > 1)) && am_add_pins "${words[@]}"
+  done <<<"$1"
+  return 0
+}
+
+am_read_mise() { # TEXT → AM_PINS: the [tools] of a mise TOML file (node = "20", python = ["3.11", "3.12"] also over
+  # several lines, java = { version = "21" }, "npm:prettier" = "latest") and [tools.node] tables' version = "20"
+  local line section="" key value open="" openv=""
+  local re=$'^("[^"]*"|\'[^\']*\'|[A-Za-z0-9_.:@/-]+)[[:space:]]*=[[:space:]]*(.*)$'
+  while IFS= read -r line; do
+    line=${line%$'\r'} line=${line#"${line%%[![:space:]]*}"} line=${line%"${line##*[![:space:]]}"}
+    if [[ -n $open ]]; then
+      openv+=" $line"
+      [[ $line == *]* ]] || continue
+      am_toml_specs "$openv"
+      am_add_pins "$open" "${AM_SPECS[@]}"
+      open=""
+      continue
+    fi
+    [[ -z $line || $line == \#* ]] && continue
+    if [[ $line == \[* ]]; then
+      section=${line#\[} section=${section%%]*}
+      section=${section#"${section%%[![:space:]]*}"} section=${section%"${section##*[![:space:]]}"}
+      continue
+    fi
+    [[ $line =~ $re ]] || continue
+    key=${BASH_REMATCH[1]} value=${BASH_REMATCH[2]}
+    [[ $key == [\"\']*[\"\'] ]] && key=${key:1:${#key}-2}
+    if [[ $section == tools ]]; then
+      if [[ $value == \[* && $value != *]* ]]; then open=$key openv=$value; continue; fi
+      am_toml_specs "$value"
+      am_add_pins "$key" "${AM_SPECS[@]}"
+    elif [[ $section == tools.* && $key == version ]]; then
+      key=${section#tools.}
+      [[ $key == [\"\']*[\"\'] ]] && key=${key:1:${#key}-2}
+      am_toml_specs "$value"
+      am_add_pins "$key" "${AM_SPECS[@]}"
+    fi
+  done <<<"$1"
+  return 0
+}
+
+am_read_file() { # FILE → AM_PINS from a .tool-versions or mise TOML file (links followed); fails when it is there but
+  # can't be read or is over 256 KB, as its pins are then unknown (a broken link pins nothing)
+  local t=""
+  [[ -f $1 ]] || return 0
+  [[ -r $1 ]] || return 1
+  (($(stat -L -c %s -- "$1" 2>/dev/null || echo 262145) <= 262144)) || return 1
+  IFS= read -r -d '' t <"$1" 2>/dev/null
+  if [[ ${1##*/} == *tool-versions ]]; then am_read_tool_versions "$t"; else am_read_mise "$t"; fi
+}
+
+am_global_files() { # → the global settings files asdf and mise read; fails when your profile moves them in a way that
+  # can't be read (a variable naming them through another one) or renames the files (*_FILENAME(S))
+  local n v d f dirs=("$HOME/.config/mise" /etc/mise)
+  for n in ASDF_DEFAULT_TOOL_VERSIONS_FILENAME MISE_DEFAULT_TOOL_VERSIONS_FILENAME MISE_DEFAULT_CONFIG_FILENAME \
+    MISE_OVERRIDE_CONFIG_FILENAMES MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES; do
+    [[ -n ${!n:-} || -n ${ENV_PROFILE[$n]+x} ]] && return 1
+  done
+  printf '%s\n' "${AM_PROJECT_FILES[@]/#/$HOME/}"
+  for n in XDG_CONFIG_HOME MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE; do
+    env_valuev v "$n"
+    if [[ -z $v ]]; then [[ -n ${ENV_PROFILE[$n]+x} ]] && return 1; continue; fi
+    [[ $v == /* && $v != *[\$\`]* ]] || return 1
+    case $n in
+      XDG_CONFIG_HOME) dirs+=("${v%/}/mise") ;;
+      MISE_CONFIG_DIR) dirs+=("${v%/}") ;;
+      *) printf '%s\n' "$v" ;;
+    esac
+  done
+  for d in "${dirs[@]}"; do
+    printf '%s\n' "$d/config.toml" "$d/config.local.toml"
+    for f in "$d"/conf.d/*.toml; do [[ -f $f ]] && printf '%s\n' "$f"; done
+  done
+  return 0
+}
+
+am_pins() { # → AM_PINS from the global settings and the projects in your home, read once; fails when the global
+  # settings can't be found
+  local f g files=() prune=()
+  [[ -n $AM_PINS_RC ]] && return "$AM_PINS_RC"
+  AM_PINS=() AM_PINS_RC=1
+  mapfile -t files < <(am_global_files && echo ok)
+  [[ ${files[-1]:-} == ok ]] || return 1
+  unset 'files[-1]'
+  while IFS=$'\t' read -r g f; do # the install folders hold no projects
+    g=${f//\\/\\\\} g=${g//\*/\\*} g=${g//\?/\\?} g=${g//\[/\\[}
+    prune+=(-o -path "$g")
+  done < <(am_roots)
+  while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$HOME" -xdev \( -path "$HOME/.*" -o -path "$HOME/snap" \
+    -o -path "$HOME/Applications" -o -path '*/resources/app' -o -name .git -o -name node_modules "${prune[@]}" \) -prune -o \
+    \( -type f -o -type l \) \( -name .tool-versions -o -name mise.toml -o -name .mise.toml -o -name mise.local.toml \
+    -o -name .mise.local.toml -o -path '*/.mise/config.toml' -o -path '*/.mise/config.local.toml' \
+    -o -path '*/mise/config.toml' -o -path '*/.config/mise.toml' -o -path '*/.config/mise/config.toml' \) -print0 2>/dev/null)
+  for f in "${files[@]}"; do am_read_file "$f" || return 1; done
+  AM_PINS_RC=0
+}
+
+am_kept() { # TOOL_FOLDER NAME… → AM_KEPT: the version names that stay — the newest of each flavor and its newest
+  # release, names without a version, then (only when something is left) what the pins for that tool keep;
+  # every name when the pins, or one of them, can't be read
+  local folder=$1 n k spec t pin pnums pflavor pkey best m
+  shift
+  local names=("$@") lines=() sorted=() even=() majors=()
+  local -A named=() flav=() nums=() key=() newest=() release=()
+  AM_KEPT=()
+  for n in "${names[@]}"; do
+    named[$n]=1
+    if am_parse "$n"; then
+      flav[$n]=$AV_FLAVOR nums[$n]=$AV_NUMS key[$n]=$AV_KEY
+      lines+=("$AV_KEY"$'\t'"$n")
+      [[ -z $AV_SUFFIX ]] && release[$n]=1
+    else AM_KEPT[$n]=1; fi
+  done
+  ((${#lines[@]})) && mapfile -t sorted < <(printf '%s\n' "${lines[@]}" | LC_ALL=C sort -t $'\t' -k1,1 | cut -f2-) # oldest first
+  for n in "${sorted[@]}"; do
+    newest[f${flav[$n]}]=$n
+    [[ -n ${release[$n]:-} ]] && newest[r${flav[$n]}]=$n
+  done
+  for n in "${newest[@]}"; do AM_KEPT[$n]=1; done
+  ((${#AM_KEPT[@]} < ${#names[@]})) || return 0
+  if ! am_pins; then
+    for n in "${names[@]}"; do AM_KEPT[$n]=1; done
+    return 0
+  fi
+  am_tool_keyv k "${folder##*/}"
+  while IFS= read -r spec; do
+    spec=${spec#"${spec%%[![:space:]]*}"} spec=${spec%"${spec##*[![:space:]]}"}
+    spec=${spec#prefix:} spec=${spec#latest:}
+    case $spec in "" | system | path:* | ref:*) continue ;; esac
+    if [[ -n ${named[$spec]:-} ]]; then AM_KEPT[$spec]=1; continue; fi
+    if [[ $spec != */* && $spec != . && $spec != .. && -L $folder/$spec ]]; then # mise's alias link: lts → 22.11.0
+      t=$(readlink -- "$folder/$spec")
+      [[ $t == /* ]] || t=$folder/$t
+      t=$(realpath -m -s -- "$t")
+      if [[ ${t%/*} == "$folder" && -n ${named[${t##*/}]:-} ]]; then AM_KEPT[${t##*/}]=1; continue; fi
+    fi
+    case $spec in latest | stable) continue ;; esac # the newest, kept anyway
+    if [[ $spec == lts* ]]; then
+      # Node's LTS lines are its even majors; the newest one may still be "Current" for its first six months,
+      # so the newest of the two newest even majors are kept. Another tool's lts is taken as its newest.
+      [[ $k == node ]] || continue
+      even=()
+      for n in "${sorted[@]}"; do
+        m=${nums[$n]%%.*}
+        [[ -z ${flav[$n]} ]] && ((10#$m % 2 == 0)) && even[$((10#$m))]=$n
+      done
+      majors=("${!even[@]}") # an indexed array's keys come out in order
+      for t in "${majors[@]: -2}"; do AM_KEPT[${even[$t]}]=1; done
+      continue
+    fi
+    if ! am_parse "$spec"; then # a pin that can't be read
+      for n in "${names[@]}"; do AM_KEPT[$n]=1; done
+      return 0
+    fi
+    pflavor=$AV_FLAVOR pnums=$AV_NUMS pkey=$AV_KEY pin=$AV_SUFFIX best=""
+    for n in "${sorted[@]}"; do
+      [[ ${flav[$n]} == "$pflavor" ]] || continue
+      [[ ${key[$n]} == "$pkey" || ( -z $pin && ${nums[$n]} == "$pnums".* ) ]] && best=$n
+    done
+    [[ -n $best ]] && AM_KEPT[$best]=1
+  done <<<"${AM_PINS[$k]:-}"
+  return 0
+}
+
+asdf_mise_old() { # → AM_DIR / AM_BYTES / AM_LABEL of the versions to offer, biggest first; AM_BUSY = labels of running ones
+  local t root tool f n d b label line used kept names=() cand=() keep=() sizes=()
+  AM_DIR=() AM_BYTES=() AM_LABEL=() AM_BUSY=() AM_PINS_RC="" # the settings are read again for each look
+  while IFS=$'\t' read -r t root; do
+    for tool in "$root"/*/; do
+      tool=${tool%/}
+      [[ -d $tool && ! -L $tool && ${tool##*/} != .* && $tool != *[[:cntrl:]]* ]] || continue
+      names=()
+      for f in "$tool"/*/; do
+        f=${f%/} n=${f##*/}
+        [[ -d $f && ! -L $f && $n != .* && $n != *[[:cntrl:]]* ]] && names+=("$n")
+      done
+      ((${#names[@]} > 1)) || continue
+      am_kept "$tool" "${names[@]}"
+      kept=$'\n'$(path_versions "$tool")$'\n'
+      for n in "${names[@]}"; do
+        [[ -n ${AM_KEPT[$n]:-} || $kept == *$'\n'"$n"$'\n'* ]] && continue
+        touches_exclusion "$tool/$n" && continue
+        cand+=("$tool/$n"$'\t'"${tool##*/} $n ($t)")
+      done
+    done
+  done < <(am_roots)
+  ((${#cand[@]})) || return 0
+  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$'\n'$(open_files)$'\n'
+  for line in "${cand[@]}"; do
+    if open_under "$used" "${line%%$'\t'*}"; then AM_BUSY+=("${line#*$'\t'}"); else keep+=("$line"); fi
+  done
+  ((${#keep[@]})) || return 0
+  mapfile -t sizes < <(printf '%s\n' "${keep[@]%%$'\t'*}" | sized_paths old_runtimes_asdf_mise own_bytes)
+  while IFS=$'\t' read -r b d label; do
+    AM_BYTES+=("$b") AM_DIR+=("$d") AM_LABEL+=("$label")
+  done < <(for n in "${!keep[@]}"; do printf '%s\t%s\n' "${sizes[n]:-0}" "${keep[n]}"; done | LC_ALL=C sort -t $'\t' -k1,1nr -k3,3)
+}
+
+lockedby_old_runtimes_asdf_mise() { running_proc -x 'asdf|mise'; } # an install or a shim may be using a version
+precheck_old_runtimes_asdf_mise() {
+  local p
+  p=$(lockedby_old_runtimes_asdf_mise) || return 0
+  warn "Skipping ${ITEM_LABEL[old_runtimes_asdf_mise]}: close $p first."
+  return 1
+}
+delete_asdf_mise_old() { # INDEX… of AM_DIR
+  local i rc=0
+  for i; do
+    is_protected "${AM_DIR[i]}" && { err "Refusing to touch protected path: ${AM_DIR[i]}"; rc=1; continue; }
+    run rm -rf -- "${AM_DIR[i]}" || rc=1
+  done
+  return "$rc"
+}
+scan_old_runtimes_asdf_mise() {
+  local b busy="" r
+  r=$(am_roots) && [[ -n $r ]] || return 1
+  asdf_mise_old
+  ((${#AM_BUSY[@]})) && busy="skipped while running: $(printf '%s, ' "${AM_BUSY[@]}")" busy=${busy%, }
+  if ((${#AM_DIR[@]} == 0)); then
+    SCAN_NOTE=$busy
+    return 2
+  fi
+  SCAN_BYTES=0
+  for b in "${AM_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#AM_DIR[@]} version) not pinned, not the newest${busy:+; $busy}"
+}
+clean_old_runtimes_asdf_mise() {
+  asdf_mise_old
+  ((${#AM_DIR[@]})) || return 0
+  delete_asdf_mise_old "${!AM_DIR[@]}"
+}
+details_old_runtimes_asdf_mise() {
+  local i
+  asdf_mise_old
+  for i in "${!AM_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${AM_BYTES[i]}")" "$(human "${AM_BYTES[i]}")" "$NC" "${AM_LABEL[i]}" "${AM_DIR[i]/#$HOME/\~}"
+  done
+  for i in "${AM_BUSY[@]}"; do printf '  %s%10s  %s  (running, skipped)%s\n' "$DIM" "" "$i" "$NC"; done
+}
+entries_old_runtimes_asdf_mise() {
+  local i
+  asdf_mise_old
+  for i in "${!AM_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${AM_DIR[i]}")" "${AM_BYTES[i]}" "${AM_LABEL[i]}"
+  done
+}
+clean_entries_old_runtimes_asdf_mise() { # encoded version folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  asdf_mise_old
+  for id; do
+    for i in "${!AM_DIR[@]}"; do [[ $(urlencode_path "${AM_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_asdf_mise_old "${pick[@]}"
+}
+
 # Android emulator system images no virtual device (AVD) uses: 1–8 GB each, and they stay when
 # the AVD is deleted. SDKs: ~/Android/Sdk, ANDROID_HOME and ANDROID_SDK_ROOT (inside your home, no
 # symlinks on the way). An image is system-images/<android-N>/<tag>/<abi> with a source.properties
@@ -5615,7 +5972,7 @@ plain_results() {
     ((++i))
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == old_runtimes_asdf_mise || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -9246,7 +9603,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 SEL[tracker_index]=0 SEL[baloo_index]=0 # never empty a Trash or reset a search index behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[old_runtimes_asdf_mise]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
   plain_results
   printf '\n'
   start_cleanup

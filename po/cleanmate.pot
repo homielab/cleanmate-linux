@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 14:14+0000\n"
+"POT-Creation-Date: 2026-11-01 17:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -668,80 +668,85 @@ msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:199
 #, python-brace-format
-msgid "{count} no AVD uses"
+msgid "{count} not pinned, not the newest"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:200
 #, python-brace-format
-msgid "{count} replaced by a newer one"
+msgid "{count} no AVD uses"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:201
 #, python-brace-format
-msgid "{count} — may contain data"
+msgid "{count} replaced by a newer one"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:202
 #, python-brace-format
-msgid "{count} kept"
+msgid "{count} — may contain data"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:204
+#: gui/cleanmate_gui/i18n.py:203
 #, python-brace-format
-msgid "{size} in total"
+msgid "{count} kept"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:205
 #, python-brace-format
-msgid "skipped while running: {names}"
+msgid "{size} in total"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:206
 #, python-brace-format
+msgid "skipped while running: {names}"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:207
+#, python-brace-format
 msgid "get it back with: ollama pull {ref}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:247 gui/cleanmate_gui/i18n.py:248
+#: gui/cleanmate_gui/i18n.py:248 gui/cleanmate_gui/i18n.py:249
 #, python-brace-format
 msgid "{days} days old"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:249 gui/cleanmate_gui/i18n.py:250
+#: gui/cleanmate_gui/i18n.py:250 gui/cleanmate_gui/i18n.py:251
 #, python-brace-format
 msgid "untouched for {days} days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:251
+#: gui/cleanmate_gui/i18n.py:252
 #, python-brace-format
 msgid "{days} days idle"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:252
+#: gui/cleanmate_gui/i18n.py:253
 msgid "(running, skipped)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:253
+#: gui/cleanmate_gui/i18n.py:254
 msgid "← running (kept)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:254
+#: gui/cleanmate_gui/i18n.py:255
 msgid "← kept as a fallback"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:255
+#: gui/cleanmate_gui/i18n.py:256
 msgid "← will be removed: "
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:256
+#: gui/cleanmate_gui/i18n.py:257
 #, python-brace-format
 msgid "(revision {revision})"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:257
+#: gui/cleanmate_gui/i18n.py:258
 msgid "Largest archived journal files:"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:259
+#: gui/cleanmate_gui/i18n.py:260
 #, python-brace-format
 msgid "Archived and active journals take up {size} in the file system."
 msgstr ""
@@ -4099,6 +4104,19 @@ msgid ""
 "SDKs (~/sdk), SDKMAN candidates (Java, Gradle, Maven…) and Flutter (fvm) "
 "versions that aren't your default. Deleted; install one again with the same "
 "tool. A version that is running is skipped."
+msgstr ""
+
+#. old_runtimes_asdf_mise label
+msgid "Old runtime versions (asdf, mise)"
+msgstr ""
+
+#. old_runtimes_asdf_mise description
+msgid ""
+"Node.js, Python, Ruby, Java and other versions asdf or mise installed that "
+"are neither the newest of their tool nor pinned in ~/.tool-versions, mise's "
+"settings or a project in your home folder. Deleted; install one again with "
+"asdf install or mise install. A version that is running is skipped. Close "
+"asdf and mise first."
 msgstr ""
 
 #. android_images label

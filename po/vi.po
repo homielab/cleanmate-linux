@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 14:14+0000\n"
+"POT-Creation-Date: 2026-11-01 17:23+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -637,80 +637,85 @@ msgstr "{count} không phải bản mặc định"
 
 #: gui/cleanmate_gui/i18n.py:199
 #, python-brace-format
+msgid "{count} not pinned, not the newest"
+msgstr "{count} không được ghim, không phải bản mới nhất"
+
+#: gui/cleanmate_gui/i18n.py:200
+#, python-brace-format
 msgid "{count} no AVD uses"
 msgstr "{count} không AVD nào dùng"
 
-#: gui/cleanmate_gui/i18n.py:200
+#: gui/cleanmate_gui/i18n.py:201
 #, python-brace-format
 msgid "{count} replaced by a newer one"
 msgstr "{count} đã có bản mới hơn"
 
-#: gui/cleanmate_gui/i18n.py:201
+#: gui/cleanmate_gui/i18n.py:202
 #, python-brace-format
 msgid "{count} — may contain data"
 msgstr "{count} — có thể chứa dữ liệu"
 
-#: gui/cleanmate_gui/i18n.py:202
+#: gui/cleanmate_gui/i18n.py:203
 #, python-brace-format
 msgid "{count} kept"
 msgstr "giữ {count}"
 
-#: gui/cleanmate_gui/i18n.py:204
+#: gui/cleanmate_gui/i18n.py:205
 #, python-brace-format
 msgid "{size} in total"
 msgstr "tổng cộng {size}"
 
-#: gui/cleanmate_gui/i18n.py:205
+#: gui/cleanmate_gui/i18n.py:206
 #, python-brace-format
 msgid "skipped while running: {names}"
 msgstr "bỏ qua vì đang chạy: {names}"
 
-#: gui/cleanmate_gui/i18n.py:206
+#: gui/cleanmate_gui/i18n.py:207
 #, python-brace-format
 msgid "get it back with: ollama pull {ref}"
 msgstr "lấy lại bằng: ollama pull {ref}"
 
-#: gui/cleanmate_gui/i18n.py:247 gui/cleanmate_gui/i18n.py:248
+#: gui/cleanmate_gui/i18n.py:248 gui/cleanmate_gui/i18n.py:249
 #, python-brace-format
 msgid "{days} days old"
 msgstr "cũ {days} ngày"
 
-#: gui/cleanmate_gui/i18n.py:249 gui/cleanmate_gui/i18n.py:250
+#: gui/cleanmate_gui/i18n.py:250 gui/cleanmate_gui/i18n.py:251
 #, python-brace-format
 msgid "untouched for {days} days"
 msgstr "không đụng tới {days} ngày"
 
-#: gui/cleanmate_gui/i18n.py:251
+#: gui/cleanmate_gui/i18n.py:252
 #, python-brace-format
 msgid "{days} days idle"
 msgstr "không dùng {days} ngày"
 
-#: gui/cleanmate_gui/i18n.py:252
+#: gui/cleanmate_gui/i18n.py:253
 msgid "(running, skipped)"
 msgstr "(đang chạy, bỏ qua)"
 
-#: gui/cleanmate_gui/i18n.py:253
+#: gui/cleanmate_gui/i18n.py:254
 msgid "← running (kept)"
 msgstr "← đang chạy (giữ lại)"
 
-#: gui/cleanmate_gui/i18n.py:254
+#: gui/cleanmate_gui/i18n.py:255
 msgid "← kept as a fallback"
 msgstr "← giữ làm dự phòng"
 
-#: gui/cleanmate_gui/i18n.py:255
+#: gui/cleanmate_gui/i18n.py:256
 msgid "← will be removed: "
 msgstr "← sẽ bị xoá: "
 
-#: gui/cleanmate_gui/i18n.py:256
+#: gui/cleanmate_gui/i18n.py:257
 #, python-brace-format
 msgid "(revision {revision})"
 msgstr "(bản {revision})"
 
-#: gui/cleanmate_gui/i18n.py:257
+#: gui/cleanmate_gui/i18n.py:258
 msgid "Largest archived journal files:"
 msgstr "Tệp journal lưu trữ lớn nhất:"
 
-#: gui/cleanmate_gui/i18n.py:259
+#: gui/cleanmate_gui/i18n.py:260
 #, python-brace-format
 msgid "Archived and active journals take up {size} in the file system."
 msgstr "Journal lưu trữ và đang dùng chiếm {size} trên hệ thống tệp."
@@ -4307,6 +4312,24 @@ msgstr ""
 "(rustup), Go SDK (~/sdk), candidate SDKMAN (Java, Gradle, Maven…) và Flutter "
 "(fvm) không phải mặc định của bạn. Xoá hẳn; cài lại bằng chính công cụ đó. "
 "Bỏ qua phiên bản đang chạy."
+
+#. old_runtimes_asdf_mise label
+msgid "Old runtime versions (asdf, mise)"
+msgstr "Phiên bản runtime cũ (asdf, mise)"
+
+#. old_runtimes_asdf_mise description
+msgid ""
+"Node.js, Python, Ruby, Java and other versions asdf or mise installed that "
+"are neither the newest of their tool nor pinned in ~/.tool-versions, mise's "
+"settings or a project in your home folder. Deleted; install one again with "
+"asdf install or mise install. A version that is running is skipped. Close "
+"asdf and mise first."
+msgstr ""
+"Phiên bản Node.js, Python, Ruby, Java và các runtime khác do asdf hoặc mise "
+"cài, không phải bản mới nhất của công cụ đó và không được ghim trong "
+"~/.tool-versions, cài đặt của mise hay một dự án trong thư mục home. Xoá "
+"hẳn; cài lại bằng asdf install hoặc mise install. Bỏ qua phiên bản đang "
+"chạy. Hãy đóng asdf và mise trước."
 
 #. android_images label
 msgid "Android system images (unused)"
