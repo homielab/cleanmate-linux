@@ -3614,6 +3614,33 @@ msgstr ""
 "Shader mà Mesa, NVIDIA và Qt đã biên dịch cho card đồ họa của bạn. Hệ thống "
 "tạo lại chúng; game có thể giật nhẹ lần đầu."
 
+#. tracker_index label
+msgid "Desktop search index (GNOME Tracker)"
+msgstr "Chỉ mục tìm kiếm (GNOME Tracker)"
+
+#. tracker_index description
+msgid ""
+"Index GNOME's file search (Tracker / LocalSearch) built of your files. "
+"Searching files is slow or incomplete until it is built again; indexing "
+"settings are kept."
+msgstr ""
+"Chỉ mục mà trình tìm kiếm tệp của GNOME (Tracker / LocalSearch) tạo từ tệp "
+"của bạn. Tìm kiếm tệp chậm hoặc thiếu cho tới khi lập chỉ mục lại; cài đặt "
+"lập chỉ mục được giữ."
+
+#. baloo_index label
+msgid "Desktop search index (KDE Baloo)"
+msgstr "Chỉ mục tìm kiếm (KDE Baloo)"
+
+#. baloo_index description
+msgid ""
+"Index KDE's file search (Baloo) built of your files. Searching files is slow"
+" or incomplete until it is built again; indexing settings are kept."
+msgstr ""
+"Chỉ mục mà trình tìm kiếm tệp của KDE (Baloo) tạo từ tệp của bạn. Tìm kiếm "
+"tệp chậm hoặc thiếu cho tới khi lập chỉ mục lại; cài đặt lập chỉ mục được "
+"giữ."
+
 #. priv_recent label
 msgid "Recent files list"
 msgstr "Danh sách tệp gần đây"

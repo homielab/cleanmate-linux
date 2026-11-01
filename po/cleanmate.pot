@@ -3509,6 +3509,27 @@ msgid ""
 "builds them again; a game may stutter briefly the first time."
 msgstr ""
 
+#. tracker_index label
+msgid "Desktop search index (GNOME Tracker)"
+msgstr ""
+
+#. tracker_index description
+msgid ""
+"Index GNOME's file search (Tracker / LocalSearch) built of your files. "
+"Searching files is slow or incomplete until it is built again; indexing "
+"settings are kept."
+msgstr ""
+
+#. baloo_index label
+msgid "Desktop search index (KDE Baloo)"
+msgstr ""
+
+#. baloo_index description
+msgid ""
+"Index KDE's file search (Baloo) built of your files. Searching files is slow"
+" or incomplete until it is built again; indexing settings are kept."
+msgstr ""
+
 #. priv_recent label
 msgid "Recent files list"
 msgstr ""

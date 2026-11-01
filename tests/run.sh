@@ -3203,6 +3203,41 @@ test_gpu_shader_cache_item() {
   assert_exists "$WORK/outside/mesa_shader_cache/o"
 }
 
+test_search_index_items() {
+  fresh_home
+  local nt; nt=$(path_without localsearch3 tracker3 balooctl6 balooctl) # the branch without the tools
+  local h=$HOME_DIR out bin=$WORK/idxbin
+  old "$h/.cache/tracker3/files/meta.db" 1; old "$h/.local/share/baloo/index"; old "$h/.config/baloofilerc"
+  out=$(cm --scan --only user 2>&1)
+  assert_contains "$out" "Desktop search index (GNOME Tracker)"
+  assert_contains "$out" "Desktop search index (KDE Baloo)"
+  BASE_PATH=$nt cm --clean --yes --only user >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.local/share/baloo/index" # not selected by default
+  select_only tracker_index baloo_index
+  BASE_PATH=$nt cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.local/share/baloo/index" # never reset unattended by the timer
+  # no tool: the folder is emptied, but not while the indexer runs
+  running_stub "$WORK/idxrun" baloo_file
+  BASE_PATH="$WORK/idxrun:$nt" cm --clean --yes --only user >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.local/share/baloo/index"
+  assert_missing "$h/.cache/tracker3/files"
+  BASE_PATH=$nt cm --clean --yes --only user >/dev/null 2>&1 </dev/null
+  assert_missing "$h/.local/share/baloo/index"
+  assert_exists "$h/.config/baloofilerc"
+  # with the tool: its own reset command runs, also while the indexer runs
+  old "$h/.cache/tracker3/files/meta.db" 1; old "$h/.local/share/baloo/index"
+  mkdir -p "$bin"
+  for c in tracker3 balooctl6; do printf '#!/bin/sh\necho "%s $*" >>"%s/calls"\n' "$c" "$WORK" >"$bin/$c"; chmod 755 "$bin/$c"; done
+  cp "$WORK/idxrun/pgrep" "$bin/pgrep"
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only user >/dev/null 2>&1 </dev/null
+  assert_contains "$(<"$WORK/calls")" "tracker3 reset --filesystem"
+  assert_contains "$(<"$WORK/calls")" "balooctl6 purge"
+  assert_exists "$h/.local/share/baloo/index" # left to the tool
+  rm -r "$h/.cache/tracker3" "$h/.local/share/baloo"
+  out=$(cm --scan --only user 2>&1)
+  [[ $out == *"Desktop search index"* ]] && fail "listed without its folder" || ok_ "hidden without its folder"
+}
+
 test_cloud_sync_client_caches() {
   fresh_home
   local h=$HOME_DIR out bin=$WORK/cloudbin

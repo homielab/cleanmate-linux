@@ -3257,6 +3257,36 @@ reg_cache_item gpu_shader_cache apps "GPU shader cache" 0 \
     sub_paths GLCache "$(env_home_dir __GL_SHADER_DISK_CACHE_PATH)")" \
   'steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*'
 unset _gl _b
+# Desktop search indexes: reset with the tool's own command when it is installed
+# (it stops the indexer and starts over), else delete the folder while the indexer is not running.
+reg_cache_item tracker_index user "Desktop search index (GNOME Tracker)" 0 \
+  "Index GNOME's file search (Tracker / LocalSearch) built of your files. Searching files is slow or incomplete until it is built again; indexing settings are kept." \
+  "$HOME/.cache/tracker3
+$HOME/.cache/tracker" 'tracker-miner-fs.*|localsearch.*'
+reg_cache_item baloo_index user "Desktop search index (KDE Baloo)" 0 \
+  "Index KDE's file search (Baloo) built of your files. Searching files is slow or incomplete until it is built again; indexing settings are kept." \
+  "$HOME/.local/share/baloo" 'baloo_file.*'
+search_index_tool() { # ID → the indexer's own reset command, when installed
+  local t
+  case $1 in
+    tracker_index) for t in localsearch3 tracker3; do have "$t" && { echo "$t reset --filesystem"; return 0; }; done ;;
+    baloo_index) for t in balooctl6 balooctl; do have "$t" && { echo "$t purge"; return 0; }; done ;;
+  esac
+  return 1
+}
+search_index_clean() {
+  local cmd
+  if cmd=$(search_index_tool "$1"); then
+    # shellcheck disable=SC2086 # the command and its arguments
+    run $cmd </dev/null
+  else cache_item_clean "$1"; fi
+}
+for _id in tracker_index baloo_index; do
+  eval "clean_$_id() { search_index_clean $_id; }
+        precheck_$_id() { search_index_tool $_id >/dev/null || cache_item_precheck $_id; }
+        lockedby_$_id() { ! search_index_tool $_id >/dev/null && lockedby_cache_item $_id; }"
+done
+unset _id
 reg_cache_item nuget_cache dev "NuGet cache" 0 \
   "Package metadata and downloads NuGet cached (HTTP caches). Downloaded again by the next restore; ~/.nuget/packages is kept." \
   "$HOME/.local/share/NuGet/v3-cache
@@ -9010,7 +9040,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
   for id in "${SCANNED[@]}"; do # … but only user & developer junk is cleaned
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
-  SEL[trash]=0 SEL[trash_drives]=0 # never empty a Trash behind the user's back
+  SEL[trash]=0 SEL[trash_drives]=0 SEL[tracker_index]=0 SEL[baloo_index]=0 # never empty a Trash or reset a search index behind the user's back
   SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, SDK components or extension versions to download again and IDE versions to let go
   plain_results
   printf '\n'
