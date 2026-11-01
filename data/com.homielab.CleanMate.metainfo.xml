@@ -128,6 +128,19 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="2.1.0" date="2026-11-01">
+      <description>
+        <p>New cleaning items, a first-run welcome, and faster Smart Scan.</p>
+        <ul>
+          <li>GPU shader cache and desktop search index (Tracker, Baloo) items</li>
+          <li>Uninstaller: reset an app, AppImage apps, leftovers of removed apps</li>
+          <li>Privacy: browser history, downloads list and cookies</li>
+          <li>Developer Junk: old Android SDK parts and old editor extensions</li>
+          <li>Broken startup items, low disk alert and scan reminder, Report a Bug</li>
+          <li>Faster Smart Scan on computers with many projects or packages</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.0.0" date="2026-10-31">
       <description>
         <p>First public release of CleanMate for Linux.</p>

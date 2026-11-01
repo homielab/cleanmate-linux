@@ -6,6 +6,8 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-11-01
+
 ### Added
 
 - **Desktop search index** (User & App Junk, not pre-selected): the file search index of GNOME (Tracker / LocalSearch, `~/.cache/tracker3`) and KDE (Baloo, `~/.local/share/baloo`), which can grow to several GB. Reset with `localsearch3`/`tracker3 reset --filesystem` or `balooctl6 purge` when installed, otherwise the folder is emptied while the indexer is not running. File search is slow or incomplete until it is rebuilt; indexing settings are kept.
@@ -147,4 +149,5 @@ First public release of CleanMate for Linux.
 - PPA (`ppa:homielab/cleanmate`), `.deb` from GitHub Releases, snap, or the script with
   `--install`, `--update` and `--uninstall`.
 
+[2.1.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.1.0
 [2.0.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.0.0

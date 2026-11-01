@@ -9,7 +9,7 @@
 name: cleanmate
 title: CleanMate
 base: core24
-version: "2.0.0"
+version: "2.1.0"
 summary: Free up space and keep Ubuntu tidy
 description: |
   CleanMate finds what is taking up space on your computer and lets you
