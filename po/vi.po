@@ -3602,6 +3602,18 @@ msgstr ""
 "giật nhẹ lần đầu."
 
 #
+#. gpu_shader_cache label
+msgid "GPU shader cache"
+msgstr "Bộ nhớ đệm shader GPU"
+
+#. gpu_shader_cache description
+msgid ""
+"Shaders that Mesa, NVIDIA and Qt compiled for your graphics card. The system "
+"builds them again; a game may stutter briefly the first time."
+msgstr ""
+"Shader mà Mesa, NVIDIA và Qt đã biên dịch cho card đồ họa của bạn. Hệ thống "
+"tạo lại chúng; game có thể giật nhẹ lần đầu."
+
 #. priv_recent label
 msgid "Recent files list"
 msgstr "Danh sách tệp gần đây"

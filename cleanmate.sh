@@ -3248,6 +3248,15 @@ reg_cache_item ccache_cache dev "ccache cache" 0 \
 reg_cache_item sccache_cache dev "sccache cache" 0 \
   "Compiler outputs sccache saved. Made again by the next build." \
   "$(sub_paths "$HEX_NAMES" "$HOME/.cache/sccache" "$_xc/sccache" "$(env_home_dir SCCACHE_DIR)")" "sccache"
+_gl=() # folders with a variable part in their name (radv_builtin_shaders*, qtshadercache*)
+for _b in "$HOME"/.cache/radv_builtin_shaders* "$HOME"/.cache/qtshadercache*; do [[ -d $_b ]] && _gl+=("$_b"); done
+reg_cache_item gpu_shader_cache apps "GPU shader cache" 0 \
+  "Shaders that Mesa, NVIDIA and Qt compiled for your graphics card. The system builds them again; a game may stutter briefly the first time." \
+  "$(uniq_lines "$HOME/.cache/mesa_shader_cache" "$HOME/.cache/mesa_shader_cache_db" "${_gl[@]}" "$HOME/.cache/nvidia/GLCache" "$HOME/.nv/GLCache"
+    sub_paths "mesa_shader_cache mesa_shader_cache_db" "$_xc" "$(env_home_dir MESA_SHADER_CACHE_DIR)" "$(env_home_dir MESA_GLSL_CACHE_DIR)"
+    sub_paths GLCache "$(env_home_dir __GL_SHADER_DISK_CACHE_PATH)")" \
+  'steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*'
+unset _gl _b
 reg_cache_item nuget_cache dev "NuGet cache" 0 \
   "Package metadata and downloads NuGet cached (HTTP caches). Downloaded again by the next restore; ~/.nuget/packages is kept." \
   "$HOME/.local/share/NuGet/v3-cache

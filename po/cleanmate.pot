@@ -3499,6 +3499,16 @@ msgid ""
 "stutter briefly the first time."
 msgstr ""
 
+#. gpu_shader_cache label
+msgid "GPU shader cache"
+msgstr ""
+
+#. gpu_shader_cache description
+msgid ""
+"Shaders that Mesa, NVIDIA and Qt compiled for your graphics card. The system "
+"builds them again; a game may stutter briefly the first time."
+msgstr ""
+
 #. priv_recent label
 msgid "Recent files list"
 msgstr ""

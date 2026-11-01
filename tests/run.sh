@@ -3174,6 +3174,35 @@ EOF
   assert_contains "$(<"$log")" "podman system prune -f"
 }
 
+test_gpu_shader_cache_item() {
+  fresh_home
+  local h=$HOME_DIR out
+  old "$h/.cache/mesa_shader_cache/ab/x"; old "$h/.cache/radv_builtin_shaders64/y"; old "$h/.nv/GLCache/z"
+  old "$h/.cache/qtshadercache-x86_64/q"; old "$h/mydir/mesa_shader_cache/m"; old "$WORK/outside/mesa_shader_cache/o"
+  printf 'export MESA_SHADER_CACHE_DIR=$HOME/mydir\nexport __GL_SHADER_DISK_CACHE_PATH=%s\n' "$WORK/outside" >"$h/.bashrc"
+  out=$(cm --scan --only apps 2>&1)
+  assert_contains "$out" "GPU shader cache"
+  out=$(cm --json details gpu_shader_cache 2>&1)
+  assert_contains "$out" "radv_builtin_shaders64"
+  assert_contains "$out" ".nv/GLCache"
+  assert_contains "$out" "mydir/mesa_shader_cache"
+  [[ $out == *outside* ]] && fail "a folder outside home was listed" || ok_ "outside home ignored"
+  cm --clean --yes --only apps >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.cache/mesa_shader_cache/ab/x" # not selected by default
+  select_only gpu_shader_cache
+  running_stub "$WORK/gpustub" lutris
+  BASE_PATH="$WORK/gpustub:$BASE_PATH" cm --clean --yes --only apps >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.cache/mesa_shader_cache/ab/x"
+  cm --clean --yes --only apps >/dev/null 2>&1 </dev/null
+  assert_missing "$h/.cache/mesa_shader_cache/ab"
+  assert_missing "$h/.cache/radv_builtin_shaders64/y"
+  assert_missing "$h/.nv/GLCache/z"
+  assert_missing "$h/.cache/qtshadercache-x86_64/q"
+  assert_missing "$h/mydir/mesa_shader_cache/m"
+  assert_exists "$h/.cache/mesa_shader_cache"
+  assert_exists "$WORK/outside/mesa_shader_cache/o"
+}
+
 test_cloud_sync_client_caches() {
   fresh_home
   local h=$HOME_DIR out bin=$WORK/cloudbin
