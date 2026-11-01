@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 14:55+0700\n"
+"POT-Creation-Date: 2026-11-01 09:04+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -296,7 +296,7 @@ msgstr "Mô hình AI"
 msgid "Developer Junk"
 msgstr "Rác developer"
 
-#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/welcome.py:95
+#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/welcome.py:97
 #: gui/cleanmate_gui/window.py:44
 msgid "Privacy"
 msgstr "Quyền riêng tư"
@@ -1792,7 +1792,7 @@ msgid "General"
 msgstr "Chung"
 
 #: gui/cleanmate_gui/settings.py:156 gui/cleanmate_gui/settings.py:239
-#: gui/cleanmate_gui/welcome.py:122
+#: gui/cleanmate_gui/welcome.py:124
 msgid "Automatic cleaning"
 msgstr "Dọn tự động"
 
@@ -2104,8 +2104,8 @@ msgstr[0] "{n} mục · {percent}"
 
 #: gui/cleanmate_gui/spacelens.py:293
 msgid ""
-"Can't be moved to the Trash: you never clean it, or a folder in it "
-"(Settings › Never clean)"
+"Can't be moved to the Trash: you never clean it, or a folder in it (Settings "
+"› Never clean)"
 msgstr ""
 "Không chuyển vào Thùng rác được: mục này hoặc một thư mục bên trong nằm "
 "trong danh sách Không bao giờ dọn (Cài đặt)"
@@ -2689,43 +2689,43 @@ msgid "Put back {n} folder from the Trash"
 msgid_plural "Put back {n} folders from the Trash"
 msgstr[0] "Đã trả lại {n} thư mục từ Thùng rác"
 
-#: gui/cleanmate_gui/welcome.py:50 gui/cleanmate_gui/welcome.py:89
+#: gui/cleanmate_gui/welcome.py:52 gui/cleanmate_gui/welcome.py:91
 msgid "Welcome to CleanMate"
 msgstr "Chào mừng đến với CleanMate"
 
-#: gui/cleanmate_gui/welcome.py:57
+#: gui/cleanmate_gui/welcome.py:59
 msgid "Your options"
 msgstr "Tuỳ chọn của bạn"
 
-#: gui/cleanmate_gui/welcome.py:58
+#: gui/cleanmate_gui/welcome.py:60
 msgid "Change them any time in Settings, in the main menu (Ctrl+,)."
 msgstr "Đổi lúc nào cũng được trong Cài đặt, ở menu chính (Ctrl+,)."
 
-#: gui/cleanmate_gui/welcome.py:66
+#: gui/cleanmate_gui/welcome.py:68
 msgid "Skip"
 msgstr "Bỏ qua"
 
-#: gui/cleanmate_gui/welcome.py:68
+#: gui/cleanmate_gui/welcome.py:70
 msgid "Back"
 msgstr "Quay lại"
 
-#: gui/cleanmate_gui/welcome.py:70 gui/cleanmate_gui/welcome.py:164
+#: gui/cleanmate_gui/welcome.py:72 gui/cleanmate_gui/welcome.py:166
 msgid "Next"
 msgstr "Tiếp"
 
-#: gui/cleanmate_gui/welcome.py:90
+#: gui/cleanmate_gui/welcome.py:92
 msgid "Free up disk space and keep Ubuntu tidy — safely."
 msgstr "Giải phóng dung lượng và giữ Ubuntu gọn gàng — an toàn."
 
-#: gui/cleanmate_gui/welcome.py:91
+#: gui/cleanmate_gui/welcome.py:93
 msgid "What it does"
 msgstr "CleanMate làm gì"
 
-#: gui/cleanmate_gui/welcome.py:92 gui/cleanmate_gui/window.py:29
+#: gui/cleanmate_gui/welcome.py:94 gui/cleanmate_gui/window.py:29
 msgid "Smart Scan"
 msgstr "Quét thông minh"
 
-#: gui/cleanmate_gui/welcome.py:93
+#: gui/cleanmate_gui/welcome.py:95
 msgid ""
 "System, developer and AI tool junk in one scan: caches, old logs, unused "
 "packages and what removed apps left behind."
@@ -2733,36 +2733,36 @@ msgstr ""
 "Rác hệ thống, rác developer và rác công cụ AI trong một lần quét: bộ nhớ "
 "đệm, nhật ký cũ, gói không dùng và những gì ứng dụng đã gỡ để lại."
 
-#: gui/cleanmate_gui/welcome.py:96
+#: gui/cleanmate_gui/welcome.py:98
 msgid "Browser history and cookies, terminal history and recent files."
 msgstr "Lịch sử và cookie trình duyệt, lịch sử terminal và tệp gần đây."
 
-#: gui/cleanmate_gui/welcome.py:97 gui/cleanmate_gui/window.py:55
+#: gui/cleanmate_gui/welcome.py:99 gui/cleanmate_gui/window.py:55
 msgid "Uninstaller"
 msgstr "Gỡ ứng dụng"
 
-#: gui/cleanmate_gui/welcome.py:98
+#: gui/cleanmate_gui/welcome.py:100
 msgid "Remove apps and the folders they leave in your home."
 msgstr "Gỡ ứng dụng và các thư mục chúng để lại trong thư mục nhà."
 
-#: gui/cleanmate_gui/welcome.py:99 gui/cleanmate_gui/window.py:47
+#: gui/cleanmate_gui/welcome.py:101 gui/cleanmate_gui/window.py:47
 #: gui/cleanmate_gui/window.py:239
 msgid "Space Lens"
 msgstr "Space Lens"
 
-#: gui/cleanmate_gui/welcome.py:99
+#: gui/cleanmate_gui/welcome.py:101
 msgid "See what takes up the space, folder by folder."
 msgstr "Xem thứ gì chiếm chỗ, từng thư mục một."
 
-#: gui/cleanmate_gui/welcome.py:101
+#: gui/cleanmate_gui/welcome.py:103
 msgid "How it stays safe"
 msgstr "Cách CleanMate giữ an toàn"
 
-#: gui/cleanmate_gui/welcome.py:102
+#: gui/cleanmate_gui/welcome.py:104
 msgid "You see everything first"
 msgstr "Bạn xem trước mọi thứ"
 
-#: gui/cleanmate_gui/welcome.py:103
+#: gui/cleanmate_gui/welcome.py:105
 msgid ""
 "Each clean lists the items and their sizes, and nothing is removed until you "
 "confirm."
@@ -2770,11 +2770,11 @@ msgstr ""
 "Mỗi lần dọn đều liệt kê các mục và dung lượng của chúng, và không có gì bị "
 "xoá cho đến khi bạn xác nhận."
 
-#: gui/cleanmate_gui/welcome.py:104
+#: gui/cleanmate_gui/welcome.py:106
 msgid "Your files go to the Trash"
 msgstr "Tệp của bạn vào Thùng rác"
 
-#: gui/cleanmate_gui/welcome.py:105
+#: gui/cleanmate_gui/welcome.py:107
 msgid ""
 "Caches and logs that apps make again are deleted. Your own files go to the "
 "Trash, and Undo puts them back."
@@ -2782,11 +2782,11 @@ msgstr ""
 "Bộ nhớ đệm và nhật ký mà ứng dụng tự tạo lại thì bị xoá. Tệp của chính bạn "
 "vào Thùng rác, và Hoàn tác trả chúng lại."
 
-#: gui/cleanmate_gui/welcome.py:107
+#: gui/cleanmate_gui/welcome.py:109
 msgid "Open source, no data collected"
 msgstr "Mã nguồn mở, không thu thập dữ liệu"
 
-#: gui/cleanmate_gui/welcome.py:108
+#: gui/cleanmate_gui/welcome.py:110
 msgid ""
 "Nothing about you is sent anywhere. The only connection is a daily check for "
 "a new version, which you can turn off; installed from a package, there is "
@@ -2795,19 +2795,19 @@ msgstr ""
 "Không có gì về bạn được gửi đi. Kết nối duy nhất là kiểm tra phiên bản mới "
 "mỗi ngày, bạn tắt được; khi cài bằng gói thì không có."
 
-#: gui/cleanmate_gui/welcome.py:115
+#: gui/cleanmate_gui/welcome.py:117
 msgid "What needs your password"
 msgstr "Những gì cần mật khẩu"
 
-#: gui/cleanmate_gui/welcome.py:116
+#: gui/cleanmate_gui/welcome.py:118
 msgid "Most cleaning runs as you, without a password."
 msgstr "Phần lớn việc dọn chạy bằng tài khoản của bạn, không cần mật khẩu."
 
-#: gui/cleanmate_gui/welcome.py:118
+#: gui/cleanmate_gui/welcome.py:120
 msgid "Items with a lock"
 msgstr "Mục có ổ khoá"
 
-#: gui/cleanmate_gui/welcome.py:119
+#: gui/cleanmate_gui/welcome.py:121
 msgid ""
 "The APT cache, system logs, old kernels and old Snap versions belong to the "
 "system. Cleaning them asks for your password in Ubuntu's own dialog; so do "
@@ -2817,17 +2817,17 @@ msgstr ""
 "thống. Dọn chúng sẽ hỏi mật khẩu qua hộp thoại của chính Ubuntu; gỡ ứng dụng "
 "apt, Snap và các tác vụ Bảo trì cũng vậy."
 
-#: gui/cleanmate_gui/welcome.py:123
+#: gui/cleanmate_gui/welcome.py:125
 msgid ""
 "Cleans only user and developer junk, so it never asks for your password."
 msgstr ""
 "Chỉ dọn rác người dùng và rác developer, nên không bao giờ hỏi mật khẩu."
 
-#: gui/cleanmate_gui/welcome.py:124
+#: gui/cleanmate_gui/welcome.py:126
 msgid "Snap, Flatpak and AppImage"
 msgstr "Snap, Flatpak và AppImage"
 
-#: gui/cleanmate_gui/welcome.py:125
+#: gui/cleanmate_gui/welcome.py:127
 msgid ""
 "Apps from apt, Snap, Flatpak and AppImage are all found, with their caches "
 "and leftovers."
@@ -2835,24 +2835,24 @@ msgstr ""
 "Ứng dụng từ apt, Snap, Flatpak và AppImage đều được nhận ra, cùng bộ nhớ đệm "
 "và phần còn sót lại của chúng."
 
-#: gui/cleanmate_gui/welcome.py:127
+#: gui/cleanmate_gui/welcome.py:129
 msgid "Never touched"
 msgstr "Không bao giờ đụng tới"
 
-#: gui/cleanmate_gui/welcome.py:128
+#: gui/cleanmate_gui/welcome.py:130
 msgid "Logins and keys"
 msgstr "Thông tin đăng nhập và khoá"
 
-#: gui/cleanmate_gui/welcome.py:129
+#: gui/cleanmate_gui/welcome.py:131
 msgid ".ssh, .gnupg and saved logins, your settings and bookmarks."
 msgstr ""
 ".ssh, .gnupg và thông tin đăng nhập đã lưu, cài đặt và dấu trang của bạn."
 
-#: gui/cleanmate_gui/welcome.py:130
+#: gui/cleanmate_gui/welcome.py:132
 msgid "Your documents"
 msgstr "Tài liệu của bạn"
 
-#: gui/cleanmate_gui/welcome.py:131
+#: gui/cleanmate_gui/welcome.py:133
 msgid ""
 "Nothing of yours is removed unless you tick it in Space Lens, Large & Old "
 "Files or Duplicates — and then it goes to the Trash."
@@ -2860,21 +2860,21 @@ msgstr ""
 "Không gì của bạn bị xoá trừ khi bạn tự chọn nó trong Space Lens, Tệp lớn & "
 "cũ hoặc Tệp trùng lặp — và khi đó nó vào Thùng rác."
 
-#: gui/cleanmate_gui/welcome.py:133
+#: gui/cleanmate_gui/welcome.py:135
 msgid "The kernel you run"
 msgstr "Kernel đang chạy"
 
-#: gui/cleanmate_gui/welcome.py:134
+#: gui/cleanmate_gui/welcome.py:136
 msgid "Old kernels can go, but never the one you run or the one before it."
 msgstr ""
 "Kernel cũ có thể được dọn, nhưng không bao giờ là kernel đang chạy hay "
 "kernel ngay trước nó."
 
-#: gui/cleanmate_gui/welcome.py:137
+#: gui/cleanmate_gui/welcome.py:139
 msgid "The terminal app"
 msgstr "App terminal"
 
-#: gui/cleanmate_gui/welcome.py:138
+#: gui/cleanmate_gui/welcome.py:140
 msgid ""
 "Run cm in a terminal for every tool, also over SSH. sudo cm cleans the "
 "system items in one go."
@@ -2882,20 +2882,20 @@ msgstr ""
 "Chạy cm trong terminal để có mọi công cụ, cả qua SSH. sudo cm dọn các mục hệ "
 "thống trong một lượt."
 
-#: gui/cleanmate_gui/welcome.py:140 gui/cleanmate_gui/window.py:96
+#: gui/cleanmate_gui/welcome.py:142 gui/cleanmate_gui/window.py:96
 msgid "All tools (terminal)"
 msgstr "Mọi công cụ (terminal)"
 
 #
-#: gui/cleanmate_gui/welcome.py:140 gui/cleanmate_gui/window.py:97
+#: gui/cleanmate_gui/welcome.py:142 gui/cleanmate_gui/window.py:97
 msgid "Open the terminal app (cm)"
 msgstr "Mở app terminal (cm)"
 
-#: gui/cleanmate_gui/welcome.py:142
+#: gui/cleanmate_gui/welcome.py:144
 msgid "Open"
 msgstr "Mở"
 
-#: gui/cleanmate_gui/welcome.py:164
+#: gui/cleanmate_gui/welcome.py:166
 msgid "Start"
 msgstr "Bắt đầu"
 
@@ -3894,8 +3894,8 @@ msgid ""
 "Undo snapshots of opencode sessions older than {0} days. Sessions in "
 "opencode.db are kept."
 msgstr ""
-"Snapshot hoàn tác của phiên opencode cũ hơn {0} ngày. Phiên trong "
-"opencode.db được giữ."
+"Snapshot hoàn tác của phiên opencode cũ hơn {0} ngày. Phiên trong opencode."
+"db được giữ."
 
 #. ai_cursor_cache label
 msgid "Cursor — cache & logs"
@@ -4283,6 +4283,24 @@ msgstr ""
 "thường vài GB mỗi ảnh. Xoá hẳn; tải lại bằng SDK Manager của Android Studio. "
 "Hãy đóng Android Studio và trình giả lập trước."
 
+#. android_sdk_old label
+msgid "Old Android SDK components"
+msgstr "Bộ phận Android SDK cũ"
+
+#. android_sdk_old description
+msgid ""
+"Old NDK, build-tools, SDK platform and CMake versions in your Android SDK. "
+"The newest of each and the versions a project in your home folder pins "
+"(build.gradle, local.properties) are kept. A project elsewhere may still "
+"need one: download it again with Android Studio's SDK Manager. Close Android "
+"Studio, Gradle and the emulator first."
+msgstr ""
+"Các phiên bản NDK, build-tools, SDK platform và CMake cũ trong Android SDK. "
+"Giữ bản mới nhất của mỗi loại và các bản mà một dự án trong thư mục home "
+"ghim (build.gradle, local.properties). Dự án ở nơi khác có thể vẫn cần: tải "
+"lại bằng SDK Manager của Android Studio. Hãy đóng Android Studio, Gradle và "
+"trình giả lập trước."
+
 #. android_avd_snapshots label
 msgid "Android emulator snapshots"
 msgstr "Snapshot máy ảo Android"
@@ -4346,13 +4364,13 @@ msgstr "Model đã tải của PyTorch, Whisper & Keras"
 
 #. ai_model_caches description
 msgid ""
-"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded "
-"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when "
-"a program needs one. A model in use is skipped."
+"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/."
+"cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a "
+"program needs one. A model in use is skipped."
 msgstr ""
-"Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải "
-"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi "
-"chương trình cần. Model đang dùng được bỏ qua."
+"Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải (~/."
+"cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi chương "
+"trình cần. Model đang dùng được bỏ qua."
 
 #~ msgid ""
 #~ "Notify when free space drops below this percentage, checked with "

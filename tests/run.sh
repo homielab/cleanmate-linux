@@ -3560,6 +3560,100 @@ $enc33 $b33 off Android 33 · google_apis_playstore · x86_64" "one entry per im
   assert_eq "$out" "" "an AVD folder that can't be worked out lists nothing"
 }
 
+# Old Android SDK components: every NDK, build-tools, SDK platform and CMake version but the newest
+# of each kind and the ones a project pins, one entry each, never ticked; locked while Android
+# Studio, Gradle or the emulator runs.
+test_old_android_sdk_components() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/sdkbin p s=$HOME_DIR/Android/Sdk out_sdk=$WORK/outside-sdk
+  local b27 b34 b35 bp34 bc22 e27 e34 e35 ep34 ec22
+  assert_eq "$(cm --json scan --only dev | grep -c '"id":"android_sdk_old","status":"found"')" "0" "no SDK: nothing found"
+  sized "$s/ndk/26.1/libc.so" 1000; printf 'Pkg.Desc = NDK\nPkg.Revision = 26.1.10909125\n' >"$s/ndk/26.1/source.properties"
+  sized "$s/ndk/27.1/libc.so" 50000; printf 'Pkg.Revision=27.1.12297006\r\n' >"$s/ndk/27.1/source.properties"
+  sized "$s/ndk/28.0/libc.so" 10; printf 'Pkg.Revision=28.0.13004108\n' >"$s/ndk/28.0/source.properties"
+  sized "$s/ndk/29.0/libc.so" 10                                                # neither source.properties nor package.xml
+  sized "$h/elsewhere/ndk/source.properties" 10; ln -s "$h/elsewhere/ndk" "$s/ndk/30.0" # a symlink
+  sized "$s/build-tools/34.0.0/aapt" 40000; new "$s/build-tools/34.0.0/package.xml" # the folder name is the version
+  sized "$s/build-tools/35.0.0/aapt" 30000; new "$s/build-tools/35.0.0/package.xml"
+  sized "$s/build-tools/36.0.0/aapt" 10; new "$s/build-tools/36.0.0/package.xml"
+  for p in 33:3 34:2 35:1; do # platforms go by API level, not Pkg.Revision
+    sized "$s/platforms/android-${p%:*}/android.jar" 10
+    printf 'Pkg.Revision=%s\nAndroidVersion.ApiLevel=%s\n' "${p#*:}" "${p%:*}" >"$s/platforms/android-${p%:*}/source.properties"
+  done
+  sized "$s/platforms/android-34/android.jar" 20000
+  sized "$s/cmake/3.22.1/bin/cmake" 10000; printf 'Pkg.Revision=3.22.1\n' >"$s/cmake/3.22.1/source.properties"
+  sized "$s/cmake/3.30.5/bin/cmake" 10; printf 'Pkg.Revision=3.30.5\n' >"$s/cmake/3.30.5/source.properties"
+  for p in platform-tools/adb emulator/emulator system-images/android-34/default/x86_64/source.properties \
+    licenses/android-sdk-license sources/android-34/source.properties; do new "$s/$p"; done
+  sized "$out_sdk/ndk/20.0/libc.so" 10; new "$out_sdk/ndk/20.0/source.properties" # an SDK outside your home
+  sized "$out_sdk/ndk/21.0/libc.so" 10; new "$out_sdk/ndk/21.0/source.properties"
+  printf 'export ANDROID_SDK_ROOT=%s\n' "$out_sdk" >"$h/.profile"
+  mkdir -p "$h/code/app/app"
+  printf 'android {\n    compileSdk 33\n    ndkVersion "26.1.10909125"\n    // buildToolsVersion "35.0.0"\n}\n' >"$h/code/app/app/build.gradle"
+  b27=$(tbytes "$s/ndk/27.1") b34=$(tbytes "$s/build-tools/34.0.0") b35=$(tbytes "$s/build-tools/35.0.0")
+  bp34=$(tbytes "$s/platforms/android-34") bc22=$(tbytes "$s/cmake/3.22.1")
+  e27=$(in_app "urlencode_path '$s/ndk/27.1'") e34=$(in_app "urlencode_path '$s/build-tools/34.0.0'")
+  e35=$(in_app "urlencode_path '$s/build-tools/35.0.0'") ep34=$(in_app "urlencode_path '$s/platforms/android-34'")
+  ec22=$(in_app "urlencode_path '$s/cmake/3.22.1'")
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["status"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"], repr(e["locked"]))
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"])
+    elif e["event"] == "error": print("error", e["message"])'
+  out=$(cm --json scan --only dev | grep '"id":"android_sdk_old"' | python3 -c "$list")
+  assert_eq "$out" "android_sdk_old found $((b27 + b34 + b35 + bp34 + bc22)) 5 versions replaced by a newer one False True False ''" \
+    "five old versions, not ticked"
+  out=$(cm --json details android_sdk_old | python3 -c "$list")
+  assert_eq "$out" "$e27 $b27 off NDK 27.1 · 0 days old
+$e34 $b34 off Build-Tools 34.0.0 · 0 days old
+$e35 $b35 off Build-Tools 35.0.0 · 0 days old
+$ep34 $bp34 off SDK Platform 34 · 0 days old
+$ec22 $bc22 off CMake 3.22.1 · 0 days old" "one entry per old version, the pinned NDK 26.1 and platform 33 kept"
+  out=$(cm --scan --only dev 2>&1)
+  assert_contains "$out" "Old Android SDK components"
+  select_only android_sdk_old # automatic cleaning leaves them alone even when ticked
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$s/ndk/27.1/libc.so"
+  # Android Studio, Gradle or the emulator running: locked and skipped
+  running_stub "$bin" "org.gradle.launcher.daemon.bootstrap.GradleDaemon"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan --only dev | grep '"id":"android_sdk_old"' | python3 -c "$list")
+  assert_contains "$out" "'Gradle'"
+  running_stub "$bin" emulator
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean android_sdk_old --entries "$e27" 2>&1)
+  assert_contains "$out" '"id":"android_sdk_old","state":"skip"'
+  running_stub "$bin" studio
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only dev 2>&1 </dev/null)
+  assert_contains "$out" "Skipping Old Android SDK components: close studio first."
+  assert_exists "$s/ndk/27.1/libc.so"
+  out=$(user_cm --json clean android_sdk_old --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of android_sdk_old: ../etc"
+  out=$(user_cm --json clean android_sdk_old --entries "$e27" | python3 -c "$list")
+  assert_eq "$out" "ok $b27" "only the chosen version"
+  assert_missing "$s/ndk/27.1"; assert_exists "$s/build-tools/34.0.0/aapt"
+  # more pins: buildToolsVersion in a Kotlin script, ndk.dir in local.properties, the new compileSdk block
+  mkdir -p "$h/code/kt/app"
+  printf 'android {\n  compileSdk {\n    version = release(34)\n  }\n  buildToolsVersion = "34.0.0"\n}\n' >"$h/code/kt/app/build.gradle.kts"
+  sized "$s/ndk/25.2/libc.so" 10; new "$s/ndk/25.2/source.properties"
+  printf 'sdk.dir=%s\nndk.dir=%s/ndk/25.2\n' "$s" "$s" >"$h/code/kt/local.properties"
+  out=$(cm --json details android_sdk_old | python3 -c "$list")
+  assert_eq "$out" "$e35 $b35 off Build-Tools 35.0.0 · 0 days old
+$ec22 $bc22 off CMake 3.22.1 · 0 days old" "pinned build-tools, platform and NDK folder kept"
+  out=$(user_cm --json clean android_sdk_old --entries "$e34" | python3 -c "$list")
+  assert_eq "$out" "fail 0" "a pinned version is no entry: nothing deleted"
+  assert_exists "$s/build-tools/34.0.0/aapt"
+  out=$(user_cm --json clean android_sdk_old | python3 -c "$list")
+  assert_eq "$out" "ok $((b35 + bc22))" "the other old versions"
+  assert_missing "$s/build-tools/35.0.0"; assert_missing "$s/cmake/3.22.1"
+  for p in ndk/26.1 ndk/28.0 ndk/29.0 ndk/25.2 build-tools/34.0.0 build-tools/36.0.0 platforms/android-33 platforms/android-34 \
+    platforms/android-35 cmake/3.30.5 platform-tools emulator system-images licenses sources; do
+    assert_exists "$s/$p"
+  done
+  assert_exists "$h/elsewhere/ndk/source.properties"; assert_exists "$out_sdk/ndk/20.0/libc.so"
+}
+
 test_old_jetbrains_and_android_studio_versions() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -4406,6 +4500,8 @@ details = {
     "  20.0 KB  ~/.config/chromium/Default  (2 history entries, 1 cookie, 0 downloads)":
         "  20.0 KB  ~/.config/chromium/Default  (2 mục lịch sử, 1 cookie, 0 tệp tải về)",
     "setup.deb · 45 days old": "setup.deb · cũ 45 ngày",
+    "NDK 27.1.12297006 · 3 days old": "NDK 27.1.12297006 · cũ 3 ngày",
+    "SDK Platform 34 · 120 days old": "SDK Platform 34 · cũ 120 ngày",
     "Photos/ · untouched for 120 days": "Photos/ · không đụng tới 120 ngày",
     "~/code/api — target/, .venv/ · 120 days idle": "~/code/api — target/, .venv/ · không dùng 120 ngày",
     "             Node 18  (running, skipped)": "             Node 18  (đang chạy, bỏ qua)",

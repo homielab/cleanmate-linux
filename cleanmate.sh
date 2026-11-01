@@ -3844,6 +3844,187 @@ clean_entries_android_images() { # encoded image folders (json_clean_entries onl
   delete_android_images "${pick[@]}"
 }
 
+# Old Android SDK components: each SDK Manager update installs a new NDK (1–4 GB), build-tools, SDK
+# platform or CMake next to the old ones. In each SDK (as android_images finds them) a version is
+# ndk/<ver>, ndk-bundle, build-tools/<ver>, platforms/android-N or cmake/<ver> with a
+# source.properties or package.xml. Listed are the versions that are neither the newest of their
+# kind in that SDK (Pkg.Revision, else the folder name; platforms by API level) nor pinned by a
+# project in your home: ndkVersion, buildToolsVersion, compileSdk/compileSdkVersion in
+# build.gradle(.kts) and ndk.dir in local.properties, read from the files (Gradle is never run) of
+# projects found like stale build folders. platform-tools, emulator, system-images and licenses are
+# never touched. Deleted for good (the SDK Manager downloads one again). Locked while Android
+# Studio, Gradle or the emulator runs. Not ticked; the desktop app lists each version.
+reg android_sdk_old dev "Old Android SDK components" 0 "Old NDK, build-tools, SDK platform and CMake versions in your Android SDK. The newest of each and the versions a project in your home folder pins (build.gradle, local.properties) are kept. A project elsewhere may still need one: download it again with Android Studio's SDK Manager. Close Android Studio, Gradle and the emulator first."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_android_sdk_old='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
+declare -A SDK_PIN=() # "ndk VERSION", "build-tools VERSION", "platform API", "dir PATH" that projects pin
+
+sdk_revision() { # FOLDER → the Pkg.Revision of its source.properties, or nothing
+  local line
+  while IFS= read -r line; do
+    [[ $line =~ ^[[:space:]]*Pkg\.Revision[[:space:]]*[=:][[:space:]]*([0-9][0-9A-Za-z.+-]*) ]] &&
+      { printf '%s\n' "${BASH_REMATCH[1]}"; return 0; }
+  done < <(ini_lines "$1/source.properties")
+  return 0
+}
+
+sdk_components() { # ROOT → "kind<TAB>version<TAB>folder<TAB>label" of each NDK, build-tools, SDK platform and CMake version
+  local root=$1 k d n v ds
+  for k in ndk ndk-bundle build-tools platforms cmake; do
+    [[ -d $root/$k && ! -L $root/$k ]] || continue
+    if [[ $k == ndk-bundle ]]; then ds=("$root/$k"); else ds=("$root/$k"/*); fi
+    for d in "${ds[@]}"; do
+      [[ -d $d && ! -L $d && $d != *[[:cntrl:]]* ]] || continue
+      [[ -f $d/source.properties || -f $d/package.xml ]] || continue
+      n=${d##*/} v=$(sdk_revision "$d")
+      case $k in
+        ndk) printf 'ndk\t%s\t%s\tNDK %s\n' "${v:-$n}" "$d" "$n" ;;
+        ndk-bundle) printf 'ndk\t%s\t%s\tNDK %s(ndk-bundle)\n' "${v:-0}" "$d" "${v:+$v }" ;;
+        build-tools) printf 'build-tools\t%s\t%s\tBuild-Tools %s\n' "${v:-$n}" "$d" "$n" ;;
+        platforms) printf 'platform\t%s\t%s\tSDK Platform %s\n' "${n#android-}" "$d" "${n#android-}" ;;
+        cmake) printf 'cmake\t%s\t%s\tCMake %s\n' "${v:-$n}" "$d" "$n" ;;
+      esac
+    done
+  done
+}
+
+android_project_pins() { # → SDK_PIN from the build.gradle(.kts) and local.properties of the projects in your home
+  local line v r g prune=()
+  local q="[\"']" s='[[:space:]]*'
+  local re_ndk="^${s}(android\\.)?ndkVersion${s}[=(]?${s}${q}([0-9][0-9A-Za-z.+-]*)${q}"
+  local re_bt="^${s}(android\\.)?buildToolsVersion${s}[=(]?${s}${q}([0-9][0-9A-Za-z.+-]*)${q}"
+  local re_sdk="^${s}(android\\.)?compileSdk(Version)?${s}[=(]?${s}${q}?(android-)?([0-9]+)"
+  local re_release="^${s}[^/[:space:]].*[^[:alnum:]_]release\\(${s}([0-9]+)${s}\\)" # compileSdk { version = release(36) }
+  local re_dir="^${s}ndk\\.dir${s}[=:]${s}(.*[^[:space:]])"
+  SDK_PIN=()
+  exclusion_prune
+  while IFS= read -r r; do # the SDKs themselves hold no projects
+    g=${r//\\/\\\\} g=${g//\*/\\*} g=${g//\?/\\?} g=${g//\[/\\[}
+    prune+=(-o -path "$g")
+  done < <(android_sdk_roots)
+  while IFS= read -r line; do
+    line=${line%$'\r'}
+    if [[ $line =~ $re_ndk ]]; then SDK_PIN[ndk ${BASH_REMATCH[2]}]=1
+    elif [[ $line =~ $re_bt ]]; then SDK_PIN[build-tools ${BASH_REMATCH[2]}]=1
+    elif [[ $line =~ $re_sdk ]]; then SDK_PIN[platform ${BASH_REMATCH[4]}]=1
+    elif [[ $line =~ $re_release ]]; then SDK_PIN[platform ${BASH_REMATCH[1]}]=1
+    elif [[ $line =~ $re_dir ]]; then # a properties value: \: is :, \\ is \
+      v=${BASH_REMATCH[1]//\\:/:} v=${v//\\\\/\\}
+      [[ $v == /* ]] && SDK_PIN[dir $(realpath -m -- "$v")]=1
+    fi
+  done < <(find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
+    -o -path '*/resources/app' -o -name .git -o -name node_modules "${prune[@]}" \) -prune -o \
+    -type f \( -name build.gradle -o -name build.gradle.kts -o -name local.properties \) -size -1024k -print0 2>/dev/null |
+    xargs -0r grep -hsIE 'ndkVersion|buildToolsVersion|compileSdk|release\(|ndk\.dir' --)
+  return 0
+}
+
+sdk_pinned() { # KIND VERSION FOLDER → true when a project pins it
+  local n=${3##*/}
+  case $1 in
+    ndk) [[ -n ${SDK_PIN[ndk $n]:-} || -n ${SDK_PIN[ndk $2]:-} || -n ${SDK_PIN[dir $3]:-} ]] ;;
+    build-tools) [[ -n ${SDK_PIN[build-tools $n]:-} || -n ${SDK_PIN[build-tools $2]:-} ]] ;;
+    platform) [[ $2 =~ ^[0-9]+ && -n ${SDK_PIN[platform ${BASH_REMATCH[0]}]:-} ]] ;; # android-34-ext8 too
+    *) return 1 ;;
+  esac
+}
+
+android_sdk_old() { # → SO_DIR / SO_BYTES / SO_LABEL of the old versions, biggest first
+  local root kind v d label line i now lines=() cand=() keep=() sizes=()
+  local -A newest=() mtime=()
+  SO_DIR=() SO_BYTES=() SO_LABEL=()
+  while IFS= read -r root; do
+    mapfile -t lines < <(sdk_components "$root")
+    ((${#lines[@]})) || continue
+    newest=()
+    while IFS=$'\t' read -r kind v d label; do # the highest version of each kind comes last
+      newest[$kind]=$d
+    done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1 -k2,2V)
+    for line in "${lines[@]}"; do
+      IFS=$'\t' read -r kind v d label <<<"$line"
+      [[ ${newest[$kind]} == "$d" ]] && continue
+      touches_exclusion "$d" && continue
+      cand+=("$line")
+    done
+  done < <(android_sdk_roots)
+  ((${#cand[@]})) || return 0
+  android_project_pins # only when there is something to keep
+  for line in "${cand[@]}"; do
+    IFS=$'\t' read -r kind v d label <<<"$line"
+    sdk_pinned "$kind" "$v" "$d" || keep+=("$d"$'\t'"$label")
+  done
+  ((${#keep[@]})) || return 0
+  mapfile -t sizes < <(printf '%s\n' "${keep[@]%%$'\t'*}" | sized_paths android_sdk_old own_bytes)
+  while IFS=$'\t' read -r v d; do mtime[$d]=$v; done < <(stat -c $'%Y\t%n' -- "${keep[@]%%$'\t'*}" 2>/dev/null)
+  printf -v now '%(%s)T' -1
+  while IFS=$'\t' read -r v d label; do
+    SO_BYTES+=("$v") SO_DIR+=("$d") SO_LABEL+=("$label")
+  done < <(for i in "${!keep[@]}"; do
+    d=${keep[i]%%$'\t'*}
+    printf '%s\t%s\t%s · %s days old\n' "${sizes[i]:-0}" "$d" "${keep[i]#*$'\t'}" $(((now - ${mtime[$d]:-$now}) / 86400))
+  done | sort -t $'\t' -k1,1nr)
+}
+
+lockedby_android_sdk_old() { # Android Studio, Gradle or the emulator
+  running_proc -x 'studio|android-studio|studio\.sh|gradle|gradlew|GradleDaemon|emulator|emulator64-.*|qemu-system-.*' && return
+  # Android Studio and Gradle run as java; the Snap and Flatpak builds carry their name in the command line
+  if running_proc -f 'idea\.platform\.prefix=AndroidStudio|/snap/android-studio/|com\.google\.AndroidStudio' >/dev/null; then
+    echo "Android Studio"
+  elif running_proc -f 'org\.gradle\.launcher\.daemon\.bootstrap\.GradleDaemon|org\.gradle\.wrapper\.GradleWrapperMain|org\.gradle\.launcher\.GradleMain' >/dev/null; then
+    echo "Gradle"
+  else return 1; fi
+}
+precheck_android_sdk_old() { # a build or the SDK Manager may be using the version
+  local p
+  p=$(lockedby_android_sdk_old) || return 0
+  warn "Skipping ${ITEM_LABEL[android_sdk_old]}: close $p first."
+  return 1
+}
+delete_android_sdk_old() { # INDEX… of SO_DIR
+  local i rc=0
+  for i; do
+    is_protected "${SO_DIR[i]}" && { err "Refusing to touch protected path: ${SO_DIR[i]}"; rc=1; continue; }
+    run rm -rf -- "${SO_DIR[i]}" || rc=1
+  done
+  return "$rc"
+}
+scan_android_sdk_old() {
+  local b
+  android_sdk_old
+  ((${#SO_DIR[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${SO_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#SO_DIR[@]} version) replaced by a newer one"
+}
+clean_android_sdk_old() {
+  android_sdk_old
+  ((${#SO_DIR[@]})) || return 0
+  delete_android_sdk_old "${!SO_DIR[@]}"
+}
+details_android_sdk_old() {
+  local i
+  android_sdk_old
+  for i in "${!SO_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${SO_BYTES[i]}")" "$(human "${SO_BYTES[i]}")" "$NC" "${SO_LABEL[i]}" "${SO_DIR[i]/#$HOME/\~}"
+  done
+}
+entries_android_sdk_old() {
+  local i
+  android_sdk_old
+  for i in "${!SO_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${SO_DIR[i]}")" "${SO_BYTES[i]}" "${SO_LABEL[i]}"
+  done
+}
+clean_entries_android_sdk_old() { # encoded version folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  android_sdk_old
+  for id; do
+    for i in "${!SO_DIR[@]}"; do [[ $(urlencode_path "${SO_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_android_sdk_old "${pick[@]}"
+}
+
 # Snapshots of Android emulator virtual devices (AVDs): <name>.avd/snapshots, often GBs per AVD.
 # The emulator makes a new one (the next start is a cold boot). Only that folder: the AVD's disks
 # (userdata*.img, sdcard.img), config and .ini files stay. AVDs as android_images finds them, only
@@ -8795,7 +8976,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 # never empty a Trash behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes or extension versions to download again and IDE versions to let go
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, SDK components or extension versions to download again and IDE versions to let go
   plain_results
   printf '\n'
   start_cleanup

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 14:55+0700\n"
+"POT-Creation-Date: 2026-11-01 09:04+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -302,7 +302,7 @@ msgstr ""
 msgid "Developer Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/welcome.py:95
+#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/welcome.py:97
 #: gui/cleanmate_gui/window.py:44
 msgid "Privacy"
 msgstr ""
@@ -1819,7 +1819,7 @@ msgid "General"
 msgstr ""
 
 #: gui/cleanmate_gui/settings.py:156 gui/cleanmate_gui/settings.py:239
-#: gui/cleanmate_gui/welcome.py:122
+#: gui/cleanmate_gui/welcome.py:124
 msgid "Automatic cleaning"
 msgstr ""
 
@@ -2117,8 +2117,8 @@ msgstr[1] ""
 
 #: gui/cleanmate_gui/spacelens.py:293
 msgid ""
-"Can't be moved to the Trash: you never clean it, or a folder in it "
-"(Settings › Never clean)"
+"Can't be moved to the Trash: you never clean it, or a folder in it (Settings "
+"› Never clean)"
 msgstr ""
 
 #: gui/cleanmate_gui/spacelens.py:296
@@ -2697,191 +2697,191 @@ msgid_plural "Put back {n} folders from the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/welcome.py:50 gui/cleanmate_gui/welcome.py:89
+#: gui/cleanmate_gui/welcome.py:52 gui/cleanmate_gui/welcome.py:91
 msgid "Welcome to CleanMate"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:57
+#: gui/cleanmate_gui/welcome.py:59
 msgid "Your options"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:58
+#: gui/cleanmate_gui/welcome.py:60
 msgid "Change them any time in Settings, in the main menu (Ctrl+,)."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:66
+#: gui/cleanmate_gui/welcome.py:68
 msgid "Skip"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:68
+#: gui/cleanmate_gui/welcome.py:70
 msgid "Back"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:70 gui/cleanmate_gui/welcome.py:164
+#: gui/cleanmate_gui/welcome.py:72 gui/cleanmate_gui/welcome.py:166
 msgid "Next"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:90
+#: gui/cleanmate_gui/welcome.py:92
 msgid "Free up disk space and keep Ubuntu tidy — safely."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:91
+#: gui/cleanmate_gui/welcome.py:93
 msgid "What it does"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:92 gui/cleanmate_gui/window.py:29
+#: gui/cleanmate_gui/welcome.py:94 gui/cleanmate_gui/window.py:29
 msgid "Smart Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:93
+#: gui/cleanmate_gui/welcome.py:95
 msgid ""
 "System, developer and AI tool junk in one scan: caches, old logs, unused "
 "packages and what removed apps left behind."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:96
+#: gui/cleanmate_gui/welcome.py:98
 msgid "Browser history and cookies, terminal history and recent files."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:97 gui/cleanmate_gui/window.py:55
+#: gui/cleanmate_gui/welcome.py:99 gui/cleanmate_gui/window.py:55
 msgid "Uninstaller"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:98
+#: gui/cleanmate_gui/welcome.py:100
 msgid "Remove apps and the folders they leave in your home."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:99 gui/cleanmate_gui/window.py:47
+#: gui/cleanmate_gui/welcome.py:101 gui/cleanmate_gui/window.py:47
 #: gui/cleanmate_gui/window.py:239
 msgid "Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:99
+#: gui/cleanmate_gui/welcome.py:101
 msgid "See what takes up the space, folder by folder."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:101
+#: gui/cleanmate_gui/welcome.py:103
 msgid "How it stays safe"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:102
+#: gui/cleanmate_gui/welcome.py:104
 msgid "You see everything first"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:103
+#: gui/cleanmate_gui/welcome.py:105
 msgid ""
 "Each clean lists the items and their sizes, and nothing is removed until you "
 "confirm."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:104
+#: gui/cleanmate_gui/welcome.py:106
 msgid "Your files go to the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:105
+#: gui/cleanmate_gui/welcome.py:107
 msgid ""
 "Caches and logs that apps make again are deleted. Your own files go to the "
 "Trash, and Undo puts them back."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:107
+#: gui/cleanmate_gui/welcome.py:109
 msgid "Open source, no data collected"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:108
+#: gui/cleanmate_gui/welcome.py:110
 msgid ""
 "Nothing about you is sent anywhere. The only connection is a daily check for "
 "a new version, which you can turn off; installed from a package, there is "
 "none."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:115
+#: gui/cleanmate_gui/welcome.py:117
 msgid "What needs your password"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:116
+#: gui/cleanmate_gui/welcome.py:118
 msgid "Most cleaning runs as you, without a password."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:118
+#: gui/cleanmate_gui/welcome.py:120
 msgid "Items with a lock"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:119
+#: gui/cleanmate_gui/welcome.py:121
 msgid ""
 "The APT cache, system logs, old kernels and old Snap versions belong to the "
 "system. Cleaning them asks for your password in Ubuntu's own dialog; so do "
 "removing apt and Snap apps and Maintenance tasks."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:123
+#: gui/cleanmate_gui/welcome.py:125
 msgid ""
 "Cleans only user and developer junk, so it never asks for your password."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:124
+#: gui/cleanmate_gui/welcome.py:126
 msgid "Snap, Flatpak and AppImage"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:125
+#: gui/cleanmate_gui/welcome.py:127
 msgid ""
 "Apps from apt, Snap, Flatpak and AppImage are all found, with their caches "
 "and leftovers."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:127
+#: gui/cleanmate_gui/welcome.py:129
 msgid "Never touched"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:128
+#: gui/cleanmate_gui/welcome.py:130
 msgid "Logins and keys"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:129
+#: gui/cleanmate_gui/welcome.py:131
 msgid ".ssh, .gnupg and saved logins, your settings and bookmarks."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:130
+#: gui/cleanmate_gui/welcome.py:132
 msgid "Your documents"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:131
+#: gui/cleanmate_gui/welcome.py:133
 msgid ""
 "Nothing of yours is removed unless you tick it in Space Lens, Large & Old "
 "Files or Duplicates — and then it goes to the Trash."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:133
+#: gui/cleanmate_gui/welcome.py:135
 msgid "The kernel you run"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:134
+#: gui/cleanmate_gui/welcome.py:136
 msgid "Old kernels can go, but never the one you run or the one before it."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:137
+#: gui/cleanmate_gui/welcome.py:139
 msgid "The terminal app"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:138
+#: gui/cleanmate_gui/welcome.py:140
 msgid ""
 "Run cm in a terminal for every tool, also over SSH. sudo cm cleans the "
 "system items in one go."
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:140 gui/cleanmate_gui/window.py:96
+#: gui/cleanmate_gui/welcome.py:142 gui/cleanmate_gui/window.py:96
 msgid "All tools (terminal)"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:140 gui/cleanmate_gui/window.py:97
+#: gui/cleanmate_gui/welcome.py:142 gui/cleanmate_gui/window.py:97
 msgid "Open the terminal app (cm)"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:142
+#: gui/cleanmate_gui/welcome.py:144
 msgid "Open"
 msgstr ""
 
-#: gui/cleanmate_gui/welcome.py:164
+#: gui/cleanmate_gui/welcome.py:166
 msgid "Start"
 msgstr ""
 
@@ -4081,6 +4081,19 @@ msgid ""
 "Close Android Studio and the emulator first."
 msgstr ""
 
+#. android_sdk_old label
+msgid "Old Android SDK components"
+msgstr ""
+
+#. android_sdk_old description
+msgid ""
+"Old NDK, build-tools, SDK platform and CMake versions in your Android SDK. "
+"The newest of each and the versions a project in your home folder pins "
+"(build.gradle, local.properties) are kept. A project elsewhere may still "
+"need one: download it again with Android Studio's SDK Manager. Close Android "
+"Studio, Gradle and the emulator first."
+msgstr ""
+
 #. android_avd_snapshots label
 msgid "Android emulator snapshots"
 msgstr ""
@@ -4132,7 +4145,7 @@ msgstr ""
 
 #. ai_model_caches description
 msgid ""
-"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded "
-"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when "
-"a program needs one. A model in use is skipped."
+"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/."
+"cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a "
+"program needs one. A model in use is skipped."
 msgstr ""

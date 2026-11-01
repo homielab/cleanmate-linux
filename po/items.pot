@@ -863,6 +863,14 @@ msgstr ""
 msgid "Android emulator system images no virtual device (AVD) uses, often several GB each. Deleted; download one again with Android Studio's SDK Manager. Close Android Studio and the emulator first."
 msgstr ""
 
+#. android_sdk_old label
+msgid "Old Android SDK components"
+msgstr ""
+
+#. android_sdk_old description
+msgid "Old NDK, build-tools, SDK platform and CMake versions in your Android SDK. The newest of each and the versions a project in your home folder pins (build.gradle, local.properties) are kept. A project elsewhere may still need one: download it again with Android Studio's SDK Manager. Close Android Studio, Gradle and the emulator first."
+msgstr ""
+
 #. android_avd_snapshots label
 msgid "Android emulator snapshots"
 msgstr ""
