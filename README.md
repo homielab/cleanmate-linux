@@ -195,8 +195,8 @@ the browser runs; Firefox needs `sqlite3` (it clears the records, so bookmarks i
 
 *Settings → Automatic cleaning* runs a weekly (or daily, monthly) clean of user and developer
 junk and notifies you: *"Freed 1.2 GB. Worth a look: Docker build cache 2.0 GB, Google Chrome
-1.8 GB."* It never empties the Trash, never touches browsers, apps or Cargo, Python and CocoaPods
-build folders and never needs your password. In the desktop app it's in *Settings* in the main
+1.8 GB."* It never empties the Trash, never touches browsers, apps, Docker volumes, stopped
+containers or Cargo, Python and CocoaPods build folders and never needs your password. In the desktop app it's in *Settings* in the main
 menu (Ctrl+,); both apps share the same settings.
 
 ## Low disk alert and scan reminder
@@ -212,7 +212,7 @@ Check now with `cm --check`.
 ```bash
 cm --scan                        # what would Smart Scan find? (changes nothing)
 cm --clean                       # Smart Scan, confirm once, clean
-cm --clean --yes --only logs     # clean logs without asking
+cm --clean --yes --only logs     # clean logs without asking (never Docker volumes or containers)
 cm --scan --only privacy         # what history is stored?
 cm --check                       # low disk alert and scan reminder now
 cm --version                     # version and system details for a bug report
@@ -220,12 +220,14 @@ cm --help                        # all options
 ```
 
 `--dry-run` works with everything. `--only` takes `system,logs,user,browser,apps,ai,models,dev,privacy`
-(`privacy` only when named).
+(`privacy` only when named). `--clean --yes` and automatic cleaning never remove Docker volumes or
+stopped containers, even when ticked in the app: they may hold data. Clean them in the app, or by
+name with `cm --json clean docker_volumes`.
 
 **Machine-readable output.** `cm --json CMD` prints one JSON object per line and nothing else:
 
 ```bash
-cm --json scan --only logs,dev   # items with id, category, label, bytes, locked, root, trash
+cm --json scan --only logs,dev   # items with id, category, label, bytes, locked, root, trash, data_loss
 cm --json --dry-run clean ID…    # preview
 cm --json clean ID…              # task events, then freed bytes and Trash restore keys
 ```

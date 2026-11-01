@@ -943,6 +943,10 @@ for _id in apt_cache orphans residual journal old_logs big_logs crash coredump s
 unset _id
 # items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
 declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1 [jetbrains_old_versions]=1)
+# items deleted for good whose contents may be someone's data (a database in a volume, files written
+# inside a container): an unattended clean (--clean --yes, --auto) leaves them even when ticked; only
+# `--json clean ID` naming them, or a clean the user confirms, removes them
+declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1)
 # items whose scan only looks at a few folders (test, du): a scan runs them in a
 # few shared processes, one after the other, since a process each costs more than
 # the scan. reg_cache_item and reg_list_item add theirs; any other item gets its own.
@@ -6538,11 +6542,30 @@ scan_report() { # --scan
   printf '\n  %s●%s = cleaned by --clean (%s)\n' "$GREEN" "$NC" "$(human "$SELECTED_TOTAL")"
 }
 
+DATA_LOSS_SKIPPED=()
+skip_data_loss() { # unattended clean: untick ITEM_DATA_LOSS items, whatever the remembered choices say → DATA_LOSS_SKIPPED
+  local id
+  DATA_LOSS_SKIPPED=()
+  for id in "${SCANNED[@]}"; do
+    if [[ -n ${ITEM_DATA_LOSS[$id]:-} ]] && ((RES_RC[$id] == 0 && SEL[$id])); then SEL[$id]=0; DATA_LOSS_SKIPPED+=("$id"); fi
+  done
+  return 0
+}
+
+data_loss_lines() { # what skip_data_loss left, and how to clean it on purpose
+  local id
+  for id in "${DATA_LOSS_SKIPPED[@]}"; do
+    printf '  %s%s skipped: may hold data — run cm --json clean %s, or select it in the app%s\n' "$YELLOW" "${ITEM_LABEL[$id]}" "$id" "$NC"
+  done
+}
+
 smart_clean() { # --clean
   printf '%sCleanMate — smart clean%s\n\n' "$BOLD" "$NC"
   scan_items "${CATEGORIES[@]}"
+  ((ASSUME_YES)) && skip_data_loss
   plain_results
   printf '\n'
+  data_loss_lines
   if [[ ! -t 0 ]] && ((!ASSUME_YES)); then
     err "Not a terminal: add --yes to clean without confirmation."; exit 1
   fi
@@ -9684,8 +9707,10 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
   done
   SEL[trash]=0 SEL[trash_drives]=0 SEL[tracker_index]=0 SEL[baloo_index]=0 # never empty a Trash or reset a search index behind the user's back
   SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[old_runtimes_asdf_mise]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
+  skip_data_loss
   plain_results
   printf '\n'
+  data_loss_lines
   start_cleanup
   # the biggest things left for the user to decide about
   while IFS=$'\t' read -r b id; do
@@ -9726,21 +9751,22 @@ json_str() { # VAR TEXT → a JSON string literal (colours and control character
 }
 
 json_item() { # ID [with scan results] → one "item" event (no subshells: called for every item)
-  local id=$1 cat label desc note lock status=found def=false root=false trash=false sel=false ent=false
+  local id=$1 cat label desc note lock status=found def=false root=false trash=false loss=false sel=false ent=false
   json_str cat "${ITEM_CAT[$id]}"; json_str label "${ITEM_LABEL[$id]}"; json_str desc "${ITEM_DESC[$id]}"
   ((ITEM_DEFAULT[$id])) && def=true
   [[ -n ${ITEM_ROOT[$id]:-} ]] && root=true
   [[ -n ${ITEM_TRASH[$id]:-} ]] && trash=true
+  [[ -n ${ITEM_DATA_LOSS[$id]:-} ]] && loss=true
   if [[ ${2:-} == scanned ]]; then
     json_str note "${RES_NOTE[$id]}"; json_str lock "${RES_LOCK[$id]:-}"
     case ${RES_RC[$id]} in 0) status=found ;; 3) status=timeout ;; *) status=clean ;; esac
     ((${SEL[$id]:-0})) && sel=true
     has_entries "$id" && ent=true
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s,"trash":%s}\n' \
-      "$id" "$cat" "$label" "$desc" "$def" "$root" "$status" "${RES_BYTES[$id]:-0}" "$note" "$sel" "$lock" "$ent" "$trash"
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s,"trash":%s,"data_loss":%s}\n' \
+      "$id" "$cat" "$label" "$desc" "$def" "$root" "$status" "${RES_BYTES[$id]:-0}" "$note" "$sel" "$lock" "$ent" "$trash" "$loss"
   else
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"trash":%s}\n' \
-      "$id" "$cat" "$label" "$desc" "$def" "$root" "$trash"
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"trash":%s,"data_loss":%s}\n' \
+      "$id" "$cat" "$label" "$desc" "$def" "$root" "$trash" "$loss"
   fi
 }
 
@@ -10885,7 +10911,9 @@ Run
 Scan & clean without the app
   -s, --scan        Print what a Smart Scan finds
   -c, --clean       Smart Scan, then clean the selected items (asks once)
-  -y, --yes         With --clean: don't ask (running apps are skipped)
+  -y, --yes         With --clean: don't ask (running apps are skipped; so are Docker
+                    volumes and stopped containers, which may hold data — clean those
+                    with --json clean ID or in the app)
       --only LIST   Only these groups: system,logs,user,browser,apps,ai,models,dev,privacy
                     (privacy is only included when named)
       --auto        What automatic cleaning runs: user & developer junk, then a

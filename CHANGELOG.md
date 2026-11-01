@@ -6,6 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Command line**: `cm --clean --yes` and automatic cleaning no longer remove Docker volumes or stopped containers, even when they are ticked in the app — they may hold databases or other data and are deleted for good. Each one skipped is named, with how to clean it on purpose (in the app, or `cm --json clean docker_volumes`). `cm --json items` and `scan` mark these items with `data_loss`, and the Agent Skill cleans them only when you name them.
+
 ### Added
 
 - **AI agents**: an Agent Skill (`skills/cleanmate/`) lets Claude Code, Codex and other agents scan with `cm --json`, show the result and clean only what you confirm. The README documents the command line and `--json`.

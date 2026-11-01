@@ -972,6 +972,60 @@ volume rm scratch" "two volumes, one rm each"
   assert_eq "$out" "" "no entries for a remote Docker"
 }
 
+# Docker volumes and stopped containers may hold data: an unattended clean (--clean --yes, --auto)
+# leaves them even when the remembered choices tick them; naming one with --json clean cleans it.
+test_unattended_clean_skips_data_loss_items() {
+  fresh_home
+  local log=$WORK/docker-dataloss.log out
+  : >"$log"
+  chmod 666 "$log" # root runs write it as nobody
+  mkdir -p "$WORK/dockerloss"
+  cat >"$WORK/dockerloss/docker" <<EOF
+#!/bin/sh
+echo "\$*" >>"$log"
+case "\$*" in
+  info*) exit 0 ;;
+  version*) echo '1.41 1.41' ;;
+  "system df --format"*) printf 'Images\t1.5GB (60%%)\nContainers\t200MB (100%%)\nLocal Volumes\t50MB (10%%)\nBuild Cache\t2GB\n' ;;
+  "images -f dangling=true --format {{.Size}}") printf '120MB\n80MB\n' ;;
+  "ps -aq"*) printf 'a1\nb2\n' ;;
+  "volume ls -qf dangling=true") printf 'v1\n' ;;
+esac
+EOF
+  chmod +x "$WORK/dockerloss/docker"
+  local BASE_PATH="$WORK/dockerloss:$BASE_PATH"
+  select_only docker_dangling docker_volumes docker_containers
+  out=$(cm --clean --yes --dry-run --only dev 2>&1 </dev/null)
+  assert_contains "$out" "Docker: unused volumes skipped: may hold data — run cm --json clean docker_volumes"
+  assert_contains "$out" "Docker: stopped containers skipped: may hold data — run cm --json clean docker_containers"
+  assert_contains "$out" "[dry-run] docker image prune -f"
+  [[ $out == *"docker volume prune"* || $out == *"docker container prune"* ]] && fail "skipped items must not be in the dry run" || ok_ "dry run leaves volumes and containers out"
+  : >"$log"
+  cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  out=$(<"$log")
+  assert_contains "$out" "image prune -f"
+  [[ $out == *"volume prune"* || $out == *"container prune"* ]] && fail "--clean --yes must not prune ticked volumes or containers" || ok_ "volumes and containers kept"
+  : >"$log"
+  out=$(user_cm --auto 2>&1 </dev/null)
+  assert_contains "$out" "Docker: unused volumes skipped: may hold data"
+  [[ $(<"$log") == *"volume prune"* || $(<"$log") == *"container prune"* ]] && fail "--auto must not prune ticked volumes or containers" || ok_ "--auto keeps them"
+  # named = asked for
+  out=$(user_cm --json --dry-run clean docker_volumes docker_containers)
+  assert_contains "$out" '"id":"docker_volumes","state":"ok"'
+  assert_contains "$out" '"id":"docker_containers","state":"ok"'
+  : >"$log"
+  user_cm --json clean docker_volumes >/dev/null
+  assert_contains "$(<"$log")" "volume prune"
+  # data_loss marks exactly these two
+  out=$(cm --json items | grep '"data_loss":true' | grep -o '"id":"[a-z_]*"' | LC_ALL=C sort | paste -sd' ' -)
+  assert_eq "$out" '"id":"docker_containers" "id":"docker_volumes"' "--json items: data_loss on volumes and containers only"
+  out=$(cm --json items)
+  [[ $(grep -c '"data_loss":' <<<"$out") == $(grep -c '"event":"item"' <<<"$out") ]] && ok_ "every item says data_loss" || fail "an item lacks data_loss"
+  out=$(cm --json scan --only dev)
+  assert_contains "$(grep '"id":"docker_volumes"' <<<"$out")" '"data_loss":true'
+  assert_contains "$(grep '"id":"docker_dangling"' <<<"$out")" '"data_loss":false'
+}
+
 test_docker_sizes_in_a_decimal_comma_language() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   local l lang=""
