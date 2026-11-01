@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 09:04+0000\n"
+"POT-Creation-Date: 2026-11-01 14:14+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3499,37 +3499,6 @@ msgid ""
 "stutter briefly the first time."
 msgstr ""
 
-#. gpu_shader_cache label
-msgid "GPU shader cache"
-msgstr ""
-
-#. gpu_shader_cache description
-msgid ""
-"Shaders that Mesa, NVIDIA and Qt compiled for your graphics card. The system "
-"builds them again; a game may stutter briefly the first time."
-msgstr ""
-
-#. tracker_index label
-msgid "Desktop search index (GNOME Tracker)"
-msgstr ""
-
-#. tracker_index description
-msgid ""
-"Index GNOME's file search (Tracker / LocalSearch) built of your files. "
-"Searching files is slow or incomplete until it is built again; indexing "
-"settings are kept."
-msgstr ""
-
-#. baloo_index label
-msgid "Desktop search index (KDE Baloo)"
-msgstr ""
-
-#. baloo_index description
-msgid ""
-"Index KDE's file search (Baloo) built of your files. Searching files is slow"
-" or incomplete until it is built again; indexing settings are kept."
-msgstr ""
-
 #. priv_recent label
 msgid "Recent files list"
 msgstr ""
@@ -3985,6 +3954,37 @@ msgstr ""
 msgid "Compiler outputs sccache saved. Made again by the next build."
 msgstr ""
 
+#. gpu_shader_cache label
+msgid "GPU shader cache"
+msgstr ""
+
+#. gpu_shader_cache description
+msgid ""
+"Shaders that Mesa, NVIDIA and Qt compiled for your graphics card. The system "
+"builds them again; a game may stutter briefly the first time."
+msgstr ""
+
+#. tracker_index label
+msgid "Desktop search index (GNOME Tracker)"
+msgstr ""
+
+#. tracker_index description
+msgid ""
+"Index GNOME's file search (Tracker / LocalSearch) built of your files. "
+"Searching files is slow or incomplete until it is built again; indexing "
+"settings are kept."
+msgstr ""
+
+#. baloo_index label
+msgid "Desktop search index (KDE Baloo)"
+msgstr ""
+
+#. baloo_index description
+msgid ""
+"Index KDE's file search (Baloo) built of your files. Searching files is slow "
+"or incomplete until it is built again; indexing settings are kept."
+msgstr ""
+
 #. nuget_cache label
 msgid "NuGet cache"
 msgstr ""
@@ -4135,6 +4135,19 @@ msgid ""
 "devices, often several GB each. Deleted; the next start is a cold boot and "
 "the emulator saves a new one. Apps and data on the device are kept. Close "
 "the emulator first."
+msgstr ""
+
+#. game_runners_old label
+msgid "Old Proton and Wine versions"
+msgstr ""
+
+#. game_runners_old description
+#, python-brace-format
+msgid ""
+"Proton and Wine builds (Proton-GE, Wine-GE…) that Steam, Lutris, Heroic or "
+"Bottles left behind, often {0}.{1}–{2} GB each. The newest of each and the "
+"versions a game or bottle is set to use are kept. Deleted; download one "
+"again with the launcher or ProtonUp-Qt. Close the launchers and games first."
 msgstr ""
 
 #. jetbrains_old_versions label

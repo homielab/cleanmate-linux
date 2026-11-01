@@ -3248,6 +3248,7 @@ reg_cache_item ccache_cache dev "ccache cache" 0 \
 reg_cache_item sccache_cache dev "sccache cache" 0 \
   "Compiler outputs sccache saved. Made again by the next build." \
   "$(sub_paths "$HEX_NAMES" "$HOME/.cache/sccache" "$_xc/sccache" "$(env_home_dir SCCACHE_DIR)")" "sccache"
+GAME_PROCS='steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*' # launchers and games (process names)
 _gl=() # folders with a variable part in their name (radv_builtin_shaders*, qtshadercache*)
 for _b in "$HOME"/.cache/radv_builtin_shaders* "$HOME"/.cache/qtshadercache*; do [[ -d $_b ]] && _gl+=("$_b"); done
 reg_cache_item gpu_shader_cache apps "GPU shader cache" 0 \
@@ -3255,7 +3256,7 @@ reg_cache_item gpu_shader_cache apps "GPU shader cache" 0 \
   "$(uniq_lines "$HOME/.cache/mesa_shader_cache" "$HOME/.cache/mesa_shader_cache_db" "${_gl[@]}" "$HOME/.cache/nvidia/GLCache" "$HOME/.nv/GLCache"
     sub_paths "mesa_shader_cache mesa_shader_cache_db" "$_xc" "$(env_home_dir MESA_SHADER_CACHE_DIR)" "$(env_home_dir MESA_GLSL_CACHE_DIR)"
     sub_paths GLCache "$(env_home_dir __GL_SHADER_DISK_CACHE_PATH)")" \
-  'steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*'
+  "$GAME_PROCS"
 unset _gl _b
 # Desktop search indexes: reset with the tool's own command when it is installed
 # (it stops the indexer and starts over), else delete the folder while the indexer is not running.
@@ -4181,6 +4182,210 @@ clean_entries_android_avd_snapshots() {
   done
   ((${#pick[@]})) || return 0
   delete_avd_snapshots "${pick[@]}"
+}
+
+# Old Proton and Wine versions of game launchers. Players add Proton-GE, Wine-GE and other builds
+# (0.5–1 GB each) to Steam's compatibilitytools.d, Lutris' runners/wine, Heroic's tools/{wine,proton}
+# and Bottles' runners, by hand, with ProtonUp-Qt or the launcher itself; old ones stay when a new
+# one comes. The deb and Flatpak folders are looked at, each only when it is (after symlinks such as
+# ~/.steam/root) inside your home; a version is a real folder with a compatibilitytool.vdf, a bin
+# folder or a proton script. Proton that Steam installs itself (steamapps/common) is never touched.
+# Listed are versions that are neither the newest of their family in that folder (the name before
+# its first digit: GE-Proton, wine-ge, soda…; compared by the numbers in the name, then the date)
+# nor set for a game: Steam's CompatToolMapping (config.vdf, matched with the names in the tool's
+# compatibilitytool.vdf), the wine version and paths in Lutris' YAML, wineVersion in Heroic's
+# GamesConfig and config.json, a bottle's Runner. Deleted for good (the launcher downloads one
+# again). Locked while a launcher, Wine, Proton or gamescope runs. Not ticked; one entry each.
+reg game_runners_old dev "Old Proton and Wine versions" 0 "Proton and Wine builds (Proton-GE, Wine-GE…) that Steam, Lutris, Heroic or Bottles left behind, often 0.5–1 GB each. The newest of each and the versions a game or bottle is set to use are kept. Deleted; download one again with the launcher or ProtonUp-Qt. Close the launchers and games first."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_game_runners_old='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded
+declare -A GR_USED=() # "name NAME" of the versions games use; GR_PATHS: paths their settings point at
+GR_PATHS=()
+
+runner_dirs() { # → "launcher<TAB>folder" of every folder of runner versions inside your home, symlinks resolved
+  local x=$HOME/.var/app l d r
+  local -A seen=()
+  while IFS=$'\t' read -r l d; do
+    r=$(realpath -e -- "$d" 2>/dev/null) || continue
+    [[ $r == "$HOME"/* && -d $r && $r != *[[:cntrl:]]* && -z ${seen[$r]:-} ]] || continue
+    seen[$r]=1
+    [[ $r == "$x"/* ]] && l+=" (Flatpak)"
+    printf '%s\t%s\n' "$l" "$r"
+  done < <(
+    for d in "$HOME/.steam/root" "$HOME/.steam/steam" "$HOME/.local/share/Steam" "$HOME/.steam/debian-installation" \
+      "$x/com.valvesoftware.Steam/data/Steam" "$x/com.valvesoftware.Steam/.local/share/Steam"; do
+      printf 'Steam\t%s/compatibilitytools.d\n' "$d"
+    done
+    printf 'Lutris\t%s/runners/wine\n' "$HOME/.local/share/lutris" "$x/net.lutris.Lutris/data/lutris"
+    printf 'Heroic\t%s/tools/wine\nHeroic\t%s/tools/proton\n' "$HOME/.config/heroic" "$HOME/.config/heroic" \
+      "$x/com.heroicgameslauncher.hgl/config/heroic" "$x/com.heroicgameslauncher.hgl/config/heroic"
+    printf 'Bottles\t%s/runners\n' "$HOME/.local/share/bottles" "$x/com.usebottles.bottles/data/bottles")
+}
+
+vdf_names() { # MODE FILE — Valve KeyValues: "map" → the tool names in CompatToolMapping, "tools" → the block names (compatibilitytool.vdf)
+  [[ -f $2 && -r $2 ]] || return 0
+  tr -d '\r' <"$2" 2>/dev/null | awk -v mode="$1" '
+    { line = $0
+      while (match(line, /"([^"\\]|\\.)*"|[{}]/)) { t[++n] = substr(line, RSTART, RLENGTH); line = substr(line, RSTART + RLENGTH) } }
+    END {
+      for (i = 1; i <= n; i++) {
+        k = t[i]
+        if (k == "{") { depth++; continue }
+        if (k == "}") { if (inmap && depth == mapdepth) inmap = 0; depth--; continue }
+        k = tolower(substr(k, 2, length(k) - 2))
+        if (t[i + 1] == "{") {
+          if (k == "compattoolmapping") { inmap = 1; mapdepth = depth + 1 }
+          else if (mode == "tools" && k != "compat_tools" && k != "compatibilitytools") print substr(t[i], 2, length(t[i]) - 2)
+          continue
+        }
+        if (mode == "map" && inmap && k == "name" && t[i + 1] ~ /^"/) print substr(t[i + 1], 2, length(t[i + 1]) - 2)
+        i++
+      }
+    }'
+}
+
+runner_used() { # → GR_USED and GR_PATHS from the launchers' settings
+  local x=$HOME/.var/app d f v line files=() paths=()
+  GR_USED=() GR_PATHS=()
+  for d in "$HOME/.steam/root" "$HOME/.steam/steam" "$HOME/.local/share/Steam" "$HOME/.steam/debian-installation" \
+    "$x/com.valvesoftware.Steam/data/Steam" "$x/com.valvesoftware.Steam/.local/share/Steam"; do
+    f=$d/config/config.vdf
+    [[ -e $f && ! ( -f $f && -r $f ) ]] && GR_USED[all]=1 # settings we can't read: keep every version
+    while IFS= read -r v; do [[ -n $v ]] && GR_USED[name $v]=1; done < <(vdf_names map "$d/config/config.vdf")
+  done
+  # Lutris (games and the default in runners/wine.yml), Heroic, Bottles: small YAML and JSON files
+  for d in "$HOME/.config/lutris" "$HOME/.local/share/lutris/games" "$x/net.lutris.Lutris/config/lutris" \
+    "$x/net.lutris.Lutris/data/lutris/games" "$HOME/.config/heroic" "$x/com.heroicgameslauncher.hgl/config/heroic"; do
+    [[ -d $d ]] && files+=("$d")
+  done
+  for d in "$HOME/.local/share/bottles/bottles" "$x/com.usebottles.bottles/data/bottles/bottles"; do
+    for f in "$d"/*/bottle.yml; do [[ -f $f ]] && files+=("$f"); done
+  done
+  ((${#files[@]})) || return 0
+  while IFS= read -r line; do
+    line=${line%$'\r'}
+    if [[ $line =~ ^[[:space:]]*\"([A-Za-z_]+)\"[[:space:]]*:[[:space:]]*\"(.*)\"$ ]]; then # JSON
+      v=${BASH_REMATCH[2]}
+      [[ ${BASH_REMATCH[1]} == name ]] && { GR_USED[name $v]=1; v=${v#Proton - }; GR_USED[name ${v#Wine - }]=1; }
+    elif [[ $line =~ ^[[:space:]]*(-[[:space:]]+)?([A-Za-z_]+):[[:space:]]+(.*[^[:space:]]) ]]; then # YAML
+      v=${BASH_REMATCH[3]} v=${v#[\"\']} v=${v%[\"\']}
+      [[ ${BASH_REMATCH[2]} == version || ${BASH_REMATCH[2]} == Runner ]] && GR_USED[name $v]=1
+    else continue; fi
+    [[ $v == "~/"* ]] && v=$HOME/${v#\~/}
+    [[ $v == /* ]] && paths+=("$v")
+  done < <(find "${files[@]}" -maxdepth 2 -type f \( -name '*.yml' -o -name '*.json' \) -size -1024k -print0 2>/dev/null |
+    xargs -0r grep -hsoE '"[A-Za-z_]+"[[:space:]]*:[[:space:]]*"[^"]*"|^[[:space:]]*(-[[:space:]]+)?[A-Za-z_]+:[[:space:]]+[^[:space:]].*' --)
+  ((${#paths[@]})) && mapfile -t GR_PATHS < <(realpath -m -- "${paths[@]}" 2>/dev/null)
+  return 0
+}
+
+runner_family() { # NAME → what comes before its first digit, lower case ("GE-Proton9-20" → ge-proton)
+  local f=${1%%[0-9]*}
+  f=${f,,}
+  while [[ $f == *[-_.\ ] ]]; do f=${f%?}; done
+  printf '%s' "$f"
+}
+runner_key() { # NAME → the numbers in it joined by dots ("GE-Proton9-20" → 9.20), the architecture left out; 0 when none
+  local n=${1,,} k=""
+  n=${n//x86_64/} n=${n//amd64/} n=${n//i386/} n=${n//win64/} n=${n//win32/}
+  while [[ $n =~ [0-9]+ ]]; do k+=${k:+.}${BASH_REMATCH[0]}; n=${n#*"${BASH_REMATCH[0]}"}; done
+  printf '%s' "${k:-0}"
+}
+
+runner_in_use() { # FOLDER → true when a game, bottle or launcher default uses this version
+  local d=$1 n p
+  [[ -n ${GR_USED[all]:-} || -n ${GR_USED[name ${d##*/}]:-} ]] && return 0
+  while IFS= read -r n; do [[ -n $n && -n ${GR_USED[name $n]:-} ]] && return 0; done < <(vdf_names tools "$d/compatibilitytool.vdf")
+  for p in "${GR_PATHS[@]}"; do [[ $p == "$d" || $p == "$d"/* ]] && return 0; done
+  return 1
+}
+
+game_runners_old() { # → GR_DIR / GR_BYTES / GR_LABEL of the old versions, biggest first
+  local l r d n v t i lines=() cand=() keep=() sizes=()
+  local -A newest=() mtime=()
+  GR_DIR=() GR_BYTES=() GR_LABEL=()
+  while IFS=$'\t' read -r l r; do
+    lines=()
+    for d in "$r"/*; do
+      n=${d##*/}
+      [[ -d $d && ! -L $d && $n != .* && $n != *[[:cntrl:]]* ]] || continue
+      [[ -f $d/compatibilitytool.vdf || -d $d/bin || -f $d/proton ]] || continue
+      lines+=("f$(runner_family "$n")"$'\t'"$(runner_key "$n")"$'\t'"$d")
+    done
+    ((${#lines[@]} > 1)) || continue
+    mtime=() newest=()
+    while IFS=$'\t' read -r t d; do mtime[$d]=$t; done < <(printf '%s\n' "${lines[@]##*$'\t'}" | tr '\n' '\0' |
+      xargs -0r stat -c $'%Y\t%n' -- 2>/dev/null)
+    while IFS=$'\t' read -r n v t d; do newest[$n]=$d; done < <( # the newest of each family comes last
+      for i in "${lines[@]}"; do IFS=$'\t' read -r n v d <<<"$i"; printf '%s\t%s\t%s\t%s\n' "$n" "$v" "${mtime[$d]:-0}" "$d"; done |
+        LC_ALL=C sort -t $'\t' -k1,1 -k2,2V -k3,3n)
+    for i in "${lines[@]}"; do
+      IFS=$'\t' read -r n v d <<<"$i"
+      [[ ${newest[$n]} == "$d" ]] && continue
+      touches_exclusion "$d" && continue
+      cand+=("$d"$'\t'"$l: ${d##*/}")
+    done
+  done < <(runner_dirs)
+  ((${#cand[@]})) || return 0
+  runner_used # only when there is something to keep
+  for i in "${cand[@]}"; do runner_in_use "${i%%$'\t'*}" || keep+=("$i"); done
+  ((${#keep[@]})) || return 0
+  mapfile -t sizes < <(printf '%s\n' "${keep[@]%%$'\t'*}" | sized_paths game_runners_old own_bytes)
+  while IFS=$'\t' read -r v d l; do
+    GR_BYTES+=("$v") GR_DIR+=("$d") GR_LABEL+=("$l")
+  done < <(for i in "${!keep[@]}"; do printf '%s\t%s\n' "${sizes[i]:-0}" "${keep[i]}"; done | LC_ALL=C sort -t $'\t' -k1,1nr -k3,3)
+}
+
+lockedby_game_runners_old() { running_proc -xi "$GAME_PROCS|bottles"; } # a launcher or a game may be using a version
+precheck_game_runners_old() {
+  local p
+  p=$(lockedby_game_runners_old) || return 0
+  warn "Skipping ${ITEM_LABEL[game_runners_old]}: close $p first."
+  return 1
+}
+delete_game_runners_old() { # INDEX… of GR_DIR
+  local i rc=0
+  for i; do
+    is_protected "${GR_DIR[i]}" && { err "Refusing to touch protected path: ${GR_DIR[i]}"; rc=1; continue; }
+    run rm -rf -- "${GR_DIR[i]}" || rc=1
+  done
+  return "$rc"
+}
+scan_game_runners_old() {
+  local b
+  game_runners_old
+  ((${#GR_DIR[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${GR_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#GR_DIR[@]} version) replaced by a newer one"
+}
+clean_game_runners_old() {
+  game_runners_old
+  ((${#GR_DIR[@]})) || return 0
+  delete_game_runners_old "${!GR_DIR[@]}"
+}
+details_game_runners_old() {
+  local i
+  game_runners_old
+  for i in "${!GR_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${GR_BYTES[i]}")" "$(human "${GR_BYTES[i]}")" "$NC" "${GR_LABEL[i]}" "${GR_DIR[i]/#$HOME/\~}"
+  done
+}
+entries_game_runners_old() {
+  local i
+  game_runners_old
+  for i in "${!GR_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${GR_DIR[i]}")" "${GR_BYTES[i]}" "${GR_LABEL[i]}"
+  done
+}
+clean_entries_game_runners_old() { # encoded version folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  game_runners_old
+  for id; do
+    for i in "${!GR_DIR[@]}"; do [[ $(urlencode_path "${GR_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_game_runners_old "${pick[@]}"
 }
 
 # Old JetBrains IDE and Android Studio versions. Each version keeps its settings, plugins, caches,
@@ -9041,7 +9246,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 SEL[tracker_index]=0 SEL[baloo_index]=0 # never empty a Trash or reset a search index behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, SDK components or extension versions to download again and IDE versions to let go
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
   plain_results
   printf '\n'
   start_cleanup

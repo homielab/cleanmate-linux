@@ -3755,6 +3755,118 @@ $ec22 $bc22 off CMake 3.22.1 · 0 days old" "pinned build-tools, platform and ND
   assert_exists "$h/elsewhere/ndk/source.properties"; assert_exists "$out_sdk/ndk/20.0/libc.so"
 }
 
+# Old Proton and Wine versions of Steam, Lutris, Heroic and Bottles (deb and Flatpak): every version
+# but the newest of its family in each folder and the ones a game or bottle uses, one entry each,
+# never ticked; locked while a launcher, Wine or Proton runs.
+test_old_proton_and_wine_versions() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/gamebin v d st=$HOME_DIR/.local/share/Steam/compatibilitytools.d
+  local fst=$HOME_DIR/.var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d lu=$HOME_DIR/.local/share/lutris/runners/wine
+  local he=$HOME_DIR/.config/heroic bo=$HOME_DIR/.local/share/bottles fbo=$HOME_DIR/.var/app/com.usebottles.bottles/data/bottles
+  local b1 b2 b3 b4 b5 b6 e1 e2 e3 e4 e5 e6
+  steam_tool() { # FOLDER BYTES [NAME] — a compatibility tool, its compatibilitytool.vdf naming it NAME (default: the folder's name)
+    sized "$1/files/lib/wine.so" "$2"
+    printf '"compatibilitytools"\n{\n  "compat_tools"\n  {\n    "%s" // internal name\n    {\n      "install_path" "."\n      "display_name" "%s"\n    }\n  }\n}\n' \
+      "${3:-${1##*/}}" "${1##*/}" >"$1/compatibilitytool.vdf"
+  }
+  assert_eq "$(cm --json scan --only dev | grep -c '"id":"game_runners_old","status":"found"')" "0" "no launcher: nothing found"
+  steam_tool "$st/GE-Proton8-25" 30000; steam_tool "$st/GE-Proton9-20" 50; steam_tool "$st/GE-Proton10-1" 40
+  sized "$h/.local/share/Steam/steamapps/common/Proton 8.0/dist/lib/wine.so" 60000 # Steam's own Proton
+  mkdir -p "$h/.local/share/Steam/config" "$h/.steam"
+  ln -s "$h/.local/share/Steam" "$h/.steam/root" # the same folder twice: listed once
+  printf '"InstallConfigStore"\n{\n\t"Software"\n\t{\n\t\t"Valve"\n\t\t{\n\t\t\t"Steam"\n\t\t\t{\n\t\t\t\t"CompatToolMapping"\n\t\t\t\t{\n\t\t\t\t\t"0"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"GE-Proton9-20"\n\t\t\t\t\t\t"config"\t\t""\n\t\t\t\t\t\t"priority"\t\t"75"\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t"name"\t\t"GE-Proton8-25"\n\t\t\t}\n\t\t}\n\t}\n}\n' \
+    >"$h/.local/share/Steam/config/config.vdf" # a "name" outside CompatToolMapping keeps nothing
+  b1=$(tbytes "$st/GE-Proton8-25") e1=$(in_app "urlencode_path '$st/GE-Proton8-25'")
+  local list='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["bytes"], "on" if e["selected"] else "off", e["label"])
+    elif e["event"] == "item": print(e["id"], e["status"], e["bytes"], e["note"], e["selected"], e["entries"], e["default"], repr(e["locked"]))
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"])
+    elif e["event"] == "error": print("error", e["message"])'
+  out=$(cm --json details game_runners_old | python3 -c "$list")
+  assert_eq "$out" "$e1 $b1 off Steam: GE-Proton8-25" "three Proton-GE versions, the one a game uses and the newest kept"
+  # Flatpak Steam; Lutris (a game's and the default wine version); Heroic (by name, by path); Bottles (deb and Flatpak)
+  steam_tool "$fst/GE-Proton9-1" 25000; steam_tool "$fst/GE-Proton9-2" 10
+  steam_tool "$st/GE-Proton7-55" 10 GE-Proton7-55-custom; steam_tool "$st/SteamTinkerLaunch" 10 # mapped by its own name; another family
+  sed -i 's/"0"/"440"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"GE-Proton7-55-custom"\n\t\t\t\t\t}\n\t\t\t\t\t"0"/' "$h/.local/share/Steam/config/config.vdf"
+  sized "$st/GE-Proton6-1/files/lib/wine.so" 10 # no compatibilitytool.vdf: not a tool
+  sized "$h/elsewhere/GE-Proton5-1/files/wine.so" 10; new "$h/elsewhere/GE-Proton5-1/compatibilitytool.vdf"
+  ln -s "$h/elsewhere/GE-Proton5-1" "$st/GE-Proton5-1" # a symlink
+  sized "$WORK/outside-steam/compatibilitytools.d/GE-Proton1-1/files/wine.so" 10; new "$WORK/outside-steam/compatibilitytools.d/GE-Proton1-1/compatibilitytool.vdf"
+  sized "$WORK/outside-steam/compatibilitytools.d/GE-Proton2-1/files/wine.so" 10; new "$WORK/outside-steam/compatibilitytools.d/GE-Proton2-1/compatibilitytool.vdf"
+  ln -s "$WORK/outside-steam" "$h/.steam/steam" # outside your home
+  for v in 8-20:10 8-25:20000 8-26:10 8-10:10; do sized "$lu/wine-ge-${v%:*}-x86_64/bin/wine" "${v#*:}"; done
+  mkdir -p "$h/.config/lutris/games" "$h/.config/lutris/runners"
+  printf 'game:\n  exe: /games/x.exe\nwine:\n  version: wine-ge-8-20-x86_64\n' >"$h/.config/lutris/games/x-1700000000.yml"
+  printf "wine:\n  version: 'wine-ge-8-10-x86_64'\n" >"$h/.config/lutris/runners/wine.yml"
+  for v in 1:10 2:15000 3:10; do sized "$he/tools/proton/GE-Proton8-${v%:*}/files/wine.so" "${v#*:}"; new "$he/tools/proton/GE-Proton8-${v%:*}/proton"; done
+  for v in 1 2; do sized "$he/tools/wine/Wine-GE-Proton8-$v/bin/wine" 10; done
+  mkdir -p "$he/GamesConfig"
+  printf '{"abc":{"wineVersion":{"bin":"%s/tools/proton/GE-Proton8-1/proton","name":"Proton - GE-Proton8-1","type":"proton"}}}\n' "$he" >"$he/GamesConfig/abc.json"
+  printf '{\n  "def": {\n    "wineVersion": {\n      "bin": "%s/tools/wine/Wine-GE-Proton8-1/bin/wine",\n      "name": "My wine"\n    }\n  }\n}\n' "$he" >"$he/GamesConfig/def.json"
+  for v in soda-7.0-8:10 soda-7.0-9:10 caffe-7.10:12000 caffe-7.20:10; do sized "$bo/runners/${v%:*}/bin/wine" "${v#*:}"; done
+  mkdir -p "$bo/bottles/Games"; printf 'Name: Games\nRunner: soda-7.0-8\n' >"$bo/bottles/Games/bottle.yml"
+  sized "$fbo/runners/kron4ek-wine-9.0-amd64/bin/wine" 10000; sized "$fbo/runners/kron4ek-wine-9.1-amd64/bin/wine" 10
+  b2=$(tbytes "$fst/GE-Proton9-1") e2=$(in_app "urlencode_path '$fst/GE-Proton9-1'")
+  b3=$(tbytes "$lu/wine-ge-8-25-x86_64") e3=$(in_app "urlencode_path '$lu/wine-ge-8-25-x86_64'")
+  b4=$(tbytes "$he/tools/proton/GE-Proton8-2") e4=$(in_app "urlencode_path '$he/tools/proton/GE-Proton8-2'")
+  b5=$(tbytes "$bo/runners/caffe-7.10") e5=$(in_app "urlencode_path '$bo/runners/caffe-7.10'")
+  b6=$(tbytes "$fbo/runners/kron4ek-wine-9.0-amd64") e6=$(in_app "urlencode_path '$fbo/runners/kron4ek-wine-9.0-amd64'")
+  out=$(cm --json scan --only dev | grep '"id":"game_runners_old"' | python3 -c "$list")
+  assert_eq "$out" "game_runners_old found $((b1 + b2 + b3 + b4 + b5 + b6)) 6 versions replaced by a newer one False True False ''" \
+    "six old versions, not ticked"
+  out=$(cm --json details game_runners_old | python3 -c "$list")
+  assert_eq "$out" "$e1 $b1 off Steam: GE-Proton8-25
+$e2 $b2 off Steam (Flatpak): GE-Proton9-1
+$e3 $b3 off Lutris: wine-ge-8-25-x86_64
+$e4 $b4 off Heroic: GE-Proton8-2
+$e5 $b5 off Bottles: caffe-7.10
+$e6 $b6 off Bottles (Flatpak): kron4ek-wine-9.0-amd64" "one entry per old version, the ones in use and the newest of each family kept"
+  out=$(cm --scan --only dev 2>&1)
+  assert_contains "$out" "Old Proton and Wine versions"
+  select_only game_runners_old # automatic cleaning leaves them alone even when ticked
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$st/GE-Proton8-25/files/lib/wine.so"
+  # a launcher, Wine or Proton running: locked and skipped
+  running_stub "$bin" steamwebhelper
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan --only dev | grep '"id":"game_runners_old"' | python3 -c "$list")
+  assert_contains "$out" "'steamwebhelper'"
+  running_stub "$bin" wineserver
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean game_runners_old --entries "$e1" 2>&1)
+  assert_contains "$out" '"id":"game_runners_old","state":"skip"'
+  running_stub "$bin" bottles
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only dev 2>&1 </dev/null)
+  assert_contains "$out" "Skipping Old Proton and Wine versions: close bottles first."
+  assert_exists "$st/GE-Proton8-25/files/lib/wine.so"
+  out=$(user_cm --json clean game_runners_old --entries "../etc" | python3 -c "$list")
+  assert_contains "$out" "error Not an entry ID of game_runners_old: ../etc"
+  out=$(user_cm --json clean game_runners_old --entries "$e1" | python3 -c "$list")
+  assert_eq "$out" "ok $b1" "only the chosen version"
+  assert_missing "$st/GE-Proton8-25"; assert_exists "$lu/wine-ge-8-25-x86_64/bin/wine"
+  out=$(cm --json details game_runners_old | python3 -c "$list")
+  assert_eq "$(grep -c GE-Proton8-25 <<<"$out")" "0" "the deleted version is no longer listed"
+  out=$(user_cm --json clean game_runners_old | python3 -c "$list")
+  assert_eq "$out" "ok $((b2 + b3 + b4 + b5 + b6))" "the other old versions"
+  for d in "$fst/GE-Proton9-1" "$lu/wine-ge-8-25-x86_64" "$he/tools/proton/GE-Proton8-2" "$bo/runners/caffe-7.10" \
+    "$fbo/runners/kron4ek-wine-9.0-amd64"; do assert_missing "$d"; done
+  for d in "$st/GE-Proton9-20" "$st/GE-Proton10-1" "$st/GE-Proton7-55" "$st/SteamTinkerLaunch" "$st/GE-Proton6-1" "$st/GE-Proton5-1" \
+    "$h/elsewhere/GE-Proton5-1/compatibilitytool.vdf" "$h/.local/share/Steam/steamapps/common/Proton 8.0/dist/lib/wine.so" \
+    "$WORK/outside-steam/compatibilitytools.d/GE-Proton1-1" "$fst/GE-Proton9-2" "$lu/wine-ge-8-10-x86_64" "$lu/wine-ge-8-20-x86_64" \
+    "$lu/wine-ge-8-26-x86_64" "$he/tools/proton/GE-Proton8-1" "$he/tools/proton/GE-Proton8-3" "$he/tools/wine/Wine-GE-Proton8-1" \
+    "$he/tools/wine/Wine-GE-Proton8-2" "$bo/runners/soda-7.0-8" "$bo/runners/soda-7.0-9" "$bo/runners/caffe-7.20" \
+    "$fbo/runners/kron4ek-wine-9.1-amd64"; do assert_exists "$d"; done
+  # Steam's settings can't be read: every Steam version is kept
+  steam_tool "$st/GE-Proton4-1" 10
+  chmod 000 "$h/.local/share/Steam/config/config.vdf"
+  if [[ -r $h/.local/share/Steam/config/config.vdf ]]; then rm "$h/.local/share/Steam/config/config.vdf"; mkdir "$h/.local/share/Steam/config/config.vdf"; fi # root reads anything
+  out=$(cm --json details game_runners_old | python3 -c "$list")
+  assert_eq "$out" "" "unreadable Steam settings keep everything"
+  chmod -R u+rwX "$h/.local/share/Steam/config"
+  unset -f steam_tool
+}
+
 test_old_jetbrains_and_android_studio_versions() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
