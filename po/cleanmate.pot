@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 18:29+0000\n"
+"POT-Creation-Date: 2026-11-01 22:22+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -4128,6 +4128,30 @@ msgid ""
 "settings or a project in your home folder. Deleted; install one again with "
 "asdf install or mise install. A version that is running is skipped. Close "
 "asdf and mise first."
+msgstr ""
+
+#. unity_old_editors label
+msgid "Old Unity Editor versions"
+msgstr ""
+
+#. unity_old_editors description
+#, python-brace-format
+msgid ""
+"Unity Editor versions Unity Hub installed, often {0}–{1} GB each, other than "
+"the newest and those your projects use (ProjectSettings/ProjectVersion.txt). "
+"Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
+msgstr ""
+
+#. unity_caches label
+msgid "Unity caches"
+msgstr ""
+
+#. unity_caches description
+msgid ""
+"Unity's package and build caches and the Asset Store packages it downloaded "
+"(~/.cache/unity3d, ~/.config/unity3d/cache, ~/.local/share/unity3d). "
+"Downloaded or rebuilt when a project needs them; licenses, settings and game "
+"saves are kept."
 msgstr ""
 
 #. android_images label

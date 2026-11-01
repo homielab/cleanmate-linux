@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 18:29+0000\n"
+"POT-Creation-Date: 2026-11-01 22:22+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -4345,6 +4345,36 @@ msgstr ""
 "versions, cài đặt của mise hay một dự án trong thư mục home. Xoá hẳn; cài "
 "lại bằng asdf install hoặc mise install. Bỏ qua phiên bản đang chạy. Hãy "
 "đóng asdf và mise trước."
+
+#. unity_old_editors label
+msgid "Old Unity Editor versions"
+msgstr "Phiên bản Unity Editor cũ"
+
+#. unity_old_editors description
+#, python-brace-format
+msgid ""
+"Unity Editor versions Unity Hub installed, often {0}–{1} GB each, other than "
+"the newest and those your projects use (ProjectSettings/ProjectVersion.txt). "
+"Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
+msgstr ""
+"Các phiên bản Unity Editor do Unity Hub cài, thường {0}–{1} GB mỗi bản, trừ "
+"bản mới nhất và các bản dự án của bạn dùng (ProjectSettings/ProjectVersion."
+"txt). Xoá hẳn; cài lại từ Unity Hub. Hãy đóng Unity và Unity Hub trước."
+
+#. unity_caches label
+msgid "Unity caches"
+msgstr "Bộ nhớ đệm Unity"
+
+#. unity_caches description
+msgid ""
+"Unity's package and build caches and the Asset Store packages it downloaded "
+"(~/.cache/unity3d, ~/.config/unity3d/cache, ~/.local/share/unity3d). "
+"Downloaded or rebuilt when a project needs them; licenses, settings and game "
+"saves are kept."
+msgstr ""
+"Bộ nhớ đệm gói và build của Unity cùng các gói Asset Store đã tải (~/.cache/"
+"unity3d, ~/.config/unity3d/cache, ~/.local/share/unity3d). Tải lại hoặc dựng "
+"lại khi dự án cần; giấy phép, cài đặt và bản lưu game được giữ nguyên."
 
 #. android_images label
 msgid "Android system images (unused)"

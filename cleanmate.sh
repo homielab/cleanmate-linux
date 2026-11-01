@@ -2850,8 +2850,8 @@ clean_entries_vscode_stale_workspaces() { # encoded folders (json_clean_entries 
 app_cache_find() {
   # Exclude with -path tests, not -prune: -delete implies -depth, which disables -prune.
   local ex=(thumbnails pip go-build yarn pnpm mozilla google-chrome chromium BraveSoftware
-    microsoft-edge vivaldi opera huggingface lm-studio firebase JetBrains 'Google/AndroidStudio*' spotify/Storage
-    winetricks wine lutris/banners lutris/coverart lutris/installer lutris/installers lutris/tmp) skip=() e # AI models, old IDE versions and Spotify's cache are items of their own
+    microsoft-edge vivaldi opera huggingface lm-studio firebase JetBrains 'Google/AndroidStudio*' unity3d spotify/Storage
+    winetricks wine lutris/banners lutris/coverart lutris/installer lutris/installers lutris/tmp) skip=() e # AI models, old IDE versions, Unity's and Spotify's caches are items of their own
   for e in "${ex[@]}"; do skip+=(-path "$HOME/.cache/$e/*" -o); done
   unset 'skip[-1]'
   find "$HOME/.cache" -type f -not \( "${skip[@]}" \) -mtime +"$CACHE_DAYS" -atime +"$CACHE_DAYS" "$@" 2>/dev/null
@@ -4181,6 +4181,223 @@ clean_entries_old_runtimes_asdf_mise() { # encoded version folders (json_clean_e
   ((${#pick[@]})) || return 0
   delete_asdf_mise_old "${pick[@]}"
 }
+
+# Old Unity Editor versions: Unity Hub installs each one (5–15 GB) side by side and never removes
+# them. An editor is a <version> folder (2022.3.10f1, 6000.0.23f1) with an Editor/Unity program directly
+# in ~/Unity/Hub/Editor or the install folder set in Unity Hub (installPath.json and
+# secondaryInstallPath.json in ~/.config/UnityHub, a JSON string); only folders inside your home with no
+# symlinks on the way. Kept, never listed: the newest version and the newest release (a newer alpha or
+# beta doesn't replace it), a folder not named after a Unity version, and every version a project pins
+# in ProjectSettings/ProjectVersion.txt (m_EditorVersion) — the projects in Unity Hub's list
+# (projects-v1.json, also each one's "version"), in Hub's projects folder (projectDir.json) and anywhere
+# in your home (looked for like stale build folders, also in excluded folders: reading them only keeps
+# more). Hub's project list there but unreadable lists nothing. Skipped while Unity or Unity Hub runs; a
+# version a program runs from is skipped and the scan says which. Deleted for good (Unity Hub installs
+# one again); not ticked, automatic cleaning leaves them alone; the desktop app lists each version.
+reg unity_old_editors dev "Old Unity Editor versions" 0 "Unity Editor versions Unity Hub installed, often 5–15 GB each, other than the newest and those your projects use (ProjectSettings/ProjectVersion.txt). Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_unity_old_editors='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
+UNITY_VERSION_RE='^([0-9]{1,5})\.([0-9]{1,4})\.([0-9]{1,4})([xabfp])([0-9]{1,4})(c([0-9]{1,4}))?$' # 2019.4.40f1c1
+UNITY_PROCS='Unity|unityhub|unityhub-bin' # the editor and Unity Hub (deb, AppImage)
+UNITY_HUB_JSON_MAX=4194304 # Hub's project list of hundreds of projects stays well below
+declare -A UNITY_PIN=() # set by unity_pins: the version keys (unity_keyv) projects pin
+
+unity_keyv() { # NAME → UV_KEY, digits that sort as the version does (x < a < b < f < p, then the China build
+  # c1), and UV_REL (1 for a release: f or p); fails when NAME is not a Unity version
+  local s st=xabfp
+  [[ $1 =~ $UNITY_VERSION_RE ]] || return 1
+  s=${BASH_REMATCH[4]} st=${st%%"${BASH_REMATCH[4]}"*}
+  printf -v UV_KEY '%05d%04d%04d%d%04d%04d' "$((10#${BASH_REMATCH[1]}))" "$((10#${BASH_REMATCH[2]}))" \
+    "$((10#${BASH_REMATCH[3]}))" "${#st}" "$((10#${BASH_REMATCH[5]}))" "$((10#${BASH_REMATCH[7]:-0}))"
+  UV_REL=0
+  [[ $s == [fp] ]] && UV_REL=1
+  return 0
+}
+
+unity_hub_read() { # s|p FILE → s: the path a JSON string (or an object's "directoryPath") holds; p: "path<TAB>version"
+  # of each object with a "path", anywhere in it; nothing when FILE is missing; fails when it is there and can't be read
+  local kind=$1 f=$2 s
+  [[ -e $f || -L $f ]] || return 0
+  [[ -f $f && ! -L $f ]] || return 1
+  s=$(stat -c %s -- "$f" 2>/dev/null) && ((s <= UNITY_HUB_JSON_MAX)) || return 1
+  if have jq; then
+    if [[ $kind == s ]]; then
+      jq -r 'if type == "string" then . elif type == "object" then (.directoryPath | strings) else empty end
+        | select(test("^[^\t\n]+$"))' -- "$f" 2>/dev/null
+    else
+      jq -r '.. | objects | select(.path | type == "string") | select(.path | test("^[^\t\n]+$"))
+        | .path + "\t" + ((.version | strings | select(test("^[^\t\n]*$"))) // "")' -- "$f" 2>/dev/null
+    fi
+  elif have python3; then
+    python3 -I -c 'import json, re, sys
+d = json.load(open(sys.argv[2], encoding="utf-8"))
+line = re.compile(r"[^\t\n]+")
+if sys.argv[1] == "s":
+    v = d.get("directoryPath") if isinstance(d, dict) else d
+    if isinstance(v, str) and line.fullmatch(v): print(v)
+else:
+    def walk(v):
+        if isinstance(v, dict):
+            p, ver = v.get("path"), v.get("version")
+            if isinstance(p, str) and line.fullmatch(p):
+                print(p + "\t" + (ver if isinstance(ver, str) and line.fullmatch(ver) else ""))
+            for x in v.values(): walk(x)
+        elif isinstance(v, list):
+            for x in v: walk(x)
+    walk(d)' "$kind" "$f" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+unity_hub_settings() { printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/UnityHub"; }
+
+unity_roots() { # the folders Unity Hub installs editors in (inside your home, no symlinks on the way)
+  local hub d f listed=$'\n' found=("$HOME/Unity/Hub/Editor")
+  hub=$(unity_hub_settings)
+  for f in installPath.json secondaryInstallPath.json; do
+    d=$(unity_hub_read s "$hub/$f") && [[ $d == /?* ]] && found+=("$(realpath -m -s -- "${d%%$'\n'*}")")
+  done
+  for d in "${found[@]}"; do
+    [[ $listed != *$'\n'"$d"$'\n'* ]] && runtime_dir "$d" >/dev/null || continue
+    listed+=$d$'\n'
+    printf '%s\n' "$d"
+  done
+}
+
+unity_pins() { # → UNITY_PIN from the projects of Unity Hub's list, its projects folder and your home; fails when
+  # Hub's project list can't be read
+  local hub list p v g dir files=() prune=()
+  UNITY_PIN=()
+  hub=$(unity_hub_settings)
+  list=$(unity_hub_read p "$hub/projects-v1.json") || return 1
+  while IFS=$'\t' read -r p v; do
+    [[ -n $v ]] && unity_keyv "$v" && UNITY_PIN[$UV_KEY]=1
+    [[ $p == /?* ]] && files+=("${p%/}/ProjectSettings/ProjectVersion.txt")
+  done <<<"$list"
+  dir=$(unity_hub_read s "$hub/projectDir.json") || dir=""
+  [[ $dir == /?* ]] && for p in "${dir%/}"/*/ProjectSettings/ProjectVersion.txt; do files+=("$p"); done
+  while IFS= read -r g; do # the editors hold sample projects of their own
+    g=${g//\\/\\\\} g=${g//\*/\\*} g=${g//\?/\\?} g=${g//\[/\\[}
+    prune+=(-o -path "$g")
+  done < <(unity_roots)
+  while IFS= read -r v; do
+    v=${v#*:} v=${v//[[:space:]]/}
+    unity_keyv "$v" && UNITY_PIN[$UV_KEY]=1
+  done < <({ ((${#files[@]})) && find "${files[@]}" -maxdepth 0 -type f -size -64k -print0 2>/dev/null
+    find "$HOME" -xdev \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" -o -path '*/resources/app' \
+      -o -name .git -o -name node_modules -o -path '*/Library/PackageCache' -o -path '*/Library/Artifacts' \
+      -o -path '*/Library/Bee' "${prune[@]}" \) -prune -o \
+      -type f -path '*/ProjectSettings/ProjectVersion.txt' -size -64k -print0 2>/dev/null; } |
+    xargs -0r grep -hsE '^[[:space:]]*m_EditorVersion:' --)
+  return 0
+}
+
+unity_old_editors() { # → UE_DIR / UE_BYTES / UE_LABEL of the versions to offer, biggest first; UE_BUSY = labels of running ones
+  local root d n k b label line used top="" toprel="" count=0 cand=() keep=() sizes=()
+  local -A key=()
+  UE_DIR=() UE_BYTES=() UE_LABEL=() UE_BUSY=()
+  while IFS= read -r root; do
+    for d in "$root"/*/; do
+      d=${d%/} n=${d##*/}
+      [[ -d $d && ! -L $d && $n != .* && $d != *[[:cntrl:]]* && -d $d/Editor && ! -L $d/Editor &&
+        -f $d/Editor/Unity && ! -L $d/Editor/Unity ]] || continue
+      ((++count))
+      unity_keyv "$n" || continue # not named after a version: kept
+      key[$d]=$UV_KEY
+      [[ $UV_KEY > "$top" ]] && top=$UV_KEY
+      ((UV_REL)) && [[ $UV_KEY > "$toprel" ]] && toprel=$UV_KEY
+    done
+  done < <(unity_roots)
+  ((count > 1)) || return 0
+  unity_pins || return 0
+  for d in "${!key[@]}"; do
+    k=${key[$d]}
+    [[ $k == "$top" || $k == "$toprel" || -n ${UNITY_PIN[$k]:-} ]] && continue
+    touches_exclusion "$d" && continue
+    cand+=("$d"$'\t'"Unity ${d##*/}")
+  done
+  ((${#cand[@]})) || return 0
+  used=$'\n'$(find /proc/[0-9]*/exe -maxdepth 0 -printf '%l\n' 2>/dev/null)$'\n'$(open_files)$'\n'
+  for line in "${cand[@]}"; do
+    if open_under "$used" "${line%%$'\t'*}"; then UE_BUSY+=("${line#*$'\t'}"); else keep+=("$line"); fi
+  done
+  ((${#keep[@]})) || return 0
+  mapfile -t sizes < <(printf '%s\n' "${keep[@]%%$'\t'*}" | sized_paths unity_old_editors own_bytes)
+  while IFS=$'\t' read -r b d label; do
+    UE_BYTES+=("$b") UE_DIR+=("$d") UE_LABEL+=("$label")
+  done < <(for n in "${!keep[@]}"; do printf '%s\t%s\n' "${sizes[n]:-0}" "${keep[n]}"; done | LC_ALL=C sort -t $'\t' -k1,1nr -k3,3)
+}
+
+lockedby_unity_old_editors() { running_proc -x "$UNITY_PROCS"; }
+precheck_unity_old_editors() {
+  local p
+  p=$(lockedby_unity_old_editors) || return 0
+  warn "Skipping ${ITEM_LABEL[unity_old_editors]}: close $p first."
+  return 1
+}
+delete_unity_old_editors() { # INDEX… of UE_DIR
+  local i rc=0
+  for i; do
+    is_protected "${UE_DIR[i]}" && { err "Refusing to touch protected path: ${UE_DIR[i]}"; rc=1; continue; }
+    run rm -rf -- "${UE_DIR[i]}" || rc=1
+  done
+  return "$rc"
+}
+scan_unity_old_editors() {
+  local b busy="" r
+  r=$(unity_roots) && [[ -n $r ]] || return 1
+  unity_old_editors
+  ((${#UE_BUSY[@]})) && busy="skipped while running: $(printf '%s, ' "${UE_BUSY[@]}")" busy=${busy%, }
+  if ((${#UE_DIR[@]} == 0)); then
+    SCAN_NOTE=$busy
+    return 2
+  fi
+  SCAN_BYTES=0
+  for b in "${UE_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#UE_DIR[@]} version) not pinned, not the newest${busy:+; $busy}"
+}
+clean_unity_old_editors() {
+  unity_old_editors
+  ((${#UE_DIR[@]})) || return 0
+  delete_unity_old_editors "${!UE_DIR[@]}"
+}
+details_unity_old_editors() {
+  local i
+  unity_old_editors
+  for i in "${!UE_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${UE_BYTES[i]}")" "$(human "${UE_BYTES[i]}")" "$NC" "${UE_LABEL[i]}" "${UE_DIR[i]/#$HOME/\~}"
+  done
+  for i in "${UE_BUSY[@]}"; do printf '  %s%10s  %s  (running, skipped)%s\n' "$DIM" "" "$i" "$NC"; done
+}
+entries_unity_old_editors() {
+  local i
+  unity_old_editors
+  for i in "${!UE_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${UE_DIR[i]}")" "${UE_BYTES[i]}" "${UE_LABEL[i]}"
+  done
+}
+clean_entries_unity_old_editors() { # encoded version folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  unity_old_editors
+  for id; do
+    for i in "${!UE_DIR[@]}"; do [[ $(urlencode_path "${UE_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_unity_old_editors "${pick[@]}"
+}
+
+# Unity's caches, downloaded or built again when a project needs them: ~/.cache/unity3d (the editor's
+# caches, and what games cache there), the package cache ~/.config/unity3d/cache and the Asset Store
+# packages Unity downloaded (~/.local/share/unity3d/Asset Store-5.x). Never the license, preferences,
+# logs or a game's saves elsewhere in ~/.config/unity3d. Not ticked; deleted; skipped while Unity or
+# Unity Hub runs, a folder with a file open is skipped.
+reg_cache_item unity_caches dev "Unity caches" 0 \
+  "Unity's package and build caches and the Asset Store packages it downloaded (~/.cache/unity3d, ~/.config/unity3d/cache, ~/.local/share/unity3d). Downloaded or rebuilt when a project needs them; licenses, settings and game saves are kept." \
+  "$HOME/.cache/unity3d
+$HOME/.config/unity3d/cache
+$HOME/.local/share/unity3d/Asset Store-5.x" "$UNITY_PROCS"
+ITEM_OPEN[unity_caches]=1
 
 # Android emulator system images no virtual device (AVD) uses: 1–8 GB each, and they stay when
 # the AVD is deleted. SDKs: ~/Android/Sdk, ANDROID_HOME and ANDROID_SDK_ROOT (inside your home, no
@@ -6056,7 +6273,7 @@ plain_results() {
     ((++i))
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == old_runtimes_asdf_mise || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == old_runtimes_asdf_mise || $id == unity_old_editors || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -9706,7 +9923,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 SEL[tracker_index]=0 SEL[baloo_index]=0 # never empty a Trash or reset a search index behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[old_runtimes_asdf_mise]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[old_runtimes_asdf_mise]=0 SEL[unity_old_editors]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, Unity editors, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
   skip_data_loss
   plain_results
   printf '\n'

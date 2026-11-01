@@ -4428,6 +4428,130 @@ test_asdf_mise_pin_rules() {
   unset -f kept
 }
 
+test_old_unity_editor_versions_and_caches() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR ed=$HOME_DIR/Unity/Hub/Editor hub=$HOME_DIR/.config/UnityHub out pid enc v hold=() bin=$WORK/unitybin
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups) # user_cm runs as nobody
+  local labels='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["label"], e["bytes"], "on" if e["selected"] else "off")
+    elif e["event"] == "item": print(e["id"], e["status"], e["note"], repr(e["locked"]), e["selected"], e["entries"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"])
+    elif e["event"] == "error": print("error", e["message"])'
+  details() { user_cm --json details unity_old_editors | python3 -c "$labels" | cut -d' ' -f1-2 | LC_ALL=C sort | paste -sd'|' -; }
+  scan() { user_cm --json scan --only dev | grep -E '"id":"unity_(old_editors|caches)"' | python3 -c "$labels"; }
+  assert_eq "$(scan)" "" "no Unity: neither item shown"
+  out=$(cm --json items | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"].startswith("unity_"): print(e["id"], e["category"], e["default"])')
+  assert_eq "$out" $'unity_old_editors dev False\nunity_caches dev False' "--json items: both items, not ticked"
+  # three versions and a project pinning the middle one: only the oldest is offered
+  for v in 2021.3.5f1 2022.3.10f1 6000.0.23f1; do sized "$ed/$v/Editor/Unity" 1000; sized "$ed/$v/Editor/Data/big" 3000; done
+  mkdir -p "$ed/2023.1.0f1/Editor" "$ed/custom/Editor"; sized "$ed/custom/Editor/Unity" 10 # no program; not a version
+  mkdir -p "$h/games/kart/ProjectSettings"
+  printf 'm_EditorVersion: 2022.3.10f1\r\nm_EditorVersionWithRevision: 2022.3.10f1 (ff3792e53c62)\r\n' \
+    >"$h/games/kart/ProjectSettings/ProjectVersion.txt"
+  out=$(scan)
+  assert_eq "$out" "unity_old_editors found 1 version not pinned, not the newest '' False True" "found, not ticked, one by one"
+  assert_eq "$(user_cm --json details unity_old_editors | python3 -c "$labels")" "Unity 2021.3.5f1 $(tbytes "$ed/2021.3.5f1") off" \
+    "the unpinned old version with its size"
+  # no pin: every version but the newest; a newer beta keeps the newest release too
+  rm "$h/games/kart/ProjectSettings/ProjectVersion.txt"
+  assert_eq "$(details)" "Unity 2021.3.5f1|Unity 2022.3.10f1" "unpinned: all but the newest"
+  sized "$ed/6000.1.0b2/Editor/Unity" 10
+  assert_eq "$(details)" "Unity 2021.3.5f1|Unity 2022.3.10f1" "a newer beta keeps the newest release"
+  # Hub's settings: its install folder, its project list (a "version" and a project's own file) and projects folder
+  mkdir -p "$hub" "$h/Editors/2020.3.48f1/Editor" "$h/.hidden/racer/ProjectSettings" "$h/UnityProjects/puzzle/ProjectSettings"
+  sized "$h/Editors/2020.3.48f1/Editor/Unity" 10; sized "$h/Editors/2019.4.40f1/Editor/Unity" 10
+  printf '"%s"' "$h/Editors" >"$hub/secondaryInstallPath.json"
+  printf '{"schema_version":"v1","data":{"%s":{"title":"racer","path":"%s","version":"2019.4.40f1"},"x":{"path":7}}}' \
+    "$h/.hidden/racer" "$h/.hidden/racer" >"$hub/projects-v1.json"
+  printf 'm_EditorVersion: 2020.3.48f1\n' >"$h/.hidden/racer/ProjectSettings/ProjectVersion.txt"
+  printf '{"directoryPath":"%s"}' "$h/UnityProjects" >"$hub/projectDir.json"
+  printf 'm_EditorVersion: 2021.3.5f1\n' >"$h/UnityProjects/puzzle/ProjectSettings/ProjectVersion.txt"
+  assert_eq "$(details)" "Unity 2022.3.10f1" "Hub's install folder, project list and projects folder"
+  assert_eq "$(BASE_PATH=$(path_without jq) details)" "Unity 2022.3.10f1" "the same without jq"
+  cp "$hub/projects-v1.json" "$WORK/unity-projects.json"
+  printf '{"data": ' >"$hub/projects-v1.json"
+  assert_eq "$(details)" "" "Hub's project list can't be read: nothing offered"
+  cp "$WORK/unity-projects.json" "$hub/projects-v1.json"
+  sized "$ed/2018.4.36f1/Editor/Unity" 10
+  # Unity or Unity Hub running: the item is skipped and says why
+  running_stub "$bin" unityhub
+  out=$(BASE_PATH="$bin:$BASE_PATH" scan | grep unity_old_editors)
+  assert_contains "$out" "'unityhub'"
+  assert_contains "$(BASE_PATH="$bin:$BASE_PATH" cm --scan --only dev 2>&1)" "close unityhub first"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean unity_old_editors 2>&1)
+  assert_contains "$out" '"id":"unity_old_editors","state":"skip"'
+  assert_exists "$ed/2022.3.10f1/Editor/Unity"
+  # a version a program runs from is skipped, and the scan says so
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  rm "$ed/2022.3.10f1/Editor/Unity"; cp "$(command -v sleep)" "$ed/2022.3.10f1/Editor/Unity"
+  "${hold[@]}" "$ed/2022.3.10f1/Editor/Unity" 60 >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(scan | grep unity_old_editors)
+  assert_contains "$out" "1 version not pinned, not the newest; skipped while running: Unity 2022.3.10f1"
+  # automatic cleaning leaves them alone even when ticked
+  select_only unity_old_editors
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$ed/2018.4.36f1/Editor/Unity"
+  out=$(user_cm --json clean unity_old_editors --entries "../etc" | python3 -c "$labels")
+  assert_contains "$out" "error Not an entry ID of unity_old_editors: ../etc"
+  enc=$(in_app "urlencode_path '$ed/2022.3.10f1'")
+  out=$(user_cm --json clean unity_old_editors --entries "$enc" | python3 -c "$labels")
+  assert_eq "$out" "fail" "a running version can't be picked"
+  assert_exists "$ed/2022.3.10f1/Editor/Unity"
+  enc=$(in_app "urlencode_path '$ed/2018.4.36f1'")
+  out=$(user_cm --json clean unity_old_editors --entries "$enc" | python3 -c "$labels")
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_eq "$out" "ok" "one version"
+  assert_missing "$ed/2018.4.36f1"
+  out=$(user_cm --json clean unity_old_editors | python3 -c "$labels")
+  assert_eq "$out" "ok" "the rest"
+  assert_missing "$ed/2022.3.10f1"
+  for v in "$ed/2021.3.5f1/Editor/Unity" "$ed/6000.0.23f1/Editor/Unity" "$ed/6000.1.0b2/Editor/Unity" "$ed/2023.1.0f1/Editor" \
+    "$ed/custom/Editor/Unity" "$h/Editors/2020.3.48f1/Editor/Unity" "$h/Editors/2019.4.40f1/Editor/Unity" "$hub/secondaryInstallPath.json" "$hub/projectDir.json" \
+    "$h/.hidden/racer/ProjectSettings/ProjectVersion.txt" "$h/UnityProjects/puzzle/ProjectSettings/ProjectVersion.txt"; do
+    assert_exists "$v"
+  done
+  # Unity's caches: emptied, never the license, settings, logs or a game's saves; skipped while Unity runs
+  new "$h/.cache/unity3d/GiCache/a"; new "$h/.config/unity3d/cache/packages/p.tgz"
+  new "$h/.local/share/unity3d/Asset Store-5.x/Pub/pack.unitypackage"
+  new "$h/.local/share/unity3d/Unity/Unity_lic.ulf"; new "$h/.config/unity3d/Editor.log"
+  new "$h/.config/unity3d/prefs"; new "$h/.config/unity3d/Studio/Game/save.dat"
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  out=$(scan | grep unity_caches | cut -d' ' -f1-2)
+  assert_eq "$out" "unity_caches found" "Unity caches found"
+  running_stub "$bin" Unity
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean unity_caches 2>&1)
+  assert_contains "$out" '"id":"unity_caches","state":"skip"'
+  assert_exists "$h/.cache/unity3d/GiCache/a"
+  out=$(user_cm --json clean unity_caches | python3 -c "$labels")
+  assert_eq "$out" "ok" "caches cleaned"
+  for v in "$h/.cache/unity3d/GiCache" "$h/.config/unity3d/cache/packages" "$h/.local/share/unity3d/Asset Store-5.x/Pub"; do
+    assert_missing "$v"
+  done
+  for v in "$h/.cache/unity3d" "$h/.local/share/unity3d/Unity/Unity_lic.ulf" "$h/.config/unity3d/Editor.log" \
+    "$h/.config/unity3d/prefs" "$h/.config/unity3d/Studio/Game/save.dat"; do
+    assert_exists "$v"
+  done
+  unset -f details scan
+}
+
+test_unity_version_order() {
+  fresh_home
+  local out
+  out=$(in_app 'for v in 6000.0.1f1 2020.1.0p1 2019.4.40f1c1 2020.1.0b1 2019.4.40f1 2020.1.0f1 2020.1.0a1 2020.1.0x1 2020.10.0a1; do
+      unity_keyv "$v" && printf "%s %s %s\n" "$UV_KEY" "$UV_REL" "$v"; done | LC_ALL=C sort | cut -d" " -f2- | paste -sd" " -
+    for v in 2022.3 latest 2022.3.10 2022.3.10f1-dev; do unity_keyv "$v" && echo "read $v"; done')
+  assert_eq "$out" "1 2019.4.40f1 1 2019.4.40f1c1 0 2020.1.0x1 0 2020.1.0a1 0 2020.1.0b1 1 2020.1.0f1 1 2020.1.0p1 0 2020.10.0a1 1 6000.0.1f1" \
+    "x < a < b < f < p, China builds after; only full Unity versions read"
+}
+
 test_firebase_zcode_mimocode_keep_logins_and_sessions() {
   fresh_home
   local h=$HOME_DIR fb=$HOME_DIR/.cache/firebase out holder

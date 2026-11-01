@@ -895,6 +895,23 @@ msgstr ""
 msgid "Node.js, Python, Ruby, Java and other versions asdf or mise installed that are neither the newest of their tool nor pinned in ~/.tool-versions, mise's settings or a project in your home folder. Deleted; install one again with asdf install or mise install. A version that is running is skipped. Close asdf and mise first."
 msgstr ""
 
+#. unity_old_editors label
+msgid "Old Unity Editor versions"
+msgstr ""
+
+#. unity_old_editors description
+#, python-brace-format
+msgid "Unity Editor versions Unity Hub installed, often {0}–{1} GB each, other than the newest and those your projects use (ProjectSettings/ProjectVersion.txt). Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
+msgstr ""
+
+#. unity_caches label
+msgid "Unity caches"
+msgstr ""
+
+#. unity_caches description
+msgid "Unity's package and build caches and the Asset Store packages it downloaded (~/.cache/unity3d, ~/.config/unity3d/cache, ~/.local/share/unity3d). Downloaded or rebuilt when a project needs them; licenses, settings and game saves are kept."
+msgstr ""
+
 #. android_images label
 msgid "Android system images (unused)"
 msgstr ""
