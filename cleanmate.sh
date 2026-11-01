@@ -6741,10 +6741,112 @@ is_disabled() {
 AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
 SYSTEM_AUTOSTART_DIR=${CLEANMATE_SYSTEM_AUTOSTART:-/etc/xdg/autostart} # tests: other system entries
 
-load_startup() { # SHOW_ALL → S_FILE S_NAME S_ON S_HIDDEN
+# ── Broken entries: what a removed app left behind ──
+#
+# A login entry or user unit whose program is gone fails at every login. Only a plain
+# program is judged: `sh -c …`, a $VARIABLE or a %specifier (other than systemd's %h) is
+# never called missing, and a Flatpak app counts as installed while `flatpak info` or its
+# folder says so.
+
+STARTUP_PATH=() # where a bare command name is looked up; filled on first use
+
+exec_wordsv() { # ARRAY LINE → the words of a desktop Exec= or systemd ExecStart= line (quotes, backslashes)
+  local -n __w=$1
+  local s=$2 cur="" q="" c i have=0
+  __w=()
+  for ((i = 0; i < ${#s}; i++)); do
+    c=${s:i:1}
+    if [[ -n $q ]]; then
+      if [[ $c == '\' ]]; then i=$((i + 1)); cur+=${s:i:1}
+      elif [[ $c == "$q" ]]; then q=""
+      else cur+=$c; fi
+    elif [[ $c == '"' || $c == "'" ]]; then q=$c have=1
+    elif [[ $c == ' ' || $c == $'\t' ]]; then
+      ((have)) && __w+=("$cur")
+      cur="" have=0
+    else cur+=$c have=1; fi
+  done
+  ((have)) && __w+=("$cur")
+  return 0
+}
+
+cmd_found() { # COMMAND → 0 when it exists, or can't be judged (a relative path)
+  local d
+  [[ $1 == /* ]] && { [[ -e $1 ]]; return; }
+  [[ $1 == */* ]] && return 0
+  if ((${#STARTUP_PATH[@]} == 0)); then
+    IFS=: read -ra STARTUP_PATH <<<"${PATH:-}"
+    mapfile -t -O "${#STARTUP_PATH[@]}" STARTUP_PATH < <(profile_path_dirs)
+    STARTUP_PATH+=("$HOME/.local/bin" "$HOME/bin" /usr/local/sbin /usr/local/bin /usr/sbin /usr/bin /sbin /bin
+      /usr/games /usr/local/games /snap/bin /var/lib/flatpak/exports/bin
+      "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/bin")
+  fi
+  for d in "${STARTUP_PATH[@]}"; do [[ -n $d && -f $d/$1 && -x $d/$1 ]] && return 0; done
+  return 1
+}
+
+flatpak_installed() { # APP-ID
+  [[ -d ${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/app/$1 || -d /var/lib/flatpak/app/$1 ]] && return 0
+  have flatpak && flatpak info "$1" >/dev/null 2>&1
+}
+
+autostart_missingv() { # VAR FILE → VAR = the program of a login entry that is gone, or ""
+  local -n __m=$1
+  local w i=0
+  local -a ws=()
+  __m=""
+  w=$(desktop_get "$2" TryExec)
+  if [[ -n $w && $w != *[\$\`%\\]* ]] && ! cmd_found "$w"; then __m=$w; return 0; fi
+  exec_wordsv ws "$(desktop_get "$2" Exec)"
+  if [[ ${ws[0]:-} == env || ${ws[0]:-} == */bin/env ]]; then
+    for ((i = 1; i < ${#ws[@]}; i++)); do # skip env's options and VAR=value
+      case ${ws[i]} in
+        -u | -C | --unset | --chdir) i=$((i + 1)) ;;
+        -S* | --split-string*) return 0 ;;
+        -* | *=*) ;;
+        *) break ;;
+      esac
+    done
+  fi
+  w=${ws[i]:-}
+  [[ -n $w && $w != *[\$\`%\\]* ]] || return 0
+  if ! cmd_found "$w"; then __m=$w; return 0; fi
+  if [[ ${w##*/} == flatpak && ${ws[i + 1]:-} == run ]]; then
+    for ((i += 2; i < ${#ws[@]}; i++)); do [[ ${ws[i]} == -* ]] || break; done
+    w=${ws[i]:-} w=${w%%/*}
+    [[ $w =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$ ]] && ! flatpak_installed "$w" && __m="flatpak run $w"
+  fi
+  return 0
+}
+
+unit_missingv() { # VAR PATH → VAR = the program of your unit that is gone (a timer: of the service it starts), or ""
+  local -n __miss=$1
+  local p=$2 svc d w line
+  local -a ws=()
+  __miss=""
+  if [[ $p == *.timer ]]; then
+    svc=$(sed -n 's/^[[:space:]]*Unit[[:space:]]*=[[:space:]]*//p' "$p" 2>/dev/null | tail -n 1)
+    svc=${svc:-$(basename "$p" .timer).service}
+    p=""
+    for d in "$SYSTEMD_USER_DIR" "${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user"; do
+      [[ -f $d/$svc ]] && { p=$d/$svc; break; }
+    done
+    [[ -n $p ]] || return 0
+  fi
+  line=$(sed -n 's/^[[:space:]]*ExecStart[[:space:]]*=[[:space:]]*//p' "$p" 2>/dev/null | grep -m1 .)
+  exec_wordsv ws "$line"
+  w=${ws[0]:-}
+  while [[ $w == [-@+:!]* ]]; do w=${w:1}; done # prefixes: ignore failure, argv[0], privileges
+  w=${w//%h/$HOME}
+  [[ $w == /* && $w != *[\$%\\]* ]] || return 0
+  [[ -e $w ]] || __miss=$w
+  return 0
+}
+
+load_startup() { # SHOW_ALL → S_FILE S_NAME S_ON S_MISS S_HIDDEN
   declare -A eff=()
-  local f b
-  S_FILE=() S_NAME=() S_ON=() S_HIDDEN=0
+  local f b n m
+  S_FILE=() S_NAME=() S_ON=() S_MISS=() S_HIDDEN=0
   for f in "$SYSTEM_AUTOSTART_DIR"/*.desktop "$AUTOSTART_DIR"/*.desktop; do
     [[ -f $f ]] && eff[$(basename "$f")]=$f # a user entry overrides the system one
   done
@@ -6753,8 +6855,11 @@ load_startup() { # SHOW_ALL → S_FILE S_NAME S_ON S_HIDDEN
     f=${eff[$b]}
     if (($1 == 0)) && [[ $(desktop_get "$f" NoDisplay) == true ]]; then ((++S_HIDDEN)); continue; fi
     S_FILE+=("$f")
-    b=$(desktop_get "$f" Name); S_NAME+=("${b:-$(basename "$f" .desktop)}")
+    n=$(desktop_get "$f" Name); S_NAME+=("${n:-$(basename "$f" .desktop)}")
     if is_disabled "$f"; then S_ON+=(0); else S_ON+=(1); fi
+    m="" # only your own entries: a system one is never called broken
+    [[ $f == "$AUTOSTART_DIR"/* && ! -f $SYSTEM_AUTOSTART_DIR/$b ]] && autostart_missingv m "$f"
+    S_MISS+=("$m")
   done < <(printf '%s\n' "${!eff[@]}" | sort)
 }
 
@@ -6776,8 +6881,9 @@ startup_row() {
   if ((S_ON[i])); then st="${GREEN}● on ${NC}"; else st="${DIM}○ off${NC}"; fi
   fitv lbl "${S_NAME[i]}" 38
   (($2)) && lbl="${BOLD}$lbl${NC}"
-  if [[ ${S_FILE[i]} == "$AUTOSTART_DIR"/* ]]; then src=user; else src=system; fi
-  fl " $mark$st  $lbl ${DIM}$src${NC}"
+  if [[ -n ${S_MISS[i]} ]]; then src="${YELLOW}! missing${NC}"
+  elif [[ ${S_FILE[i]} == "$AUTOSTART_DIR"/* ]]; then src="${DIM}user${NC}"; else src="${DIM}system${NC}"; fi
+  fl " $mark$st  $lbl $src"
 }
 
 startup_text() { TEXT=${S_NAME[$1]}; }
@@ -6786,13 +6892,21 @@ startup_top() {
   for i in "${S_ON[@]}"; do ((i)) && ((++on)); done
   fl ""
   fl "  ${BOLD}$on of ${#S_ON[@]} apps start at login${NC} ${DIM}— fewer startup apps means a faster login${NC}"
+  on=0
+  for i in "${S_MISS[@]}"; do [[ -n $i ]] && ((++on)); done
+  ((on)) && fl "  ${YELLOW}!${NC} $(plural "$on" entry) of removed apps ${DIM}— their program is missing${NC}"
   fl ""
 }
 
 startup_bottom() {
   local f=${S_FILE[$L_CUR]} c
-  c=$(desktop_get "$f" Comment)
   fl ""
+  if [[ -n ${S_MISS[$L_CUR]} ]]; then
+    fitv c "Missing: ${S_MISS[$L_CUR]} — the app is gone. Press t to move this entry to the Trash." $((UI_W - 6))
+    fl "  ${YELLOW}!${NC} $c"
+    return 0
+  fi
+  c=$(desktop_get "$f" Comment)
   fitv c "${c:-$(desktop_get "$f" Exec)}" $((UI_W - 6))
   fl "  ${ACCENT}ℹ${NC} ${DIM}$c${NC}"
   ((S_HIDDEN)) && fl "  ${DIM}$S_HIDDEN hidden system services not shown — press s to show them${NC}"
@@ -6800,12 +6914,15 @@ startup_bottom() {
 }
 
 startup_menu() {
-  local show_all=0 cur=0 scroll=0
+  local show_all=0 cur=0 scroll=0 undo=0 keys=()
   load_startup "$show_all"
   while :; do
     L_TITLE="Startup Items" L_TOP=startup_top L_BOTTOM=startup_bottom L_ROW=startup_row L_FOCUSABLE="" L_TEXT=startup_text
     L_VIEW=0 L_COUNT=${#S_FILE[@]} L_CUR=$cur L_SCROLL=$scroll
-    hints "!space" "on/off" s "$( ((show_all)) && echo "hide services" || echo "show services")" q back "↑↓" move
+    keys=("!space" "on/off")
+    [[ -n ${S_MISS[cur]:-} ]] && keys=("!t" "to Trash" space "on/off")
+    ((undo)) && keys+=(z undo)
+    hints "${keys[@]}" s "$( ((show_all)) && echo "hide services" || echo "show services")" q back "↑↓" move
     L_HINTS=$HINTS
     ui_list
     cur=$L_CUR scroll=$L_SCROLL
@@ -6819,6 +6936,18 @@ startup_menu() {
           toast "${GREEN}✔${NC} ${S_NAME[cur]} will $( ((S_ON[cur])) && echo "no longer start" || echo "start") at login"
           load_startup "$show_all"
         fi ;;
+      t) # a broken entry of yours: to the Trash, z puts it back
+        [[ -n ${S_MISS[cur]:-} ]] || continue
+        if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would move ${S_NAME[cur]} to the Trash"; continue; fi
+        UNDO_BATCH=()
+        if move_to_trash "${S_FILE[cur]}" >/dev/null 2>&1; then
+          log "startup: removed ${S_FILE[cur]##*/}"
+          undo=1
+          toast "${GREEN}✔${NC} Moved ${S_NAME[cur]} to the Trash ${DIM}— z puts it back${NC}"
+        else toast "${YELLOW}!${NC} Could not move ${S_NAME[cur]} to the Trash"; fi
+        load_startup "$show_all"
+        ((cur < ${#S_FILE[@]} || cur == 0)) || cur=$((${#S_FILE[@]} - 1)) ;;
+      z) ((undo)) || continue; undo=0; undo_trash; undo_toast; load_startup "$show_all" ;;
       s) show_all=$((1 - show_all)); load_startup "$show_all"; cur=0 scroll=0 ;;
       q | esc | left | backspace) return ;;
     esac
@@ -9092,27 +9221,29 @@ unit_is_yours() { # PATH — a unit file in your own systemd folders
 
 json_bool() { if "$@"; then echo true; else echo false; fi; }
 
-json_unit() { # ID KIND NAME ENABLED PATH SYSTEM HIDDEN TOGGLE REMOVABLE DESCRIPTION COMMAND
-  local jid jn jp jd jc
-  json_str jid "$1"; json_str jn "$3"; json_str jp "$5"; json_str jd "${10}"; json_str jc "${11}"
-  printf '{"event":"unit","id":%s,"kind":"%s","name":%s,"enabled":%s,"path":%s,"system":%s,"hidden":%s,"toggle":%s,"removable":%s,"description":%s,"command":%s}\n' \
-    "$jid" "$2" "$jn" "$4" "$jp" "$6" "$7" "$8" "$9" "$jd" "$jc"
+json_unit() { # ID KIND NAME ENABLED PATH SYSTEM HIDDEN TOGGLE REMOVABLE DESCRIPTION COMMAND [MISSING-COMMAND]
+  local jid jn jp jd jc jm
+  json_str jid "$1"; json_str jn "$3"; json_str jp "$5"; json_str jd "${10}"; json_str jc "${11}"; json_str jm "${12:-}"
+  printf '{"event":"unit","id":%s,"kind":"%s","name":%s,"enabled":%s,"path":%s,"system":%s,"hidden":%s,"toggle":%s,"removable":%s,"description":%s,"command":%s,"missing":%s,"missing_cmd":%s}\n' \
+    "$jid" "$2" "$jn" "$4" "$jp" "$6" "$7" "$8" "$9" "$jd" "$jc" "$( [[ -n ${12:-} ]] && echo true || echo false)" "$jm"
 }
 
 json_startup() {
   ((EUID != 0)) || { json_error "Startup items are per user: run this as yourself, not as root"; return 2; }
-  local f b name n=0 units systemd=true unit state p desc
+  local f b name n=0 units systemd=true unit state p desc miss
   local -A eff=()
   for f in "$SYSTEM_AUTOSTART_DIR"/*.desktop "$AUTOSTART_DIR"/*.desktop; do
     [[ -f $f ]] && eff[${f##*/}]=$f # your entry overrides the system one
   done
   while IFS= read -r b; do
     [[ -n $b ]] || continue
-    f=${eff[$b]} name=$(desktop_get "${eff[$b]}" Name)
+    f=${eff[$b]} name=$(desktop_get "${eff[$b]}" Name) miss=""
+    # only your own entries: a system one (or your copy of it) is never called broken
+    [[ $f == "$AUTOSTART_DIR/$b" && ! -f $SYSTEM_AUTOSTART_DIR/$b ]] && autostart_missingv miss "$f"
     json_unit "autostart:$b" autostart "${name:-${b%.desktop}}" "$(is_disabled "$f" && echo false || echo true)" "$f" \
       "$(json_bool test -f "$SYSTEM_AUTOSTART_DIR/$b")" "$(json_bool test "$(desktop_get "$f" NoDisplay)" = true)" true \
       "$(json_bool test ! -f "$SYSTEM_AUTOSTART_DIR/$b" -a "$f" = "$AUTOSTART_DIR/$b")" \
-      "$(desktop_get "$f" Comment)" "$(desktop_get "$f" Exec)"
+      "$(desktop_get "$f" Comment)" "$(desktop_get "$f" Exec)" "$miss"
     n=$((n + 1))
   done < <(((${#eff[@]})) && printf '%s\n' "${!eff[@]}" | sort)
   if units=$(systemd_user_units); then
@@ -9120,8 +9251,11 @@ json_startup() {
       [[ -n $unit ]] || continue
       if unit_is_yours "$p"; then
         desc=$(desktop_get "$p" Description)
+        unit_missingv miss "$p"
+        # removable: in ~/.config/systemd/user, or a broken one anywhere in your folders
         json_unit "systemd:$unit" systemd-user "${desc:-$unit}" "$(json_bool test "$state" = enabled)" "$p" false false \
-          true "$(json_bool test "$p" != "${p#"$SYSTEMD_USER_DIR"/}")" "$desc" "$(desktop_get "$p" ExecStart)"
+          true "$(json_bool test "$p" != "${p#"$SYSTEMD_USER_DIR"/}" -o -n "$miss")" "$desc" "$(desktop_get "$p" ExecStart)" \
+          "$miss"
       elif [[ $state == enabled ]]; then # the system's own: shown, never changed here
         desc=$( [[ -n $p ]] && desktop_get "$p" Description)
         json_unit "systemd:$unit" systemd-user "${desc:-$unit}" true "$p" true true false false "$desc" \
@@ -9163,13 +9297,14 @@ startup_set_autostart() { # ID FILE-NAME ACTION
 }
 
 startup_set_systemd() { # ID UNIT ACTION
-  local id=$1 unit=$2 act=$3 u state p found="" name err
+  local id=$1 unit=$2 act=$3 u state p found="" name err miss=""
   [[ $unit =~ $UNIT_RE ]] || { json_startup_task "$id" fail "Not a service or timer"; return; }
   while IFS=$'\t' read -r u state p; do [[ $u == "$unit" ]] && { found=1; break; }; done < <(systemd_user_units)
   [[ -n $found ]] || { json_startup_task "$id" fail "Not found"; return; }
   unit_is_yours "$p" || { json_startup_task "$id" fail "It comes with the system: only shown here"; return; }
-  if [[ $act == remove && $p != "$SYSTEMD_USER_DIR"/* ]]; then
-    json_startup_task "$id" fail "Only units in ${SYSTEMD_USER_DIR/#$HOME/\~} can be removed"; return
+  [[ $act == remove && $p != "$SYSTEMD_USER_DIR"/* ]] && unit_missingv miss "$p"
+  if [[ $act == remove && $p != "$SYSTEMD_USER_DIR"/* && -z $miss ]]; then
+    json_startup_task "$id" fail "Only units in ${SYSTEMD_USER_DIR/#$HOME/\~}, or whose program is gone, can be removed"; return
   fi
   if ((DRY_RUN)); then
     if [[ $act == remove ]]; then json_startup_task "$id" ok "would be moved to the Trash"

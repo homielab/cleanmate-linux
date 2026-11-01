@@ -541,17 +541,30 @@ def duplicates_test(win, report, wait, finish):
     wait(idle, searched, 60, "duplicates search")
 
 
+def labels(widget):
+    """The text of every Gtk.Label inside a widget."""
+    out, child = [], widget.get_first_child()
+    if isinstance(widget, Gtk.Label):
+        out.append(widget.get_label())
+    while child:
+        out += labels(child)
+        child = child.get_next_sibling()
+    return out
+
+
 def startup_test(win, report, wait, finish):
     """Login apps of a throwaway home and a fake `systemctl --user`: list, switch off and on,
-    remove to the Trash and undo."""
+    remove to the Trash and undo; an entry whose program is gone is flagged, removed and put back."""
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir, system = (os.path.join(sandbox, d) for d in ("home", "bin", "xdg-autostart"))
     autostart, units = os.path.join(home, ".config", "autostart"), os.path.join(home, ".config", "systemd", "user")
     for d in (autostart, units, bin_dir, system):
         os.makedirs(d)
-    chat = os.path.join(autostart, "chat.desktop")
+    chat, gone = os.path.join(autostart, "chat.desktop"), os.path.join(autostart, "gone.desktop")
     for path, text in ((chat, "[Desktop Entry]\nType=Application\nName=Chat\nExec=chat --tray\n"),
+                       (os.path.join(bin_dir, "chat"), "#!/bin/sh\n"),
+                       (gone, "[Desktop Entry]\nType=Application\nName=Old Sync\nExec=zz-removed-sync --tray\n"),
                        (os.path.join(system, "backup.desktop"), "[Desktop Entry]\nType=Application\nName=Backup\nExec=backup\n"),
                        (os.path.join(units, "sync.service"), "[Unit]\nDescription=Sync my files\n"),
                        (os.path.join(home, "units"), "sync.service enabled enabled\npipewire.service enabled enabled\n"),
@@ -560,7 +573,8 @@ def startup_test(win, report, wait, finish):
                         'enable|disable) for u; do :; done; sed -i "s/^$u [a-z]*/$u ${1}d/" "$HOME/units" ;; esac\n')):
         with open(path, "w") as f:
             f.write(text)
-    os.chmod(os.path.join(bin_dir, "systemctl"), 0o755)
+    for name in ("systemctl", "chat"):
+        os.chmod(os.path.join(bin_dir, name), 0o755)
     env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
            "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_SYSTEM_AUTOSTART": system,
            "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
@@ -592,7 +606,8 @@ def startup_test(win, report, wait, finish):
             report(page.stack.get_visible_child_name() == "failed", "as root the engine refuses startup items")
             return done()
         ids = sorted(page.switches)
-        report(ids == ["autostart:backup.desktop", "autostart:chat.desktop", "systemd:sync.service"],
+        report(ids == ["autostart:backup.desktop", "autostart:chat.desktop", "autostart:gone.desktop",
+                       "systemd:sync.service"],
                f"startup items listed, system services hidden: {ids}")
         page.show_system.set_active(True)
         sw = page.switches.get("systemd:pipewire.service")
@@ -631,6 +646,26 @@ def startup_test(win, report, wait, finish):
 
     def undone():
         report(os.path.exists(chat), "Undo from the toast puts the startup entry back")
+        first = page.results.get_first_child().get_next_sibling()  # the group under the header
+        broken = [u["id"] for u in page.units if u.get("missing")]
+        report(broken == ["autostart:gone.desktop"] and isinstance(first, Adw.PreferencesGroup)
+               and first.get_title() == _("Broken items"),
+               f"an entry whose program is gone is listed first, under Broken items: {broken}")
+        missing = _("Missing: {command}").format(command="zz-removed-sync")
+        report(missing in labels(page.rows["autostart:gone.desktop"]), "the broken entry says what is missing")
+        unit = next(u for u in page.units if u["id"] == "autostart:gone.desktop")
+        page.undo_toast = None
+        page.remove(unit)
+        wait(lambda: idle() and page.undo_toast is not None, broken_removed, 60, "remove broken")
+
+    def broken_removed():
+        report(not os.path.exists(gone) and "autostart:gone.desktop" not in page.rows,
+               "Remove moves the broken entry to the Trash")
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: idle() and "autostart:gone.desktop" in page.rows, broken_undone, 60, "undo broken")
+
+    def broken_undone():
+        report(os.path.exists(gone), "Undo puts the broken entry back")
         done()
 
     wait(idle, first, 60, "first startup list")

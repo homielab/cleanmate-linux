@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 01:11+0000\n"
+"POT-Creation-Date: 2026-11-01 01:50+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -180,7 +180,7 @@ msgstr ""
 #: gui/cleanmate_gui/duplicates.py:324 gui/cleanmate_gui/largefiles.py:278
 #: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:443
 #: gui/cleanmate_gui/settings.py:426 gui/cleanmate_gui/spacelens.py:364
-#: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:576
+#: gui/cleanmate_gui/startup.py:247 gui/cleanmate_gui/uninstaller.py:576
 #: gui/cleanmate_gui/uninstaller.py:775
 msgid "Cancel"
 msgstr ""
@@ -214,7 +214,7 @@ msgstr[1] ""
 
 #: gui/cleanmate_gui/duplicates.py:376 gui/cleanmate_gui/largefiles.py:329
 #: gui/cleanmate_gui/scanpage.py:537 gui/cleanmate_gui/spacelens.py:417
-#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/uninstaller.py:372
+#: gui/cleanmate_gui/startup.py:266 gui/cleanmate_gui/uninstaller.py:372
 msgid "Undo"
 msgstr ""
 
@@ -1221,7 +1221,7 @@ msgstr ""
 msgid "Refresh"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:486 gui/cleanmate_gui/startup.py:146
+#: gui/cleanmate_gui/overview.py:486 gui/cleanmate_gui/startup.py:156
 msgid "System"
 msgstr ""
 
@@ -2108,111 +2108,133 @@ msgid_plural "Moved {n} items ({size}) to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/startup.py:48
+#: gui/cleanmate_gui/startup.py:49
 msgid "Can't read your startup items"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:54
+#: gui/cleanmate_gui/startup.py:55
 msgid "Show system services"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:55
+#: gui/cleanmate_gui/startup.py:56
 msgid "Parts of Ubuntu that start for every user"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:115
+#: gui/cleanmate_gui/startup.py:116
 msgid ""
 "Fewer apps at login means a faster start. Turning one off doesn't uninstall "
 "it."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:120 gui/cleanmate_gui/uninstaller.py:224
+#: gui/cleanmate_gui/startup.py:123
+msgid "Broken items"
+msgstr ""
+
+#: gui/cleanmate_gui/startup.py:124
+msgid ""
+"Left behind by apps you removed: their program is missing, so they fail at "
+"every login. Remove them to the Trash."
+msgstr ""
+
+#: gui/cleanmate_gui/startup.py:130 gui/cleanmate_gui/uninstaller.py:224
 msgid "Apps"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:120
+#: gui/cleanmate_gui/startup.py:130
 msgid "No app starts when you log in."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:121
+#: gui/cleanmate_gui/startup.py:131
 msgid "Services and timers"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:121
+#: gui/cleanmate_gui/startup.py:131
 msgid "No service or timer of yours starts when you log in."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:125
+#: gui/cleanmate_gui/startup.py:135
 msgid "systemd user services aren't available here."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:134
+#: gui/cleanmate_gui/startup.py:144
 #, python-brace-format
 msgid "{n} part of Ubuntu that starts for every user"
 msgid_plural "{n} parts of Ubuntu that start for every user"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/startup.py:149
+#: gui/cleanmate_gui/startup.py:158
+#, python-brace-format
+msgid "Missing: {command}"
+msgstr ""
+
+#: gui/cleanmate_gui/startup.py:162 gui/cleanmate_gui/startup.py:248
+msgid "Remove"
+msgstr ""
+
+#: gui/cleanmate_gui/startup.py:162 gui/cleanmate_gui/startup.py:167
 msgid "Remove (to the Trash)"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:154
+#: gui/cleanmate_gui/startup.py:172
 msgid "Comes with the system: only shown here"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:166
+#: gui/cleanmate_gui/startup.py:184
 #, python-brace-format
 msgid "{on} of {n} starts when you log in"
 msgid_plural "{on} of {n} start when you log in"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/startup.py:199
+#: gui/cleanmate_gui/startup.py:217
 msgid "Could not change it"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:203
+#: gui/cleanmate_gui/startup.py:221
 #, python-brace-format
 msgid "Dry run: {name} would be changed"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:208
+#: gui/cleanmate_gui/startup.py:226
 #, python-brace-format
 msgid "{name} will start when you log in"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:209
+#: gui/cleanmate_gui/startup.py:227
 #, python-brace-format
 msgid "{name} won't start when you log in"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:223
+#: gui/cleanmate_gui/startup.py:241
 #, python-brace-format
-msgid "Remove {name}?"
+msgid ""
+"Its program {command} is no longer installed, so it fails at every login. "
+"Its startup file goes to the Trash. You can undo this right away."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:224
+#: gui/cleanmate_gui/startup.py:244
 msgid ""
 "It won't start when you log in any more, and its startup file goes to the "
 "Trash. The app itself stays installed. You can undo this right away."
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:227
-msgid "Remove"
+#: gui/cleanmate_gui/startup.py:246
+#, python-brace-format
+msgid "Remove {name}?"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/startup.py:248
+#: gui/cleanmate_gui/startup.py:266 gui/cleanmate_gui/startup.py:269
 #, python-brace-format
 msgid "Removed {name}"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:267
+#: gui/cleanmate_gui/startup.py:288
 #, python-brace-format
 msgid "Could not restore {name}: {reason}"
 msgstr ""
 
-#: gui/cleanmate_gui/startup.py:272 gui/cleanmate_gui/startup.py:274
+#: gui/cleanmate_gui/startup.py:293 gui/cleanmate_gui/startup.py:295
 #, python-brace-format
 msgid "{name} is back"
 msgstr ""

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 01:11+0000\n"
+"POT-Creation-Date: 2026-11-01 01:50+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -173,7 +173,7 @@ msgstr ""
 #: gui/cleanmate_gui/duplicates.py:324 gui/cleanmate_gui/largefiles.py:278
 #: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:443
 #: gui/cleanmate_gui/settings.py:426 gui/cleanmate_gui/spacelens.py:364
-#: gui/cleanmate_gui/startup.py:226 gui/cleanmate_gui/uninstaller.py:576
+#: gui/cleanmate_gui/startup.py:247 gui/cleanmate_gui/uninstaller.py:576
 #: gui/cleanmate_gui/uninstaller.py:775
 msgid "Cancel"
 msgstr "Huỷ"
@@ -204,7 +204,7 @@ msgstr[0] "{n} tệp không chuyển được: {reason}"
 
 #: gui/cleanmate_gui/duplicates.py:376 gui/cleanmate_gui/largefiles.py:329
 #: gui/cleanmate_gui/scanpage.py:537 gui/cleanmate_gui/spacelens.py:417
-#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/uninstaller.py:372
+#: gui/cleanmate_gui/startup.py:266 gui/cleanmate_gui/uninstaller.py:372
 msgid "Undo"
 msgstr "Hoàn tác"
 
@@ -1190,7 +1190,7 @@ msgstr "Không đo được hệ thống này"
 msgid "Refresh"
 msgstr "Làm mới"
 
-#: gui/cleanmate_gui/overview.py:486 gui/cleanmate_gui/startup.py:146
+#: gui/cleanmate_gui/overview.py:486 gui/cleanmate_gui/startup.py:156
 msgid "System"
 msgstr "Hệ thống"
 
@@ -1763,7 +1763,8 @@ msgstr "Cảnh báo sắp đầy ổ đĩa"
 msgid ""
 "A notification when the system disk is almost full. Checked daily and when "
 "CleanMate opens."
-msgstr "Thông báo khi ổ hệ thống sắp đầy. Kiểm tra hằng ngày và khi mở CleanMate."
+msgstr ""
+"Thông báo khi ổ hệ thống sắp đầy. Kiểm tra hằng ngày và khi mở CleanMate."
 
 #: gui/cleanmate_gui/settings.py:154
 msgid ""
@@ -2090,19 +2091,19 @@ msgid "Moved {n} item ({size}) to the Trash"
 msgid_plural "Moved {n} items ({size}) to the Trash"
 msgstr[0] "Đã chuyển {n} mục ({size}) vào Thùng rác"
 
-#: gui/cleanmate_gui/startup.py:48
+#: gui/cleanmate_gui/startup.py:49
 msgid "Can't read your startup items"
 msgstr "Không đọc được các mục khởi động"
 
-#: gui/cleanmate_gui/startup.py:54
+#: gui/cleanmate_gui/startup.py:55
 msgid "Show system services"
 msgstr "Hiện dịch vụ hệ thống"
 
-#: gui/cleanmate_gui/startup.py:55
+#: gui/cleanmate_gui/startup.py:56
 msgid "Parts of Ubuntu that start for every user"
 msgstr "Các phần của Ubuntu khởi động cho mọi người dùng"
 
-#: gui/cleanmate_gui/startup.py:115
+#: gui/cleanmate_gui/startup.py:116
 msgid ""
 "Fewer apps at login means a faster start. Turning one off doesn't uninstall "
 "it."
@@ -2110,71 +2111,97 @@ msgstr ""
 "Càng ít app khi đăng nhập thì máy khởi động càng nhanh. Tắt một app không gỡ "
 "cài đặt nó."
 
-#: gui/cleanmate_gui/startup.py:120 gui/cleanmate_gui/uninstaller.py:224
+#: gui/cleanmate_gui/startup.py:123
+msgid "Broken items"
+msgstr "Mục hỏng"
+
+#: gui/cleanmate_gui/startup.py:124
+msgid ""
+"Left behind by apps you removed: their program is missing, so they fail at "
+"every login. Remove them to the Trash."
+msgstr ""
+"Còn sót lại từ các app bạn đã gỡ: chương trình của chúng không còn nên chúng "
+"lỗi ở mỗi lần đăng nhập. Gỡ chúng vào Thùng rác."
+
+#: gui/cleanmate_gui/startup.py:130 gui/cleanmate_gui/uninstaller.py:224
 msgid "Apps"
 msgstr "Ứng dụng"
 
-#: gui/cleanmate_gui/startup.py:120
+#: gui/cleanmate_gui/startup.py:130
 msgid "No app starts when you log in."
 msgstr "Không có app nào khởi động khi bạn đăng nhập."
 
-#: gui/cleanmate_gui/startup.py:121
+#: gui/cleanmate_gui/startup.py:131
 msgid "Services and timers"
 msgstr "Dịch vụ và hẹn giờ"
 
-#: gui/cleanmate_gui/startup.py:121
+#: gui/cleanmate_gui/startup.py:131
 msgid "No service or timer of yours starts when you log in."
 msgstr "Không có dịch vụ hay hẹn giờ nào của bạn khởi động khi bạn đăng nhập."
 
-#: gui/cleanmate_gui/startup.py:125
+#: gui/cleanmate_gui/startup.py:135
 msgid "systemd user services aren't available here."
 msgstr "Dịch vụ người dùng của systemd không có ở đây."
 
-#: gui/cleanmate_gui/startup.py:134
+#: gui/cleanmate_gui/startup.py:144
 #, python-brace-format
 msgid "{n} part of Ubuntu that starts for every user"
 msgid_plural "{n} parts of Ubuntu that start for every user"
 msgstr[0] "{n} phần của Ubuntu khởi động cho mọi người dùng"
 
-#: gui/cleanmate_gui/startup.py:149
+#: gui/cleanmate_gui/startup.py:158
+#, python-brace-format
+msgid "Missing: {command}"
+msgstr "Không còn: {command}"
+
+#: gui/cleanmate_gui/startup.py:162 gui/cleanmate_gui/startup.py:248
+msgid "Remove"
+msgstr "Gỡ"
+
+#: gui/cleanmate_gui/startup.py:162 gui/cleanmate_gui/startup.py:167
 msgid "Remove (to the Trash)"
 msgstr "Gỡ (vào Thùng rác)"
 
-#: gui/cleanmate_gui/startup.py:154
+#: gui/cleanmate_gui/startup.py:172
 msgid "Comes with the system: only shown here"
 msgstr "Đi kèm hệ thống: chỉ hiển thị ở đây"
 
-#: gui/cleanmate_gui/startup.py:166
+#: gui/cleanmate_gui/startup.py:184
 #, python-brace-format
 msgid "{on} of {n} starts when you log in"
 msgid_plural "{on} of {n} start when you log in"
 msgstr[0] "{on}/{n} mục khởi động khi bạn đăng nhập"
 
-#: gui/cleanmate_gui/startup.py:199
+#: gui/cleanmate_gui/startup.py:217
 msgid "Could not change it"
 msgstr "Không thay đổi được"
 
-#: gui/cleanmate_gui/startup.py:203
+#: gui/cleanmate_gui/startup.py:221
 #, python-brace-format
 msgid "Dry run: {name} would be changed"
 msgstr "Chạy thử: {name} sẽ được thay đổi"
 
-#: gui/cleanmate_gui/startup.py:208
+#: gui/cleanmate_gui/startup.py:226
 #, python-brace-format
 msgid "{name} will start when you log in"
 msgstr "{name} sẽ khởi động khi bạn đăng nhập"
 
-#: gui/cleanmate_gui/startup.py:209
+#: gui/cleanmate_gui/startup.py:227
 #, python-brace-format
 msgid "{name} won't start when you log in"
 msgstr "{name} sẽ không khởi động khi bạn đăng nhập"
 
-#: gui/cleanmate_gui/startup.py:223
+#: gui/cleanmate_gui/startup.py:241
 #, python-brace-format
-msgid "Remove {name}?"
-msgstr "Gỡ {name}?"
+msgid ""
+"Its program {command} is no longer installed, so it fails at every login. "
+"Its startup file goes to the Trash. You can undo this right away."
+msgstr ""
+"Chương trình {command} của nó không còn được cài nên nó lỗi ở mỗi lần đăng "
+"nhập. Tệp khởi động của nó được chuyển vào Thùng rác. Bạn có thể hoàn tác "
+"ngay."
 
-#: gui/cleanmate_gui/startup.py:224
+#: gui/cleanmate_gui/startup.py:244
 msgid ""
 "It won't start when you log in any more, and its startup file goes to the "
 "Trash. The app itself stays installed. You can undo this right away."
@@ -2182,21 +2209,22 @@ msgstr ""
 "Nó sẽ không khởi động khi bạn đăng nhập nữa, và tệp khởi động của nó được "
 "chuyển vào Thùng rác. App vẫn được cài. Bạn có thể hoàn tác ngay."
 
-#: gui/cleanmate_gui/startup.py:227
-msgid "Remove"
-msgstr "Gỡ"
+#: gui/cleanmate_gui/startup.py:246
+#, python-brace-format
+msgid "Remove {name}?"
+msgstr "Gỡ {name}?"
 
-#: gui/cleanmate_gui/startup.py:245 gui/cleanmate_gui/startup.py:248
+#: gui/cleanmate_gui/startup.py:266 gui/cleanmate_gui/startup.py:269
 #, python-brace-format
 msgid "Removed {name}"
 msgstr "Đã gỡ {name}"
 
-#: gui/cleanmate_gui/startup.py:267
+#: gui/cleanmate_gui/startup.py:288
 #, python-brace-format
 msgid "Could not restore {name}: {reason}"
 msgstr "Không trả lại được {name}: {reason}"
 
-#: gui/cleanmate_gui/startup.py:272 gui/cleanmate_gui/startup.py:274
+#: gui/cleanmate_gui/startup.py:293 gui/cleanmate_gui/startup.py:295
 #, python-brace-format
 msgid "{name} is back"
 msgstr "Đã trả lại {name}"

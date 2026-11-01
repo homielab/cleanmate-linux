@@ -2,9 +2,10 @@
 
 The engine lists them (`--json startup`), changes them (`--json startup-set ID enable|disable|remove`)
 and puts a removed file back (`--json restore`); this page only shows them. Entries and services
-that come with the system are shown, but only the engine decides what can change.
+that come with the system are shown, but only the engine decides what can change. Entries of yours
+whose program is gone (`missing`) are listed first, under Broken items, with a Remove button.
 """
-from gi.repository import Adw, Gio, GLib, Gtk
+from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .i18n import _, ngettext
 
@@ -116,11 +117,20 @@ class StartupPage(Gtk.Box):
                                         "uninstall it."), xalign=0, wrap=True, css_classes=["dim-label"]))
         self.results.append(header)
 
+        broken = [u for u in self.units if u.get("missing")]  # shown even when hidden: they're yours
+        if broken:
+            group = Adw.PreferencesGroup(
+                title=_("Broken items"),
+                description=_("Left behind by apps you removed: their program is missing, so they fail at "
+                              "every login. Remove them to the Trash."))
+            for u in broken:
+                group.add(self.unit_row(u))
+            self.results.append(group)
         for kind, title, empty in (
                 ("autostart", _("Apps"), _("No app starts when you log in.")),
                 ("systemd-user", _("Services and timers"), _("No service or timer of yours starts when you log in."))):
             group = Adw.PreferencesGroup(title=title)
-            mine = [u for u in units if u["kind"] == kind]
+            mine = [u for u in units if u["kind"] == kind and not u.get("missing")]
             if kind == "systemd-user" and not self.info.get("systemd", True):
                 group.set_description(_("systemd user services aren't available here."))
             elif not mine:
@@ -144,7 +154,15 @@ class StartupPage(Gtk.Box):
         row.add_prefix(unit_icon(u))
         if u["system"]:
             row.add_suffix(Gtk.Label(label=_("System"), valign=Gtk.Align.CENTER, css_classes=["caption", "dim-label"]))
-        if u["removable"]:
+        if u.get("missing"):
+            missing = _("Missing: {command}").format(command=u["missing_cmd"])
+            row.add_suffix(Gtk.Label(label=missing, valign=Gtk.Align.CENTER, ellipsize=Pango.EllipsizeMode.MIDDLE,
+                                     max_width_chars=28, tooltip_text=missing, css_classes=["caption", "warning"]))
+        if u["removable"] and u.get("missing"):
+            remove = Gtk.Button(label=_("Remove"), valign=Gtk.Align.CENTER, tooltip_text=_("Remove (to the Trash)"))
+            remove.connect("clicked", lambda *_a: self.confirm_remove(u))
+            row.add_suffix(remove)
+        elif u["removable"]:
             remove = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
                                 tooltip_text=_("Remove (to the Trash)"))
             remove.connect("clicked", lambda *_a: self.confirm_remove(u))
@@ -219,10 +237,13 @@ class StartupPage(Gtk.Box):
         self.running = self.engine.startup_set(u["id"], action, on_event, on_done)
 
     def confirm_remove(self, u):
-        dialog = Adw.AlertDialog(
-            heading=_("Remove {name}?").format(name=u["name"]),
-            body=_("It won't start when you log in any more, and its startup file goes to the Trash. "
-                   "The app itself stays installed. You can undo this right away."))
+        if u.get("missing"):
+            body = _("Its program {command} is no longer installed, so it fails at every login. Its startup "
+                     "file goes to the Trash. You can undo this right away.").format(command=u["missing_cmd"])
+        else:
+            body = _("It won't start when you log in any more, and its startup file goes to the Trash. "
+                     "The app itself stays installed. You can undo this right away.")
+        dialog = Adw.AlertDialog(heading=_("Remove {name}?").format(name=u["name"]), body=body)
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("remove", _("Remove"))
         dialog.set_response_appearance("remove", Adw.ResponseAppearance.DESTRUCTIVE)

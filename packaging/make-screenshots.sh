@@ -103,6 +103,7 @@ mkdir -p "$DEMO/.local/share"
 printf '#!/bin/sh\nexit 1\n' >"$STUBS/sudo"
 printf '#!/bin/sh\nexit 1\n' >"$STUBS/pgrep"
 printf '#!/bin/sh\n' >"$STUBS/node"
+for b in slack discord steam; do printf '#!/bin/sh\n' >"$STUBS/$b"; done # Dropbox is gone: a broken login entry
 cat >"$STUBS/docker" <<'EOF'
 #!/bin/sh
 case "$*" in

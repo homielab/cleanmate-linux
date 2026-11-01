@@ -78,7 +78,8 @@ pick); nothing is ticked until you choose, and **Select automatically** ticks ev
 your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
 Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash). **Startup Items** switches the apps and your systemd user services
 that start at login on or off (a service or timer also starts or stops right away; the system's own services are only shown); removing one of yours
-moves its file to the Trash, with **Undo**. **Uninstaller** removes apt, Snap, Flatpak and AppImage apps — tick several (say,
+moves its file to the Trash, with **Undo**; entries and services whose program is gone (left behind by an app you removed) are
+listed first as broken, ready to remove. **Uninstaller** removes apt, Snap, Flatpak and AppImage apps — tick several (say,
 everything unused for 12+ months) to remove them with one confirmation and one password; an app that is running
 is skipped — and, if you tick them, the folders they leave in your home (to the Trash, with **Restore folders**); folders of apps you removed earlier are a group of their own
 at the end, not ticked, with **Undo** after moving them to the Trash. **Reset…** keeps one app installed and moves
@@ -166,7 +167,7 @@ the browser runs; Firefox needs `sqlite3` (it clears the records, so bookmarks i
   snapshots, the swap file, ext4's reserved space), your largest folders, and whether the firewall,
   AppArmor, automatic security updates and Secure Boot are on (read only, with the command to fix one).
 - Space Lens (browse folders by size), Large & Old Files (here with virtual machine disks),
-  Duplicates, Startup Items (login apps) and Settings.
+  Duplicates, Startup Items (login apps; **t** moves a broken one to the Trash) and Settings.
 
 ## Safe by design
 

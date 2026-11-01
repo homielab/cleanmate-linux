@@ -1922,7 +1922,7 @@ for l in sys.stdin:
     e = json.loads(l)
     if e["event"] == "unit":
         flags = "".join(c for c, k in (("s", "system"), ("h", "hidden"), ("t", "toggle"), ("r", "removable")) if e[k]) or "-"
-        print(e["id"], "on" if e["enabled"] else "off", flags, e["name"])
+        print(e["id"], "on" if e["enabled"] else "off", flags, e["name"] + (" !" + e["missing_cmd"] if e["missing"] else ""))
     elif e["event"] == "task": print(e["state"], e["trash"] or "-", e["info"])
     elif e["event"] == "done": print("done", e.get("count", ""), str(e.get("systemd", "")).lower())
     else: print(e["event"], e.get("message", ""))'
@@ -1946,7 +1946,9 @@ test_json_startup_items() {
   printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift' \
     'case $1 in list-unit-files) cat "$HOME/units" ;; enable | disable) for u; do :; done; sed -i "s/^$u [a-z]*/$u ${1}d/" "$HOME/units" ;; esac' \
     >"$HOME_DIR/.local/bin/systemctl"
-  chmod +x "$HOME_DIR/.local/bin/systemctl"
+  mkdir -p "$HOME_DIR/bin" # the programs exist: nothing here is broken
+  printf '#!/bin/sh\n' | tee "$HOME_DIR/.local/bin/chat" "$HOME_DIR/.local/bin/old" "$HOME_DIR/bin/sync" >/dev/null
+  chmod +x "$HOME_DIR/.local/bin/systemctl" "$HOME_DIR/.local/bin/chat" "$HOME_DIR/.local/bin/old" "$HOME_DIR/bin/sync"
   if ((EUID == 0)); then
     out=$(cm --json startup 2>&1); assert_contains "$out" "run this as yourself, not as root"
   fi
@@ -1988,7 +1990,7 @@ done 7 true" "autostart entries and systemd user units; the system's are view on
   out=$(user_cm --json startup-set systemd:pipewire.service disable | startup_list)
   assert_contains "$out" "fail - It comes with the system: only shown here"
   out=$(user_cm --json startup-set systemd:notes.timer remove | startup_list)
-  assert_contains "$out" "fail - Only units in ~/.config/systemd/user can be removed"
+  assert_contains "$out" "fail - Only units in ~/.config/systemd/user, or whose program is gone, can be removed"
   out=$(user_cm --json startup-set systemd:sync.service remove | startup_list)
   assert_contains "$out" "ok sync.service moved to the Trash"; assert_missing "$u/sync.service"
   assert_contains "$(cat "$HOME_DIR/systemctl.log")" $'--user disable --now sync.service\n--user daemon-reload'
@@ -1999,6 +2001,88 @@ done 7 true" "autostart entries and systemd user units; the system's are view on
   printf '#!/bin/sh\nexit 1\n' >"$HOME_DIR/.local/bin/systemctl" # no systemd user session: autostart entries only
   out=$(user_cm --json startup | startup_list | tail -n 1)
   assert_eq "$out" "done 4 false" "without systemctl --user"
+}
+
+test_startup_broken_items() { # entries and units whose program a removed app took with it
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out a=$HOME_DIR/.config/autostart u=$HOME_DIR/.config/systemd/user s=$HOME_DIR/.local/share/systemd/user
+  local sys=$WORK/xdg-autostart.$RANDOM b=$HOME_DIR/.local/bin
+  local CLEANMATE_SYSTEM_AUTOSTART=$sys
+  mkdir -p "$a" "$u" "$s" "$sys" "$b" "$HOME_DIR/opt/app" "$HOME_DIR/.local/share/flatpak/app/org.kept.App"
+  startup_entry() { printf '[Desktop Entry]\nType=Application\nName=%s\nExec=%s\n%b' "$2" "$3" "${4:-}" >"$1"; }
+  printf '#!/bin/sh\n' >"$b/tray-here"; printf '#!/bin/sh\n' >"$HOME_DIR/opt/app/run me"
+  printf '#!/bin/sh\n[ "$1" = info ] && [ "$2" = org.other.App ]\n' >"$b/flatpak" # installed: org.other.App only
+  chmod +x "$b/tray-here" "$HOME_DIR/opt/app/run me" "$b/flatpak"
+  startup_entry "$a/here.desktop" Here "tray-here --hidden"
+  startup_entry "$a/gone.desktop" Gone "zz-gone-app --tray"
+  startup_entry "$a/abs.desktop" Abs "$HOME_DIR/opt/app/zz-gone"
+  startup_entry "$a/quoted.desktop" Quoted "\"$HOME_DIR/opt/app/run me\" %U"
+  startup_entry "$a/try.desktop" Try "tray-here" "TryExec=zz-gone-try\n"
+  startup_entry "$a/env.desktop" Env "env GDK_BACKEND=x11 -u QT_QPA tray-here"
+  startup_entry "$a/envgone.desktop" EnvGone "env FOO=1 zz-gone-env"
+  startup_entry "$a/shell.desktop" Shell "sh -c 'sleep 5 && zz-gone-in-shell'"
+  startup_entry "$a/var.desktop" Var "\$HOME/zz-gone"
+  startup_entry "$a/flat.desktop" Flat "flatpak run --branch=stable org.other.App"
+  startup_entry "$a/flatdir.desktop" FlatDir "$b/flatpak run --command=kept org.kept.App"
+  startup_entry "$a/flatgone.desktop" FlatGone "flatpak run org.gone.App"
+  startup_entry "$a/dbus.desktop" DBus "" "DBusActivatable=true\n"
+  startup_entry "$sys/sysgone.desktop" SysGone "zz-gone-system" # the system's: never judged
+  printf '[Service]\nExecStart="%%h/opt/app/run me" --x\n' >"$u/quoted.service"
+  printf '[Service]\nExecStart=%%h/opt/zz-gone\\x20app/run\n' >"$u/escaped.service" # an escape: not judged
+  printf '[Service]\nExecStart=-%%h/.local/bin/tray-here --x\n' >"$u/ok.service"
+  printf '[Service]\nExecStart=\nExecStart=/opt/zz-gone/agent --daemon\n' >"$u/gone.service"
+  printf '[Service]\nExecStart=/bin/sh -c "zz-gone-x"\n' >"$u/shell.service"
+  printf '[Service]\nExecStart=zz-gone-bare\n' >"$u/bare.service"
+  printf '[Timer]\nOnCalendar=daily\n' >"$s/backup.timer"
+  printf '[Service]\nExecStart=%%h/zz-gone/backup\n' >"$s/backup.service"
+  printf '[Service]\nExecStart=%%h/zz-gone/old\n' >"$s/old.service"
+  printf '%s\n' 'quoted.service enabled enabled' 'escaped.service enabled enabled' 'ok.service enabled enabled' 'gone.service enabled enabled' 'shell.service enabled enabled' \
+    'bare.service disabled enabled' 'backup.timer enabled enabled' 'old.service disabled enabled' >"$HOME_DIR/units"
+  printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift' \
+    'case $1 in list-unit-files) cat "$HOME/units" ;; enable | disable) for u; do :; done; sed -i "s/^$u [a-z]*/$u ${1}d/" "$HOME/units" ;; esac' \
+    >"$b/systemctl"
+  chmod +x "$b/systemctl"
+  out=$(user_cm --json startup | startup_list)
+  assert_eq "$out" "autostart:abs.desktop on tr Abs !$HOME_DIR/opt/app/zz-gone
+autostart:dbus.desktop on tr DBus
+autostart:env.desktop on tr Env
+autostart:envgone.desktop on tr EnvGone !zz-gone-env
+autostart:flat.desktop on tr Flat
+autostart:flatdir.desktop on tr FlatDir
+autostart:flatgone.desktop on tr FlatGone !flatpak run org.gone.App
+autostart:gone.desktop on tr Gone !zz-gone-app
+autostart:here.desktop on tr Here
+autostart:quoted.desktop on tr Quoted
+autostart:shell.desktop on tr Shell
+autostart:sysgone.desktop on st SysGone
+autostart:try.desktop on tr Try !zz-gone-try
+autostart:var.desktop on tr Var
+systemd:quoted.service on tr quoted.service
+systemd:escaped.service on tr escaped.service
+systemd:ok.service on tr ok.service
+systemd:gone.service on tr gone.service !/opt/zz-gone/agent
+systemd:shell.service on tr shell.service
+systemd:bare.service off tr bare.service
+systemd:backup.timer on tr backup.timer !$HOME_DIR/zz-gone/backup
+systemd:old.service off tr old.service !$HOME_DIR/zz-gone/old
+done 22 true" "broken entries and units are flagged, the rest are not"
+  # a broken unit in ~/.local/share/systemd/user can be removed too: turned off, then to the Trash
+  out=$(user_cm --json startup-set systemd:backup.timer remove | startup_list)
+  assert_contains "$out" "ok backup.timer moved to the Trash"; assert_missing "$s/backup.timer"
+  assert_contains "$(cat "$HOME_DIR/systemctl.log")" $'--user disable --now backup.timer\n--user daemon-reload'
+  out=$(user_cm --json startup-set systemd:gone.service remove | startup_list)
+  assert_contains "$out" "ok gone.service moved to the Trash"; assert_missing "$u/gone.service"
+  out=$(user_cm --json startup-set autostart:gone.desktop remove | startup_list)
+  assert_contains "$out" "ok gone.desktop moved to the Trash"; assert_missing "$a/gone.desktop"
+  out=$(user_cm --json restore gone.desktop | startup_list)
+  assert_contains "$out" "ok gone.desktop put back"; assert_exists "$a/gone.desktop"
+  # your copy that turns a system entry off is not broken, also in the terminal app (Trash would turn it back on)
+  startup_entry "$a/sysgone.desktop" SysGone "zz-gone-system" "Hidden=true\n"
+  out=$(user_cm --json startup | startup_list | grep sysgone)
+  assert_eq "$out" "autostart:sysgone.desktop off st SysGone" "an override of a system entry is not flagged"
+  out=$(in_app "SYSTEM_AUTOSTART_DIR='$sys'; load_startup 1;"' for i in "${!S_NAME[@]}"; do echo "${S_NAME[i]} ${S_ON[i]} ${S_MISS[i]:--}"; done' | grep -E '^(SysGone|Gone) ')
+  assert_eq "$out" $'Gone 1 zz-gone-app\nSysGone 0 -' "terminal app: the override is not marked missing, a broken entry is"
 }
 
 settings_list() { # reads `--json settings` / `settings-set` → one line per event
