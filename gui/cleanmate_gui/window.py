@@ -5,6 +5,8 @@ import subprocess
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
+from . import bugreport
+from .bugreport import REPO_URL
 from .duplicates import DuplicatesPage
 from .engine import SMART_SCAN, Selection, human
 from .i18n import _
@@ -62,7 +64,6 @@ PAGES = [
 ]
 # Ctrl+1…9: the System Overview (where the app opens) first, then the sidebar from the top
 SHORTCUT_PAGES = ["overview", "smart", "system", "logs", "user", "ai", "dev", "privacy", "lens"]
-REPO_URL = "https://github.com/homielab/cleanmate-linux"
 
 
 class Window(Adw.ApplicationWindow):
@@ -105,13 +106,21 @@ class Window(Adw.ApplicationWindow):
         disk.append(self.disk_label)
 
         menu = Gio.Menu()
-        menu.append(_("Settings"), "win.settings")
-        menu.append(_("Keyboard Shortcuts"), "win.shortcuts")
-        menu.append(_("Open the terminal app"), "win.terminal")
-        menu.append(_("Source code"), "win.source")
-        menu.append(_("Report a problem"), "win.issues")
-        menu.append("HomieLab", "win.homepage")
-        menu.append(_("About CleanMate"), "win.about")
+        main = Gio.Menu()
+        main.append(_("Settings"), "win.settings")
+        main.append(_("Keyboard Shortcuts"), "win.shortcuts")
+        main.append(_("Open the terminal app"), "win.terminal")
+        menu.append_section(None, main)
+        help_ = Gio.Menu()
+        help_.append(_("Report a Bug…"), "win.report-bug")
+        help_.append(_("Suggest a Feature…"), "win.suggest")
+        help_.append(_("Share CleanMate"), "win.share")
+        help_.append(_("Source code"), "win.source")
+        menu.append_section(None, help_)
+        about = Gio.Menu()
+        about.append("HomieLab", "win.homepage")
+        about.append(_("About CleanMate"), "win.about")
+        menu.append_section(None, about)
         side_header = Adw.HeaderBar()
         side_header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
                                             tooltip_text=_("Main menu")))
@@ -144,7 +153,9 @@ class Window(Adw.ApplicationWindow):
         for name, cb in (("terminal", self.open_terminal), ("about", self.show_about),
                          ("settings", lambda *_: self.show_settings()),
                          ("source", lambda *_: self._open_url(REPO_URL)),
-                         ("issues", lambda *_: self._open_url(REPO_URL + "/issues")),
+                         ("report-bug", lambda *_: bugreport.report_bug(self)),
+                         ("suggest", lambda *_: bugreport.suggest_feature(self)),
+                         ("share", lambda *_: bugreport.share(self)),
                          ("homepage", lambda *_: self._open_url("https://homielab.com"))):
             action = Gio.SimpleAction(name=name)
             action.connect("activate", cb)
@@ -298,7 +309,7 @@ class Window(Adw.ApplicationWindow):
             application_name="CleanMate", application_icon="com.homielab.CleanMate",
             version=self.engine.version(), developer_name="HomieLab", developers=["HomieLab https://homielab.com"],
             copyright="© 2026 HomieLab", license_type=Gtk.License.MIT_X11, website=REPO_URL,
-            issue_url=REPO_URL + "/issues",
+            issue_url=bugreport.issue_url(bugreport.BUG_TEMPLATE),
             translator_credits=_("translator-credits"),
             comments=_("A friendly system cleaner for Ubuntu, inspired by CleanMyMac. "
                        "Not affiliated with MacPaw."))

@@ -18,7 +18,7 @@ leftovers of removed apps, developer and AI-tool clutter, and shows you exactly 
 remove. Nothing is deleted until you confirm. It's a desktop app *and* a terminal app (`cm`)
 that share one engine.
 
-[Install](#install) · [What it cleans](#what-it-cleans) · [Safety](#safe-by-design) · [FAQ](#faq) · [Report a bug](https://github.com/homielab/cleanmate-linux/issues)
+[Install](#install) · [What it cleans](#what-it-cleans) · [Safety](#safe-by-design) · [FAQ](#faq) · [Report a bug](https://github.com/homielab/cleanmate-linux/issues/new/choose)
 
 ![The desktop app](docs/screenshots/desktop-1-results.png)
 
@@ -212,6 +212,7 @@ cm --clean                       # Smart Scan, confirm once, clean
 cm --clean --yes --only logs     # clean logs without asking
 cm --scan --only privacy         # what history is stored?
 cm --check                       # low disk alert and scan reminder now
+cm --version                     # version and system details for a bug report
 cm --help                        # all options
 ```
 
@@ -258,6 +259,12 @@ packages in `~/.cache/cleanmate` for faster scans. Nothing is sent anywhere —
 see the [privacy policy](docs/PRIVACY.md).
 
 ## Contributing
+
+Found a bug? In the desktop app, *main menu → Report a Bug…* opens a new GitHub issue with your
+CleanMate version, Ubuntu version, desktop, install method and last few activity lines filled in — you
+see them first, and they hold no user name or personal file path. From a terminal, paste the output of
+`cm --version` into a [new issue](https://github.com/homielab/cleanmate-linux/issues/new/choose).
+*Suggest a Feature…* opens the feature request form, and *Share CleanMate* copies the website link.
 
 Bug reports and pull requests are welcome — [CONTRIBUTING.md](CONTRIBUTING.md) explains how it
 works, how to add a cleaner and how to run the tests. Plans are in

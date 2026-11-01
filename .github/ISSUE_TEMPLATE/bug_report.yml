@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in CleanMate doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. In the CleanMate app, **main menu › Report a Bug…** fills in **System details** for you; in a terminal, run `cm --version` and paste what it prints.
+        Please don't paste file paths or anything personal.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Smart Scan
+        2. Click Scan
+        3. …
+  - type: textarea
+    id: system
+    attributes:
+      label: System details
+      description: CleanMate version, Ubuntu version, desktop, how CleanMate was installed and recent activity. Filled in by Report a Bug… or printed by `cm --version`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots or other details that help.

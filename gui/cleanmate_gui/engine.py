@@ -176,12 +176,15 @@ class Engine:
         return self.run(["check", *kinds], on_event, on_done)
 
     def version(self):
+        """The engine's VERSION, read from the script: `--version` also gathers the system details."""
         try:
-            out = GLib.spawn_sync(None, ["bash", self.path, "--version"], None,
-                                  GLib.SpawnFlags.SEARCH_PATH, None)[1]
-            return out.decode().split()[-1]
-        except (GLib.Error, IndexError):
-            return "?"
+            with open(self.path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if line.startswith('VERSION="'):
+                        return line.split('"')[1]
+        except OSError:
+            pass
+        return "?"
 
 
 class Selection:

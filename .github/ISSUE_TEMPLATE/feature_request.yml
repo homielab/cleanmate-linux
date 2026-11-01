@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest something CleanMate could clean, show or do better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like CleanMate to do?
+      description: The problem you want solved, or the files or apps you'd like CleanMate to handle.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does it matter to you?
+      description: How you'd use it, and how you deal with it today.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Examples, screenshots, or other apps that do it well.

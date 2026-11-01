@@ -7138,6 +7138,128 @@ pkg_counts() { # → OV_APT OV_SNAP OV_FLATPAK (empty when the tool isn't instal
   return 0
 }
 
+# ── system details for a bug report: `--version` and `--json sysreport` (the desktop app's Report a Bug…) ──
+# Read from this computer only; nothing is sent anywhere. The text is English whatever the app language,
+# and holds no home folder, user name or personal file name (see sr_redact_lines).
+SR_ACTIVITY_LINES=5
+SR_LINE_MAX=120 # an activity line is cut to this many characters, so the report stays short
+
+sr_install() { # → SR_INSTALL: how this copy was installed
+  local v
+  if [[ -n ${SNAP:-} ]]; then SR_INSTALL="snap${SNAP_REVISION:+ (revision $SNAP_REVISION)}"
+  elif packaged; then # the PPA's versions end in -0ppaN; the GitHub Releases .deb is the bare version
+    v=$(dpkg-query -W -f '${Version}' cleanmate 2>/dev/null)
+    if [[ $v == *ppa* ]]; then SR_INSTALL="PPA ($v)"; else SR_INSTALL=".deb package${v:+ ($v)}"; fi
+  elif [[ $SELF == "$BIN_PATH" ]]; then SR_INSTALL="cleanmate --install"
+  elif [[ -e $(dirname "$SELF")/.git ]]; then SR_INSTALL="git checkout"
+  else SR_INSTALL="script run directly"; fi
+}
+
+sr_desktop() { # → SR_DESKTOP: desktop, GNOME version and Wayland / X11
+  local de=${XDG_CURRENT_DESKTOP:-} session="" ver=""
+  case ${XDG_SESSION_TYPE:-} in wayland) session=Wayland ;; x11) session=X11 ;; esac
+  [[ -z $session && -n ${WAYLAND_DISPLAY:-} ]] && session=Wayland
+  [[ -z $session && -n ${DISPLAY:-} ]] && session=X11
+  if [[ -z $de$session ]]; then SR_DESKTOP="none (no graphical session)"; return; fi
+  if [[ ${de^^} == *GNOME* ]] && have gnome-shell; then
+    ver=$(timeout 2 gnome-shell --version 2>/dev/null) && ver=${ver##* } || ver=""
+  fi
+  SR_DESKTOP="${de:-unknown}${ver:+, GNOME $ver}${session:+, $session}"
+}
+
+sr_redact_lines() { # VAR LINE… → VAR = the lines without the home folder (→ ~), other users' folders
+  # (/home/<user>, /media/<user>), the user's names (whole words, 3 characters or more so a short name
+  # doesn't eat parts of other words) or the names of your own files: a path in a folder of yours that
+  # isn't hidden (not ~/.cache, ~/.config…), or in the Trash, shows as "(file or folder)"
+  local -n __srl=$1
+  shift
+  local __h=${HOME%/} __line __tok __out __personal __u __full __w __esc
+  local -a __toks __names=() __script=()
+  local __lines=()
+  for __line in "$@"; do
+    __line=${__line//[$'\x01'-$'\x1f']/ }
+    if ((${#__h} > 1)); then
+      __line=${__line//"$__h/"/\~/}
+      __line=${__line//"$__h "/"~ "}
+      [[ $__line == *"$__h" ]] && __line="${__line%"$__h"}~"
+    fi
+    read -ra __toks <<<"$__line"
+    __out="" __personal=0
+    for __tok in "${__toks[@]}"; do
+      case $__tok in
+        "~/.local/share/Trash"*) __tok="~/.local/share/Trash/(file or folder)" __personal=1 ;;
+        "~/."*) __personal=0 ;;
+        "~/"?*) __tok="~/(file or folder)" __personal=1 ;;
+        /* | "~"* | -*) __personal=0 ;;
+        *) ((__personal)) && continue ;; # the rest of a file name with spaces
+      esac
+      __out+="${__out:+ }$__tok"
+    done
+    __lines+=("$__out")
+  done
+  ((${#__lines[@]})) || { __srl=(); return 0; }
+  __u=${USER:-$(id -un 2>/dev/null)}
+  __full=$(getent passwd "$__u" 2>/dev/null | cut -d: -f5)
+  __full=${__full%%,*}
+  read -ra __toks <<<"$__full"
+  for __w in "$__u" "$__full" "${__toks[@]}"; do
+    [[ ${#__w} -ge 3 && $__w != root ]] && __names+=("$__w")
+  done
+  __script=(-e 's#/(home|media)/[^/[:space:]]+#/\1/<user>#g')
+  for __w in "${__names[@]}"; do
+    __esc=$(printf '%s' "$__w" | sed 's/[][\.*^$+?(){}|/#]/\\&/g')
+    # twice: a match takes the character after it, so a name right after another one needs a second pass
+    __script+=(-e "s#(^|[^[:alnum:]])$__esc([^[:alnum:]]|\$)#\1"$'\x01'"\2#Ig"
+      -e "s#(^|[^[:alnum:]])$__esc([^[:alnum:]]|\$)#\1"$'\x01'"\2#Ig")
+  done
+  __script+=(-e $'s#\x01#<user>#g')
+  mapfile -t __srl < <(printf '%s\n' "${__lines[@]}" | sed -E "${__script[@]}")
+  for __line in "${!__srl[@]}"; do
+    __w=${__srl[__line]}
+    ((${#__w} > SR_LINE_MAX)) && __srl[__line]="${__w:0:SR_LINE_MAX-1}…"
+  done
+  return 0
+}
+
+sys_report() { # → SR_* and SR_BODY: the system details a bug report needs
+  local re='^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ' l loc choice h=${HOME%/}
+  local -a raw=() texts=() dates=()
+  SR_OS=$(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")
+  SR_KERNEL=$(uname -r 2>/dev/null) SR_ARCH=$(uname -m 2>/dev/null)
+  sr_install
+  sr_desktop
+  loc=${LANGUAGE%%:*}
+  loc=${loc:-${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}}
+  setting_choice choice language
+  if [[ $choice == system ]]; then SR_LANGUAGE="$loc; the desktop app follows the system"
+  else SR_LANGUAGE="$loc; the desktop app in $choice (chosen in Settings)"; fi
+  [[ -s $LOG_FILE ]] && mapfile -t raw < <(grep -aE "$re" -- "$LOG_FILE" 2>/dev/null | tail -n "$SR_ACTIVITY_LINES")
+  for l in "${raw[@]}"; do dates+=("${l:0:16}") texts+=("${l:20}"); done
+  sr_redact_lines texts "${texts[@]}"
+  SR_ACTIVITY=()
+  for l in "${!texts[@]}"; do SR_ACTIVITY+=("${dates[l]}  ${texts[l]}"); done
+  SR_BODY="CleanMate: $VERSION
+System: ${SR_OS:-unknown Linux}, kernel ${SR_KERNEL:-?}, ${SR_ARCH:-?}
+Desktop: $SR_DESKTOP
+Installed with: $SR_INSTALL
+Language: $SR_LANGUAGE"
+  ((EUID == 0)) && SR_BODY+=$'\nRuns as: root'
+  if ((${#SR_ACTIVITY[@]})); then
+    SR_BODY+=$'\n\n'"Recent activity (last ${#SR_ACTIVITY[@]}, oldest first):"
+    for l in "${SR_ACTIVITY[@]}"; do SR_BODY+=$'\n'"$l"; done
+  else
+    SR_BODY+=$'\n\nRecent activity: none'
+  fi
+  ((${#h} > 1)) && SR_BODY=${SR_BODY//"$h/"/\~/}
+  return 0
+}
+
+version_report() { # `--version`: the version, then the system details to paste into a bug report
+  sys_report
+  printf 'cleanmate %s\n\n%s\n\nReport a bug: %s/issues/new?template=bug_report.yml (paste the details above)\n' \
+    "$VERSION" "$SR_BODY" "$REPO_URL"
+}
+
 disk_rows() { # → mount<TAB>size<TAB>used<TAB>avail<TAB>fstype<TAB>device per real filesystem
   df -B1 --output=target,size,used,avail,fstype,source -x tmpfs -x devtmpfs -x squashfs -x overlay -x efivarfs 2>/dev/null |
     awk 'NR > 1 && $2 > 0 {print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6}'
@@ -8799,6 +8921,7 @@ json_main() { # SUBCOMMAND ARGS…
     settings) json_settings ;;
     settings-set) json_settings_set "$@" ;;
     activity) json_activity "$@" ;;
+    sysreport) json_sysreport ;;
     apps) json_apps ;;
     uninstall) json_uninstall "$@" ;;
     reset) json_reset "$@" ;;
@@ -8806,7 +8929,7 @@ json_main() { # SUBCOMMAND ARGS…
     maintain) json_maintain "$@" ;;
     overview) json_overview ;;
     check) json_check "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|sysreport|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
   esac
 }
 
@@ -9477,6 +9600,20 @@ json_activity() { # [--limit N] — the activity log the terminal app shows, new
   printf '{"event":"done","count":%d,"path":%s}\n' "$n" "$text"
 }
 
+json_sysreport() { # the system details of a bug report (sys_report): the fields, and the text to show and send
+  local f n v out="" acts="" l
+  sys_report
+  for f in version:VERSION os:SR_OS kernel:SR_KERNEL arch:SR_ARCH desktop:SR_DESKTOP install:SR_INSTALL \
+    language:SR_LANGUAGE body:SR_BODY; do
+    n=${f#*:}
+    json_str v "${!n}"
+    out+="\"${f%%:*}\":$v,"
+  done
+  for l in "${SR_ACTIVITY[@]}"; do json_str v "$l"; acts+="${acts:+,}$v"; done
+  printf '{"event":"sysreport",%s"root":%s,"activity":[%s]}\n{"event":"done"}\n' "$out" \
+    "$( ((EUID == 0)) && echo true || echo false)" "$acts"
+}
+
 # ── Uninstaller for the desktop app ──
 #
 # `apps` lists exactly what the terminal app's Uninstaller offers (parts of
@@ -9871,7 +10008,7 @@ Install & update
       --install     Install the cm command, the desktop app and the app-grid entry
       --update      Check for a new version and install it (asks first)
       --uninstall   Remove everything --install added
-  -v, --version     Print the version
+  -v, --version     Print the version and the system details a bug report needs
 
 For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
@@ -9986,7 +10123,7 @@ while (($#)); do
         [[ -n ${CAT_TITLE[$_c]:-} ]] || { err "Unknown category: $_c (use system, logs, user, browser, apps, ai, models, dev, privacy)"; exit 2; }
       done ;;
     -h | --help) usage; exit 0 ;;
-    -v | --version) echo "cleanmate $VERSION"; exit 0 ;;
+    -v | --version) MODE=version ;;
     --install) MODE=install ;;
     --uninstall) MODE=uninstall ;;
     --update) MODE=update ;;
@@ -10019,6 +10156,7 @@ load_settings
 load_scan_cache
 
 case $MODE in
+  version) version_report; exit 0 ;;
   scan) INTERACTIVE=0; scan_report; exit 0 ;;
   clean) INTERACTIVE=0; smart_clean; exit 0 ;;
   auto) auto_mode; exit 0 ;;

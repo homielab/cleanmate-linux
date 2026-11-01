@@ -124,7 +124,7 @@ test_syntax() {
 test_help_and_version() {
   fresh_home
   local v h
-  v=$(cm --version)
+  v=$(cm --version | head -n 1)
   [[ $v =~ ^cleanmate\ [0-9]+\.[0-9]+\.[0-9]+$ ]] && ok_ "$v" || fail "bad --version: $v"
   h=$(cm --help)
   assert_contains "$h" "--install"
@@ -520,7 +520,7 @@ test_install_cm_and_uninstall() {
   if command -v desktop-file-validate >/dev/null; then
     desktop-file-validate "$desktop" >/dev/null && ok_ "launcher is valid" || fail "invalid launcher: $(desktop-file-validate "$desktop")"
   fi
-  assert_eq "$(env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" cm --version)" "$(cm --version)" "cm runs"
+  assert_eq "$(env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" cm --version | head -n 1)" "$(cm --version | head -n 1)" "cm runs"
   printf 'y\ny\n' | cm --uninstall >/dev/null 2>&1
   assert_missing "$bin/cleanmate"; assert_missing "$bin/cm"
   assert_missing "$desktop"; assert_missing "$icon"
@@ -586,7 +586,7 @@ test_update_flow() {
   assert_contains "$out" "Could not reach"
   out=$(printf 'y\n' | CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/new.sh" cm --update 2>&1)
   assert_contains "$out" "Updated to 99.0.0"
-  assert_eq "$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" bash "$HOME_DIR/.local/bin/cleanmate" --version)" \
+  assert_eq "$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" bash "$HOME_DIR/.local/bin/cleanmate" --version | head -n 1)" \
     "cleanmate 99.0.0" "installed copy updated"
   assert_eq "$(readlink "$HOME_DIR/.local/bin/cm")" "cleanmate" "cm link survives the update"
   out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/new.sh" \
@@ -2399,6 +2399,67 @@ done 2 True" "activity events, newest first"
   out=$(user_cm --json activity --limit x 2>&1); assert_contains "$out" "Invalid limit: x"
 }
 
+test_bug_report_details() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out log=$HOME_DIR/.local/state/cleanmate/clean.log long stub=$WORK/sysreport-bin
+  mkdir -p "${log%/*}" "$stub"
+  sysreport() { # the sysreport event as "key=value" lines, activity one per line, then the done event
+    cm --json sysreport | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] != "sysreport": print(e["event"]); continue
+    for k in ("version", "os", "kernel", "arch", "desktop", "install", "language", "root"): print(f"{k}={e[k]}")
+    for a in e["activity"]: print("activity=" + a)
+    print("body=" + e["body"])'
+  }
+  out=$(sysreport)
+  assert_contains "$out" "version=$(cm --version | awk 'NR == 1 {print $2}')"
+  assert_contains "$out" "desktop=none (no graphical session)"
+  assert_contains "$out" "language=C.UTF-8; the desktop app follows the system"
+  assert_contains "$out" "Recent activity: none"
+  assert_contains "$out" $'\ndone'
+  # personal paths and names in the log: the home folder → ~, your own files and the Trash hidden, other users'
+  # folders → <user>, long lines cut
+  printf -v long '%0300d' 0
+  printf '%s\n' "2026-01-01 08:00:00 the oldest line, left out" \
+    "2026-01-02 03:04:05 trash $HOME_DIR/Documents/My Taxes 2025.pdf" \
+    "2026-01-02 03:04:06 rm -rf -- $HOME_DIR/.cache/thumbnails $HOME_DIR/.local/share/Trash/files/secret.txt" \
+    "2026-01-02 03:04:07 trash /home/bob/notes.txt /media/bob/Disk/.Trash-1000 $HOME_DIR" \
+    'not a log line' \
+    "2026-01-02 03:04:08 json clean x failed: $long" \
+    "2026-01-03 10:00:00 Cleanup finished — 1.0 MB freed (dry-run=0)" >"$log"
+  out=$(sysreport)
+  assert_eq "$(grep '^activity=' <<<"$out" | cut -c10-)" "2026-01-02 03:04  trash ~/(file or folder)
+2026-01-02 03:04  rm -rf -- ~/.cache/thumbnails ~/.local/share/Trash/(file or folder)
+2026-01-02 03:04  trash /home/<user>/notes.txt /media/<user>/Disk/.Trash-1000 ~
+2026-01-02 03:04  json clean x failed: ${long:0:98}…
+2026-01-03 10:00  Cleanup finished — 1.0 MB freed (dry-run=0)" "the last 5 activity lines without personal paths"
+  assert_contains "$out" "Recent activity (last 5, oldest first):"
+  [[ $out == *"$HOME_DIR"* || $out == *Taxes* || $out == *secret* || $out == *bob* ]] &&
+    fail "the report shows a personal path: $out" || ok_ "no personal path"
+  # user names: whole words, any case, 3 characters or more
+  out=$(in_app 'USER=alexsmith; sr_redact_lines out "a alexsmith-x Alexsmith alexsmith alexsmithy al"; printf "%s\n" "${out[@]}"')
+  assert_eq "$out" "a <user>-x <user> <user> alexsmithy al" "user names hidden as whole words"
+  # how it was installed, the desktop
+  assert_eq "$(in_app 'SNAP=/snap/cleanmate/12 SNAP_REVISION=12; sr_install; echo "$SR_INSTALL"')" "snap (revision 12)" "snap"
+  assert_eq "$(in_app 'packaged() { true; }; dpkg-query() { echo 2.0.0-0ppa1; }; sr_install; echo "$SR_INSTALL"')" \
+    "PPA (2.0.0-0ppa1)" "PPA"
+  assert_eq "$(in_app 'packaged() { true; }; dpkg-query() { echo 2.0.0; }; sr_install; echo "$SR_INSTALL"')" \
+    ".deb package (2.0.0)" ".deb"
+  assert_eq "$(in_app 'SELF=$BIN_PATH; sr_install; echo "$SR_INSTALL"')" "cleanmate --install" "--install"
+  printf '#!/bin/sh\necho "GNOME Shell 46.0"\n' >"$stub/gnome-shell"; chmod +x "$stub/gnome-shell"
+  assert_eq "$(in_app "PATH=$stub:\$PATH XDG_CURRENT_DESKTOP=ubuntu:GNOME XDG_SESSION_TYPE=wayland; sr_desktop; echo \"\$SR_DESKTOP\"")" \
+    "ubuntu:GNOME, GNOME 46.0, Wayland" "GNOME on Wayland"
+  assert_eq "$(in_app 'DISPLAY=:0; sr_desktop; echo "$SR_DESKTOP"')" "unknown, X11" "X11 without a desktop name"
+  # cm --version: the version, the same details, where to report
+  out=$(cm --version)
+  assert_contains "$out" $'\n\nCleanMate: '
+  assert_contains "$out" $'\nInstalled with: '
+  assert_contains "$out" "Report a bug: https://github.com/homielab/cleanmate-linux/issues/new?template=bug_report.yml"
+  [[ $out == *"$HOME_DIR"* ]] && fail "--version shows the home folder" || ok_ "--version: no home folder"
+}
+
 app_fixtures() { # BIN — launchers, package stubs and home folders for gimp (apt), foo (apt) and Spotify (flatpak)
   local bin=$1 sys=$HOME_DIR/sys
   mkdir -p "$bin" "$sys"
@@ -2895,7 +2956,7 @@ test_deb_package() {
     assert_contains "$contents" "$f"
   done
   assert_eq "$(head -n 1 <<<"$contents" | cut -c1-10)" "drwxr-xr-x" "package root is 755"
-  assert_eq "$(dpkg-deb --field "$deb" Version)" "$(cm --version | awk '{print $2}')" "package version = script VERSION"
+  assert_eq "$(dpkg-deb --field "$deb" Version)" "$(cm --version | awk 'NR == 1 {print $2}')" "package version = script VERSION"
   dpkg-deb -x "$deb" "$x"
   msg=$(env -i HOME="$HOME_DIR" PATH="$x/usr/bin:$BASE_PATH" LANG=C.UTF-8 cm --install 2>&1)
   assert_contains "$msg" "already installed as a package"
@@ -4392,7 +4453,7 @@ real_dirs() { # the real user's app folders and Trash — tests must never touch
 REAL_BEFORE=$(real_dirs)
 
 pass=0 failed=0 skipped=0
-printf 'CleanMate tests — %s\n\n' "$(bash "$SCRIPT" --version)"
+printf 'CleanMate tests — %s\n\n' "$(bash "$SCRIPT" --version | head -n 1)"
 for t in $(declare -F | awk '{print $3}' | grep '^test_'); do
   [[ -n $FILTER && $t != *"$FILTER"* ]] && continue
   result=$(

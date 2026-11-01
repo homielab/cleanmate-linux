@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 01:50+0000\n"
+"POT-Creation-Date: 2026-11-01 02:37+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,6 +21,52 @@ msgstr ""
 #: gui/cleanmate_gui/app.py:87
 #, python-brace-format
 msgid "Engine not found: {path}"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:45
+#, python-brace-format
+msgid "Link copied: {link}"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:65
+msgid "Could not read the system details."
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:79
+msgid "Report a Bug"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:80
+msgid ""
+"Open GitHub opens a new issue in your browser with the details below filled "
+"in; describe the problem there. Nothing is sent until you submit the issue, "
+"and no user name or personal file path is included."
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:84 gui/cleanmate_gui/duplicates.py:324
+#: gui/cleanmate_gui/largefiles.py:278 gui/cleanmate_gui/maintenance.py:238
+#: gui/cleanmate_gui/scanpage.py:443 gui/cleanmate_gui/settings.py:426
+#: gui/cleanmate_gui/spacelens.py:364 gui/cleanmate_gui/startup.py:247
+#: gui/cleanmate_gui/uninstaller.py:576 gui/cleanmate_gui/uninstaller.py:775
+msgid "Cancel"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:85
+msgid "Copy"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:86 gui/cleanmate_gui/bugreport.py:114
+msgid "Open GitHub"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:96 gui/cleanmate_gui/bugreport.py:112
+msgid "Report copied"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:113
+msgid ""
+"The details are too long for the link. Paste them into “System details” on "
+"the GitHub page."
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:63
@@ -177,14 +223,6 @@ msgid ""
 "later."
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:324 gui/cleanmate_gui/largefiles.py:278
-#: gui/cleanmate_gui/maintenance.py:238 gui/cleanmate_gui/scanpage.py:443
-#: gui/cleanmate_gui/settings.py:426 gui/cleanmate_gui/spacelens.py:364
-#: gui/cleanmate_gui/startup.py:247 gui/cleanmate_gui/uninstaller.py:576
-#: gui/cleanmate_gui/uninstaller.py:775
-msgid "Cancel"
-msgstr ""
-
 #: gui/cleanmate_gui/duplicates.py:365 gui/cleanmate_gui/largefiles.py:318
 #, python-brace-format
 msgid "Dry run: {n} file ({size}) would be moved to the Trash"
@@ -232,11 +270,11 @@ msgid_plural "Put back {n} files from the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/engine.py:17 gui/cleanmate_gui/window.py:29
+#: gui/cleanmate_gui/engine.py:17 gui/cleanmate_gui/window.py:31
 msgid "System Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:18 gui/cleanmate_gui/window.py:31
+#: gui/cleanmate_gui/engine.py:18 gui/cleanmate_gui/window.py:33
 msgid "Logs"
 msgstr ""
 
@@ -252,7 +290,7 @@ msgstr ""
 msgid "App Caches"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:22 gui/cleanmate_gui/window.py:35
+#: gui/cleanmate_gui/engine.py:22 gui/cleanmate_gui/window.py:37
 msgid "AI Tools"
 msgstr ""
 
@@ -260,11 +298,11 @@ msgstr ""
 msgid "AI Models"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:24 gui/cleanmate_gui/window.py:38
+#: gui/cleanmate_gui/engine.py:24 gui/cleanmate_gui/window.py:40
 msgid "Developer Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/window.py:41
+#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/window.py:43
 msgid "Privacy"
 msgstr ""
 
@@ -1762,8 +1800,8 @@ msgstr ""
 msgid "Folders reached through a symbolic link can't be excluded"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:72 gui/cleanmate_gui/window.py:108
-#: gui/cleanmate_gui/window.py:221 gui/cleanmate_gui/window.py:289
+#: gui/cleanmate_gui/settings.py:72 gui/cleanmate_gui/window.py:110
+#: gui/cleanmate_gui/window.py:232 gui/cleanmate_gui/window.py:300
 msgid "Settings"
 msgstr ""
 
@@ -1775,7 +1813,7 @@ msgstr ""
 msgid "The cleaning engine didn't answer."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:137 gui/cleanmate_gui/window.py:220
+#: gui/cleanmate_gui/settings.py:137 gui/cleanmate_gui/window.py:231
 msgid "General"
 msgstr ""
 
@@ -2003,7 +2041,7 @@ msgstr ""
 msgid "Open the log folder"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:56 gui/cleanmate_gui/window.py:224
+#: gui/cleanmate_gui/spacelens.py:56 gui/cleanmate_gui/window.py:235
 msgid "Up one folder"
 msgstr ""
 
@@ -2657,198 +2695,206 @@ msgid_plural "Put back {n} folders from the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/window.py:26
+#: gui/cleanmate_gui/window.py:28
 msgid "Smart Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:27
+#: gui/cleanmate_gui/window.py:29
 msgid ""
 "Scan everything in one go and clean what you don't need. Nothing is removed "
 "until you confirm."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:30
+#: gui/cleanmate_gui/window.py:32
 msgid ""
 "Package cache, unused packages and kernels, leftover configs, old Snap "
 "revisions, temp files."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:32
+#: gui/cleanmate_gui/window.py:34
 msgid ""
 "Systemd journal, oversized and rotated logs, crash reports, old app logs."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:33
+#: gui/cleanmate_gui/window.py:35
 msgid "User & App Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:34
+#: gui/cleanmate_gui/window.py:36
 msgid ""
 "Trash, thumbnails, stale caches — and every browser and app cache on its own."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:36
+#: gui/cleanmate_gui/window.py:38
 msgid ""
 "Caches, logs and old chat sessions of Claude, Codex, Gemini/Antigravity, "
 "opencode, ZCode, Zed and more — and downloaded Ollama, Hugging Face and LM "
 "Studio models, each on its own."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:39
+#: gui/cleanmate_gui/window.py:41
 msgid ""
 "Stale node_modules and project build folders, npm, pip, Go, Cargo, Conda, "
 "Docker and Podman leftovers, Firebase CLI logs."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:42
+#: gui/cleanmate_gui/window.py:44
 msgid ""
 "Browser history and cookies, terminal history, recent files, run dialog and "
 "emoji history."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:44 gui/cleanmate_gui/window.py:224
+#: gui/cleanmate_gui/window.py:46 gui/cleanmate_gui/window.py:235
 msgid "Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:45
+#: gui/cleanmate_gui/window.py:47
 msgid ""
 "See what takes up the space, folder by folder, and move what you don't need "
 "to the Trash. You can undo it."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:47
+#: gui/cleanmate_gui/window.py:49
 msgid "Large & Old Files"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:48
+#: gui/cleanmate_gui/window.py:50
 msgid ""
 "Find the biggest files, or the ones you haven't opened in months, and move "
 "what you don't need to the Trash. You can undo it."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:50
+#: gui/cleanmate_gui/window.py:52
 msgid "Duplicates"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:51
+#: gui/cleanmate_gui/window.py:53
 msgid ""
 "Find identical files, keep one copy of each and move the others to the "
 "Trash. You can undo it."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:52
+#: gui/cleanmate_gui/window.py:54
 msgid "Uninstaller"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:53
+#: gui/cleanmate_gui/window.py:55
 msgid ""
 "Remove apps from apt, Snap, Flatpak and AppImage, and the folders they leave "
 "in your home."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:54
+#: gui/cleanmate_gui/window.py:56
 msgid "Startup Items"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:55
+#: gui/cleanmate_gui/window.py:57
 msgid "Choose which apps and services start when you log in."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:56
+#: gui/cleanmate_gui/window.py:58
 msgid "Maintenance"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:57
+#: gui/cleanmate_gui/window.py:59
 msgid ""
 "Update everything, repair packages, TRIM, rebuild caches, and keep snap "
 "versions and system logs from piling up again."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:59 gui/cleanmate_gui/window.py:133
+#: gui/cleanmate_gui/window.py:61 gui/cleanmate_gui/window.py:142
 msgid "System Overview"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:60
+#: gui/cleanmate_gui/window.py:62
 msgid ""
 "Your system, disks, free space over time, memory, the space CleanMate freed, "
 "and your largest folders."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:94
+#: gui/cleanmate_gui/window.py:95
 msgid "All tools (terminal)"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:95
+#: gui/cleanmate_gui/window.py:96
 msgid "Open the terminal app (cm)"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:109 gui/cleanmate_gui/window.py:216
-#: gui/cleanmate_gui/window.py:222
+#: gui/cleanmate_gui/window.py:111 gui/cleanmate_gui/window.py:227
+#: gui/cleanmate_gui/window.py:233
 msgid "Keyboard Shortcuts"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:110
+#: gui/cleanmate_gui/window.py:112
 msgid "Open the terminal app"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:111
-msgid "Source code"
+#: gui/cleanmate_gui/window.py:115
+msgid "Report a Bug…"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:112
-msgid "Report a problem"
-msgstr ""
-
-#: gui/cleanmate_gui/window.py:114
-msgid "About CleanMate"
+#: gui/cleanmate_gui/window.py:116
+msgid "Suggest a Feature…"
 msgstr ""
 
 #: gui/cleanmate_gui/window.py:117
+msgid "Share CleanMate"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:118
+msgid "Source code"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:122
+msgid "About CleanMate"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:126
 msgid "Main menu"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:131
+#: gui/cleanmate_gui/window.py:140
 msgid "Dry run — nothing will be deleted"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:173
+#: gui/cleanmate_gui/window.py:184
 msgid "Cleanup"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:173
+#: gui/cleanmate_gui/window.py:184
 msgid "Tools"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:173
+#: gui/cleanmate_gui/window.py:184
 msgid "More"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:218
+#: gui/cleanmate_gui/window.py:229
 msgid "Pages"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:220
+#: gui/cleanmate_gui/window.py:231
 msgid "Scan, search or list again"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:223
+#: gui/cleanmate_gui/window.py:234
 msgid "Quit"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:270
+#: gui/cleanmate_gui/window.py:281
 #, python-brace-format
 msgid "{free} free of {total}"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:281
+#: gui/cleanmate_gui/window.py:292
 msgid "No terminal app found — run cm in a terminal."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:302
+#: gui/cleanmate_gui/window.py:313
 msgid "translator-credits"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:303
+#: gui/cleanmate_gui/window.py:314
 msgid ""
 "A friendly system cleaner for Ubuntu, inspired by CleanMyMac. Not affiliated "
 "with MacPaw."

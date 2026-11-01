@@ -1678,7 +1678,7 @@ def overview_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        bug_report_test(win, report, wait, finish)
 
     def first():
         report("system" in page.data and page.stack.get_visible_child_name() == "results",
@@ -1799,6 +1799,106 @@ def overview_test(win, report, wait, finish):
         done()
 
     wait(idle, first, 60, "first overview")
+
+
+def read_clipboard(win, wait, then):
+    """then(text) with what the clipboard holds."""
+    got = []
+
+    def on_text(clipboard, result):
+        try:
+            got.append(clipboard.read_text_finish(result))
+        except GLib.Error as error:
+            got.append(error.message)
+    win.get_clipboard().read_text_async(None, on_text)
+    wait(lambda: got, lambda: then(got[0]), 10, "clipboard")
+
+
+def bug_report_test(win, report, wait, finish):
+    """Report a Bug… with a throwaway home whose activity log names personal files and the user: the preview
+    shows the system details without them, Open GitHub opens the prefilled issue (through a stub, nothing
+    opens), a report too long for a link is copied and the bare template opens; Suggest a Feature… opens the
+    feature template and Share CleanMate copies the website link."""
+    from urllib.parse import parse_qs, urlsplit
+
+    from . import bugreport as B
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home = os.path.join(sandbox, "home", "alexsmith")
+    log = os.path.join(home, ".local", "state", "cleanmate", "clean.log")
+    os.makedirs(os.path.dirname(log))
+    with open(log, "w") as f:
+        f.write(f"2026-01-01 08:00:00 GUI cleanup finished — 2.0 MB freed (dry-run=0)\n"
+                f"2026-01-02 03:04:05 trash {home}/Documents/taxes 2025.pdf\n"
+                f"2026-01-02 03:04:06 rm -rf -- {home}/.cache/thumbnails\n"
+                f"2026-01-02 03:04:07 trash /home/bob/.cache/x\n"
+                f"2026-01-02 03:04:08 startup: removed alexsmith-sync.desktop\n"
+                f"2026-01-03 10:00:00 Cleanup finished — 1.0 MB freed (dry-run=0)\n")
+    env = {"HOME": home, "USER": "alexsmith", "XDG_CONFIG_HOME": os.path.join(home, ".config"),
+           "XDG_STATE_HOME": os.path.join(home, ".local", "state"), "CLEANMATE_NO_UPDATE_CHECK": "1"}
+    real_engine, real_open = win.engine, win._open_url
+    opened = []
+    win._open_url = opened.append
+    win.engine = Engine(real_engine.path, dry_run=True, env=env)
+    win.report_dialog = None
+    menu = [win.lookup_action(a) is not None for a in ("report-bug", "suggest", "share")]
+    report(all(menu), "the main menu has Report a Bug…, Suggest a Feature… and Share CleanMate")
+    if i18n.translating():
+        report(all(_(t) != t for t in ("Report a Bug…", "Suggest a Feature…", "Share CleanMate")),
+               f"the menu items are translated: {_('Report a Bug…')}")
+
+    def done():
+        win.engine, win._open_url = real_engine, real_open
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def preview_text(dialog):
+        buf = dialog.get_extra_child().get_child().get_buffer()
+        return buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
+
+    def shown():
+        dialog = win.report_dialog
+        text = preview_text(dialog)
+        lines = text.splitlines()
+        report(lines[0] == "CleanMate: " + real_engine.version() != "CleanMate: ?" and any(line.startswith("System: ") for line in lines)
+               and any(line.startswith("Installed with: ") for line in lines)
+               and "Recent activity (last 5, oldest first):" in lines, "the preview shows the system details and "
+               "the last 5 activity lines")
+        leaks = [s for s in (home, sandbox, os.path.expanduser("~"), "/home/bob", "alexsmith", "taxes", "2025.pdf")
+                 if s in text]
+        report(not leaks and "~/.cache/thumbnails" in text and "~/(file or folder)" in text
+               and "/home/<user>/.cache/x" in text and "<user>-sync.desktop" in text,
+               f"no home folder, user name or personal file name in the report (found: {leaks})")
+        dialog.emit("response", "open")
+        dialog.force_close()
+        url = opened[-1] if opened else ""
+        query = parse_qs(urlsplit(url).query)
+        report(url.startswith(B.REPO_URL + "/issues/new?template=bug_report.yml&system=")
+               and query.get("system") == [text] and "+" not in url and len(url) <= B.MAX_LINK,
+               f"Open GitHub opens a new issue with System details filled in ({len(url)} characters)")
+        long_body = text + "\n" + "é" * 3000
+        notice = B.open_report(win, long_body)
+        read_clipboard(win, wait, lambda copied: too_long(notice, long_body, copied))
+
+    def too_long(notice, long_body, copied):
+        n = len(opened)
+        notice.emit("response", "open")
+        notice.force_close()
+        report(copied == long_body and len(opened) == n + 1
+               and opened[-1] == B.REPO_URL + "/issues/new?template=bug_report.yml",
+               "a report too long for a link is copied and the empty bug template opens")
+        B.suggest_feature(win)
+        report(opened[-1] == B.REPO_URL + "/issues/new?template=feature_request.yml",
+               "Suggest a Feature… opens the feature template")
+        win.activate_action("win.share", None)
+        read_clipboard(win, wait, shared)
+
+    def shared(copied):
+        report(copied == B.WEBSITE_URL, f"Share CleanMate copies the website link: {copied!r}")
+        done()
+
+    win.activate_action("win.report-bug", None)
+    wait(lambda: win.report_dialog is not None, shown, 60, "the bug report preview")
 
 
 def show_scene_page(win, page_id):

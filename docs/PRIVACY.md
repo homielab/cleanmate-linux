@@ -27,6 +27,11 @@ Only to get CleanMate itself, from GitHub:
 | `cm --update` or *Check for updates now* | Downloads the new version from GitHub | Only when you ask |
 | `--install` (script installed on its own) | Downloads the desktop app and icon from GitHub | Only when you ask |
 
+*Report a Bug…* (desktop app) and *Suggest a Feature…* only open a GitHub page in your browser; nothing
+is sent until you submit the issue there. A bug report is prefilled with your CleanMate and Ubuntu
+versions, desktop, install method, language and last five activity lines — shown to you first, with your
+home folder written as `~`, and no user name or personal file name.
+
 These requests contain nothing about you or your files. Like any web request, GitHub sees your
 IP address — see [GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 Cleaning tasks you start may also use your system's own tools that go online (for example
