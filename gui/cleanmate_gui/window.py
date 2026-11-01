@@ -18,6 +18,7 @@ from .settings import SettingsPage
 from .spacelens import SpaceLensPage
 from .startup import StartupPage
 from .uninstaller import UninstallerPage
+from .welcome import Welcome
 
 TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "dupes": DuplicatesPage,
               "uninstall": UninstallerPage, "startup": StartupPage,
@@ -112,6 +113,7 @@ class Window(Adw.ApplicationWindow):
         main.append(_("Open the terminal app"), "win.terminal")
         menu.append_section(None, main)
         help_ = Gio.Menu()
+        help_.append(_("Getting Started…"), "win.welcome")
         help_.append(_("Report a Bug…"), "win.report-bug")
         help_.append(_("Suggest a Feature…"), "win.suggest")
         help_.append(_("Share CleanMate"), "win.share")
@@ -152,6 +154,7 @@ class Window(Adw.ApplicationWindow):
 
         for name, cb in (("terminal", self.open_terminal), ("about", self.show_about),
                          ("settings", lambda *_: self.show_settings()),
+                         ("welcome", lambda *_: self.show_welcome()),
                          ("source", lambda *_: self._open_url(REPO_URL)),
                          ("report-bug", lambda *_: bugreport.report_bug(self)),
                          ("suggest", lambda *_: bugreport.suggest_feature(self)),
@@ -174,6 +177,7 @@ class Window(Adw.ApplicationWindow):
             self.add_action(action)
             app.set_accels_for_action(f"win.{name}", accels)
         self.settings_page = None
+        self.welcome = None
 
         self.refresh_disk()
         self.show_page("overview")  # opens at once: the engine answers in the background
@@ -301,6 +305,13 @@ class Window(Adw.ApplicationWindow):
         dialog.add(page)
         dialog.connect("closed", lambda *_: page.flush())
         self.settings_page = page
+        dialog.present(self)
+        return dialog
+
+    def show_welcome(self, first_run=False):
+        """The three welcome steps; FIRST_RUN (the app's first start) saves that they were seen on close."""
+        dialog = Welcome(self, first_run=first_run)
+        self.welcome = dialog
         dialog.present(self)
         return dialog
 

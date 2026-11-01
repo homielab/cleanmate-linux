@@ -63,7 +63,10 @@ Also available for macOS: [CleanMate for macOS](https://github.com/homielab/clea
 
 ## Use it
 
-**Desktop app** — open *CleanMate*, press **Scan**, untick anything you want to keep, press
+**Desktop app** — the first time it opens, a short welcome shows in three steps what CleanMate
+cleans and how it keeps your files safe, what needs your password and what it never touches, and the
+main options (language, automatic cleaning, scan reminder, low disk alert); *main menu → Getting
+Started…* shows it again. Then press **Scan**, untick anything you want to keep, press
 **Clean**. Click anywhere on a row to tick it; the **All** box on a group ticks or clears the whole
 group. **Keyboard:** Ctrl+1…9 open System Overview, Smart Scan, the six cleanup pages and Space Lens, Ctrl+R (or F5) scans, searches or lists again on the open page, and Ctrl+? lists every shortcut. After a clean, the result shows *Free space: before → after*; if the clean moved anything to the Trash (old installers and downloads, stale build folders, editor data of deleted projects), **Undo** in the message puts it back for 10 seconds — everything else is deleted for good, and the confirmation says which. Items with a 🔒 need your password (the standard Ubuntu dialog); everything else runs
 as you. An item whose program is running is locked until you close it. **Space Lens** lists what

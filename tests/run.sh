@@ -2138,10 +2138,15 @@ done true false" "every setting with its range and default; bad values fall back
   assert_eq "$out" $'ok journal_days set to 30\njournal_days 30 1-365/7\ndone  ' "set a number"
   assert_contains "$(cat "$f")" $'foo=3\njournal_days=30\ntmp_days=999'
   assert_contains "$(user_cm --json items)" "Keeps the last 30 days"
+  # the desktop app's welcome, once closed: saved, not one of the settings shown
+  out=$(user_cm --json settings-set welcome_shown 1 | settings_list)
+  assert_eq "$out" $'ok welcome_shown set to 1\nwelcome_shown 1 0-1/0\ndone  ' "the welcome is marked as seen"
   # …and the other way round: the terminal app's Settings writes the file the desktop app reads
   in_app 'load_settings; save_setting journal_mb 250'
   assert_contains "$(user_cm --json settings | settings_list)" "journal_mb 250 16-10000/100"
   assert_contains "$(cat "$f")" "journal_days=30"
+  assert_contains "$(cat "$f")" "welcome_shown=1"
+  [[ $(user_cm --json settings) != *welcome_shown* ]] && ok_ "welcome_shown not listed" || fail "welcome_shown is listed"
   # the desktop app's language: kept when either app saves a number, a wrong value reads as "system"
   out=$(user_cm --json settings-set language vi | settings_list)
   assert_eq "$out" $'ok language set to vi\nlanguage vi\ndone  ' "set the language"
@@ -2928,6 +2933,12 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "Refresh shows what was freed: 30 days, in total, the last cleanup"
     assert_contains "$out" "freed per day: 30 days, a bar for yesterday's cleanup"
     assert_contains "$out" "Refresh doesn't count up again"
+    assert_contains "$out" "with new settings the welcome is shown"
+    assert_contains "$out" "step 2 opens the terminal app"
+    assert_contains "$out" "step 3 ends with Start"
+    ((EUID == 0)) || assert_contains "$out" "Settings reads back what the welcome saved"
+    ((EUID == 0)) || assert_contains "$out" "Start closes it and saves welcome_shown"
+    ((EUID == 0)) || assert_contains "$out" "closing it from the menu changes no setting"
     assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
     if [[ $lang == vi* ]]; then
       assert_contains "$out" "dry-run clean finished: Chạy thử: sẽ giải phóng"

@@ -23,19 +23,25 @@ _gui = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # …/gui or
 LANGUAGES = ("system", "en", "vi")  # the engine's `language` choices, the default first
 
 
-def chosen_language():
-    """The language saved in Settings: "en", "vi", or "system" (also when the file has none or a wrong one)."""
-    config = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
-    found = "system"
+def saved_setting(name, config=None):
+    """The value of NAME in the settings file (`~/.config/cleanmate/settings`), or None."""
+    config = config or os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    found = None
     try:
         with open(os.path.join(config, "cleanmate", "settings"), encoding="utf-8", errors="replace") as f:
-            for line in f:  # the engine's rule: a value it doesn't know reads as the default
+            for line in f:
                 key, _sep, value = line.rstrip("\n").partition("=")
-                if key == "language":
-                    found = value if value in LANGUAGES else "system"
+                if key == name:
+                    found = value
     except OSError:
         pass
     return found
+
+
+def chosen_language():
+    """The language saved in Settings: "en", "vi", or "system" (also when the file has none or a wrong one)."""
+    found = saved_setting("language")  # the engine's rule: a value it doesn't know reads as the default
+    return found if found in LANGUAGES else "system"
 
 
 def _translation(language):

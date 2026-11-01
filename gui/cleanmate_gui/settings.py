@@ -6,6 +6,7 @@ this page only shows them. A change is saved at once (numbers a moment after you
 "Remember recent files" is GNOME's own setting (gsettings), as in the terminal app; the activity log is
 the engine's (`--json activity`). The language is the desktop app's own (the terminal app stays English); it shows after a restart.
 Never clean lists the folders of `~/.config/cleanmate/exclude` (`settings-set exclusions add|remove PATH`).
+The welcome's last step is this page with only the main rows (`keys`), so both save the same way.
 The low disk alert and the scan reminder are notifications the engine sends from a daily systemd user timer
 (`cleanmate-check.timer`, on while either is on) and, for the low disk alert, when the app opens.
 """
@@ -66,11 +67,14 @@ def short_path(path):
 
 
 class SettingsPage(Adw.PreferencesPage):
-    """One row per setting; shown in a preferences dialog from the main menu."""
+    """One row per setting; shown in a preferences dialog from the main menu. With KEYS, only those rows
+    (language, schedule, remind, low_disk_pct), in one group under INTRO — the welcome's options."""
 
-    def __init__(self, window):
+    def __init__(self, window, keys=None, intro=None):
         super().__init__(title=_("Settings"), icon_name="emblem-system-symbolic")
         self.window = window
+        self.keys = keys
+        self.before_restart = None  # called when Restart is pressed, before the changes are saved
         self.engine = window.engine
         self.settings = {}  # key → the engine's "setting" event
         self.info = {}  # the "done" or "error" event of the last load
@@ -83,6 +87,8 @@ class SettingsPage(Adw.PreferencesPage):
         self.queue = []  # (key, value) for the engine, one at a time
         self.generation = 0
 
+        if intro:
+            self.add(intro)
         self.status = Adw.PreferencesGroup()
         self.status.add(Gtk.Spinner(spinning=True, width_request=32, height_request=32, halign=Gtk.Align.CENTER,
                                     margin_top=48))
@@ -116,6 +122,7 @@ class SettingsPage(Adw.PreferencesPage):
             self.window.set_busy(False)
             self.settings, self.info = settings, info
             self.build()
+            self.next_change()  # what was asked while loading
 
         self.running = self.engine.settings(on_event, on_done)
 
@@ -134,51 +141,19 @@ class SettingsPage(Adw.PreferencesPage):
             self.add(self.status)
             return
 
-        general = self.group(_("General"))
-        language = Adw.ComboRow(title=_("Language"),
-                                model=Gtk.StringList.new([LANGUAGE_TITLES[c] for c in i18n.LANGUAGES]))
-        restart = Gtk.Button(label=_("Restart"), valign=Gtk.Align.CENTER, visible=False)
-        restart.add_css_class("suggested-action")
-        restart.connect("clicked", lambda *_a: self.restart())
-        language.add_suffix(restart)
-        language.restart_button = restart
-        language.connect("notify::selected", self.on_language)
-        self.rows["language"] = language
-        general.add(language)
-
         systemd = self.info.get("systemd", True)
-        values = sorted(set(LOW_DISK) | {self.settings.get("low_disk_pct", {}).get("value", 10)})
-        low = Adw.ComboRow(title=_("Low disk alert"),
-                           subtitle=_("A notification when the system disk is almost full. Checked daily and when "
-                                      "CleanMate opens.") if systemd else
-                           _("A notification when the system disk is almost full. Checked when CleanMate opens."),
-                           model=Gtk.StringList.new([low_disk_title(v) for v in values]))
-        low.values = values
-        low.connect("notify::selected", self.on_low_disk)
-        self.rows["low_disk_pct"] = low
-        general.add(low)
+        if self.keys:
+            group = self.group(None)
+            for key in self.keys:
+                group.add(self.main_row(key, systemd))
+            for key in self.settings:
+                self.show_value(key)
+            return
 
-        remind = Adw.ComboRow(title=_("Scan reminder"),
-                              subtitle=_("A notification when you haven't scanned for a while. Click it to open "
-                                         "CleanMate."),
-                              model=Gtk.StringList.new([SCHEDULE_TITLES[r] for r in REMINDERS]))
-        if not systemd:
-            remind.set_sensitive(False)
-            remind.set_subtitle(_("Needs systemd, which isn't available here"))
-        remind.connect("notify::selected", self.on_remind)
-        self.rows["remind"] = remind
-        general.add(remind)
-
-        general = self.group(_("Automatic cleaning"))
-        combo = Adw.ComboRow(title=_("Automatic cleaning"),
-                             subtitle=_("Runs a Smart Clean of user and developer junk and tells you what it freed"),
-                             model=Gtk.StringList.new([SCHEDULE_TITLES[s] for s in SCHEDULES]))
-        if not self.info.get("systemd", True):
-            combo.set_sensitive(False)
-            combo.set_subtitle(_("Needs systemd, which isn't available here"))
-        combo.connect("notify::selected", self.on_schedule)
-        self.rows["schedule"] = combo
-        general.add(combo)
+        general = self.group(_("General"))
+        for key in ("language", "low_disk_pct", "remind"):
+            general.add(self.main_row(key, systemd))
+        self.group(_("Automatic cleaning")).add(self.main_row("schedule", systemd))
 
         updates = self.group(_("Updates"))
         check = Adw.SwitchRow(title=_("Daily update check"),
@@ -233,6 +208,44 @@ class SettingsPage(Adw.PreferencesPage):
 
         for key in self.settings:
             self.show_value(key)
+
+    def main_row(self, key, systemd):
+        """The row of a main setting: language, low_disk_pct, remind or schedule."""
+        if key == "language":
+            row = Adw.ComboRow(title=_("Language"),
+                               model=Gtk.StringList.new([LANGUAGE_TITLES[c] for c in i18n.LANGUAGES]))
+            restart = Gtk.Button(label=_("Restart"), valign=Gtk.Align.CENTER, visible=False)
+            restart.add_css_class("suggested-action")
+            restart.connect("clicked", lambda *_a: self.restart())
+            row.add_suffix(restart)
+            row.restart_button = restart
+            row.connect("notify::selected", self.on_language)
+        elif key == "low_disk_pct":
+            values = sorted(set(LOW_DISK) | {self.settings.get("low_disk_pct", {}).get("value", 10)})
+            row = Adw.ComboRow(title=_("Low disk alert"),
+                               subtitle=_("A notification when the system disk is almost full. Checked daily and "
+                                          "when CleanMate opens.") if systemd else
+                               _("A notification when the system disk is almost full. Checked when CleanMate opens."),
+                               model=Gtk.StringList.new([low_disk_title(v) for v in values]))
+            row.values = values
+            row.connect("notify::selected", self.on_low_disk)
+        elif key == "remind":
+            row = Adw.ComboRow(title=_("Scan reminder"),
+                               subtitle=_("A notification when you haven't scanned for a while. Click it to open "
+                                          "CleanMate."),
+                               model=Gtk.StringList.new([SCHEDULE_TITLES[r] for r in REMINDERS]))
+            row.connect("notify::selected", self.on_remind)
+        else:  # schedule
+            row = Adw.ComboRow(title=_("Automatic cleaning"),
+                               subtitle=_("Runs a Smart Clean of user and developer junk and tells you what it "
+                                          "freed"),
+                               model=Gtk.StringList.new([SCHEDULE_TITLES[s] for s in SCHEDULES]))
+            row.connect("notify::selected", self.on_schedule)
+        if key in ("remind", "schedule") and not systemd:
+            row.set_sensitive(False)
+            row.set_subtitle(_("Needs systemd, which isn't available here"))
+        self.rows[key] = row
+        return row
 
     def group(self, title, description=None):
         group = Adw.PreferencesGroup(title=title, description=description)
@@ -310,6 +323,8 @@ class SettingsPage(Adw.PreferencesPage):
 
     def restart(self):
         """Open CleanMate again in the saved language, once every change is saved."""
+        if self.before_restart:
+            self.before_restart()
         self.flush()
         self.rows["language"].restart_button.set_sensitive(False)
 
@@ -394,7 +409,9 @@ class SettingsPage(Adw.PreferencesPage):
         def on_done(ok, status):
             self.running = None
             self.window.set_busy(False)
-            if result.get("state") != "ok":
+            if key == "welcome_shown":
+                pass  # the welcome was closed: nothing to tell
+            elif result.get("state") != "ok":
                 reason = result.get("info") or result.get("message", "")
                 self.toast(_("Could not change it: {reason}").format(reason=EXCLUSION_REASONS.get(reason, reason)))
             elif self.engine.dry_run:
@@ -441,7 +458,8 @@ class SettingsPage(Adw.PreferencesPage):
         return self.activity
 
     def toast(self, text):
-        dialog = self.get_ancestor(Adw.PreferencesDialog)
+        """In the dialog the page is in (Settings or the welcome), else in the window."""
+        dialog = self.get_ancestor(Adw.PreferencesDialog) or self.get_ancestor(Adw.ToastOverlay)
         if dialog:
             dialog.add_toast(Adw.Toast(title=GLib.markup_escape_text(text)))
         else:

@@ -9,6 +9,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
+from . import welcome  # noqa: E402
 from .engine import Engine  # noqa: E402
 from .i18n import _  # noqa: E402
 
@@ -70,6 +71,8 @@ class App(Adw.Application):
             run(self, win)
         else:  # the low disk alert, in the background; no scan reminder while you have the app open
             self.engine.check(["low_disk"], lambda e: None, lambda ok, status: None)
+            if welcome.is_new() and os.geteuid() != 0:  # root has no settings to save it in
+                win.show_welcome(first_run=True)
 
 
 def main(argv=None):

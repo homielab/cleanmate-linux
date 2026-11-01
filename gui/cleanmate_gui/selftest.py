@@ -1850,7 +1850,7 @@ def bug_report_test(win, report, wait, finish):
     def done():
         win.engine, win._open_url = real_engine, real_open
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        welcome_test(win, report, wait, finish)
 
     def preview_text(dialog):
         buf = dialog.get_extra_child().get_child().get_buffer()
@@ -1899,6 +1899,157 @@ def bug_report_test(win, report, wait, finish):
 
     win.activate_action("win.report-bug", None)
     wait(lambda: win.report_dialog is not None, shown, 60, "the bug report preview")
+
+
+def welcome_test(win, report, wait, finish):
+    """The welcome of a throwaway home with a fake `systemctl --user`: new until closed once; Next and Back move
+    through the three steps; step 2 opens the terminal app (stubbed); step 3 turns automatic cleaning and the
+    scan reminder on (their timers come on) and changes the low disk alert, which Settings then shows; Start
+    closes it and saves welcome_shown; Getting Started… in the main menu opens it again and saves nothing."""
+    from . import welcome as W
+    from .engine import Engine
+    from .settings import LOW_DISK
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
+    config = os.path.join(home, ".config")
+    settings_file = os.path.join(config, "cleanmate", "settings")
+    units = os.path.join(config, "systemd", "user")
+    timer, check_timer = os.path.join(units, "cleanmate.timer"), os.path.join(units, "cleanmate-check.timer")
+    os.makedirs(bin_dir)
+    with open(os.path.join(bin_dir, "systemctl"), "w") as f:
+        f.write('#!/bin/sh\nshift\nmkdir -p "$HOME/enabled"\ncase $1 in is-enabled) test -e "$HOME/enabled/$3" ;; '
+                'enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac\n')
+    os.chmod(os.path.join(bin_dir, "systemctl"), 0o755)
+    env = {"HOME": home, "XDG_CONFIG_HOME": config, "XDG_STATE_HOME": os.path.join(home, ".local", "state"),
+           "CLEANMATE_NO_UPDATE_CHECK": "1", "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+    root = os.geteuid() == 0  # the engine refuses settings: the steps work, the options say why they're missing
+    real_engine, real_terminal = win.engine, win.open_terminal
+    terminals = []
+    win.open_terminal = lambda *_a: terminals.append(1)
+    win.engine = Engine(real_engine.path, dry_run=False, env=env)
+    report(W.is_new(config), "with new settings the welcome is shown")
+    report(win.lookup_action("welcome") is not None, "the main menu has Getting Started…")
+
+    def closes(welcome):
+        """Headless (no browser on the display) a dialog never finishes closing: count the close and send
+        `closed` as libadwaita does once it's gone."""
+        welcome.closes = 0
+
+        def close():
+            welcome.closes += 1
+            welcome.emit("closed")
+            return True
+        welcome.close = close
+        return welcome
+
+    dialog = closes(win.show_welcome(first_run=True))
+    page = dialog.options
+
+    def idle():
+        return not page.busy()
+
+    def saved():
+        try:
+            with open(settings_file) as f:
+                return f.read()
+        except OSError:
+            return ""
+
+    def enabled(name):
+        return os.path.exists(os.path.join(home, "enabled", name))
+
+    def closed(welcome):
+        return welcome.closes > 0
+
+    def at(n):
+        return lambda: dialog.index == n and abs(dialog.carousel.get_position() - n) < 0.01
+
+    def done():
+        win.engine, win.open_terminal = real_engine, real_terminal
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def step1():
+        report(not dialog.back.get_visible() and dialog.skip.get_visible() and dialog.next.get_label() == _("Next"),
+               "the welcome opens on step 1 with Next and Skip")
+        dialog.next.emit("clicked")
+        wait(at(1), step2, 10, "welcome step 2")
+
+    def step2():
+        report(dialog.back.get_visible(), "Next goes to step 2, Back shows")
+        dialog.terminal_button.emit("clicked")
+        report(terminals == [1], "step 2 opens the terminal app")
+        dialog.next.emit("clicked")
+        wait(at(2), step3, 10, "welcome step 3")
+
+    def step3():
+        report(not dialog.skip.get_visible() and dialog.next.get_label() == _("Start"), "step 3 ends with Start")
+        wait(idle, options, 30, "welcome options")
+
+    def options():
+        if root:
+            report("schedule" not in page.rows, "as root the welcome's options say settings are per user")
+            dialog.close()
+            return wait(lambda: closed(dialog), done, 10, "welcome closed")
+        report(sorted(page.rows) == sorted(W.OPTIONS) and page.rows["schedule"].get_selected() == 0
+               and page.rows["remind"].get_selected() == 0 and page.rows["language"].get_selected() == 0,
+               "step 3 shows language, automatic cleaning, scan reminder and low disk alert")
+        page.rows["schedule"].set_selected(1)  # daily
+        page.rows["remind"].set_selected(2)  # monthly
+        page.rows["low_disk_pct"].set_selected(page.rows["low_disk_pct"].values.index(LOW_DISK[3]))
+        wait(idle, changed, 30, "welcome options saved")
+
+    def changed():
+        text = open(timer).read() if os.path.exists(timer) else ""
+        report("OnCalendar=daily" in text and enabled("cleanmate.timer") and "remind=monthly" in saved()
+               and f"low_disk_pct={LOW_DISK[3]}" in saved() and enabled("cleanmate-check.timer")
+               and os.path.exists(check_timer), "the welcome turns automatic cleaning daily and the scan reminder on "
+               "(both timers) and saves the low disk alert")
+        settings = win.show_settings()
+        wait(lambda: not win.settings_page.busy(), lambda: read_back(settings), 30, "settings")
+
+    def read_back(settings):
+        rows = win.settings_page.rows
+        report(rows["schedule"].get_selected() == 1 and rows["remind"].get_selected() == 2
+               and rows["low_disk_pct"].values[rows["low_disk_pct"].get_selected()] == LOW_DISK[3],
+               "Settings reads back what the welcome saved")
+        settings.close()
+        page.rows["schedule"].set_selected(0)
+        wait(idle, schedule_off, 30, "automatic cleaning off")
+
+    def schedule_off():
+        report(not os.path.exists(timer) and not enabled("cleanmate.timer"), "Off in the welcome turns the timer off")
+        dialog.back.emit("clicked")
+        wait(at(1), went_back, 10, "welcome back")
+
+    def went_back():
+        report(dialog.skip.get_visible() and dialog.next.get_label() == _("Next"),
+               "Back goes to the step before")
+        dialog.next.emit("clicked")
+        wait(at(2), start, 10, "welcome step 3 again")
+
+    def start():
+        report("welcome_shown" not in saved(), "the welcome isn't marked seen while it's open")
+        dialog.next.emit("clicked")  # Start
+        wait(lambda: idle() and "welcome_shown=1" in saved(), started, 30, "welcome closed")
+
+    def started():
+        report(not W.is_new(config) and closed(dialog), "Start closes it and saves welcome_shown: "
+               "it doesn't open by itself again")
+        before = saved()
+        win.activate_action("win.welcome", None)
+        again = closes(win.welcome)
+        report(again is not dialog and not again.first_run, "Getting Started… opens the welcome again")
+        again.skip.emit("clicked")
+        wait(lambda: closed(again) and not again.options.busy(), lambda: reopened(before), 30,
+             "welcome from the menu")
+
+    def reopened(before):
+        report(saved() == before, "closing it from the menu changes no setting")
+        done()
+
+    # laid out first: the carousel loses a scroll asked before it has a size
+    wait(lambda: win.get_visible_dialog() is dialog and dialog.carousel.get_width() > 0, step1, 10, "the welcome")
 
 
 def show_scene_page(win, page_id):

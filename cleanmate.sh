@@ -7945,7 +7945,8 @@ declare -A SETTING_RANGE=(
   [update_check]="0 1 1" [low_disk_pct]="0 50 10" [journal_days]="1 365 7" [journal_mb]="16 10000 100"
   [log_max_mb]="10 100000 50" [app_log_days]="1 365 3" [tmp_days]="1 365 10" [cache_days]="1 365 30"
   [node_modules_days]="7 3650 90" [installer_days]="7 3650 30" [download_days]="7 3650 90"
-  [ai_history_days]="1 3650 30")
+  [ai_history_days]="1 3650 30" [welcome_shown]="0 1 0")
+# welcome_shown: the desktop app's welcome was closed once (it reads the file itself at start-up); not on a screen
 SETTING_KEYS=(update_check low_disk_pct journal_days journal_mb log_max_mb app_log_days tmp_days cache_days
   node_modules_days installer_days download_days ai_history_days) # the order of the Settings screens
 # Settings with a fixed list of values, the default first. `language` is the desktop app's (the terminal
