@@ -3411,6 +3411,20 @@ test_cloud_sync_client_caches() {
   rm -r "$(dirname "$h")/outside2"
 }
 
+test_build_tool_caches_xdg_root() {
+  fresh_home
+  local h=$HOME_DIR out bad
+  # XDG_CACHE_HOME unset: no item gets a path at the disk root (/zig, /pre-commit, …)
+  out=$(in_app 'for i in "${ITEM_IDS[@]}"; do printf "%s\n" "${ITEM_PATHS[$i]-}" "${LIST_ROOTS[$i]-}"; done')
+  bad=$(grep -vE "^($h/|$)" <<<"$out" | grep -E '^/(deno|zig|bazel|ccache|sccache|pypoetry|pipx|pre-commit|mesa_shader_cache)' || true)
+  assert_eq "$bad" "" "no cache path at the disk root"
+  # XDG_CACHE_HOME inside HOME: its tool folders are kept
+  printf 'export XDG_CACHE_HOME="$HOME/xc"\n' >"$h/.bashrc"
+  out=$(in_app 'for i in "${ITEM_IDS[@]}"; do printf "%s\n" "${ITEM_PATHS[$i]-}" "${LIST_ROOTS[$i]-}"; done')
+  for f in deno/remote zig/o "bazel/_bazel_$(id -un)/cache" ccache/tmp sccache/0 pypoetry/cache pipx pre-commit mesa_shader_cache; do
+    assert_contains "$out" "$h/xc/$f"
+  done
+}
 test_build_tool_caches() {
   fresh_home
   local h=$HOME_DIR out bin=$WORK/btbin c=$HOME_DIR/.cache

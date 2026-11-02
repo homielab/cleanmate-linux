@@ -3390,7 +3390,7 @@ sub_pathsv() { # VAR "NAME NAME…" BASE… → adds BASE/NAME for each (NAME ".
   local __var=$1 __subs=$2 __b __n __out=()
   shift 2
   for __b; do
-    [[ -n $__b ]] || continue
+    [[ $__b == "$HOME"/* ]] || continue # an unset root ("" + "/zig") or one outside HOME
     for __n in $__subs; do if [[ $__n == . ]]; then __out+=("$__b"); else __out+=("$__b/$__n"); fi; done
   done
   ((${#__out[@]})) && uniq_linesv "$__var" "${__out[@]}"
@@ -3502,7 +3502,7 @@ precommit_entries() {
   open_filesv open
   env_home_dirv x XDG_CACHE_HOME
   env_home_dirv h PRE_COMMIT_HOME
-  for b in "$HOME/.cache/pre-commit" "$x/pre-commit" "$h"; do
+  for b in "$HOME/.cache/pre-commit" ${x:+"$x/pre-commit"} "$h"; do
     [[ -n $b && -d $b && ! -L $b && -f $b/db.db && ! -L $b/db.db ]] || continue # only pre-commit's own folder
     kept=0
     for n in "$b"/repo* "$b"/patch* "$b/README" "$b/.lock" "$b/db.db"; do
@@ -3516,8 +3516,8 @@ precommit_entries() {
 env_home_dirv _d PRE_COMMIT_HOME
 LIST_CAT=dev reg_list_item precommit_cache "pre-commit cache" 0 item \
   "Hook repositories and environments pre-commit made. Installed again on the next commit (slower once)." \
-  precommit_entries "$HOME/.cache/pre-commit
-$_xc/pre-commit
+  precommit_entries "$HOME/.cache/pre-commit${_xc:+
+$_xc/pre-commit}
 $_d" "pre-commit"
 unset _xc _d
 

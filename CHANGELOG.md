@@ -22,6 +22,10 @@ All notable changes are listed here. The format follows
 - **Developer Junk** (both apps): old Unity Editor versions in Unity Hub (often 5–15 GB each). The newest is kept, as is every version a project uses (its `ProjectSettings/ProjectVersion.txt`, for Unity Hub's projects and projects in your home). Not pre-selected, deleted for good (Unity Hub installs one again), skipped while Unity or Unity Hub runs; each version on its own in the desktop app.
 - **Developer Junk** (both apps): Unity caches — package, build and Asset Store downloads (`~/.cache/unity3d`, `~/.config/unity3d/cache`, `~/.local/share/unity3d`). Not pre-selected, skipped while Unity runs; licenses, settings and game saves are kept.
 
+### Fixed
+
+- **Developer caches**: when `XDG_CACHE_HOME` is not set, the scan no longer looks for Deno, Zig, Bazel, ccache, sccache, Poetry, pipx, pre-commit and GPU shader caches at the root of the disk (`/zig`, `/pre-commit`, …). Nothing there was ever deleted.
+
 ## [2.1.0] — 2026-11-01
 
 ### Added
