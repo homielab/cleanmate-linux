@@ -336,6 +336,14 @@ msgstr ""
 msgid "Installers that winetricks and Wine downloaded, and the cover art and temporary installers of Lutris and Heroic. Downloaded again when needed; Wine prefixes, games and saves are kept. Close the launchers and games first."
 msgstr ""
 
+#. steam_caches label
+msgid "Steam caches"
+msgstr ""
+
+#. steam_caches description
+msgid "The web cache of Steam's store and library pages, depot manifests, logs and crash dumps. Steam downloads or writes them again; games, downloads, saves, screenshots and your sign-in are kept. Close Steam first."
+msgstr ""
+
 #. browser_firefox label
 msgid "Firefox"
 msgstr ""

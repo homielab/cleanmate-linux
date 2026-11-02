@@ -1049,10 +1049,10 @@ declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 
 declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1)
 # items whose scan only looks at a few folders (test, du) and runs no other tool that
 # could hang: a scan runs them in a few shared processes, one after the other, since a
-# process each costs more than the scan. reg_cache_item and reg_list_item add theirs;
+# process each costs more than the scan. reg_cache_item, reg_list_item and reg_folders_item add theirs;
 # any other item (dpkg, docker, a walk over your home, other drives) gets its own.
 declare -A ITEM_LIGHT=([bun]=1 [cargo]=1 [gobuild]=1 [gradle]=1 [maven]=1 [npm]=1 [pip]=1 [pnpm]=1 [yarn]=1 [thumbs]=1 [trash]=1
-  [android_avd_snapshots]=1 [android_images]=1 [android_sdk_old]=1 [game_launcher_caches]=1 [game_runners_old]=1
+  [android_avd_snapshots]=1 [android_images]=1 [android_sdk_old]=1 [game_runners_old]=1
   [jetbrains_old_versions]=1 [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [vscode_old_extensions]=1)
 
 # ── detail helpers ──
@@ -1982,84 +1982,132 @@ clean_entries_trash_drives() { # encoded drive folders (json_clean_entries only 
   return "$rc"
 }
 
-# Game launcher caches: installers winetricks and Wine downloaded (DirectX, VC runtimes, fonts,
-# wine-gecko, wine-mono) and the cover art and temporary installers of Lutris and Heroic, deb and
-# Flatpak. All downloaded again when needed. Never a Wine prefix (~/.wine, ~/Games), Lutris
-# runtime/runners, save games or launcher settings. One entry per folder, emptied (the folder
-# stays); ticked. Skipped while a launcher, Wine, Proton, winetricks or gamescope runs.
-reg game_launcher_caches user "Game launcher caches" 1 "Installers that winetricks and Wine downloaded, and the cover art and temporary installers of Lutris and Heroic. Downloaded again when needed; Wine prefixes, games and saves are kept. Close the launchers and games first."
-# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
-ENTRY_RE_game_launcher_caches='^/[A-Za-z0-9/._~%-]+$' # the cache folder's full path, percent-encoded
-game_launcher_cache_dirs() { # → "label<TAB>folder" of the cache folders that exist and are not empty
-  local x=$HOME/.var/app l d s
+# Items listed as one row per cache folder (entries) and cleaned by emptying each folder (the
+# folder stays): reg_folders_item ID CATEGORY LABEL DEFAULT DESCRIPTION LIST_FN PROCESS_REGEX.
+# LIST_FN prints "label<TAB>folder"; folders_present keeps the ones that exist and hold something.
+declare -A FOLDERS_FN=() FOLDERS_PROCS=()
+reg_folders_item() {
+  local id=$1
+  [[ $id =~ ^[a-z0-9_]+$ ]] || return 1 # ids become function names below
+  reg "$id" "$2" "$3" "$4" "$5"
+  FOLDERS_FN[$id]=$6 FOLDERS_PROCS[$id]=$7 ITEM_LIGHT[$id]=1
+  declare -g "ENTRY_RE_$id=^/[A-Za-z0-9/._~%-]+\$" # the cache folder's full path, percent-encoded
+  eval "scan_$id() { folders_scan $id; }
+        clean_$id() { folders_clean $id; }
+        details_$id() { folders_details $id; }
+        entries_$id() { folders_entries $id; }
+        clean_entries_$id() { folders_clean_entries $id \"\$@\"; }
+        lockedby_$id() { folders_lockedby $id; }
+        precheck_$id() { folders_precheck $id; }"
+}
+folders_present() { # "label<TAB>folder" lines → the folders that exist, are no symlink and are not empty
+  local l d
   while IFS=$'\t' read -r l d; do
     [[ -d $d && ! -L $d && $d != *[[:cntrl:]]* ]] || continue
     [[ -n $(find "$d" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null) ]] || continue
     touches_exclusion "$d" && continue
     printf '%s\t%s\n' "$l" "$d"
-  done < <(
-    printf 'winetricks\t%s\n' "$HOME/.cache/winetricks"
-    printf 'Wine (Gecko, Mono)\t%s\n' "$HOME/.cache/wine"
-    for s in banners coverart installer installers tmp; do
-      printf 'Lutris: %s\t%s\n' "$s" "$HOME/.cache/lutris/$s"
-      printf 'Lutris (Flatpak): %s\t%s\n' "$s" "$x/net.lutris.Lutris/cache/lutris/$s"
-    done
-    for s in store_cache icons images; do printf 'Heroic: %s\t%s\n' "$s" "$HOME/.config/heroic/$s"; done
-    printf 'Heroic (Flatpak)\t%s\n' "$x/com.heroicgameslauncher.hgl/cache")
+  done
 }
-game_launcher_caches() { # → GL_DIR / GL_BYTES / GL_LABEL, biggest first
+folders_sized() { # ID → FD_DIR / FD_BYTES / FD_LABEL, biggest first
   local l d b
-  GL_DIR=() GL_BYTES=() GL_LABEL=()
-  while IFS=$'\t' read -r b l d; do GL_BYTES+=("$b") GL_LABEL+=("$l") GL_DIR+=("$d"); done < <(
-    game_launcher_cache_dirs | while IFS=$'\t' read -r l d; do printf '%s\t%s\t%s\n' "$(du_sum "$d")" "$l" "$d"; done |
+  FD_DIR=() FD_BYTES=() FD_LABEL=()
+  while IFS=$'\t' read -r b l d; do FD_BYTES+=("$b") FD_LABEL+=("$l") FD_DIR+=("$d"); done < <(
+    "${FOLDERS_FN[$1]}" | folders_present | while IFS=$'\t' read -r l d; do printf '%s\t%s\t%s\n' "$(du_sum "$d")" "$l" "$d"; done |
       LC_ALL=C sort -t $'\t' -k1,1nr -k2,2)
 }
-lockedby_game_launcher_caches() { running_proc -xi "$GAME_PROCS|legendary"; }
-precheck_game_launcher_caches() {
+folders_lockedby() { running_proc -xi "${FOLDERS_PROCS[$1]}"; }
+folders_precheck() {
   local p
-  p=$(lockedby_game_launcher_caches) || return 0
-  warn "Skipping ${ITEM_LABEL[game_launcher_caches]}: close $p first."
+  p=$("lockedby_$1") || return 0
+  warn "Skipping ${ITEM_LABEL[$1]}: close $p first."
   return 1
 }
-scan_game_launcher_caches() {
+folders_scan() {
   local b
-  game_launcher_caches
-  ((${#GL_DIR[@]})) || return 1
+  folders_sized "$1"
+  ((${#FD_DIR[@]})) || return 1
   SCAN_BYTES=0
-  for b in "${GL_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
-  SCAN_NOTE=$(plural ${#GL_DIR[@]} folder)
+  for b in "${FD_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE=$(plural ${#FD_DIR[@]} folder)
   ((SCAN_BYTES > 0)) || return 2
 }
-clean_game_launcher_caches() {
+folders_clean() {
   local d rc=0
-  game_launcher_caches
-  for d in "${GL_DIR[@]}"; do empty_dir "$d" || rc=1; done
+  folders_sized "$1"
+  for d in "${FD_DIR[@]}"; do empty_dir "$d" || rc=1; done
   return "$rc"
 }
-details_game_launcher_caches() {
+folders_details() {
   local i
-  game_launcher_caches
-  for i in "${!GL_DIR[@]}"; do
-    printf '  %s%10s%s  %s  %s\n' "$(size_color "${GL_BYTES[i]}")" "$(human "${GL_BYTES[i]}")" "$NC" "${GL_LABEL[i]}" "${GL_DIR[i]/#$HOME/\~}"
+  folders_sized "$1"
+  for i in "${!FD_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${FD_BYTES[i]}")" "$(human "${FD_BYTES[i]}")" "$NC" "${FD_LABEL[i]}" "${FD_DIR[i]/#$HOME/\~}"
   done
 }
-entries_game_launcher_caches() {
+folders_entries() {
   local i
-  game_launcher_caches
-  for i in "${!GL_DIR[@]}"; do
-    printf '%s\t%s\t1\t%s\n' "$(urlencode_path "${GL_DIR[i]}")" "${GL_BYTES[i]}" "${GL_LABEL[i]}"
+  folders_sized "$1"
+  for i in "${!FD_DIR[@]}"; do
+    printf '%s\t%s\t1\t%s\n' "$(urlencode_path "${FD_DIR[i]}")" "${FD_BYTES[i]}" "${FD_LABEL[i]}"
   done
 }
-clean_entries_game_launcher_caches() { # encoded cache folders (json_clean_entries only passes ones listed now)
+folders_clean_entries() { # ID encoded folders… (json_clean_entries only passes ones listed now)
   local i id rc=0
-  game_launcher_caches
+  folders_sized "$1"
+  shift
   for id; do
-    for i in "${!GL_DIR[@]}"; do
-      [[ $(urlencode_path "${GL_DIR[i]}") == "$id" ]] && { empty_dir "${GL_DIR[i]}" || rc=1; }
+    for i in "${!FD_DIR[@]}"; do
+      [[ $(urlencode_path "${FD_DIR[i]}") == "$id" ]] && { empty_dir "${FD_DIR[i]}" || rc=1; }
     done
   done
   return "$rc"
 }
+
+# Game launcher caches: installers winetricks and Wine downloaded (DirectX, VC runtimes, fonts,
+# wine-gecko, wine-mono) and the cover art and temporary installers of Lutris and Heroic, deb and
+# Flatpak. All downloaded again when needed. Never a Wine prefix (~/.wine, ~/Games), Lutris
+# runtime/runners, save games or launcher settings. One entry per folder, emptied (the folder
+# stays); ticked. Skipped while a launcher, Wine, Proton, winetricks or gamescope runs.
+GAME_PROCS='steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*' # launchers and games (process names)
+game_launcher_cache_dirs() { # → "label<TAB>folder"
+  local x=$HOME/.var/app s
+  printf 'winetricks\t%s\n' "$HOME/.cache/winetricks"
+  printf 'Wine (Gecko, Mono)\t%s\n' "$HOME/.cache/wine"
+  for s in banners coverart installer installers tmp; do
+    printf 'Lutris: %s\t%s\n' "$s" "$HOME/.cache/lutris/$s"
+    printf 'Lutris (Flatpak): %s\t%s\n' "$s" "$x/net.lutris.Lutris/cache/lutris/$s"
+  done
+  for s in store_cache icons images; do printf 'Heroic: %s\t%s\n' "$s" "$HOME/.config/heroic/$s"; done
+  printf 'Heroic (Flatpak)\t%s\n' "$x/com.heroicgameslauncher.hgl/cache"
+}
+reg_folders_item game_launcher_caches user "Game launcher caches" 1 "Installers that winetricks and Wine downloaded, and the cover art and temporary installers of Lutris and Heroic. Downloaded again when needed; Wine prefixes, games and saves are kept. Close the launchers and games first." \
+  game_launcher_cache_dirs "$GAME_PROCS|legendary"
+
+# Steam caches: the web and app cache of its store and library pages (appcache/httpcache,
+# config/htmlcache), depot manifests (depotcache), logs and crash dumps, in every Steam folder
+# (deb, ~/.steam/debian-installation, Flatpak, snap); a folder reached twice through a symlink
+# (~/.steam/root) counts once. Steam downloads or writes them again. Never steamapps (games,
+# *.acf, downloads, shadercache: app_steam_shaders, compatdata: Wine prefixes with saves),
+# userdata, the rest of config, or ssfn* (sign-in). Skipped while Steam runs.
+steam_cache_dirs() { # → "label<TAB>folder", real paths in your home
+  local x=$HOME/.var/app d r l s c
+  local -A seen=()
+  for d in "$HOME/.local/share/Steam" "$HOME/.steam/debian-installation" "$HOME/.steam/root" "$HOME/.steam/steam" \
+    "$x/com.valvesoftware.Steam/.local/share/Steam" "$x/com.valvesoftware.Steam/data/Steam" "$HOME/snap/steam/common/.local/share/Steam"; do
+    [[ -d $d ]] && r=$(realpath -e -- "$d" 2>/dev/null) || continue
+    [[ $r == "$HOME"/* && $r != *[[:cntrl:]]* && -z ${seen[$r]:-} ]] || continue
+    seen[$r]=1
+    case $r in "$x"/*) l="Steam (Flatpak)" ;; "$HOME/snap/"*) l="Steam (Snap)" ;; *) l=Steam ;; esac
+    for s in appcache/httpcache config/htmlcache depotcache logs dumps; do
+      c=$r/$s
+      [[ -d $c && ! -L $c && ! -L ${c%/*} ]] || continue
+      printf '%s: %s\t%s\n' "$l" "${s#*/}" "$c"
+    done
+  done
+}
+reg_folders_item steam_caches user "Steam caches" 1 "The web cache of Steam's store and library pages, depot manifests, logs and crash dumps. Steam downloads or writes them again; games, downloads, saves, screenshots and your sign-in are kept. Close Steam first." \
+  steam_cache_dirs 'steam|steamwebhelper'
 
 # ── Browsers & apps: one item per browser / app ──
 #
@@ -3667,7 +3715,6 @@ sub_pathsv _p cache "$HOME/.composer" "$_b"
 reg_cache_item composer_cache dev "Composer cache" 1 \
   "PHP packages and metadata Composer downloaded (~/.cache/composer, ~/.composer/cache, COMPOSER_CACHE_DIR). Downloaded again by composer install; your global packages and settings are kept." \
   "$_p" "composer"
-GAME_PROCS='steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*' # launchers and games (process names)
 _gl=() # folders with a variable part in their name (radv_builtin_shaders*, qtshadercache*)
 for _b in "$HOME"/.cache/radv_builtin_shaders* "$HOME"/.cache/qtshadercache*; do [[ -d $_b ]] && _gl+=("$_b"); done
 _p=""

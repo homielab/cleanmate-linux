@@ -4348,3 +4348,14 @@ msgid ""
 "cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a "
 "program needs one. A model in use is skipped."
 msgstr ""
+
+#. steam_caches label
+msgid "Steam caches"
+msgstr ""
+
+#. steam_caches description
+msgid ""
+"The web cache of Steam's store and library pages, depot manifests, logs and "
+"crash dumps. Steam downloads or writes them again; games, downloads, saves, "
+"screenshots and your sign-in are kept. Close Steam first."
+msgstr ""

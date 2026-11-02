@@ -3565,6 +3565,51 @@ for l in sys.stdin:
   assert_exists "$h/Games/foo/drive_c/save.dat"; assert_exists "$h/.config/heroic/config.json"
 }
 
+test_steam_caches() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/steamstub s=$HOME_DIR/.local/share/Steam
+  local f=$HOME_DIR/.var/app/com.valvesoftware.Steam/.local/share/Steam n=$HOME_DIR/snap/steam/common/.local/share/Steam
+  local list='import json,sys
+for l in sys.stdin:
+    e = json.loads(l)
+    if e.get("event") == "entry": print(e["id"], e["bytes"], e["selected"], e["label"])
+    if e.get("event") == "item" and e.get("id") == "steam_caches": print("total", e["bytes"])'
+  mkdir -p "$s/appcache/httpcache/0a" "$h/.steam" "$WORK/steamout/logs"
+  head -c 1000000 /dev/zero >"$s/appcache/httpcache/0a/blob"
+  old "$s/config/htmlcache/Cache/data_0"; old "$s/depotcache/228990_1.manifest"; old "$s/logs/content_log.txt"
+  old "$s/dumps/crash_1.dmp"; old "$f/logs/bootstrap_log.txt"; old "$n/appcache/httpcache/1b/x"
+  ln -s "$s" "$h/.steam/root"; ln -s "$s" "$h/.steam/steam" # one Steam reached three ways: counted once
+  mkdir -p "$h/.steam/debian-installation"; ln -s "$WORK/steamout/logs" "$h/.steam/debian-installation/logs"
+  old "$WORK/steamout/logs/keep.txt" # a cache folder that is a symlink out of home is never followed
+  local keep=("$s/steamapps/common/Game/game.bin" "$s/steamapps/appmanifest_228990.acf" "$s/steamapps/downloading/228990/part"
+    "$s/steamapps/shadercache/228990/fozpipelinesv6/cache" "$s/steamapps/compatdata/228990/pfx/drive_c/save.dat"
+    "$s/userdata/1/config/localconfig.vdf" "$s/config/config.vdf" "$s/config/loginusers.vdf" "$s/ssfn1234567890" "$f/userdata/1/7/remote/save")
+  for k in "${keep[@]}"; do old "$k"; done
+  out=$(cm --json details steam_caches | python3 -c "$list")
+  assert_eq "$(grep -c '^/' <<<"$out")" "7" "seven cache folders"
+  assert_contains "$out" "Steam: httpcache"; assert_contains "$out" "Steam: htmlcache"; assert_contains "$out" "Steam: depotcache"
+  assert_contains "$out" "Steam (Flatpak): logs"; assert_contains "$out" "Steam (Snap): httpcache"
+  [[ $out == *steamout* || $out == *.steam/* || $out == *steamapps* || $out == *userdata* ]] &&
+    fail "a symlinked or kept folder was listed: $out" || ok_ "only real cache folders listed"
+  [[ $(grep -c ' True ' <<<"$out") == 7 ]] && ok_ "all ticked" || fail "entries not ticked: $out"
+  local b; b=$(awk '$NF == "httpcache" && $(NF-1) == "Steam:" { print $2 }' <<<"$out")
+  ((b >= 1000000 && b < 1100000)) && ok_ "httpcache size" || fail "httpcache size: $b"
+  b=$(cm --json scan --only user | python3 -c "$list" | awk '$1 == "total" { print $2 }')
+  ((b >= 1000000 && b < 1500000)) && ok_ "counted once" || fail "scan total $b: a Steam folder counted twice?"
+  running_stub "$bin" steamwebhelper
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only user 2>&1 </dev/null)
+  assert_contains "$out" "Skipping Steam caches: close steamwebhelper first."
+  assert_exists "$s/logs/content_log.txt"
+  local e1; e1=$(cm --json details steam_caches | python3 -c "$list" | grep 'Steam: logs' | cut -d' ' -f1)
+  user_cm --json clean steam_caches --entries "$e1" >/dev/null 2>&1
+  assert_missing "$s/logs/content_log.txt"; assert_exists "$s/logs"; assert_exists "$s/dumps/crash_1.dmp"
+  user_cm --clean --yes --only user >/dev/null 2>&1 </dev/null
+  assert_missing "$s/appcache/httpcache/0a"; assert_missing "$s/config/htmlcache/Cache"; assert_missing "$s/depotcache/228990_1.manifest"
+  assert_missing "$s/dumps/crash_1.dmp"; assert_missing "$f/logs/bootstrap_log.txt"; assert_missing "$n/appcache/httpcache/1b"
+  assert_exists "$s/appcache/httpcache"; assert_exists "$s/config/htmlcache"
+  for k in "${keep[@]}" "$WORK/steamout/logs/keep.txt"; do assert_exists "$k"; done
+}
+
 test_search_index_items() {
   fresh_home
   local nt; nt=$(path_without localsearch3 tracker3 balooctl6 balooctl) # the branch without the tools

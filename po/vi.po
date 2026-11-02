@@ -4626,6 +4626,21 @@ msgstr ""
 "cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi chương "
 "trình cần. Model đang dùng được bỏ qua."
 
+#. steam_caches label
+msgid "Steam caches"
+msgstr "Bộ nhớ đệm Steam"
+
+#. steam_caches description
+msgid ""
+"The web cache of Steam's store and library pages, depot manifests, logs and "
+"crash dumps. Steam downloads or writes them again; games, downloads, saves, "
+"screenshots and your sign-in are kept. Close Steam first."
+msgstr ""
+"Bộ nhớ đệm web của trang cửa hàng và thư viện Steam, manifest depot, log và "
+"bản dump khi Steam bị lỗi. Steam sẽ tải hoặc ghi lại; game, bản tải, bản "
+"lưu, ảnh chụp màn hình và phiên đăng nhập được giữ nguyên. Hãy đóng Steam "
+"trước."
+
 #, python-brace-format
 #~ msgid ""
 #~ "Cargo target/, Python .venv/ and CocoaPods Pods/ folders of projects "

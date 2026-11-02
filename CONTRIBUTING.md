@@ -39,14 +39,15 @@ details_my_cache() { detail_paths "$HOME/.cache/my-app"; }                 # opt
 
 `scan_*` returns 0 when there's something to clean, 2 when it's clean, 1 when it doesn't apply
 (the app isn't installed). For a whole family of folders, look at `reg_cache_item` (browsers,
-apps), `reg_list_item` (AI tools; `LIST_CAT=dev reg_list_item …` for another group), `reg_model_item` (one item per downloaded AI model) and
+apps), `reg_list_item` (AI tools; `LIST_CAT=dev reg_list_item …` for another group), `reg_model_item` (one item per downloaded AI model),
+`reg_folders_item` (one ticked row per cache folder, emptied: game launchers, Steam) and
 `reg_privacy_item` (histories) — they generate the three
 functions for you.
 
 A `scan_ID` that only looks at folders in your home (`test`, `du`, `dev_scan`) and runs no program
 that could hang (a package manager, `docker`, a tool's own CLI) or a walk over the whole home can go
 in `ITEM_LIGHT`: a scan then runs it in a shared process, which costs less than one of its own.
-`reg_cache_item` and `reg_list_item` items are light already. A light scan must not `cd`, `exit` or
+`reg_cache_item`, `reg_list_item` and `reg_folders_item` items are light already. A light scan must not `cd`, `exit` or
 leave variables behind that the next item reads; globals it fills carry its own prefix (`IV_`, `GR_`…).
 
 Each `$(…)` starts a process (about half a millisecond). Code that runs on every start (item
