@@ -127,8 +127,10 @@ class Engine:
     def lens(self, folder, on_event, on_done):
         return self.run(["lens", "--path", folder], on_event, on_done)
 
-    def trash(self, paths, on_event, on_done, home_only=False):
-        return self.run(["trash", *(["--home-only"] if home_only else []), *paths], on_event, on_done)
+    def trash(self, paths, on_event, on_done, home_only=False, source=None):
+        """Move paths to the Trash; source names the page for `restore --list`."""
+        args = ["trash", *(["--home-only"] if home_only else []), *(["--source", source] if source else [])]
+        return self.run([*args, *paths], on_event, on_done)
 
     def restore(self, names, on_event, on_done):
         return self.run(["restore", *names], on_event, on_done)

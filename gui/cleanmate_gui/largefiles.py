@@ -334,7 +334,7 @@ class LargeFilesPage(Gtk.Box):
         self.window.set_busy(True)
         self.trash_button.set_sensitive(False)
         self.moving = True
-        self.running = self.engine.trash(paths, on_event, on_done)
+        self.running = self.engine.trash(paths, on_event, on_done, source="Large & Old Files")
 
     def undo(self, moved):
         if self.running or not moved:

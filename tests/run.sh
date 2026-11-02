@@ -1256,6 +1256,67 @@ for l in sys.stdin:
   assert_exists "$dl/a.deb"; assert_missing "$thumb"
 }
 
+test_json_restore_list() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local trash=$HOME_DIR/.local/share/Trash ledger=$HOME_DIR/.local/state/cleanmate/trashed.tsv out keys=()
+  local film="$HOME_DIR/Videos/film one.mkv" dir=$HOME_DIR/Projects/old dl=$HOME_DIR/Downloads
+  local list='import sys, json, re
+d = json.load(sys.stdin)
+assert d["version"] == 1 and d["count"] == len(d["items"]), d
+for i in d["items"]:
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d", i["date"]), i["date"]
+    print(i["trashed"], i["path"].replace(sys.argv[1], "~"), i["size"], i["kind"], i["source"], sep="|")'
+  out=$(user_cm --json restore --list)
+  assert_eq "$out" '{"version":1,"count":0,"items":[]}' "nothing trashed: an empty list"
+  assert_missing "$ledger"
+  if ((EUID == 0)); then
+    out=$(cm --json restore --list 2>&1); assert_contains "$out" "run restore --list as yourself"
+  fi
+  # what you trashed yourself is never listed
+  mkdir -p "$trash/files" "$trash/info"; new "$trash/files/mine.txt"
+  printf '[Trash Info]\nPath=%s/mine.txt\nDeletionDate=2026-01-01T00:00:00\n' "$HOME_DIR" >"$trash/info/mine.txt.trashinfo"
+  sized "$film" 1234; sized "$dir/a" 100; sized "$dir/sub/b" 200
+  sized "$dl/a.deb" 1000; touch -d "40 days ago" "$dl/a.deb"
+  user_cm --json --dry-run trash "$film" >/dev/null
+  assert_missing "$ledger"
+  user_cm --json trash "$film" >/dev/null
+  user_cm --json trash --source "Large & Old Files" "$dir" >/dev/null
+  select_only old_installers
+  user_cm --json clean old_installers >/dev/null
+  assert_missing "$dl/a.deb"
+  out=$(user_cm --json restore --list | python3 -c "$list" "$HOME_DIR")
+  local folder_size; folder_size=$(du -sb "$trash/files/old" | cut -f1)
+  assert_eq "$out" "a.deb|~/Downloads/a.deb|1000|file|Smart Scan › Old installers in Downloads
+old|~/Projects/old|$folder_size|folder|Large & Old Files
+film one.mkv|~/Videos/film one.mkv|1234|file|Command Line" "newest first, with sources; not your own"
+  out=$(user_cm --json restore --list --limit 1 | python3 -c "$list" "$HOME_DIR")
+  assert_eq "$out" "a.deb|~/Downloads/a.deb|1000|file|Smart Scan › Old installers in Downloads" "--limit"
+  out=$(user_cm --json restore --list --limit 0 2>&1); assert_contains "$out" "--limit needs a number above 0"
+  # the keys go straight to restore; what is back is no longer listed
+  mapfile -t keys < <(user_cm --json restore --list | python3 -c 'import sys, json; print("\n".join(i["trashed"] for i in json.load(sys.stdin)["items"][1:]))')
+  out=$(user_cm --json restore "${keys[@]}" | tail -n 1)
+  assert_eq "$out" '{"event":"done","restored":2,"failed":0}' "restore takes the listed keys"
+  assert_exists "$film"; assert_exists "$dir/sub/b"
+  # emptied from the Trash, then a file of yours takes the same name: not ours any more
+  rm -f "$trash/files/a.deb" "$trash/info/a.deb.trashinfo"
+  new "$trash/files/a.deb"
+  printf '[Trash Info]\nPath=%s/Downloads/a.deb\nDeletionDate=2026-01-01T00:00:00\n' "$HOME_DIR" >"$trash/info/a.deb.trashinfo"
+  out=$(user_cm --json restore --list)
+  assert_eq "$out" '{"version":1,"count":0,"items":[]}' "only what is still in the Trash"
+  # the terminal form
+  user_cm --json trash "$film" >/dev/null
+  out=$(user_cm restore --list 2>&1)
+  assert_contains "$out" "1 item CleanMate moved to the Trash"
+  assert_contains "$out" "1.2 KB  $film"
+  assert_contains "$out" "cm --json restore KEY"
+  out=$(user_cm restore 2>&1); assert_contains "$out" "Use: cm restore --list"
+  # the record stays small: only what is still in the Trash survives a cleanup
+  new "$HOME_DIR/Videos/new.txt"
+  out=$(in_app 'TRASH_LEDGER_MAX=0; trash_put "$HOME/Videos/new.txt"; cut -f2 "$TRASH_LEDGER"')
+  assert_eq "$out" $'film%20one.mkv\nnew.txt' "the record drops what left the Trash"
+}
+
 test_json_trash_on_a_drive() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home

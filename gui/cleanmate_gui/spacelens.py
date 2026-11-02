@@ -421,7 +421,7 @@ class SpaceLensPage(Gtk.Box):
         self.window.set_busy(True)
         self.trash_button.set_sensitive(False)
         self.moving = True
-        self.running = self.engine.trash(paths, on_event, on_done, home_only=True)
+        self.running = self.engine.trash(paths, on_event, on_done, home_only=True, source="Space Lens")
 
     def undo(self, moved):
         if self.moving or not moved:

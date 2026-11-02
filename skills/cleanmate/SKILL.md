@@ -1,6 +1,6 @@
 ---
 name: cleanmate
-description: Free up disk space on Ubuntu/Linux with CleanMate (`cm`). Use when the user asks to clean up, free disk space, find what is taking up space, remove caches, logs, old snaps, Docker leftovers or developer junk on a Linux machine. Scans first, shows what it found by group, and deletes only what the user confirms.
+description: Free up disk space on Ubuntu/Linux with CleanMate (`cm`). Use when the user asks to clean up, free disk space, find what is taking up space, remove caches, logs, old snaps, Docker leftovers or developer junk on a Linux machine, or to get back files CleanMate moved to the Trash. Scans first, shows what it found by group, and deletes only what the user confirms.
 ---
 
 # CleanMate for Linux
@@ -75,6 +75,20 @@ cm --json --dry-run trash PATH…         # preview, nothing moves
 cm --json trash [--home-only] PATH…     # after the user confirmed; task lines carry the restore key
 cm --json restore KEY…                  # put it back
 ```
+
+## Get something back later
+
+When the user wants back something CleanMate moved to the Trash (also in an earlier session, or
+from the app), list it, let the user pick, then restore only those:
+
+```bash
+cm --json restore --list [--limit N]    # newest first: trashed (the key), path, size, kind, date, source
+cm --json restore KEY…                  # KEY = the "trashed" value of each item the user picked
+```
+
+Show date, size, original path and source (e.g. `Command Line`, `Large & Old Files`,
+`Smart Scan › Old downloads`). Items the user trashed without CleanMate are not in the list: point
+them to the Trash in Files.
 
 ## Beyond Smart Scan
 

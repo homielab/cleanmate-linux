@@ -14,6 +14,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- **Undo across sessions**: `cm --json restore --list` (and `cm restore --list` in a terminal) lists what CleanMate moved to the Trash and is still there — from the apps, a clean or `cm --json trash` — newest first with size, date and where it came from; each `trashed` key goes straight to `cm --json restore`. Things you trashed yourself are not listed. The Agent Skill uses it when you ask to get something back.
 - **Developer Junk** (both apps): stale project build folders now include Gradle and Android (`build/`, `.gradle/`, `app/build/`), Maven, SwiftPM, Flutter, Next.js, Nuxt, SvelteKit, Angular, Turborepo, Haskell, Elixir and Zig projects untouched for 90 days. Each folder is listed only next to the project file that makes it, never through a symlink; still moved to the Trash, with Undo.
 - **Developer Junk** (both apps): old Vagrant box versions, one by one in the desktop app. The newest version of each box and those your machines use are kept; not pre-selected, skipped while Vagrant runs.
 - **Developer Junk** (both apps): package caches of Haskell (cabal, Stack, ghcup), Scala (Coursier, Ivy, sbt) and OCaml (opam), not pre-selected, and the Composer cache, each skipped while its tool runs. Installed compilers, tools, local Ivy packages and opam switches are kept.

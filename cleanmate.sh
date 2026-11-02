@@ -730,17 +730,19 @@ UNDO_BATCH=() # "<trash key><TAB><original path>" of the last trash action
 if [[ -n ${CLEANMATE_VOLUME_ROOTS:-} ]]; then IFS=: read -ra VOLUME_ROOTS <<<"$CLEANMATE_VOLUME_ROOTS"
 else VOLUME_ROOTS=("/media/$USER_NAME" "/run/media/$USER_NAME" /mnt); fi
 
-urlencode_path() { # PATH → percent-encoded, as the Trash spec wants for Path=
-  local LC_ALL=C s=$1 i c out=""
-  for ((i = 0; i < ${#s}; i++)); do
-    c=${s:i:1}
-    case $c in
-      [A-Za-z0-9/._~-]) out+=$c ;;
-      *) printf -v c '%%%02X' "'$c"; out+=$c ;;
+urlencodev() { # VAR PATH → percent-encoded into VAR, as the Trash spec wants for Path= (no subshell)
+  local -n __ue=$1
+  local LC_ALL=C __s=$2 __i __c __out=""
+  for ((__i = 0; __i < ${#__s}; __i++)); do
+    __c=${__s:__i:1}
+    case $__c in
+      [A-Za-z0-9/._~-]) __out+=$__c ;;
+      *) printf -v __c '%%%02X' "'$__c"; __out+=$__c ;;
     esac
   done
-  printf '%s' "$out"
+  __ue=$__out
 }
+urlencode_path() { local __u; urlencodev __u "$1"; printf '%s' "$__u"; }
 
 volume_top_ok() { # DIR — DIR is a drive's top folder: right inside a volume root, a real mount point, no symlinks
   local d=$1 r
@@ -813,22 +815,108 @@ trash_locate() { # KEY → TL_DIR (Trash folder), TL_NAME, TL_TOP (where its fil
 }
 
 trash_into() { # PATH DIR KEY_PREFIX PATH_VALUE — move PATH into the Trash folder DIR, recorded for undo
-  local p=$1 dir=$2 prefix=$3 value=$4 base name n=1 files=$2/files info=$2/info
+  local p=$1 dir=$2 prefix=$3 value=$4 base name n=1 files=$2/files info=$2/info enc now when
   base=${p##*/} name=${p##*/}
   while [[ -e $files/$name || -L $files/$name || -e $info/$name.trashinfo ]]; do
     n=$((n + 1)) name="$base.$n"
   done
   # write the .trashinfo first (as the spec asks), then move the file
-  printf '[Trash Info]\nPath=%s\nDeletionDate=%(%Y-%m-%dT%H:%M:%S)T\n' "$(urlencode_path "$value")" -1 \
-    >"$info/$name.trashinfo" || return 1
+  urlencodev enc "$value"
+  printf -v now '%(%s)T' -1
+  printf -v when '%(%Y-%m-%dT%H:%M:%S)T' "$now"
+  printf '[Trash Info]\nPath=%s\nDeletionDate=%s\n' "$enc" "$when" >"$info/$name.trashinfo" || return 1
   if mv -- "$p" "$files/$name" 2>/dev/null; then
     log "trash $p"
     sizes_forget "$p"
     UNDO_BATCH+=("$prefix$name"$'\t'"$p")
+    trash_record "$prefix$name" "$p" "$enc" "$when" "$now"
     return 0
   fi
   rm -f -- "$info/$name.trashinfo"
   return 1
+}
+
+# What CleanMate moved to the Trash, so `restore --list` can show it in a later session
+# and leave out what you trashed yourself. One line per move, oldest first:
+# epoch<TAB>key<TAB>original path<TAB>Path= of its .trashinfo<TAB>DeletionDate=<TAB>source
+# (key and paths percent-encoded). A record counts only while the .trashinfo still has
+# that Path= and DeletionDate=, so a name the Trash reuses later is not taken for ours.
+TRASH_LEDGER="$LOG_DIR/trashed.tsv"
+TRASH_LEDGER_KEEP=500 # records kept when the file passes TRASH_LEDGER_MAX bytes (well under it, so pruning is rare)
+TRASH_LEDGER_MAX=524288
+TRASH_SOURCE="" # where a move comes from: set by each screen and --json command (local)
+
+trash_record() { # KEY PATH INFO-PATH DELETION-DATE EPOCH — remember a move for `restore --list`
+  local src=${TRASH_SOURCE:-CleanMate} key path size
+  src=${src//[$'\t\n\r']/ }
+  urlencodev key "$1"; urlencodev path "$2"
+  mkdir -p "$LOG_DIR" 2>/dev/null &&
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$5" "$key" "$path" "$3" "$4" "$src" >>"$TRASH_LEDGER" 2>/dev/null || return 0
+  size=$(stat -c %s -- "$TRASH_LEDGER" 2>/dev/null) || return 0
+  ((size <= TRASH_LEDGER_MAX)) || trash_ledger_prune
+  return 0
+}
+
+trash_ledger_prune() { # keep the newest TRASH_LEDGER_KEEP records whose item is still in the Trash
+  local lines=() kept=() i tmp
+  local -A seen=()
+  mapfile -t lines <"$TRASH_LEDGER" || return 0
+  for ((i = ${#lines[@]} - 1; i >= 0 && ${#kept[@]} < TRASH_LEDGER_KEEP; i--)); do
+    trash_record_live "${lines[i]}" seen && kept+=("${lines[i]}")
+  done
+  tmp=$(mktemp -p "$LOG_DIR" .trashed.XXXXXX) || return 0
+  for ((i = ${#kept[@]} - 1; i >= 0; i--)); do printf '%s\n' "${kept[i]}"; done >"$tmp" &&
+    mv -f -- "$tmp" "$TRASH_LEDGER" || rm -f -- "$tmp"
+}
+
+trash_info_read() { # FILE → TI_PATH, TI_DATE: Path= and DeletionDate= of a .trashinfo, as written
+  local l
+  TI_PATH="" TI_DATE=""
+  while IFS= read -r l || [[ -n $l ]]; do
+    case $l in
+      Path=*) [[ -n $TI_PATH ]] || TI_PATH=${l#Path=} ;;
+      DeletionDate=*) [[ -n $TI_DATE ]] || TI_DATE=${l#DeletionDate=} ;;
+    esac
+  done <"$1"
+}
+
+trash_record_live() { # LINE SEEN — a ledger line whose item is still in the Trash → TRL_* fields, TL_* (trash_locate);
+  # SEEN (assoc array, read newest first) skips older records of a key: only the newest can be what the Trash holds
+  local -n __seen=$2
+  local k pe ie when info
+  IFS=$'\t' read -r TRL_EPOCH k pe ie when TRL_SOURCE <<<"$1"
+  [[ $TRL_EPOCH =~ ^[0-9]+$ && -n $k && -n $pe && -z ${__seen[$k]:-} ]] || return 1
+  __seen[$k]=1
+  urldecode_path TRL_KEY "$k"
+  trash_locate "$TRL_KEY" || return 1
+  info=$TL_DIR/info/$TL_NAME.trashinfo
+  [[ (-e $TL_DIR/files/$TL_NAME || -L $TL_DIR/files/$TL_NAME) && -f $info && ! -L $info ]] || return 1
+  trash_info_read "$info"
+  [[ $TI_PATH == "$ie" && $TI_DATE == "$when" ]] || return 1 # emptied, then the name was used again
+  urldecode_path TRL_PATH "$pe"
+}
+
+trashed_items() { # LIMIT → TR_KEY TR_PATH TR_BYTES TR_KIND TR_EPOCH TR_SOURCE: what CleanMate moved to the
+  # Trash and is still there, newest first (read only: the ledger is never written here)
+  local limit=$1 lines=() i f b
+  local -A seen=()
+  TR_KEY=() TR_PATH=() TR_BYTES=() TR_KIND=() TR_EPOCH=() TR_SOURCE=()
+  [[ -f $TRASH_LEDGER && -r $TRASH_LEDGER ]] || return 0
+  mapfile -t lines <"$TRASH_LEDGER"
+  for ((i = ${#lines[@]} - 1; i >= 0 && ${#TR_KEY[@]} < limit; i--)); do
+    trash_record_live "${lines[i]}" seen || continue
+    f=$TL_DIR/files/$TL_NAME
+    if [[ -d $f && ! -L $f ]]; then
+      b=$(du -sb -- "$f" 2>/dev/null)
+      b=${b%%[[:space:]]*}
+      TR_KIND+=(folder)
+    else
+      b=$(stat -c %s -- "$f" 2>/dev/null)
+      TR_KIND+=(file)
+    fi
+    [[ $b =~ ^[0-9]+$ ]] || b=0
+    TR_KEY+=("$TRL_KEY") TR_PATH+=("$TRL_PATH") TR_BYTES+=("$b") TR_EPOCH+=("$TRL_EPOCH") TR_SOURCE+=("${TRL_SOURCE:-CleanMate}")
+  done
 }
 
 trash_put() { # PATH (inside $HOME) → moved to the Trash, recorded for undo
@@ -7089,7 +7177,7 @@ show_run_results() { # TITLE
 task_clean_pre() { declare -F "precheck_$1" >/dev/null || return 0; "precheck_$1"; }
 
 task_clean() { # clean, then re-measure so the parent can compute what was freed
-  local rc src
+  local rc src TRASH_SOURCE="Smart Scan › ${ITEM_LABEL[$1]:-$1}"
   "clean_$1"; rc=$?
   if ((rc == 0 && !DRY_RUN)); then
     SCAN_BYTES=0 SCAN_NOTE=""
@@ -7323,7 +7411,7 @@ find_vm_disks() { # your VM disks, plus the system libvirt/Multipass stores when
 }
 
 large_files_menu() {
-  local dir min dl
+  local dir min dl TRASH_SOURCE="Large & Old Files"
   dl=$(xdg-user-dir DOWNLOAD 2>/dev/null || echo "$HOME/Downloads")
   while :; do
     M_KEY=(1 2 3 4 5)
@@ -7545,7 +7633,7 @@ uninstall_selected() {
   app_search "$APP_QUERY"
 }
 
-uninstaller_menu() { apps_menu; }
+uninstaller_menu() { local TRASH_SOURCE="Uninstaller"; apps_menu; }
 
 leftovers_menu() { # A_LEFT, none ticked: to the Trash, z puts them back
   local e kind b p PICK_NOUN=folder
@@ -8464,7 +8552,7 @@ startup_bottom() {
 }
 
 startup_menu() {
-  local show_all=0 cur=0 scroll=0 undo=0 keys=()
+  local show_all=0 cur=0 scroll=0 undo=0 keys=() TRASH_SOURCE="Startup Items"
   load_startup "$show_all"
   while :; do
     L_TITLE="Startup Items" L_TOP=startup_top L_BOTTOM=startup_bottom L_ROW=startup_row L_FOCUSABLE="" L_TEXT=startup_text
@@ -9229,6 +9317,7 @@ space_lens() { # START_DIR
 }
 
 space_lens_menu() {
+  local TRASH_SOURCE="Space Lens"
   while :; do
     M_KEY=(1 2 3)
     M_LABEL=("Home folder" "Whole disk" "Choose a folder…")
@@ -9449,7 +9538,7 @@ find_duplicates() { # MIN_MB DIR...
 }
 
 duplicates_menu() {
-  local min
+  local min TRASH_SOURCE="Duplicates"
   while :; do
     M_KEY=(1 2 3)
     M_LABEL=("Home folder" "Pictures & Downloads" "Choose a folder…")
@@ -10483,7 +10572,7 @@ json_main() { # SUBCOMMAND ARGS…
     maintain) json_maintain "$@" ;;
     overview) json_overview ;;
     check) json_check "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|sysreport|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|restore --list [--limit N]|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|sysreport|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
   esac
 }
 
@@ -10560,7 +10649,7 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
 }
 
 json_clean_entries() { # ID — clean ENTRY_PICK of ID (only entries entries_ID lists now) → ENTRY_BYTES, @@scan line
-  local id=$1 eid b sel label pick=() src
+  local id=$1 eid b sel label pick=() src TRASH_SOURCE="Smart Scan › ${ITEM_LABEL[$1]:-$1}"
   local -A listed=()
   ENTRY_BYTES=0
   while IFS=$'\t' read -r eid b sel label; do listed[$eid]=$b; done < <("entries_$id" 2>/dev/null)
@@ -10814,10 +10903,17 @@ json_file_task() { # PATH STATE INFO BYTES [TRASH-NAME] → one "task" event abo
   printf '{"event":"task","id":%s,"state":"%s","info":%s,"freed":%d,"trash":%s}\n' "$id" "$2" "$info" "${4:-0}" "$name"
 }
 
-json_trash() { # [--home-only] PATH… — move these to the Trash; "trash" names what `restore` puts back
+json_trash() { # [--home-only] [--source NAME] PATH… — move these to the Trash; "trash" names what `restore` puts back
   ((EUID != 0)) || { json_error "Refusing to move files to the Trash as root"; return 2; }
-  local home_only=0
-  [[ ${1:-} == --home-only ]] && { home_only=1; shift; } # Space Lens: only what lens_movable allows
+  local home_only=0 TRASH_SOURCE=${TRASH_SOURCE:-Command Line}
+  while (($#)); do
+    case $1 in
+      --home-only) home_only=1 ;; # Space Lens: only what lens_movable allows
+      --source) (($# >= 2)) || { json_error "--source needs a value."; return 2; }; TRASH_SOURCE=$2; shift ;; # shown by restore --list
+      *) break ;;
+    esac
+    shift
+  done
   (($#)) || { json_error "No files given."; return 2; }
   local p b moved=0 failed=0 freed=0 errf why name
   errf=$(mktemp -p "$SESSION_TMP") || return 1
@@ -10849,6 +10945,7 @@ json_trash() { # [--home-only] PATH… — move these to the Trash; "trash" name
 }
 
 json_restore() { # KEY… — put these back from the Trash (keys from the "trash" field of `trash`)
+  [[ ${1:-} == --list ]] && { shift; json_restore_list "$@"; return; }
   ((EUID != 0)) || { json_error "Refusing to restore files as root"; return 2; }
   (($#)) || { json_error "No files given."; return 2; }
   local key info orig raw ok=0 failed=0
@@ -10873,6 +10970,60 @@ json_restore() { # KEY… — put these back from the Trash (keys from the "tras
     else json_file_task "$orig" fail "Not in the Trash any more" 0 "$key"; ((++failed)); fi
   done
   printf '{"event":"done","restored":%d,"failed":%d}\n' "$ok" "$failed"
+}
+
+restore_limit() { # VAR ARGS… — the --limit of `restore --list` (default 200) into VAR; 2 on a bad option
+  local -n __rl=$1
+  shift
+  __rl=200
+  while (($#)); do
+    case $1 in
+      --limit)
+        [[ ${2:-} =~ ^[0-9]+$ ]] && ((10#$2 > 0)) || { RL_ERROR="--limit needs a number above 0."; return 2; }
+        __rl=$((10#$2)); shift ;;
+      *) RL_ERROR="Unknown option: $1 (restore --list [--limit N])"; return 2 ;;
+    esac
+    shift
+  done
+}
+
+iso_datev() { # VAR EPOCH → ISO 8601 local time with the UTC offset, e.g. 2026-11-02T14:15:00+07:00
+  local -n __id=$1
+  printf -v __id '%(%Y-%m-%dT%H:%M:%S%z)T' "$2"
+  __id=${__id:0:${#__id}-2}:${__id:${#__id}-2}
+}
+
+json_restore_list() { # [--limit N] — what CleanMate moved to the Trash and is still there, newest first:
+  # one object {"version":1,"count":N,"items":[{trashed,path,size,kind,date,source}]}; "trashed" goes to `restore`
+  ((EUID != 0)) || { json_error "Your Trash is per user: run restore --list as yourself, not as root"; return 2; }
+  local limit i t p d src out=""
+  restore_limit limit "$@" || { json_error "$RL_ERROR"; return 2; }
+  trashed_items "$limit"
+  for i in "${!TR_KEY[@]}"; do
+    json_str t "${TR_KEY[i]}"; json_str p "${TR_PATH[i]}"; json_str src "${TR_SOURCE[i]}"
+    iso_datev d "${TR_EPOCH[i]}"
+    out+="${out:+,}{\"trashed\":$t,\"path\":$p,\"size\":${TR_BYTES[i]},\"kind\":\"${TR_KIND[i]}\",\"date\":\"$d\",\"source\":$src}"
+  done
+  printf '{"version":1,"count":%d,"items":[%s]}\n' "${#TR_KEY[@]}" "$out"
+}
+
+restore_list_text() { # [--limit N] — `cm restore --list`: one line per item (date, size, where it was)
+  ((EUID != 0)) || { err "Your Trash is per user: run cm restore --list as yourself, not as root."; return 2; }
+  local limit i d h p
+  restore_limit limit "$@" || { err "$RL_ERROR"; return 2; }
+  trashed_items "$limit"
+  if ((${#TR_KEY[@]} == 0)); then
+    printf '  Nothing CleanMate moved to the Trash is still there.\n'
+    return 0
+  fi
+  printf '\n  %s%s CleanMate moved to the Trash%s %s(newest first)%s\n\n' "$BOLD" "$(plural ${#TR_KEY[@]} item)" "$NC" "$DIM" "$NC"
+  for i in "${!TR_KEY[@]}"; do
+    printf -v d '%(%Y-%m-%d %H:%M)T' "${TR_EPOCH[i]}"
+    humanv h "${TR_BYTES[i]}"
+    p=${TR_PATH[i]//[[:cntrl:]]/?}
+    printf '  %s  %9s  %s\n' "$d" "$h" "$p"
+  done
+  printf '\n  %sTo put one back: Restore it from the Trash in Files, or run cm --json restore KEY (KEY = its "trashed" in cm --json restore --list).%s\n\n' "$DIM" "$NC"
 }
 
 # ── Startup Items for the desktop app ──
@@ -11016,7 +11167,7 @@ startup_set_systemd() { # ID UNIT ACTION
 json_startup_set() { # ID enable|disable|remove
   ((EUID != 0)) || { json_error "Startup items are per user: run this as yourself, not as root"; return 2; }
   (($# == 2)) || { json_error "Usage: --json startup-set ID enable|disable|remove"; return 2; }
-  local id=$1 act=$2
+  local id=$1 act=$2 TRASH_SOURCE="Startup Items"
   case $act in enable | disable | remove) ;; *) json_error "Unknown action: $act"; return 2 ;; esac
   case $id in
     autostart:*.desktop)
@@ -11213,6 +11364,7 @@ json_apps() {
 
 json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only says what apt would do and what runs
   local check=0 a src id apt=() ids=() out rc why gone=0 failed=0 skipped=0 msg extra prog jr="" ji jp
+  local TRASH_SOURCE="Uninstaller"
   local -A known=() busy=() rc_of=() out_of=()
   [[ ${1:-} == --check ]] && { check=1; shift; }
   (($#)) || { json_error "No apps given."; return 2; }
@@ -11295,7 +11447,7 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
 
 json_reset() { # [--check] KIND:ID [FOLDER…] — keep the app, move its data (or these folders of it) to the Trash;
   # --check lists the folders ("data" events) and says which program of it runs
-  local check=0 a src id name pkgb datab last desk paths="" found=0 prog="" p b jp total=0
+  local check=0 a src id name pkgb datab last desk paths="" found=0 prog="" p b jp total=0 TRASH_SOURCE="Uninstaller"
   local -a list=() pick=()
   [[ ${1:-} == --check ]] && { check=1; shift; }
   a=${1:-}
@@ -11570,6 +11722,8 @@ Scan & clean without the app
                     desktop notification
       --check       What the daily check runs: notify when / is almost full (Low disk
                     alert) or no scan ran for a while (Scan reminder); cleans nothing
+  restore --list [--limit N]
+                    What CleanMate moved to the Trash and is still there, newest first
 
 Install & update
       --install     Install the cm command, the desktop app and the app-grid entry
@@ -11582,7 +11736,8 @@ For the desktop app
                     large [--min BYTES] [--days N] [--path DIR] [--limit N],
                     lens [--path DIR] [--limit N],
                     dupes [--min BYTES] [--path DIR] [--limit N], startup, startup-set ID enable|disable|remove,
-                    trash [--home-only] PATH…, restore KEY…, apps, uninstall [--check] KIND:ID…,
+                    trash [--home-only] [--source NAME] PATH…, restore KEY…,
+                    restore --list [--limit N], apps, uninstall [--check] KIND:ID…,
                     reset [--check] KIND:ID [FOLDER…]
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help
@@ -11698,10 +11853,14 @@ while (($#)); do
     --json) MODE=json ;;
     --gui) MODE=gui ;;
     -*)
-      [[ $MODE == json && ${#JSON_ARGS[@]} -gt 0 ]] || { err "Unknown option: $1"; usage; exit 2; }
-      JSON_ARGS+=("$1") ;; # an option of the JSON command, e.g. large --min
+      [[ ($MODE == json && ${#JSON_ARGS[@]} -gt 0) || $MODE == restore ]] || { err "Unknown option: $1"; usage; exit 2; }
+      JSON_ARGS+=("$1") ;; # an option of the JSON command (e.g. large --min) or of restore
+    restore)
+      if [[ $MODE == menu ]]; then MODE=restore
+      elif [[ $MODE == json || $MODE == restore ]]; then JSON_ARGS+=("$1")
+      else err "Unknown argument: $1"; usage; exit 2; fi ;;
     *)
-      [[ $MODE == json ]] || { err "Unknown argument: $1"; usage; exit 2; }
+      [[ $MODE == json || $MODE == restore ]] || { err "Unknown argument: $1"; usage; exit 2; }
       JSON_ARGS+=("$1") ;;
   esac
   shift
@@ -11735,6 +11894,11 @@ case $MODE in
   uninstall) INTERACTIVE=0; cli_uninstall; exit ;;
   update) INTERACTIVE=0; cli_update; exit ;;
   json) INTERACTIVE=0 ASSUME_YES=1 JSON=1; json_main "${JSON_ARGS[@]}"; exit ;;
+  restore)
+    INTERACTIVE=0 _args=()
+    for _a in "${JSON_ARGS[@]}"; do [[ $_a == --list ]] || _args+=("$_a"); done
+    ((${#_args[@]} < ${#JSON_ARGS[@]})) || { err "Use: cm restore --list [--limit N] (put items back with cm --json restore KEY…)"; exit 2; }
+    restore_list_text "${_args[@]}"; exit ;;
   gui) launch_gui; exit ;;
 esac
 ((ASSUME_YES)) && { err "--yes only works together with --clean."; exit 2; }

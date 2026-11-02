@@ -373,7 +373,7 @@ class UninstallerPage(Gtk.Box):
                 self.window.refresh_disk()
             self.load()
 
-        self.running = self.engine.trash(paths, on_event, on_done, home_only=True)
+        self.running = self.engine.trash(paths, on_event, on_done, home_only=True, source="Uninstaller")
 
     def apply_filter(self):
         q = self.search_entry.get_text().strip().lower()
@@ -676,7 +676,8 @@ class UninstallerPage(Gtk.Box):
                 elif e["event"] == "task":
                     self.window.toast(f"{short_path(e['id'])}: {e['info']}", timeout=8)
 
-            self.running = self.engine.trash(paths, on_trash, lambda ok, st: finish(moved, len(done)))
+            self.running = self.engine.trash(paths, on_trash, lambda ok, st: finish(moved, len(done)),
+                                             source="Uninstaller")
 
         def finish(moved, folders_done):
             self.running, self.busy = None, False
