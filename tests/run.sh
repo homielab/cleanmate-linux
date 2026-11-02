@@ -3611,6 +3611,52 @@ for l in sys.stdin:
   for k in "${keep[@]}" "$WORK/steamout/logs/keep.txt"; do assert_exists "$k"; done
 }
 
+test_minecraft_caches() {
+  fresh_home
+  local h=$HOME_DIR bin=$WORK/mcstub m=$HOME_DIR/.minecraft out e1
+  local f=$HOME_DIR/.var/app/com.mojang.Minecraft/.minecraft p=$HOME_DIR/.local/share/PrismLauncher
+  local pf=$HOME_DIR/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher
+  local list='import json,sys
+for l in sys.stdin:
+    e = json.loads(l)
+    if e.get("event") == "entry": print(e["id"], e["selected"], e["label"])'
+  old "$m/logs/latest.log"; old "$m/crash-reports/crash-1.txt"; old "$m/webcache2/Cache/data_0"; old "$f/logs/latest.log"
+  old "$p/logs/prism.log"; old "$p/cache/mc.json"; old "$p/instances/One/.minecraft/logs/latest.log"
+  old "$p/instances/Two/minecraft/crash-reports/c.txt"; old "$pf/instances/Three/.minecraft/logs/l.log"
+  mkdir -p "$WORK/mcout/logs" "$p/instances/Four/.minecraft"; old "$WORK/mcout/logs/keep.txt"
+  ln -s "$WORK/mcout/logs" "$p/instances/Four/.minecraft/logs" # a symlinked folder is never followed
+  local keep=("$m/saves/World/level.dat" "$m/mods/a.jar" "$m/resourcepacks/r.zip" "$m/screenshots/s.png" "$m/options.txt" "$m/versions/1.21/1.21.jar"
+    "$m/libraries/a.jar" "$m/assets/objects/ab" "$m/launcher_profiles.json" "$p/accounts.json" "$p/meta/index.json" "$p/prismlauncher.cfg"
+    "$p/instances/One/.minecraft/saves/W/level.dat" "$p/instances/One/.minecraft/mods/m.jar" "$p/instances/One/instance.cfg" "$f/saves/W/level.dat")
+  for k in "${keep[@]}"; do old "$k"; done
+  out=$(cm --json details minecraft_caches | python3 -c "$list")
+  assert_eq "$(grep -c '^/' <<<"$out")" "9" "nine cache folders"
+  assert_contains "$out" "Minecraft: webcache2"; assert_contains "$out" "Minecraft (Flatpak): logs"; assert_contains "$out" "Prism Launcher: cache"
+  assert_contains "$out" "Prism Launcher: One logs"; assert_contains "$out" "Prism Launcher: Two crash-reports"
+  assert_contains "$out" "Prism Launcher (Flatpak): Three logs"
+  [[ $out == *Four* || $out == *mcout* ]] && fail "a symlinked folder was listed: $out" || ok_ "symlinks skipped"
+  [[ $(grep -c ' True ' <<<"$out") == 9 ]] && ok_ "all ticked" || fail "entries not ticked: $out"
+  running_stub "$bin" java
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only user 2>&1 </dev/null)
+  assert_contains "$out" "Skipping Minecraft caches: close java first."
+  assert_exists "$m/logs/latest.log"
+  e1=$(cm --json details minecraft_caches | python3 -c "$list" | grep 'Minecraft: logs' | cut -d' ' -f1)
+  user_cm --json clean minecraft_caches --entries "$e1" >/dev/null 2>&1
+  assert_missing "$m/logs/latest.log"; assert_exists "$m/logs"; assert_exists "$m/crash-reports/crash-1.txt"
+  user_cm --clean --yes --only user >/dev/null 2>&1 </dev/null
+  assert_missing "$m/crash-reports/crash-1.txt"; assert_missing "$m/webcache2/Cache"; assert_missing "$f/logs/latest.log"
+  assert_missing "$p/logs/prism.log"; assert_missing "$p/cache/mc.json"; assert_missing "$p/instances/One/.minecraft/logs/latest.log"
+  assert_missing "$p/instances/Two/minecraft/crash-reports/c.txt"; assert_missing "$pf/instances/Three/.minecraft/logs/l.log"
+  assert_exists "$m/logs"; assert_exists "$p/instances/One/.minecraft/logs"
+  for k in "${keep[@]}" "$WORK/mcout/logs/keep.txt"; do assert_exists "$k"; done
+  # InstanceDir outside the home: its instances are not listed
+  mkdir -p "$WORK/mcinst/Out/.minecraft/logs"; old "$WORK/mcinst/Out/.minecraft/logs/x.log"
+  printf '[General]\nInstanceDir=%s\n' "$WORK/mcinst" >"$p/prismlauncher.cfg"
+  old "$p/instances/One/.minecraft/logs/latest.log"
+  out=$(cm --json details minecraft_caches | python3 -c "$list")
+  [[ $out == *mcinst* || $out == *"One logs"* ]] && fail "InstanceDir outside home used: $out" || ok_ "InstanceDir outside home ignored"
+}
+
 test_search_index_items() {
   fresh_home
   local nt; nt=$(path_without localsearch3 tracker3 balooctl6 balooctl) # the branch without the tools

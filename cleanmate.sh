@@ -2109,6 +2109,61 @@ steam_cache_dirs() { # → "label<TAB>folder", real paths in your home
 reg_folders_item steam_caches user "Steam caches" 1 "The web cache of Steam's store and library pages, depot manifests, logs and crash dumps. Steam downloads or writes them again; games, downloads, saves, screenshots and your sign-in are kept. Close Steam first." \
   steam_cache_dirs 'steam|steamwebhelper'
 
+# Minecraft caches: the official launcher's logs, crash-reports and web cache (webcache2, webcache in
+# older versions) in ~/.minecraft and the Flatpak copy; Prism Launcher's logs and download cache
+# (cache) and the logs and crash-reports of each instance (.minecraft or minecraft inside it), also
+# in its Flatpak data folder. Rewritten when the launcher or the game runs again. Never saves, mods,
+# resourcepacks, shaderpacks, screenshots, config, options.txt, versions, libraries, assets,
+# launcher_*.json, accounts.json, meta or any other part of an instance. An InstanceDir outside
+# the home is ignored. Skipped while a launcher runs and while Java runs (a game is a java process
+# whose name is only "java", so any Java program blocks the item: the safe side).
+minecraft_cache_dirs() { # → "label<TAB>folder", real paths in your home
+  local x=$HOME/.var/app d r l s c i ci n m
+  local -A seen=()
+  for d in "$HOME/.minecraft" "$x/com.mojang.Minecraft/.minecraft"; do
+    [[ -d $d && ! -L $d ]] && r=$(realpath -e -- "$d" 2>/dev/null) || continue
+    [[ $r == "$HOME"/* && $r != *[[:cntrl:]]* && -z ${seen[$r]:-} ]] || continue
+    seen[$r]=1
+    case $r in "$x"/*) l="Minecraft (Flatpak)" ;; *) l=Minecraft ;; esac
+    for s in logs crash-reports webcache2 webcache; do
+      c=$r/$s
+      [[ -d $c && ! -L $c ]] && printf '%s: %s\t%s\n' "$l" "$s" "$c"
+    done
+  done
+  for d in "$HOME/.local/share/PrismLauncher" "$x/org.prismlauncher.PrismLauncher/data/PrismLauncher"; do
+    [[ -d $d && ! -L $d ]] && r=$(realpath -e -- "$d" 2>/dev/null) || continue
+    [[ $r == "$HOME"/* && $r != *[[:cntrl:]]* && -z ${seen[$r]:-} ]] || continue
+    seen[$r]=1
+    case $r in "$x"/*) l="Prism Launcher (Flatpak)" ;; *) l="Prism Launcher" ;; esac
+    for s in logs cache; do
+      c=$r/$s
+      [[ -d $c && ! -L $c ]] && printf '%s: %s\t%s\n' "$l" "$s" "$c"
+    done
+    i=$r/instances # InstanceDir of prismlauncher.cfg, when set
+    if [[ -f $r/prismlauncher.cfg ]]; then
+      ci=$(sed -n 's/^InstanceDir=//p' "$r/prismlauncher.cfg" 2>/dev/null | head -n1)
+      ci=${ci%$'\r'}
+      if [[ -n $ci ]]; then
+        [[ $ci == /* ]] || ci=$r/$ci
+        i=$(realpath -e -- "$ci" 2>/dev/null) || i=
+      fi
+    fi
+    [[ -n $i && $i == "$HOME"/* && $i != *[[:cntrl:]]* && -d $i && ! -L $i ]] || continue
+    for c in "$i"/*/; do
+      c=${c%/}; n=${c##*/}
+      [[ -d $c && ! -L $c && $n != .* && $n != *[[:cntrl:]]* ]] || continue
+      for m in .minecraft minecraft; do
+        [[ -d $c/$m && ! -L $c/$m ]] || continue
+        for s in logs crash-reports; do
+          [[ -d $c/$m/$s && ! -L $c/$m/$s ]] && printf '%s: %s %s\t%s\n' "$l" "$n" "$s" "$c/$m/$s"
+        done
+      done
+    done
+  done
+}
+reg_folders_item minecraft_caches user "Minecraft caches" 1 "Launcher logs, crash reports and web cache of Minecraft and Prism Launcher, and the logs and crash reports of each Prism instance. Written again when you play; worlds, mods, resource packs, screenshots, settings and accounts are kept. Close the launcher and the game first." \
+  minecraft_cache_dirs 'minecraft-launc.*|prismlauncher|java'
+
 # ── Browsers & apps: one item per browser / app ──
 #
 # Cache items are data-driven: ITEM_PATHS holds the cache folders (one per

@@ -4641,6 +4641,22 @@ msgstr ""
 "lưu, ảnh chụp màn hình và phiên đăng nhập được giữ nguyên. Hãy đóng Steam "
 "trước."
 
+#. minecraft_caches label
+msgid "Minecraft caches"
+msgstr "Bộ nhớ đệm Minecraft"
+
+#. minecraft_caches description
+msgid ""
+"Launcher logs, crash reports and web cache of Minecraft and Prism Launcher, "
+"and the logs and crash reports of each Prism instance. Written again when "
+"you play; worlds, mods, resource packs, screenshots, settings and accounts "
+"are kept. Close the launcher and the game first."
+msgstr ""
+"Log, báo cáo lỗi và bộ nhớ đệm web của launcher Minecraft và Prism "
+"Launcher, cùng log và báo cáo lỗi của từng instance Prism. Được ghi lại khi "
+"bạn chơi; thế giới, mod, resource pack, ảnh chụp màn hình, cài đặt và tài "
+"khoản được giữ nguyên. Hãy đóng launcher và game trước."
+
 #, python-brace-format
 #~ msgid ""
 #~ "Cargo target/, Python .venv/ and CocoaPods Pods/ folders of projects "

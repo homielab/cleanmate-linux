@@ -344,6 +344,14 @@ msgstr ""
 msgid "The web cache of Steam's store and library pages, depot manifests, logs and crash dumps. Steam downloads or writes them again; games, downloads, saves, screenshots and your sign-in are kept. Close Steam first."
 msgstr ""
 
+#. minecraft_caches label
+msgid "Minecraft caches"
+msgstr ""
+
+#. minecraft_caches description
+msgid "Launcher logs, crash reports and web cache of Minecraft and Prism Launcher, and the logs and crash reports of each Prism instance. Written again when you play; worlds, mods, resource packs, screenshots, settings and accounts are kept. Close the launcher and the game first."
+msgstr ""
+
 #. browser_firefox label
 msgid "Firefox"
 msgstr ""
