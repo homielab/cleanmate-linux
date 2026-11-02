@@ -4675,6 +4675,11 @@ EOF
   out=$(BASE_PATH="$bin:$BASE_PATH" in_app 'APP_DESKTOP_DIRS=("$HOME/.local/share/applications" "$HOME/sys"); SESSION_TMP=$HOME
     ui_busy() { wait "$2"; }; load_apps; A_FILTER=unused; apps_view; for i in "${A_VIEW[@]}"; do echo "${A_ID[i]}"; done')
   assert_eq "$out" "gimp" "only gimp is unused for 90+ days"
+  out=$(BASE_PATH="$bin:$BASE_PATH" in_app 'APP_DESKTOP_DIRS=("$HOME/.local/share/applications" "$HOME/sys"); SESSION_TMP=$HOME
+    ui_busy() { wait "$2"; }; load_apps; A_FILTER=year; apps_view; echo "year:${#A_VIEW[@]}"
+    for i in "${!A_ID[@]}"; do [[ ${A_ID[i]} == gimp ]] && A_LAST[i]=$((EPOCHSECONDS - 400 * 86400)); done
+    apps_view; for i in "${A_VIEW[@]}"; do echo "${A_ID[i]}"; done')
+  assert_eq "$out" $'year:0\ngimp' "unused for a year: none at 150 days, gimp at 400"
   assert_eq "$(in_app 'used_ago 0; echo; used_ago $((EPOCHSECONDS - 86400 * 400))')" $'—\n13 months ago' "used_ago"
 }
 

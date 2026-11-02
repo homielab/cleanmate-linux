@@ -13,6 +13,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- **Uninstaller (terminal app)**: **f** now also shows apps not used for 365+ days, after the 90+ days filter.
 - **AI agents**: an Agent Skill (`skills/cleanmate/`) lets Claude Code, Codex and other agents scan with `cm --json`, show the result and clean only what you confirm. The README documents the command line and `--json`.
 - **User & App Junk** (both apps): game launcher caches — installers winetricks and Wine downloaded (`~/.cache/winetricks`, `~/.cache/wine`) and the cover art and temporary installers of Lutris and Heroic, deb and Flatpak. One row per folder, pre-selected, skipped while a launcher, Wine or Proton runs; Wine prefixes, games and saves are never touched.
 - **Developer Junk** (both apps): old asdf and mise runtime versions (Node.js, Python, Ruby, Java…, often 100 MB–1 GB each). The newest version of each tool is kept, as is every version pinned in `~/.tool-versions`, mise's settings or the `.tool-versions` / `mise.toml` of a project in your home; a pin like `20` or `lts` keeps the newest match. Not pre-selected, deleted for good (`asdf install` or `mise install` brings one back), skipped while asdf or mise runs, a version a program runs from is skipped; each version on its own in the desktop app.

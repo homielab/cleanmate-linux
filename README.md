@@ -151,7 +151,7 @@ the browser runs; Firefox needs `sqlite3` (it clears the records, so bookmarks i
   `~/.local/share/applications`), with its real size (the app *plus* its folders in your home) and when
   you last used it. An AppImage app goes to the Trash as you — the file, its launcher and the icon only
   it uses — so you can put it back. Sort by size or last use, or show only apps
-  you haven't opened in 90+ days (desktop app: unused for 1, 3, 6 or 12+ months). Parts of Ubuntu itself are hidden, and a removal that would take
+  you haven't opened in 90+ or 365+ days (**f** in the terminal app; desktop app: unused for 1, 3, 6 or 12+ months). Parts of Ubuntu itself are hidden, and a removal that would take
   something Ubuntu needs with it (GNOME Shell, the login screen, sudo, the running kernel…) is
   refused. Afterwards it offers the app's own folders for the Trash — never folders other apps share.
   The last row, **Leftovers of removed apps**, lists folders no installed app uses any more:

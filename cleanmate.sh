@@ -7301,7 +7301,7 @@ APP_CORE_RE='^(gnome-shell|gnome-shell-common|gdm3|gnome-session.*|ubuntu-sessio
 APP_META_RE='^(ubuntu-desktop.*|ubuntu-minimal|ubuntu-standard|ubuntu-server|[a-z]+ubuntu-desktop|ubuntu-[a-z]+-desktop)$'
 APP_EXEC_SKIP='^(env|sh|bash|dash|flatpak|snap|run|gtk-launch|gapplication|python3?|perl|java|exo-open|xdg-open|pkexec|sudo|wine|steam)$'
 GNOME_APP_STATE=$APPS_DIR_USER/gnome-shell/application_state
-APP_UNUSED_DAYS=90 APP_LARGE_MB=500
+APP_UNUSED_DAYS=90 APP_YEAR_DAYS=365 APP_LARGE_MB=500
 
 desktop_entries() { # → file name exec hidden snap flatpak (separated by \x1f: fields may be empty), per launcher
   local d files=()
@@ -7766,10 +7766,11 @@ load_apps() {
 
 apps_view() { # A_SORT / A_FILTER → A_VIEW (indices into A_*)
   local i cut=$((EPOCHSECONDS - APP_UNUSED_DAYS * 86400)) big=$((APP_LARGE_MB * 1024 * 1024))
+  [[ $A_FILTER == year ]] && cut=$((EPOCHSECONDS - APP_YEAR_DAYS * 86400))
   A_VIEW=()
   mapfile -t A_VIEW < <(for i in "${!A_ID[@]}"; do
     case $A_FILTER in
-      unused) ((A_LAST[i] > 0 && A_LAST[i] < cut)) || continue ;;
+      unused | year) ((A_LAST[i] > 0 && A_LAST[i] < cut)) || continue ;;
       large) ((A_PKG[i] + A_DATA[i] >= big)) || continue ;;
     esac
     case $A_SORT in
@@ -7804,7 +7805,7 @@ applist_row() {
 applist_text() { if [[ -n ${A_VIEW[$1]:-} ]]; then TEXT=${A_NAME[${A_VIEW[$1]}]}; else TEXT="Leftovers of removed apps"; fi; }
 applist_top() {
   local f
-  case $A_FILTER in unused) f="not used for ${APP_UNUSED_DAYS}+ days" ;; large) f="${APP_LARGE_MB} MB or more" ;; *) f="all apps" ;; esac
+  case $A_FILTER in unused) f="not used for ${APP_UNUSED_DAYS}+ days" ;; year) f="not used for ${APP_YEAR_DAYS}+ days" ;; large) f="${APP_LARGE_MB} MB or more" ;; *) f="all apps" ;; esac
   fl ""
   fl "  ${BOLD}$(plural ${#A_VIEW[@]} app)${NC} ${DIM}· $f · by $A_SORT${NC}"
   ((A_HIDDEN)) && fl "  ${DIM}Not shown: $(plural "$A_HIDDEN" part) of Ubuntu itself, which can't be removed safely${NC}"
@@ -7928,7 +7929,7 @@ apps_menu() {
         if [[ -n $i ]]; then app_details "$i"
         elif ((${#A_LEFT[@]})); then leftovers_menu; load_apps; apps_view; cur=0 scroll=0; fi ;;
       s) case $A_SORT in size) A_SORT=used ;; used) A_SORT=name ;; *) A_SORT=size ;; esac; apps_view; cur=0 scroll=0 ;;
-      f) case $A_FILTER in all) A_FILTER=unused ;; unused) A_FILTER=large ;; *) A_FILTER=all ;; esac; apps_view; cur=0 scroll=0 ;;
+      f) case $A_FILTER in all) A_FILTER=unused ;; unused) A_FILTER=year ;; year) A_FILTER=large ;; *) A_FILTER=all ;; esac; apps_view; cur=0 scroll=0 ;;
       p) U_SEL=(); pkg_search_menu; load_apps; apps_view; cur=0 scroll=0 ;;
       q | esc | left | backspace) U_SEL=(); return ;;
     esac

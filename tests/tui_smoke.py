@@ -107,6 +107,7 @@ checks = start + [
     ("u", r"Uninstaller[\s\S]*apps? · all apps · by size"),  # app list, no search needed
     ("s", r"· by used"),                            # sort by last used
     ("f", r"not used for 90\+ days"),               # filter
+    ("f", r"not used for 365\+ days"),              # next filter: a year
     ("", r"▸ ⌂ Leftovers of removed apps · 1 folder"),  # the last row (no app is unused in a new home)
     ("\n", r"org\.example\.Gone[\s\S]*Selected 0 folders"),  # nothing ticked
     (" ", r"Selected 1 folder"),
