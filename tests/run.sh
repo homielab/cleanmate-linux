@@ -14,7 +14,13 @@ set -uo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SCRIPT=${CLEANMATE_SCRIPT:-$ROOT/cleanmate.sh} # CLEANMATE_SCRIPT: test another copy
 WORK=$(mktemp -d -t cleanmate-tests.XXXXXX)
-trap 'rm -rf "$WORK"' EXIT
+# On any exit, also kill what the tests left running (a test's http.server, a
+# file holder): background jobs are started in per-test subshells and would
+# otherwise outlive an interrupted run with parent pid 1.
+kill_tree() { local c; for c in $(command pgrep -P "$1"); do kill_tree "$c"; kill "$c" 2>/dev/null; done; }
+trap 'kill_tree $$; rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
 VERBOSE=0
 [[ ${1:-} == -v ]] && { VERBOSE=1; shift; }
 FILTER=${1:-}
