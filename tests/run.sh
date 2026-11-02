@@ -1259,16 +1259,17 @@ for l in sys.stdin:
 test_json_restore_list() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
-  local trash=$HOME_DIR/.local/share/Trash ledger=$HOME_DIR/.local/state/cleanmate/trashed.tsv out keys=()
+  local trash=$HOME_DIR/.local/share/Trash ledger=$HOME_DIR/.local/state/cleanmate/trashed.tsv out keys=() APPV
+  APPV=$(cm --version | head -n 1); APPV=${APPV#cleanmate }
   local film="$HOME_DIR/Videos/film one.mkv" dir=$HOME_DIR/Projects/old dl=$HOME_DIR/Downloads
   local list='import sys, json, re
 d = json.load(sys.stdin)
-assert d["version"] == 1 and d["count"] == len(d["items"]), d
+assert d["version"] == sys.argv[2] and d["count"] == len(d["items"]), d
 for i in d["items"]:
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d", i["date"]), i["date"]
     print(i["trashed"], i["path"].replace(sys.argv[1], "~"), i["size"], i["kind"], i["source"], sep="|")'
   out=$(user_cm --json restore --list)
-  assert_eq "$out" '{"version":1,"count":0,"items":[]}' "nothing trashed: an empty list"
+  assert_eq "$out" "{\"version\":\"$APPV\",\"count\":0,\"items\":[]}" "nothing trashed: an empty list"
   assert_missing "$ledger"
   if ((EUID == 0)); then
     out=$(cm --json restore --list 2>&1); assert_contains "$out" "run restore --list as yourself"
@@ -1285,12 +1286,12 @@ for i in d["items"]:
   select_only old_installers
   user_cm --json clean old_installers >/dev/null
   assert_missing "$dl/a.deb"
-  out=$(user_cm --json restore --list | python3 -c "$list" "$HOME_DIR")
+  out=$(user_cm --json restore --list | python3 -c "$list" "$HOME_DIR" "$APPV")
   local folder_size; folder_size=$(du -sb "$trash/files/old" | cut -f1)
   assert_eq "$out" "a.deb|~/Downloads/a.deb|1000|file|Smart Scan › Old installers in Downloads
 old|~/Projects/old|$folder_size|folder|Large & Old Files
 film one.mkv|~/Videos/film one.mkv|1234|file|Command Line" "newest first, with sources; not your own"
-  out=$(user_cm --json restore --list --limit 1 | python3 -c "$list" "$HOME_DIR")
+  out=$(user_cm --json restore --list --limit 1 | python3 -c "$list" "$HOME_DIR" "$APPV")
   assert_eq "$out" "a.deb|~/Downloads/a.deb|1000|file|Smart Scan › Old installers in Downloads" "--limit"
   out=$(user_cm --json restore --list --limit 0 2>&1); assert_contains "$out" "--limit needs a number above 0"
   # the keys go straight to restore; what is back is no longer listed
@@ -1303,7 +1304,7 @@ film one.mkv|~/Videos/film one.mkv|1234|file|Command Line" "newest first, with s
   new "$trash/files/a.deb"
   printf '[Trash Info]\nPath=%s/Downloads/a.deb\nDeletionDate=2026-01-01T00:00:00\n' "$HOME_DIR" >"$trash/info/a.deb.trashinfo"
   out=$(user_cm --json restore --list)
-  assert_eq "$out" '{"version":1,"count":0,"items":[]}' "only what is still in the Trash"
+  assert_eq "$out" "{\"version\":\"$APPV\",\"count\":0,\"items\":[]}" "only what is still in the Trash"
   # the terminal form
   user_cm --json trash "$film" >/dev/null
   out=$(user_cm restore --list 2>&1)

@@ -6,6 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `cleanmate --json restore --list`: `version` is now the app version as a string (like the other commands and the macOS app), not the number `1`.
+
 ### Added
 
 - **User & App Junk** (both apps): Steam caches — the web cache of Steam's store and library pages (`appcache/httpcache`, `config/htmlcache`), depot manifests, logs and crash dumps, for deb, Flatpak and Snap Steam; often 0.5–2 GB. One row per folder, pre-selected, skipped while Steam runs; a Steam folder reached through a link counts once. Games, downloads, Proton prefixes, saves and your sign-in are never touched.

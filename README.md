@@ -246,7 +246,7 @@ cm --json dupes [--min BYTES] [--path DIR] [--limit N]              # groups of 
 
 `restore --list [--limit N]` lists what CleanMate moved to the Trash (from any session, app or command)
 and is still there, newest first, at most 200 — one object:
-`{"version":1,"count":N,"items":[{"trashed","path","size","kind","date","source"}]}`, where `trashed` goes
+`{"version":"<app version>","count":N,"items":[{"trashed","path","size","kind","date","source"}]}`, where `trashed` goes
 straight to `restore`. Things you trashed yourself are not listed. `cm restore --list` prints the same
 for people: date, size and where each item was.
 

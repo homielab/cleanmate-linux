@@ -11041,7 +11041,7 @@ iso_datev() { # VAR EPOCH → ISO 8601 local time with the UTC offset, e.g. 2026
 }
 
 json_restore_list() { # [--limit N] — what CleanMate moved to the Trash and is still there, newest first:
-  # one object {"version":1,"count":N,"items":[{trashed,path,size,kind,date,source}]}; "trashed" goes to `restore`
+  # one object {"version":"<app version>","count":N,"items":[{trashed,path,size,kind,date,source}]}; "trashed" goes to `restore`
   ((EUID != 0)) || { json_error "Your Trash is per user: run restore --list as yourself, not as root"; return 2; }
   local limit i t p d src out=""
   restore_limit limit "$@" || { json_error "$RL_ERROR"; return 2; }
@@ -11051,7 +11051,7 @@ json_restore_list() { # [--limit N] — what CleanMate moved to the Trash and is
     iso_datev d "${TR_EPOCH[i]}"
     out+="${out:+,}{\"trashed\":$t,\"path\":$p,\"size\":${TR_BYTES[i]},\"kind\":\"${TR_KIND[i]}\",\"date\":\"$d\",\"source\":$src}"
   done
-  printf '{"version":1,"count":%d,"items":[%s]}\n' "${#TR_KEY[@]}" "$out"
+  printf '{"version":"%s","count":%d,"items":[%s]}\n' "$VERSION" "${#TR_KEY[@]}" "$out"
 }
 
 restore_list_text() { # [--limit N] — `cm restore --list`: one line per item (date, size, where it was)
