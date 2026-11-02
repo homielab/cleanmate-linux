@@ -912,6 +912,7 @@ reg() { ITEM_IDS+=("$1"); ITEM_CAT[$1]=$2; ITEM_LABEL[$1]=$3; ITEM_DEFAULT[$1]=$
 
 #   id           category label                          default  description
 reg apt_cache    system "APT package cache"                 1 "Downloaded .deb installers. apt re-downloads them if ever needed."
+reg packagekit_cache system "PackageKit cache"              1 "Packages and package lists GNOME Software and Software Updater downloaded. They are downloaded again when needed."
 reg old_installers system "Old installers in Downloads"     0 "Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) at the top of your Downloads folder, downloaded more than 30 days ago. Moved to the Trash."
 reg old_downloads system "Old downloads"                   0 "Files and folders at the top of your Downloads folder that you haven't opened or changed for more than 90 days. Moved to the Trash."
 reg old_screenshots system "Old screenshots"                 0 "Screenshots and screen recordings in your Pictures folder and its Screenshots folder that you haven't opened or changed for more than 90 days. Moved to the Trash."
@@ -950,7 +951,7 @@ reg docker_images dev   "Docker: unused images"             0 "Images no contain
 reg docker_volumes dev  "Docker: unused volumes"            0 "Volumes no container uses — they may hold databases or other data. Review before removing!"
 reg podman       dev    "Podman: stopped containers & dangling images" 0 "podman system prune: stopped containers, untagged image layers and unused networks. Volumes and tagged images are kept."
 
-for _id in apt_cache orphans residual journal old_logs big_logs crash coredump snap_old old_kernels; do ITEM_ROOT[$_id]=1; done
+for _id in apt_cache packagekit_cache orphans residual journal old_logs big_logs crash coredump snap_old old_kernels; do ITEM_ROOT[$_id]=1; done
 unset _id
 # items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
 declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1 [jetbrains_old_versions]=1)
@@ -997,6 +998,35 @@ scan_apt_cache() {
 }
 clean_apt_cache() { run_root apt-get clean; }
 details_apt_cache() { find /var/cache/apt/archives -name '*.deb' -printf '%s\t%f\n' 2>/dev/null | detail_files 30; }
+
+# GNOME Software and Software Updater download through PackageKit, which keeps the packages and
+# package lists here; `apt-get clean` doesn't touch them. PackageKit fetches them again when needed.
+PK_CACHE_SUBDIRS=(downloads metadata)
+lockedby_packagekit_cache() { running_proc -x 'packagekitd|gnome-software|update-manager'; }
+precheck_packagekit_cache() {
+  local p
+  p=$(lockedby_packagekit_cache) || return 0
+  warn "Skipping ${ITEM_LABEL[packagekit_cache]}: close $p first."
+  return 1
+}
+scan_packagekit_cache() {
+  local d dirs=()
+  for d in "${PK_CACHE_SUBDIRS[@]}"; do
+    [[ -d $SYSROOT/var/cache/PackageKit/$d ]] && dirs+=("$SYSROOT/var/cache/PackageKit/$d")
+  done
+  ((${#dirs[@]})) || return 1
+  du_sumv SCAN_BYTES "${dirs[@]}"
+  ((SCAN_BYTES > 0)) || return 2
+}
+clean_packagekit_cache() {
+  local d rc=0
+  for d in "${PK_CACHE_SUBDIRS[@]}"; do empty_dir --root "$SYSROOT/var/cache/PackageKit/$d" || rc=1; done
+  return "$rc"
+}
+details_packagekit_cache() {
+  local d
+  for d in "${PK_CACHE_SUBDIRS[@]}"; do detail_paths "$SYSROOT/var/cache/PackageKit/$d"; done
+}
 
 # apt decides what autoremove would take from the installed packages only: the package lists don't
 # change that choice, and loading them is most of apt's time (seconds while its saved cache is out

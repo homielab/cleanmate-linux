@@ -13,6 +13,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- **System Junk › PackageKit cache**: packages and package lists GNOME Software and Software Updater downloaded to `/var/cache/PackageKit`, often hundreds of MB that `apt-get clean` leaves. Ticked by default; skipped while PackageKit, GNOME Software or Software Updater is running.
 - **Uninstaller (terminal app)**: **f** now also shows apps not used for 365+ days, after the 90+ days filter.
 - **AI agents**: an Agent Skill (`skills/cleanmate/`) lets Claude Code, Codex and other agents scan with `cm --json`, show the result and clean only what you confirm. The README documents the command line and `--json`.
 - **User & App Junk** (both apps): game launcher caches — installers winetricks and Wine downloaded (`~/.cache/winetricks`, `~/.cache/wine`) and the cover art and temporary installers of Lutris and Heroic, deb and Flatpak. One row per folder, pre-selected, skipped while a launcher, Wine or Proton runs; Wine prefixes, games and saves are never touched.

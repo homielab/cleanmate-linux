@@ -244,6 +244,38 @@ for l in sys.stdin:
   assert_missing "$HOME_DIR/.cache/google-chrome/Default/Cache/a"
 }
 
+# PackageKit's cache (GNOME Software, Software Updater): the contents of downloads/ and metadata/
+# go, the folders and anything else stay; skipped while PackageKit or its apps run.
+test_packagekit_cache() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local r=$WORK/pkroot pk out bin=$WORK/pkbin
+  pk=$r/var/cache/PackageKit
+  mkdir -p "$pk/downloads/abc" "$pk/metadata" "$pk/other"
+  head -c 3000 /dev/zero >"$pk/downloads/abc/foo.deb"
+  head -c 1000 /dev/zero >"$pk/metadata/lists.xml"
+  echo keep >"$pk/other/state"
+  local CLEANMATE_SYSROOT=$r
+  out=$(cm --json scan | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e.get("id") == "packagekit_cache" and e["event"] == "item": print(e["status"], e["bytes"] >= 4000, repr(e["locked"]))')
+  assert_eq "$out" "found True ''" "both folders counted"
+  assert_contains "$(cm --json items)" '"id":"packagekit_cache"'
+  running_stub "$bin" packagekitd
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json clean packagekit_cache 2>&1)
+  assert_contains "$out" '"state":"skip"'
+  assert_exists "$pk/downloads/abc/foo.deb"
+  if ((EUID != 0)); then rm -r "$r" "$bin"; return; fi # cleaning a system item needs root
+  cm --json clean packagekit_cache >/dev/null 2>&1
+  assert_missing "$pk/downloads/abc"
+  assert_missing "$pk/metadata/lists.xml"
+  assert_exists "$pk/downloads"
+  assert_exists "$pk/metadata"
+  assert_exists "$pk/other/state"
+  rm -r "$r" "$bin"
+}
+
 # The agent skill: valid frontmatter, and every cm flag and --json command its examples use exists.
 test_agent_skill_matches_cli() {
   fresh_home

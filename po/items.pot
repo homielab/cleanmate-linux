@@ -11,6 +11,14 @@ msgstr ""
 msgid "Downloaded .deb installers. apt re-downloads them if ever needed."
 msgstr ""
 
+#. packagekit_cache label
+msgid "PackageKit cache"
+msgstr ""
+
+#. packagekit_cache description
+msgid "Packages and package lists GNOME Software and Software Updater downloaded. They are downloaded again when needed."
+msgstr ""
+
 #. old_installers label
 msgid "Old installers in Downloads"
 msgstr ""
