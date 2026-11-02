@@ -128,6 +128,18 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="2.2.0" date="2026-11-02">
+      <description>
+        <p>Command line and AI agent support, many new Developer Junk items, and a faster Smart Scan.</p>
+        <ul>
+          <li>cm --json lens, large, dupes, trash and restore, plus an Agent Skill for AI agents</li>
+          <li>Undo across sessions: cm restore --list</li>
+          <li>Developer Junk: old Unity, Proton/Wine, asdf/mise versions, Vagrant boxes, Terraform, Helm, Haskell, Scala, OCaml and Composer caches, more stale build folders</li>
+          <li>PackageKit cache and game launcher caches</li>
+          <li>Smart Scan about a third faster</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.1.0" date="2026-11-01">
       <description>
         <p>New cleaning items, a first-run welcome, and faster Smart Scan.</p>

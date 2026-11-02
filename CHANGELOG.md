@@ -6,6 +6,8 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-11-02
+
 ### Changed
 
 - The About window, GNOME Software and the README now link to the website, [cleanmate.homielab.com](https://cleanmate.homielab.com), with guides and downloads; the source code stays one click away in About.
@@ -177,5 +179,6 @@ First public release of CleanMate for Linux.
 - PPA (`ppa:homielab/cleanmate`), `.deb` from GitHub Releases, snap, or the script with
   `--install`, `--update` and `--uninstall`.
 
+[2.2.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.2.0
 [2.1.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.1.0
 [2.0.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.0.0
