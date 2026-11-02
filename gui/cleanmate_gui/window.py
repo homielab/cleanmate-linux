@@ -6,7 +6,7 @@ import subprocess
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from . import bugreport
-from .bugreport import REPO_URL
+from .bugreport import REPO_URL, WEBSITE_URL
 from .duplicates import DuplicatesPage
 from .engine import SMART_SCAN, Selection, human
 from .i18n import _
@@ -319,9 +319,10 @@ class Window(Adw.ApplicationWindow):
         about = Adw.AboutDialog(
             application_name="CleanMate", application_icon="com.homielab.CleanMate",
             version=self.engine.version(), developer_name="HomieLab", developers=["HomieLab https://homielab.com"],
-            copyright="© 2026 HomieLab", license_type=Gtk.License.MIT_X11, website=REPO_URL,
+            copyright="© 2026 HomieLab", license_type=Gtk.License.MIT_X11, website=WEBSITE_URL,
             issue_url=bugreport.issue_url(bugreport.BUG_TEMPLATE),
             translator_credits=_("translator-credits"),
             comments=_("A friendly system cleaner for Ubuntu, inspired by CleanMyMac. "
                        "Not affiliated with MacPaw."))
+        about.add_link(_("Source code"), REPO_URL)
         about.present(self)

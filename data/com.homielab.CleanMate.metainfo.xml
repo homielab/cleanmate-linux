@@ -41,7 +41,7 @@
     <binary>cm</binary>
   </provides>
 
-  <url type="homepage">https://github.com/homielab/cleanmate-linux</url>
+  <url type="homepage">https://cleanmate.homielab.com</url>
   <url type="bugtracker">https://github.com/homielab/cleanmate-linux/issues</url>
   <url type="vcs-browser">https://github.com/homielab/cleanmate-linux</url>
   <url type="contact">https://homielab.com</url>

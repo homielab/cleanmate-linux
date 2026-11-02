@@ -6,12 +6,14 @@
 
 <p align="center">
   <a href="https://github.com/homielab/cleanmate-linux/actions/workflows/ci.yml"><img src="https://github.com/homielab/cleanmate-linux/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version 2.0.0">
+  <a href="https://github.com/homielab/cleanmate-linux/releases/latest"><img src="https://img.shields.io/github/v/release/homielab/cleanmate-linux?label=version&color=blue" alt="Latest version"></a>
   <a href="https://launchpad.net/~homielab/+archive/ubuntu/cleanmate"><img src="https://img.shields.io/badge/PPA-homielab%2Fcleanmate-E95420?logo=ubuntu&logoColor=white" alt="PPA"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white" alt="Ubuntu 22.04 | 24.04">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT">
   <a href="https://ko-fi.com/homielab"><img src="https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
+
+<p align="center">Website: <a href="https://cleanmate.homielab.com">cleanmate.homielab.com</a></p>
 
 **Free up disk space and keep Ubuntu tidy — safely.** CleanMate finds caches, old logs,
 leftovers of removed apps, developer and AI-tool clutter, and shows you exactly what it would
