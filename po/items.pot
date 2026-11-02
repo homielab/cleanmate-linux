@@ -197,7 +197,7 @@ msgstr ""
 
 #. stale_build_dirs description
 #, python-brace-format
-msgid "Cargo target/, Python .venv/ and CocoaPods Pods/ folders of projects untouched for {0}+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install or pod install."
+msgid "Cargo target/, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules folders of projects untouched for {0}+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install, pod install or terraform init."
 msgstr ""
 
 #. npm label
@@ -782,6 +782,62 @@ msgstr ""
 msgid "Compiler outputs sccache saved. Made again by the next build."
 msgstr ""
 
+#. terraform_plugin_cache label
+msgid "Terraform plugin cache"
+msgstr ""
+
+#. terraform_plugin_cache description
+msgid "Providers Terraform and OpenTofu keep for all projects (~/.terraform.d/plugin-cache, TF_PLUGIN_CACHE_DIR). Downloaded again by terraform init; your projects and state are kept."
+msgstr ""
+
+#. minikube_cache label
+msgid "minikube cache"
+msgstr ""
+
+#. minikube_cache description
+msgid "ISO images, preloaded Kubernetes images and binaries minikube downloaded (~/.minikube/cache). Downloaded again on the next start; your clusters, profiles and certificates are kept."
+msgstr ""
+
+#. helm_cache label
+msgid "Helm cache"
+msgstr ""
+
+#. helm_cache description
+msgid "Chart repository indexes and charts Helm downloaded. Fetched again on the next helm repo update; your repositories and plugins are kept."
+msgstr ""
+
+#. haskell_cache label
+msgid "Haskell package cache"
+msgstr ""
+
+#. haskell_cache description
+msgid "Package downloads of cabal (~/.cabal/packages, ~/.cache/cabal/packages), Stack (~/.stack/pantry, snapshots) and ghcup (~/.ghcup/cache). Downloaded and built again when needed; installed GHC versions, tools and settings are kept."
+msgstr ""
+
+#. scala_cache label
+msgid "Scala package cache"
+msgstr ""
+
+#. scala_cache description
+msgid "Libraries Coursier, Ivy and sbt downloaded (~/.cache/coursier, ~/.ivy2/cache, ~/.sbt/boot). Downloaded again on the next build; ~/.ivy2/local and your sbt settings are kept."
+msgstr ""
+
+#. opam_cache label
+msgid "opam download cache"
+msgstr ""
+
+#. opam_cache description
+msgid "Source archives opam downloaded (~/.opam/download-cache). Downloaded again when a package is installed; your switches and packages are kept."
+msgstr ""
+
+#. composer_cache label
+msgid "Composer cache"
+msgstr ""
+
+#. composer_cache description
+msgid "PHP packages and metadata Composer downloaded (~/.cache/composer, ~/.composer/cache, COMPOSER_CACHE_DIR). Downloaded again by composer install; your global packages and settings are kept."
+msgstr ""
+
 #. gpu_shader_cache label
 msgid "GPU shader cache"
 msgstr ""
@@ -910,6 +966,15 @@ msgstr ""
 #. unity_old_editors description
 #, python-brace-format
 msgid "Unity Editor versions Unity Hub installed, often {0}–{1} GB each, other than the newest and those your projects use (ProjectSettings/ProjectVersion.txt). Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
+msgstr ""
+
+#. vagrant_old_boxes label
+msgid "Old Vagrant boxes"
+msgstr ""
+
+#. vagrant_old_boxes description
+#, python-brace-format
+msgid "Box versions Vagrant downloaded (~/.vagrant.d/boxes), often {0}.{1}–{2} GB each, other than the newest of each box and those your machines use. Deleted; vagrant downloads one again when needed. Close Vagrant first."
 msgstr ""
 
 #. unity_caches label

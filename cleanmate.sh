@@ -965,7 +965,7 @@ declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1)
 # any other item (dpkg, docker, a walk over your home, other drives) gets its own.
 declare -A ITEM_LIGHT=([bun]=1 [cargo]=1 [gobuild]=1 [gradle]=1 [maven]=1 [npm]=1 [pip]=1 [pnpm]=1 [yarn]=1 [thumbs]=1 [trash]=1
   [android_avd_snapshots]=1 [android_images]=1 [android_sdk_old]=1 [game_launcher_caches]=1 [game_runners_old]=1
-  [jetbrains_old_versions]=1 [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vscode_old_extensions]=1)
+  [jetbrains_old_versions]=1 [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [vscode_old_extensions]=1)
 
 # ── detail helpers ──
 
@@ -4579,6 +4579,133 @@ clean_entries_unity_old_editors() { # encoded version folders (json_clean_entrie
   delete_unity_old_editors "${pick[@]}"
 }
 
+# Old Vagrant box versions: boxes/<name, / as -VAGRANTSLASH->/<version>/[<arch>/]<provider> under VAGRANT_HOME
+# (inside your home) or ~/.vagrant.d, 0.5–2 GB each. The newest version of each box and every version a
+# machine uses (data/machine-index/index: machines.*.extra_data.box name and version) are kept; an index
+# that can't be read keeps every box. Only files are read, vagrant is never run; projects' .vagrant/
+# folders and libvirt volumes are not touched. Not ticked, deleted, skipped while vagrant runs.
+reg vagrant_old_boxes dev "Old Vagrant boxes" 0 "Box versions Vagrant downloaded (~/.vagrant.d/boxes), often 0.5–2 GB each, other than the newest of each box and those your machines use. Deleted; vagrant downloads one again when needed. Close Vagrant first."
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_vagrant_old_boxes='^/[A-Za-z0-9/._~%-]+$' # the provider folder's full path, percent-encoded (urlencode_path)
+VAGRANT_INDEX_MAX=4194304
+
+vagrant_homev() { # VAR → Vagrant's folder (VAGRANT_HOME inside your home, else ~/.vagrant.d)
+  local -n __vh=$1
+  env_home_dirv __vh VAGRANT_HOME
+  [[ -n $__vh ]] || __vh=$HOME/.vagrant.d
+}
+vagrant_pins() { # → VG_PIN[name\tversion]=1 from the machine index; fails when the index can't be read
+  local f j re='"box"[[:space:]]*:[[:space:]]*\{([^{}]*)\}' o n v
+  VG_PIN=()
+  f=$1/data/machine-index/index
+  [[ -e $f ]] || return 0 # no machine yet
+  [[ -f $f && ! -L $f && -r $f ]] || return 1
+  (($(stat -c %s -- "$f") <= VAGRANT_INDEX_MAX)) || return 1
+  j=$(<"$f")
+  [[ $j =~ ^[[:space:]]*\{.*\"machines\"[[:space:]]*:[[:space:]]*\{.*\}[[:space:]]*\}[[:space:]]*$ ]] || return 1
+  while [[ $j =~ $re ]]; do
+    o=${BASH_REMATCH[1]} j=${j#*"${BASH_REMATCH[0]}"} n="" v=""
+    [[ $o =~ \"name\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] && n=${BASH_REMATCH[1]}
+    [[ $o =~ \"version\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] && v=${BASH_REMATCH[1]}
+    [[ -n $n ]] && VG_PIN[$n$'\t'$v]=1
+  done
+  return 0
+}
+declare -A VG_PIN=()
+vagrant_old_boxes() { # → VB_DIR / VB_BYTES / VB_LABEL of the box versions to offer, biggest first
+  local home b n d v p newest keep=() sizes=() vers label
+  VB_DIR=() VB_BYTES=() VB_LABEL=()
+  vagrant_homev home
+  [[ -d $home/boxes && ! -L $home/boxes && ! -L $home ]] || return 0
+  vagrant_pins "$home" || return 0
+  for b in "$home"/boxes/*/; do
+    b=${b%/}
+    [[ -d $b && ! -L $b && $b != *[[:cntrl:]]* ]] || continue
+    n=${b##*/} n=${n//-VAGRANTSLASH-//}
+    vers=()
+    for d in "$b"/*/; do d=${d%/}; [[ -d $d && ! -L $d ]] && vers+=("${d##*/}"); done
+    ((${#vers[@]} > 1)) || continue
+    [[ -n ${VG_PIN[$n$'\t']:-} ]] && continue # a machine names the box but not its version: keep them all
+    newest=$(printf '%s\n' "${vers[@]}" | LC_ALL=C sort -V | tail -n 1)
+    for v in "${vers[@]}"; do
+      [[ $v == "$newest" || -n ${VG_PIN[$n$'\t'$v]:-} ]] && continue
+      for p in "$b/$v"/*/; do
+        p=${p%/}
+        [[ -d $p && ! -L $p ]] || continue
+        if [[ ! -e $p/metadata.json ]] && compgen -G "$p/*/metadata.json" >/dev/null; then # Vagrant 2.4: <version>/<arch>/<provider>
+          for d in "$p"/*/; do
+            d=${d%/}
+            [[ -d $d && ! -L $d ]] && ! touches_exclusion "$d" && keep+=("$d"$'\t'"$n $v (${d##*/}, ${p##*/})")
+          done
+          continue
+        fi
+        touches_exclusion "$p" && continue
+        keep+=("$p"$'\t'"$n $v (${p##*/})")
+      done
+    done
+  done
+  ((${#keep[@]})) || return 0
+  mapfile -t sizes < <(printf '%s\n' "${keep[@]%%$'\t'*}" | sized_paths vagrant_old_boxes own_bytes)
+  while IFS=$'\t' read -r b d label; do
+    VB_BYTES+=("$b") VB_DIR+=("$d") VB_LABEL+=("$label")
+  done < <(for n in "${!keep[@]}"; do printf '%s\t%s\n' "${sizes[n]:-0}" "${keep[n]}"; done | LC_ALL=C sort -t $'\t' -k1,1nr -k3,3)
+}
+lockedby_vagrant_old_boxes() { running_proc -x "vagrant"; }
+precheck_vagrant_old_boxes() {
+  local p
+  p=$(lockedby_vagrant_old_boxes) || return 0
+  warn "Skipping ${ITEM_LABEL[vagrant_old_boxes]}: close $p first."
+  return 1
+}
+delete_vagrant_old_boxes() { # INDEX… of VB_DIR; empty arch and version folders go too
+  local i d rc=0
+  for i; do
+    d=${VB_DIR[i]}
+    is_protected "$d" && { err "Refusing to touch protected path: $d"; rc=1; continue; }
+    run rm -rf -- "$d" || { rc=1; continue; }
+    ((DRY_RUN)) || { rmdir -- "${d%/*}" 2>/dev/null && rmdir -- "${d%/*/*}" 2>/dev/null; } || true
+  done
+  return "$rc"
+}
+scan_vagrant_old_boxes() {
+  local b home
+  vagrant_homev home
+  [[ -d $home/boxes ]] || return 1
+  vagrant_old_boxes
+  ((${#VB_DIR[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${VB_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#VB_DIR[@]} version) not pinned, not the newest"
+}
+clean_vagrant_old_boxes() {
+  vagrant_old_boxes
+  ((${#VB_DIR[@]})) || return 0
+  delete_vagrant_old_boxes "${!VB_DIR[@]}"
+}
+details_vagrant_old_boxes() {
+  local i
+  vagrant_old_boxes
+  for i in "${!VB_DIR[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${VB_BYTES[i]}")" "$(human "${VB_BYTES[i]}")" "$NC" "${VB_LABEL[i]}" "${VB_DIR[i]/#$HOME/\~}"
+  done
+}
+entries_vagrant_old_boxes() {
+  local i
+  vagrant_old_boxes
+  for i in "${!VB_DIR[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${VB_DIR[i]}")" "${VB_BYTES[i]}" "${VB_LABEL[i]}"
+  done
+}
+clean_entries_vagrant_old_boxes() { # encoded provider folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  vagrant_old_boxes
+  for id; do
+    for i in "${!VB_DIR[@]}"; do [[ $(urlencode_path "${VB_DIR[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  delete_vagrant_old_boxes "${pick[@]}"
+}
+
 # Unity's caches, downloaded or built again when a project needs them: ~/.cache/unity3d (the editor's
 # caches, and what games cache there), the package cache ~/.config/unity3d/cache and the Asset Store
 # packages Unity downloaded (~/.local/share/unity3d/Asset Store-5.x). Never the license, preferences,
@@ -6486,7 +6613,7 @@ plain_results() {
     ((++i))
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == old_runtimes_asdf_mise || $id == unity_old_editors || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == old_runtimes_asdf_mise || $id == unity_old_editors || $id == vagrant_old_boxes || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -10137,7 +10264,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
   SEL[trash]=0 SEL[trash_drives]=0 SEL[tracker_index]=0 SEL[baloo_index]=0 # never empty a Trash or reset a search index behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[old_runtimes_asdf_mise]=0 SEL[unity_old_editors]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, Unity editors, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
+  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[old_runtimes_asdf_mise]=0 SEL[unity_old_editors]=0 SEL[vagrant_old_boxes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, Unity editors, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
   skip_data_loss
   plain_results
   printf '\n'

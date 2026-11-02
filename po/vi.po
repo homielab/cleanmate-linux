@@ -3138,8 +3138,12 @@ msgid "PackageKit cache"
 msgstr "Bộ nhớ đệm PackageKit"
 
 #. packagekit_cache description
-msgid "Packages and package lists GNOME Software and Software Updater downloaded. They are downloaded again when needed."
-msgstr "Gói và danh sách gói mà GNOME Software và Software Updater đã tải. Chúng được tải lại khi cần."
+msgid ""
+"Packages and package lists GNOME Software and Software Updater downloaded. "
+"They are downloaded again when needed."
+msgstr ""
+"Gói và danh sách gói mà GNOME Software và Software Updater đã tải. Chúng "
+"được tải lại khi cần."
 
 #. old_installers label
 msgid "Old installers in Downloads"
@@ -3529,9 +3533,9 @@ msgid ""
 "temporary installers of Lutris and Heroic. Downloaded again when needed; "
 "Wine prefixes, games and saves are kept. Close the launchers and games first."
 msgstr ""
-"Bộ cài mà winetricks và Wine đã tải, cùng ảnh bìa và bộ cài tạm của Lutris và "
-"Heroic. Sẽ được tải lại khi cần; prefix Wine, game và bản lưu được giữ nguyên. "
-"Hãy đóng launcher và game trước."
+"Bộ cài mà winetricks và Wine đã tải, cùng ảnh bìa và bộ cài tạm của Lutris "
+"và Heroic. Sẽ được tải lại khi cần; prefix Wine, game và bản lưu được giữ "
+"nguyên. Hãy đóng launcher và game trước."
 
 #. browser_firefox label
 msgid "Firefox"
@@ -4503,6 +4507,103 @@ msgstr ""
 "Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải (~/."
 "cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi chương "
 "trình cần. Model đang dùng được bỏ qua."
+
+#. stale_build_dirs description
+#,  python-brace-format
+msgid ""
+"Cargo target/, Python .venv/, CocoaPods Pods/ and Terraform .terraform/"
+"providers and modules folders of projects untouched for {0}+ days. Moved to "
+"the Trash; rebuilt by cargo build, pip/uv install, pod install or terraform "
+"init."
+msgstr "Thư mục Cargo target/, Python .venv/, CocoaPods Pods/ và Terraform .terraform/providers, modules của các dự án không đụng tới hơn {0} ngày. Chuyển vào Thùng rác; tạo lại bằng cargo build, pip/uv install, pod install hoặc terraform init."
+
+#. terraform_plugin_cache label
+msgid "Terraform plugin cache"
+msgstr "Bộ nhớ đệm plugin Terraform"
+
+#. terraform_plugin_cache description
+msgid ""
+"Providers Terraform and OpenTofu keep for all projects (~/.terraform.d/"
+"plugin-cache, TF_PLUGIN_CACHE_DIR). Downloaded again by terraform init; your "
+"projects and state are kept."
+msgstr "Các provider Terraform và OpenTofu giữ cho mọi dự án (~/.terraform.d/plugin-cache, TF_PLUGIN_CACHE_DIR). Tải lại khi chạy terraform init; dự án và state của bạn được giữ nguyên."
+
+#. minikube_cache label
+msgid "minikube cache"
+msgstr "Bộ nhớ đệm minikube"
+
+#. minikube_cache description
+msgid ""
+"ISO images, preloaded Kubernetes images and binaries minikube downloaded (~/."
+"minikube/cache). Downloaded again on the next start; your clusters, profiles "
+"and certificates are kept."
+msgstr "Ảnh ISO, ảnh Kubernetes tải sẵn và tệp chương trình minikube đã tải (~/.minikube/cache). Tải lại ở lần khởi động sau; cụm, profile và chứng chỉ của bạn được giữ nguyên."
+
+#. helm_cache label
+msgid "Helm cache"
+msgstr "Bộ nhớ đệm Helm"
+
+#. helm_cache description
+msgid ""
+"Chart repository indexes and charts Helm downloaded. Fetched again on the "
+"next helm repo update; your repositories and plugins are kept."
+msgstr "Chỉ mục kho chart và các chart Helm đã tải. Tải lại ở lần helm repo update sau; kho và plugin của bạn được giữ nguyên."
+
+#. haskell_cache label
+msgid "Haskell package cache"
+msgstr "Bộ nhớ đệm gói Haskell"
+
+#. haskell_cache description
+msgid ""
+"Package downloads of cabal (~/.cabal/packages, ~/.cache/cabal/packages), "
+"Stack (~/.stack/pantry, snapshots) and ghcup (~/.ghcup/cache). Downloaded "
+"and built again when needed; installed GHC versions, tools and settings are "
+"kept."
+msgstr "Gói đã tải của cabal (~/.cabal/packages, ~/.cache/cabal/packages), Stack (~/.stack/pantry, snapshots) và ghcup (~/.ghcup/cache). Tải và build lại khi cần; các bản GHC đã cài, công cụ và cài đặt được giữ nguyên."
+
+#. scala_cache label
+msgid "Scala package cache"
+msgstr "Bộ nhớ đệm gói Scala"
+
+#. scala_cache description
+msgid ""
+"Libraries Coursier, Ivy and sbt downloaded (~/.cache/coursier, ~/.ivy2/"
+"cache, ~/.sbt/boot). Downloaded again on the next build; ~/.ivy2/local and "
+"your sbt settings are kept."
+msgstr "Thư viện Coursier, Ivy và sbt đã tải (~/.cache/coursier, ~/.ivy2/cache, ~/.sbt/boot). Tải lại ở lần build sau; ~/.ivy2/local và cài đặt sbt của bạn được giữ nguyên."
+
+#. opam_cache label
+msgid "opam download cache"
+msgstr "Bộ nhớ đệm tải của opam"
+
+#. opam_cache description
+msgid ""
+"Source archives opam downloaded (~/.opam/download-cache). Downloaded again "
+"when a package is installed; your switches and packages are kept."
+msgstr "Gói mã nguồn opam đã tải (~/.opam/download-cache). Tải lại khi cài một gói; các switch và gói của bạn được giữ nguyên."
+
+#. composer_cache label
+msgid "Composer cache"
+msgstr "Bộ nhớ đệm Composer"
+
+#. composer_cache description
+msgid ""
+"PHP packages and metadata Composer downloaded (~/.cache/composer, ~/."
+"composer/cache, COMPOSER_CACHE_DIR). Downloaded again by composer install; "
+"your global packages and settings are kept."
+msgstr "Gói PHP và siêu dữ liệu Composer đã tải (~/.cache/composer, ~/.composer/cache, COMPOSER_CACHE_DIR). Tải lại khi chạy composer install; gói toàn cục và cài đặt của bạn được giữ nguyên."
+
+#. vagrant_old_boxes label
+msgid "Old Vagrant boxes"
+msgstr "Box Vagrant cũ"
+
+#. vagrant_old_boxes description
+#, python-brace-format
+msgid ""
+"Box versions Vagrant downloaded (~/.vagrant.d/boxes), often {0}.{1}–{2} GB "
+"each, other than the newest of each box and those your machines use. "
+"Deleted; vagrant downloads one again when needed. Close Vagrant first."
+msgstr "Các phiên bản box Vagrant đã tải (~/.vagrant.d/boxes), thường {0},{1}–{2} GB mỗi bản, trừ bản mới nhất của mỗi box và những bản máy ảo của bạn đang dùng. Xoá hẳn; vagrant tải lại khi cần. Hãy đóng Vagrant trước."
 
 #~ msgid ""
 #~ "Notify when free space drops below this percentage, checked with "

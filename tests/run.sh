@@ -4575,6 +4575,71 @@ test_asdf_mise_pin_rules() {
   unset -f kept
 }
 
+test_old_vagrant_boxes() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR vb=$HOME_DIR/.vagrant.d out enc bin=$WORK/vagrantbin
+  local labels='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["label"], "on" if e["selected"] else "off")
+    elif e["event"] == "item": print(e["id"], e["status"], e["note"], e["selected"], e["entries"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"])'
+  details() { user_cm --json details vagrant_old_boxes | python3 -c "$labels" | LC_ALL=C sort | paste -sd'|' -; }
+  assert_eq "$(user_cm --json scan --only dev | grep vagrant_old_boxes)" "" "no Vagrant: not shown"
+  assert_contains "$(cm --json items)" '"id":"vagrant_old_boxes"'
+  for v in 20230101.0.0 20240101.0.0 20250101.0.0; do sized "$vb/boxes/ubuntu-VAGRANTSLASH-jammy64/$v/virtualbox/box.vmdk" 2000; done
+  sized "$vb/boxes/ubuntu-VAGRANTSLASH-jammy64/20230101.0.0/libvirt/box.img" 1000
+  sized "$vb/boxes/debian-VAGRANTSLASH-bookworm64/12.1/libvirt/box.img" 1000
+  sized "$vb/boxes/debian-VAGRANTSLASH-bookworm64/12.10/libvirt/box.img" 1000
+  sized "$vb/boxes/single/1.0/virtualbox/box.vmdk" 1000
+  sized "$h/proj/.vagrant/machines/default/virtualbox/id" 10
+  mkdir -p "$vb/data/machine-index"
+  printf '{"version":1,"machines":{"abc":{"name":"default","provider":"virtualbox","extra_data":{"box":{"name":"ubuntu/jammy64","provider":"virtualbox","version":"20240101.0.0"}}}}}' >"$vb/data/machine-index/index"
+  out=$(user_cm --json scan --only dev | grep vagrant_old_boxes | python3 -c "$labels")
+  assert_eq "$out" "vagrant_old_boxes found 3 versions not pinned, not the newest False True" "found, not ticked, one by one"
+  assert_eq "$(details)" "debian/bookworm64 12.1 (libvirt) off|ubuntu/jammy64 20230101.0.0 (libvirt) off|ubuntu/jammy64 20230101.0.0 (virtualbox) off" \
+    "old versions only: newest (12.10 > 12.1) and the machine's are kept"
+  # an index that can't be read: nothing offered
+  cp "$vb/data/machine-index/index" "$WORK/vagrant-index"
+  printf '{"machines": ' >"$vb/data/machine-index/index"
+  assert_eq "$(details)" "" "broken machine index: nothing offered"
+  cp "$WORK/vagrant-index" "$vb/data/machine-index/index"
+  # vagrant running: skipped
+  running_stub "$bin" vagrant
+  assert_contains "$(BASE_PATH="$bin:$BASE_PATH" cm --scan --only dev 2>&1)" "close vagrant first"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean vagrant_old_boxes 2>&1)
+  assert_contains "$out" '"id":"vagrant_old_boxes","state":"skip"'
+  assert_exists "$vb/boxes/debian-VAGRANTSLASH-bookworm64/12.1"
+  # automatic cleaning leaves them alone even when ticked
+  select_only vagrant_old_boxes
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$vb/boxes/debian-VAGRANTSLASH-bookworm64/12.1"
+  enc=$(in_app "urlencode_path '$vb/boxes/debian-VAGRANTSLASH-bookworm64/12.1/libvirt'")
+  assert_eq "$(user_cm --json clean vagrant_old_boxes --entries "$enc" | python3 -c "$labels")" "ok" "one version"
+  assert_missing "$vb/boxes/debian-VAGRANTSLASH-bookworm64/12.1"
+  assert_eq "$(user_cm --json clean vagrant_old_boxes | python3 -c "$labels")" "ok" "the rest"
+  assert_missing "$vb/boxes/ubuntu-VAGRANTSLASH-jammy64/20230101.0.0"
+  for f in ubuntu-VAGRANTSLASH-jammy64/20240101.0.0 ubuntu-VAGRANTSLASH-jammy64/20250101.0.0 debian-VAGRANTSLASH-bookworm64/12.10 single/1.0; do
+    assert_exists "$vb/boxes/$f"
+  done
+  assert_exists "$h/proj/.vagrant/machines/default/virtualbox/id"
+  # Vagrant 2.4 multi-arch layout: the provider is the label, the arch beside it
+  sized "$vb/boxes/arm/1/arm64/libvirt/metadata.json" 10; sized "$vb/boxes/arm/2/arm64/libvirt/metadata.json" 10
+  assert_eq "$(details)" "arm 1 (libvirt, arm64) off" "multi-arch layout"
+  assert_eq "$(user_cm --json clean vagrant_old_boxes | python3 -c "$labels")" "ok" "multi-arch clean"
+  assert_missing "$vb/boxes/arm/1"; assert_exists "$vb/boxes/arm/2/arm64/libvirt/metadata.json"
+  # a machine naming a box without a version keeps every version of it
+  sized "$vb/boxes/arm/1/arm64/libvirt/metadata.json" 10
+  printf '{"version":1,"machines":{"a":{"extra_data":{"box":{"name":"arm","provider":"libvirt"}}}}}' >"$vb/data/machine-index/index"
+  assert_eq "$(details)" "ubuntu/jammy64 20240101.0.0 (virtualbox) off" "box named without a version: all kept; others no longer pinned"
+  # VAGRANT_HOME inside your home
+  sized "$h/vg/boxes/b/1/libvirt/box.img" 10; sized "$h/vg/boxes/b/2/libvirt/box.img" 10
+  printf 'export VAGRANT_HOME="$HOME/vg"\n' >"$h/.bashrc"
+  assert_eq "$(details)" "b 1 (libvirt) off" "VAGRANT_HOME is followed"
+  unset -f details
+}
+
 test_old_unity_editor_versions_and_caches() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
