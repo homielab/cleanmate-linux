@@ -232,6 +232,16 @@ cm --json --dry-run clean ID…    # preview
 cm --json clean ID…              # task events, then freed bytes and Trash restore keys
 ```
 
+**Drive these headlessly too** — what takes up space, without going through the app:
+
+```bash
+cm --json lens [--path DIR] [--limit N]                            # one folder, biggest first; movable:false = look only
+cm --json large [--min BYTES] [--days N] [--path DIR] [--limit N]   # big files: path, bytes, kind, mtime/atime
+cm --json dupes [--min BYTES] [--path DIR] [--limit N]              # groups of identical files, newest copy first
+```
+
+`trash [--home-only] PATH…` moves the paths the user confirmed into the Trash (one `task` line per path with a `trash` restore key, or `fail` with the reason — it refuses anything touched by *Never clean* or outside your home folder) and `restore KEY…` puts Trash items back. Nothing is ever deleted for good by hand.
+
 **AI agents.** An [Agent Skill](https://agentskills.io) in `skills/cleanmate/` teaches Claude Code, Codex
 and others to scan first, show you the result and clean only what you confirm:
 

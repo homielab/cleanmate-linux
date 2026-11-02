@@ -19,8 +19,12 @@ One JSON object per line, ending with `{"event":"done"}`; failures are `{"event"
 - `scan [--only LIST]`: the same plus `status`, `bytes`, `note`, `selected`, `locked`, `entries`; done line has `total_bytes`, `locations`, `ms`.
 - `details ID`: `lines` explaining the item; items that can be cleaned in parts also list `entry` events.
 - `clean ID…` and `clean ID --entries E1,E2`: see SKILL.md. Honors `--dry-run`. As root only system items are allowed.
-- `restore KEY…`: put Trash items back. `trash PATH…`: move paths to the Trash.
-- `large`, `lens`, `dupes`, `apps`, `uninstall`, `startup`, `maintenance`, `overview`: used by the desktop app; run `cm --help`.
+- `lens [--path DIR] [--limit N]`: one folder's files and folders, biggest first — `entry` has `path`, `bytes`, `kind` (`dir`/`file`), `count`, `movable` (false: excluded or outside the home folder / a writable drive — view only), `excluded`. Beyond a home folder the `done` line adds `drive` and whether that drive has its own Trash (`drive_trash`).
+- `large [--min BYTES] [--days N] [--path DIR] [--limit N]`: the biggest files (`file` events: `path`, `bytes`, `mtime`, `atime`, `kind`) — with `--days N` neither changed nor opened for N days.
+- `dupes [--min BYTES] [--path DIR] [--limit N]`: `progress` events, then one `group` per set of identical files — `hash`, `bytes`, `files` (`path`, `mtime`, newest first). Hidden folders, `node_modules`, empty files and hard-link siblings are left out.
+- `trash [--home-only] PATH…`: move confirmed paths to the Trash — one `task` per path (`state` `ok`/`fail`, `info` with the reason a move was refused, `trash` key for `restore`); refuses excluded or protected paths, and as root. Honors `--dry-run`.
+- `restore KEY…`: put Trash items back (keys from the `trash` fields); refuses as root and files that have taken the original's place.
+- `apps`, `uninstall`, `startup`, `maintenance`, `overview`: used by the desktop app; run `cm --help`.
 
 ## Safety
 

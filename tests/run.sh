@@ -1172,6 +1172,9 @@ test_json_large_files() {
   assert_eq "$out" $'disk 2097152 backup.iso\ndone 1' "old = not changed and not opened for 90 days"
   out=$(cm --json large --min 0 --path "$v" | large_names)
   assert_eq "$out" $'video 3145728 film one.mkv\nvideo 1572864 watched.mp4\ndocument 10240 small.txt\ndone 3' "--path"
+  out=$(cm --json large --min 1048576 --limit 1 | large_names)
+  assert_eq "$out" $'video 3145728 film one.mkv\ndone 1' "--limit lists fewer"
+  out=$(cm --json large --limit 0 2>&1); assert_contains "$out" "Invalid limit: 0"
   out=$(cm --json large --min 5M 2>&1); assert_contains "$out" "Invalid size: 5M"
   out=$(cm --json large --path "$HOME_DIR/nope" 2>&1); assert_contains "$out" "Not a folder"
   out=$(cm --json large --days 2>&1); assert_contains "$out" "--days needs a value"
@@ -1942,6 +1945,8 @@ print(4 << 20 <= s["Big"] < (4 << 20) + (1 << 20), s["movie.mkv"])')
   assert_eq "$out" $'file 1 false doc.txt\ndone 1 1 1' "outside your home folder: view only"
   out=$(cm --json lens --path "$HOME_DIR/nope" 2>&1); assert_contains "$out" "Not a folder"
   out=$(cm --json lens --min 1 2>&1); assert_contains "$out" "Unknown option for lens: --min"
+  out=$(cm --json lens --limit 1 | lens_entries)
+  assert_eq "$out" $'dir 4 true Big\ndone 12 1 5' "--limit lists fewer"
   # Space Lens moves things to the Trash with --home-only: what it lists as view only is refused
   local tasks='import sys, json
 for l in sys.stdin:
@@ -2056,6 +2061,11 @@ done 2 2 5 5200000' "groups biggest first, newest copy first; hard links, hidden
   assert_contains "$out" $'5 Backup/n1.txt,Photos/n1.txt'
   out=$(cm --json dupes --min 1M 2>&1); assert_contains "$out" "Invalid size: 1M"
   out=$(cm --json dupes --path "$d/nope" 2>&1); assert_contains "$out" "Not a folder"
+  out=$(cm --json dupes --limit 1 | dupe_groups)
+  out=${out//Backup\/beach-link.jpg/Backup\/beach.jpg}
+  assert_eq "$out" $'2000000 Downloads/beach (1).jpg,Backup/beach.jpg,Photos/beach.jpg\ndone 1 2 3 4000000' \
+    "--limit keeps the biggest groups only"
+  out=$(cm --json dupes --limit 0 2>&1); assert_contains "$out" "Invalid limit: 0"
 }
 
 startup_list() { # reads `--json startup` / `startup-set` → one line per event

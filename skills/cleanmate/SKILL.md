@@ -1,6 +1,6 @@
 ---
 name: cleanmate
-description: Free up disk space on Ubuntu/Linux with CleanMate (`cm`). Use when the user asks to clean up, free disk space, remove caches, logs, old snaps, Docker leftovers or developer junk on a Linux machine. Scans first, shows what it found by group, and deletes only what the user confirms.
+description: Free up disk space on Ubuntu/Linux with CleanMate (`cm`). Use when the user asks to clean up, free disk space, find what is taking up space, remove caches, logs, old snaps, Docker leftovers or developer junk on a Linux machine. Scans first, shows what it found by group, and deletes only what the user confirms.
 ---
 
 # CleanMate for Linux
@@ -16,8 +16,9 @@ CleanMate (`cm`) is a command-line cleaner. This skill drives its headless mode.
 5. Do not clean `locked` items (the app is running); tell the user to close it and rescan.
 6. Items with `"data_loss":true` (Docker volumes, stopped containers) are deleted for good and may hold the user's data (databases, files written inside a container). Clean one only when the user names that item after seeing the list, as its own `cm --json clean ID`; never fold it into a group clean, never pick it just because it is `selected`. `cm --clean --yes` always skips them.
 7. Items with `"root":true` need root: CleanMate asks for `sudo` or `pkexec`. Say so before cleaning them. Never run `cm` itself as root.
-8. When unsure, run the clean with `--dry-run` first.
-9. After cleaning, report freed space, what went to the Trash (undoable) and what was skipped or failed.
+8. Never move or delete user files by hand — no `rm`. When the user confirmed exact paths after seeing a list, move them with `cm --json trash PATH…`: it refuses paths outside the home folder or excluded in *Never clean* and says why; read that reason to the user instead of working around it. Report every `restore` key it returns and how to put things back (`cm --json restore KEY…`).
+9. When unsure, run the command with `--dry-run` first.
+10. After cleaning, report freed space, what went to the Trash (undoable) and what was skipped or failed.
 
 ## Find it
 
@@ -52,8 +53,32 @@ cm --clean --yes --only logs,user    # whole groups, plain text output
 
 Exit code: 0 ok, 1 error, 2 bad arguments (a JSON `error` event says why).
 
+## What is taking up space
+
+```bash
+cm --json lens                          # home folder, biggest entries first (`kind`, `count`)
+cm --json lens --path DIR               # drill into the biggest folder
+cm --json large --days 90 --limit 50    # big files: `path`, `bytes`, `mtime`, `atime`, `kind`
+cm --json dupes --limit 50              # groups of identical files, newest copy first
+```
+
+Start with `lens`; drill into the biggest sounding folder with `--path` until you can name what
+fills the disk. `large --days N` lists files neither changed nor opened for N days. In `dupes`
+every group is identical copies, newest first — the last file in a group is usually the original.
+`done` tells you the totals, so shorter lists know how much is left out.
+
+Trash only paths the user named or confirmed after seeing the list — never pick them yourself
+(not even a duplicate set's "extra" copies). Space Lens paths go with `--home-only`:
+
+```bash
+cm --json --dry-run trash PATH…         # preview, nothing moves
+cm --json trash [--home-only] PATH…     # after the user confirmed; task lines carry the restore key
+cm --json restore KEY…                  # put it back
+```
+
 ## Beyond Smart Scan
 
-Large files, duplicates, Space Lens, startup items, app uninstall and maintenance are in the terminal app (`cm`) or the desktop app (`cm --gui`). Point the user there; do not delete files by hand.
+Startup items, app uninstall, app reset, maintenance and the System Overview are in the terminal
+app (`cm`) or the desktop app (`cm --gui`). Point the user there; do not delete files by hand.
 
 More: [reference.md](reference.md).

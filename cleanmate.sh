@@ -10331,20 +10331,23 @@ urldecode_path() { # VAR TEXT — undoes urlencode_path (a Trash Path= value)
   __ud=$out$s
 }
 
-json_large() { # [--min BYTES] [--days N] [--path DIR] — the biggest files first
-  local min=$((100 * 1024 * 1024)) days=0 dir=$HOME tmp found b m a p kind jp listed=0 sum=0
+json_large() { # [--min BYTES] [--days N] [--path DIR] [--limit N] — the biggest files first
+  local min=$((100 * 1024 * 1024)) days=0 dir=$HOME limit=$LARGE_LIMIT tmp found b m a p kind jp listed=0 sum=0
   while (($#)); do
     case $1 in
-      --min | --days | --path) (($# >= 2)) || { json_error "$1 needs a value."; return 2; } ;;&
+      --min | --days | --path | --limit) (($# >= 2)) || { json_error "$1 needs a value."; return 2; } ;;&
       --min) min=$2 ;;
       --days) days=$2 ;;
       --path) dir=$2 ;;
+      --limit) limit=$2 ;;
       *) json_error "Unknown option for large: $1"; return 2 ;;
     esac
     shift 2
   done
   [[ $min =~ ^[0-9]+$ ]] || { json_error "Invalid size: $min"; return 2; }
   [[ $days =~ ^[0-9]+$ ]] || { json_error "Invalid number of days: $days"; return 2; }
+  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error "Invalid limit: $limit"; return 2; }
+  ((limit <= LARGE_LIMIT)) || limit=$LARGE_LIMIT
   [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
   dir=$(realpath -- "$dir")
   if in_exclusion "$dir"; then printf '{"event":"done","count":0,"found":0,"total_bytes":0}\n'; return 0; fi
@@ -10366,7 +10369,7 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] — the biggest files fir
     printf '{"event":"file","path":%s,"bytes":%d,"mtime":%d,"atime":%d,"kind":"%s"}\n' \
       "$jp" "$b" "${m%.*}" "${a%.*}" "$kind"
     listed=$((listed + 1)) sum=$((sum + b))
-  done < <(LC_ALL=C.UTF-8 grep -zax '.*' "$tmp" | sort -z -t$'\t' -k1,1rn | head -z -n "$LARGE_LIMIT")
+  done < <(LC_ALL=C.UTF-8 grep -zax '.*' "$tmp" | sort -z -t$'\t' -k1,1rn | head -z -n "$limit")
   rm -f "$tmp"
   printf '{"event":"done","count":%d,"found":%d,"total_bytes":%d}\n' "$listed" "$found" "$sum"
 }
@@ -10405,16 +10408,19 @@ lens_drive() { # VAR PATH (normalised) → VAR = the top folder of the drive PAT
   done
 }
 
-json_lens() { # [--path DIR] — DIR's files and folders with their size (du -x), biggest first
-  local dir=$HOME tmp b p n kind jp movable excluded listed=0 found=0 total=0 items=0 drive drive_trash=false
+json_lens() { # [--path DIR] [--limit N] — DIR's files and folders with their size (du -x), biggest first
+  local dir=$HOME limit=$LENS_LIMIT tmp b p n kind jp movable excluded listed=0 found=0 total=0 items=0 drive drive_trash=false
   local -A count=()
   while (($#)); do
     case $1 in
       --path) (($# >= 2)) || { json_error "$1 needs a value."; return 2; }; dir=$2 ;;
+      --limit) (($# >= 2)) || { json_error "$1 needs a value."; return 2; }; limit=$2 ;;
       *) json_error "Unknown option for lens: $1"; return 2 ;;
     esac
     shift 2
   done
+  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error "Invalid limit: $limit"; return 2; }
+  ((limit <= LENS_LIMIT)) || limit=$LENS_LIMIT
   [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
   # tidy the path but keep symlinks (a linked home folder stays under $HOME); -D measures the target
   dir=$(realpath -m -s -- "$dir")
@@ -10426,7 +10432,7 @@ json_lens() { # [--path DIR] — DIR's files and folders with their size (du -x)
   # only names that are valid UTF-8 without control characters can round-trip through JSON
   while IFS=$'\t' read -r -d '' b p; do
     if [[ $p == "$dir" ]]; then total=$b items=$((${count[$p]:-1} - 1)); continue; fi
-    ((listed < LENS_LIMIT)) || continue
+    ((listed < limit)) || continue
     [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
     if [[ -d $p && ! -L $p ]]; then kind=dir n=$((${count[$p]:-1} - 1)); else kind=file n=1; fi
     if lens_movable "$p"; then movable=true; else movable=false; fi
@@ -10454,18 +10460,21 @@ json_dupes_progress() { # STAGE DONE TOTAL
 
 # Duplicates like the terminal app (dup_scan): same size → same MD5 of the first 64 KB →
 # same full MD5; hidden folders and node_modules skipped. Hard links count once.
-json_dupes() { # [--min BYTES] [--path DIR] — groups of identical files, biggest first
-  local min=$((1024 * 1024)) dir=$HOME s id m p h i n k key jp files first listed=0 found=0 wasted=0 nfiles=0
+json_dupes() { # [--min BYTES] [--path DIR] [--limit N] — groups of identical files, biggest first
+  local min=$((1024 * 1024)) dir=$HOME limit=$DUPES_LIMIT s id m p h i n k key jp files first listed=0 found=0 wasted=0 nfiles=0
   while (($#)); do
     case $1 in
-      --min | --path) (($# >= 2)) || { json_error "$1 needs a value."; return 2; } ;;&
+      --min | --path | --limit) (($# >= 2)) || { json_error "$1 needs a value."; return 2; } ;;&
       --min) min=$2 ;;
       --path) dir=$2 ;;
+      --limit) limit=$2 ;;
       *) json_error "Unknown option for dupes: $1"; return 2 ;;
     esac
     shift 2
   done
   [[ $min =~ ^[0-9]+$ ]] || { json_error "Invalid size: $min"; return 2; }
+  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error "Invalid limit: $limit"; return 2; }
+  ((limit <= DUPES_LIMIT)) || limit=$DUPES_LIMIT
   [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
   ((min > 0)) || min=1 # empty files are all alike, never duplicates
   dir=$(realpath -m -s -- "$dir")
@@ -10508,7 +10517,7 @@ json_dupes() { # [--min BYTES] [--path DIR] — groups of identical files, bigge
     read -ra cand <<<"${group[$key]}"
     ((${#cand[@]} > 1)) || continue
     found=$((found + 1))
-    ((listed < DUPES_LIMIT)) || continue
+    ((listed < limit)) || continue
     files="" first=1
     while IFS=$'\t' read -r m i; do
       json_str jp "${P[i]}"
@@ -11292,8 +11301,9 @@ Install & update
 
 For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
-                    large [--min BYTES] [--days N] [--path DIR], lens [--path DIR],
-                    dupes [--min BYTES] [--path DIR], startup, startup-set ID enable|disable|remove,
+                    large [--min BYTES] [--days N] [--path DIR] [--limit N],
+                    lens [--path DIR] [--limit N],
+                    dupes [--min BYTES] [--path DIR] [--limit N], startup, startup-set ID enable|disable|remove,
                     trash [--home-only] PATH…, restore KEY…, apps, uninstall [--check] KIND:ID…,
                     reset [--check] KIND:ID [FOLDER…]
 
