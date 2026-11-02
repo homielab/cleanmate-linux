@@ -933,7 +933,7 @@ reg trash        user   "Trash"                             1 "Files you already
 reg trash_drives user   "Trash on external drives"          0 "Files you deleted on USB sticks and other drives stay in that drive's own Trash and keep using its space. Emptying deletes them for good."
 reg app_cache    user   "Stale app caches (>30 days)"       1 "Files under ~/.cache not modified or read for 30+ days."
 reg node_modules dev    "Stale node_modules"                0 "node_modules of projects untouched for 90+ days. Restore with npm/yarn/pnpm install."
-reg stale_build_dirs dev "Stale project build folders"      0 "Cargo target/, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules folders of projects untouched for 90+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install, pod install or terraform init."
+reg stale_build_dirs dev "Stale project build folders"      0 "Build folders of projects untouched for 90+ days, only next to the project file that makes them: Cargo and Maven target/, Gradle and Android build/ and .gradle/, Flutter .dart_tool/ and build/, SwiftPM .build/, Next.js, Nuxt, SvelteKit, Angular and Turbo caches, Haskell .stack-work/ and dist-newstyle/, Elixir _build/ and deps/, Zig caches, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules. Moved to the Trash; the project's build tool makes them again."
 reg npm          dev    "npm cache"                         1 "npm's package download cache (~/.npm/_cacache)."
 reg yarn         dev    "Yarn cache"                        1 "Yarn's package download cache."
 reg pnpm         dev    "pnpm store (unreferenced)"         1 "Packages in the pnpm store no project references (pnpm store prune)."
@@ -3079,89 +3079,170 @@ clean_node_modules() {
 }
 details_node_modules() { [[ -f $NM_LIST ]] && detail_files 100 <"$NM_LIST"; }
 
-# Build folders of projects left alone: Cargo's target/, a Python virtual environment (.venv/ or
-# venv/ with a pyvenv.cfg), CocoaPods' Pods/ and the providers/ and modules/ of Terraform's .terraform/
-# (never its state or environment file), each only next to the project file that makes it.
-# Found like stale node_modules (same folders, never inside node_modules, build folders, symlinks or
-# other file systems). A project is left alone when its project files, lockfiles and the .git/index
-# of its repository (in the project or a folder above it in your home) haven't changed for NM_DAYS.
-# A project a cargo, rustc, python, uv or pod process works in, or with a file open in it, is
-# skipped. Rebuilding can take long, so cleaning moves them to the Trash (z puts them back); the
-# desktop app lists each project as an entry.
+# Build folders of projects left alone, each only next to the project file that makes it:
+#   Cargo.toml, pom.xml → target/          build.gradle(.kts), settings.gradle(.kts) → build/, .gradle/ and
+#   pubspec.yaml → .dart_tool/, build/       <module>/build/ of a first-level module with its own build.gradle(.kts)
+#   Package.swift → .build/                 package.json + next/nuxt/svelte.config.*, angular.json, turbo.json →
+#   stack.yaml → .stack-work/                 .next/, .nuxt/ + .output/, .svelte-kit/, .angular/cache/, .turbo/
+#   cabal.project, *.cabal → dist-newstyle/ mix.exs → _build/, deps/      build.zig → .zig-cache/, zig-cache/
+#   a Python virtual environment (.venv/ or venv/ with a pyvenv.cfg), CocoaPods' Pods/ and the providers/
+#   and modules/ of Terraform's .terraform/ (never its state or environment file). Never zig-out/ (what
+#   zig build installs) nor build/, dist/ or out/ without a project file.
+# Only real folders and project files, never through a symlink. Found like stale node_modules (same
+# folders, never inside node_modules, build folders, symlinks or other file systems; a folder with a
+# common name like build/ that belongs to no project is searched like any other). A project is left
+# alone when its project files, lockfiles and the .git/index of its repository (in the project or a
+# folder above it in your home) haven't changed for NM_DAYS. A project a build tool works in
+# (busy_paths), or with a file open in it, is skipped. Rebuilding can take long, so cleaning moves
+# them to the Trash (z puts them back); the desktop app lists each project as an entry.
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_stale_build_dirs='^/[A-Za-z0-9/._~%-]+$' # the project folder's full path, percent-encoded (urlencode_path)
+# folder names stale_build_dirs looks for; those in BUILD_DIRS_COMMON are searched when no project claims them
+BUILD_DIRS_FIND=(target .venv venv Pods .terraform build .gradle .build .dart_tool .next .nuxt .output .svelte-kit
+  .angular .turbo .stack-work dist-newstyle _build deps .zig-cache zig-cache)
+BUILD_DIRS_COMMON=" build .gradle .build .dart_tool .next .nuxt .output .svelte-kit .angular .turbo .stack-work dist-newstyle _build deps .zig-cache zig-cache "
 
-build_dirs_of() { # PROJECT → BD_DIRS: names of its build folders
-  local p=$1 f py=0
-  BD_DIRS=()
-  [[ -f $p/Cargo.toml && -d $p/target && ! -L $p/target ]] && BD_DIRS+=(target)
-  [[ -f $p/pyproject.toml || -f $p/setup.py ]] && py=1
-  for f in "$p"/requirements*.txt; do [[ -f $f ]] && py=1; done
-  if ((py)); then
+real_file() { [[ -f $1 && ! -L $1 ]]; }
+real_dir() { [[ -d $1 && ! -L $1 ]]; }
+any_real_file() { # PATH… → true when one is a real file
+  local f
+  for f; do [[ -f $f && ! -L $f ]] && return 0; done
+  return 1
+}
+bd_mark() { # PATTERN [any] → true when a file of BD_MARKS matching it is a real file (any: a file, maybe through a symlink)
+  local f
+  # shellcheck disable=SC2053 # PATTERN is a pattern
+  for f in "${BD_MARKS[@]}"; do [[ ${f##*/} == $1 && -f $f ]] && { [[ -n ${2:-} || ! -L $f ]] && return 0; }; done
+  return 1
+}
+bd_add() { # PROJECT NAME — add NAME to BD_DIRS when it is a real folder there, once
+  local d
+  [[ -d $1/$2 && ! -L $1/$2 ]] || return 0
+  for d in "${BD_DIRS[@]}"; do [[ $d == "$2" ]] && return 0; done
+  BD_DIRS+=("$2")
+}
+gradle_project() { any_real_file "$1"/build.gradle "$1"/build.gradle.kts "$1"/settings.gradle "$1"/settings.gradle.kts; }
+
+build_dirs_of() { # PROJECT → BD_DIRS: its build folders, relative to it (app/build, .terraform/providers);
+  # BD_MARKS: its files with a name project_files matches by pattern (one listing of the folder)
+  local p=$1 f c
+  BD_DIRS=() BD_MARKS=()
+  for f in "$p"/*; do
+    case ${f##*/} in requirements*.txt | *.tf | *.tf.json | next.config.* | nuxt.config.* | svelte.config.* | *.cabal) BD_MARKS+=("$f") ;; esac
+  done
+  [[ -f $p/Cargo.toml ]] && bd_add "$p" target
+  real_file "$p/pom.xml" && bd_add "$p" target
+  if [[ -f $p/pyproject.toml || -f $p/setup.py ]] || bd_mark 'requirements*.txt' any; then
     for f in .venv venv; do [[ -d $p/$f && ! -L $p/$f && -f $p/$f/pyvenv.cfg ]] && BD_DIRS+=("$f"); done
   fi
-  [[ -f $p/Podfile && -d $p/Pods && ! -L $p/Pods ]] && BD_DIRS+=(Pods)
+  [[ -f $p/Podfile ]] && bd_add "$p" Pods
+  if gradle_project "$p"; then
+    bd_add "$p" build; bd_add "$p" .gradle
+    for c in "$p"/*/; do # modules one level down with their own build file (Android's app/)
+      c=${c%/}
+      [[ ${c##*/} != *[[:space:][:cntrl:]]* ]] && real_dir "$c" && any_real_file "$c"/build.gradle "$c"/build.gradle.kts &&
+        bd_add "$p" "${c##*/}/build"
+    done
+  fi
+  real_file "$p/Package.swift" && bd_add "$p" .build
+  real_file "$p/pubspec.yaml" && { bd_add "$p" .dart_tool; bd_add "$p" build; }
+  if real_file "$p/package.json"; then
+    bd_mark 'next.config.*' && bd_add "$p" .next
+    bd_mark 'nuxt.config.*' && { bd_add "$p" .nuxt; bd_add "$p" .output; }
+    bd_mark 'svelte.config.*' && bd_add "$p" .svelte-kit
+    real_file "$p/angular.json" && real_dir "$p/.angular" && bd_add "$p" .angular/cache
+    real_file "$p/turbo.json" && bd_add "$p" .turbo
+  fi
+  real_file "$p/stack.yaml" && bd_add "$p" .stack-work
+  { real_file "$p/cabal.project" || bd_mark '*.cabal'; } && bd_add "$p" dist-newstyle
+  real_file "$p/mix.exs" && { bd_add "$p" _build; bd_add "$p" deps; }
+  real_file "$p/build.zig" && { bd_add "$p" .zig-cache; bd_add "$p" zig-cache; }
   if [[ -d $p/.terraform && ! -L $p/.terraform ]]; then # only what terraform init downloads, never state
-    for f in "$p"/*.tf "$p"/*.tf.json; do [[ -f $f ]] && break; done
-    if [[ -f $f ]]; then
+    if bd_mark '*.tf' any || bd_mark '*.tf.json' any; then
       for f in providers modules; do [[ -d $p/.terraform/$f && ! -L $p/.terraform/$f ]] && BD_DIRS+=(".terraform/$f"); done
     fi
   fi
   return 0
 }
 
-project_files() { # PROJECT → PF: its project files, lockfiles and its repository's .git/index (some may not exist)
-  local p=$1 d=$1 g
-  PF=("$p"/{Cargo.toml,Cargo.lock,pyproject.toml,setup.py,setup.cfg,Pipfile,Pipfile.lock,poetry.lock,uv.lock,pdm.lock,Podfile,Podfile.lock,.terraform.lock.hcl}
-    "$p"/requirements*.txt "$p"/*.tf "$p"/*.tf.json)
+project_files() { # PROJECT [BUILD_DIR…] → PF: its project files, lockfiles, the build files of its modules
+  # and its repository's .git/index — only those that exist. Right after build_dirs_of PROJECT (BD_MARKS).
+  local p=$1 d=$1 g f all
+  shift
+  all=("$p"/{Cargo.toml,Cargo.lock,pyproject.toml,setup.py,setup.cfg,Pipfile,Pipfile.lock,poetry.lock,uv.lock,pdm.lock,Podfile,Podfile.lock,.terraform.lock.hcl}
+    "$p"/{build.gradle,build.gradle.kts,settings.gradle,settings.gradle.kts,gradle.properties,gradle/libs.versions.toml,pom.xml}
+    "$p"/{Package.swift,Package.resolved,pubspec.yaml,pubspec.lock,package.json,package-lock.json,yarn.lock,pnpm-lock.yaml,bun.lock,bun.lockb}
+    "$p"/{angular.json,turbo.json,stack.yaml,stack.yaml.lock,cabal.project,cabal.project.freeze,mix.exs,mix.lock,build.zig,build.zig.zon}
+    "${BD_MARKS[@]}")
+  for f; do [[ $f == [!.]*/build ]] && all+=("$p/${f%/build}/build.gradle" "$p/${f%/build}/build.gradle.kts"); done
   while [[ $d == "$HOME"/* ]]; do
     if [[ -f $d/.git ]]; then # a worktree or submodule: "gitdir: PATH"
-      { read -r g <"$d/.git"; } 2>/dev/null && g=${g#gitdir: } && { [[ $g == /* ]] || g=$d/$g; } && PF+=("$g/index")
-    else PF+=("$d/.git/index"); fi
+      { read -r g <"$d/.git"; } 2>/dev/null && g=${g#gitdir: } && { [[ $g == /* ]] || g=$d/$g; } && all+=("$g/index")
+    else all+=("$d/.git/index"); fi
     d=${d%/*}
   done
+  PF=()
+  for f in "${all[@]}"; do [[ -f $f ]] && PF+=("$f"); done # keeps the one stat for all projects short
 }
 
-busy_paths() { # files your processes have open, and the folders cargo, rustc, python, uv, pod, terraform or tofu work in
+busy_paths() { # files your processes have open, and the folders build tools work in
   local d c
   open_files
   for d in /proc/[0-9]*; do
     { read -r c <"$d/comm"; } 2>/dev/null || continue
-    case $c in cargo | rustc | python* | uv | pod | terraform | tofu) readlink -- "$d/cwd" 2>/dev/null ;; esac
+    case $c in
+      cargo | rustc | python* | uv | pod | terraform | tofu | java | gradle | mvn | swift | swift-build | swift-frontend | \
+        flutter | dart | node | bun | deno | stack | cabal | ghc | mix | elixir | erl | beam.smp | zig)
+        readlink -- "$d/cwd" 2>/dev/null ;;
+    esac
   done
   return 0
 }
 
 stale_build_dirs() { # → SB_DIR (project) / SB_WHAT (its build folders, space-separated) / SB_BYTES / SB_DAYS, biggest first
-  local d p busy now changed b f i rec what=() dirs=() files=() recs=() sizes=() keep=()
-  local -A seen=() mtime=()
+  local d p n busy now changed b f i rec pf_at=() pf_n=() what=() dirs=() files=() recs=() sizes=() keep=() roots=("$HOME") next=() names=()
+  local -A seen=() mtime=() claimed=()
   SB_DIR=() SB_WHAT=() SB_BYTES=() SB_DAYS=()
   busy=$'\n'$(busy_paths)$'\n'
   exclusion_prune
   printf -v now '%(%s)T' -1
-  while IFS= read -r d; do
-    p=${d%/*}
-    [[ $p == "$HOME"/* && $p != *[[:cntrl:]]* && -z ${seen[$p]:-} ]] || continue
-    seen[$p]=1
-    build_dirs_of "$p"
-    for i in "${!BD_DIRS[@]}"; do touches_exclusion "$p/${BD_DIRS[i]}" && unset "BD_DIRS[i]"; done
-    ((${#BD_DIRS[@]})) || continue
-    # in use (a path containing it elsewhere only errs on the safe side)
-    [[ $busy == *$'\n'"$p"$'\n'* || $busy == *"$p/"* ]] && continue
-    project_files "$p"
-    files+=("${PF[@]}")
-    rec=""
-    for b in "${BD_DIRS[@]}"; do rec+=${rec:+$'\t'}$p/$b; done
-    what+=("${BD_DIRS[*]}") dirs+=("$p") recs+=("$rec")
-  done < <(find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
-    -o -path '*/resources/app' -o -name .git -o -name node_modules \) -prune -o \
-    -type d \( -name target -o -name .venv -o -name venv -o -name Pods -o -name .terraform \) -prune -print 2>/dev/null)
+  for n in "${BUILD_DIRS_FIND[@]}"; do names+=(-o -name "$n"); done
+  while ((${#roots[@]})); do
+    next=()
+    while IFS= read -r d; do
+      p=${d%/*} n=${d##*/}
+      # a module's build/ belongs to the Gradle project above it (Android's app/build)
+      [[ $n == build && ${p%/*} == "$HOME"/* ]] && gradle_project "${p%/*}" && any_real_file "$p"/build.gradle "$p"/build.gradle.kts &&
+        p=${p%/*}
+      if [[ -z ${seen[$p]:-} ]]; then
+        seen[$p]=1
+        [[ $p == "$HOME"/* && $p != *[[:cntrl:]]* ]] && build_dirs_of "$p" || BD_DIRS=()
+        for b in "${BD_DIRS[@]}"; do
+          claimed[$p/$b]=1
+          [[ $b == .*/* ]] && claimed[$p/${b%%/*}]=1
+        done
+        for i in "${!BD_DIRS[@]}"; do touches_exclusion "$p/${BD_DIRS[i]}" && unset "BD_DIRS[i]"; done
+        # in use (a path containing it elsewhere only errs on the safe side)
+        if ((${#BD_DIRS[@]})) && [[ $busy != *$'\n'"$p"$'\n'* && $busy != *"$p/"* ]]; then
+          project_files "$p" "${BD_DIRS[@]}"
+          pf_at+=("${#files[@]}") pf_n+=("${#PF[@]}") files+=("${PF[@]}")
+          rec=""
+          for b in "${BD_DIRS[@]}"; do rec+=${rec:+$'\t'}$p/$b; done
+          what+=("${BD_DIRS[*]}") dirs+=("$p") recs+=("$rec")
+        fi
+      fi
+      # a folder with a common name no project here makes may hold projects
+      [[ -n ${claimed[$d]:-} || $BUILD_DIRS_COMMON != *" $n "* ]] || next+=("$d")
+    done < <(find "${roots[@]}" -mindepth 1 -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
+      -o -path '*/resources/app' -o -name .git -o -name node_modules \) -prune -o \
+      -type d \( "${names[@]:1}" \) -prune -print 2>/dev/null)
+    roots=("${next[@]}")
+  done
   # when each project last changed: one stat for all their files
   ((${#files[@]})) && while IFS=$'\t' read -r changed f; do mtime[$f]=$changed; done < <(stat -c $'%Y\t%n' -- "${files[@]}" 2>/dev/null)
   for i in "${!dirs[@]}"; do
-    project_files "${dirs[i]}"
     changed=0
-    for f in "${PF[@]}"; do ((${mtime[$f]:-0} > changed)) && changed=${mtime[$f]}; done
+    for f in "${files[@]:pf_at[i]:pf_n[i]}"; do ((${mtime[$f]:-0} > changed)) && changed=${mtime[$f]}; done
     ((now - changed >= NM_DAYS * 86400)) && keep+=("$i"$'\t'"$changed")
   done
   mapfile -t sizes < <(for i in "${keep[@]}"; do printf '%s\n' "${recs[${i%%$'\t'*}]}"; done | sized_paths stale_build_dirs own_bytes)
@@ -9473,7 +9554,7 @@ apply_settings() {
   ITEM_DESC[journal]="Archived system logs. Keeps the last ${JOURNAL_KEEP_DAYS} days and at most ${JOURNAL_KEEP_MB} MB."
   ITEM_DESC[tmp]="Your files in /tmp and /var/tmp not touched for ${TMP_DAYS}+ days."
   ITEM_DESC[node_modules]="node_modules of projects untouched for ${NM_DAYS}+ days. Restore with npm/yarn/pnpm install."
-  ITEM_DESC[stale_build_dirs]="Cargo target/, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules folders of projects untouched for ${NM_DAYS}+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install, pod install or terraform init."
+  ITEM_DESC[stale_build_dirs]="Build folders of projects untouched for ${NM_DAYS}+ days, only next to the project file that makes them: Cargo and Maven target/, Gradle and Android build/ and .gradle/, Flutter .dart_tool/ and build/, SwiftPM .build/, Next.js, Nuxt, SvelteKit, Angular and Turbo caches, Haskell .stack-work/ and dist-newstyle/, Elixir _build/ and deps/, Zig caches, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules. Moved to the Trash; the project's build tool makes them again."
 }
 
 save_setting() { # KEY VALUE — change one line of the settings file; the other app may have changed others

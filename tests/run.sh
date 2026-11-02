@@ -1872,6 +1872,69 @@ test_stale_terraform_providers() {
   for f in fresh notf applying; do assert_exists "$c/$f/.terraform/providers/p"; done
 }
 
+# Gradle/Android, Maven, SwiftPM, Flutter, JS frameworks, Haskell, Elixir and Zig: each build folder only
+# next to the real project file that makes it; a folder like build/ without one is searched, not listed
+test_stale_build_folders_more_ecosystems() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local c=$HOME_DIR/code out f p want
+  new "$c/android/settings.gradle.kts"; new "$c/android/build.gradle.kts"; sized "$c/android/build/x" 100
+  sized "$c/android/.gradle/8.10/x" 100; new "$c/android/app/build.gradle.kts"; sized "$c/android/app/build/apk/x" 1000
+  sized "$c/android/docs/build/x" 10                                  # docs/ has no build.gradle: not a module
+  new "$c/groovy/build.gradle"; sized "$c/groovy/build/x" 10
+  new "$c/maven/pom.xml"; sized "$c/maven/target/x" 200
+  new "$c/swift/Package.swift"; sized "$c/swift/.build/x" 10
+  new "$c/flutter/pubspec.yaml"; new "$c/flutter/pubspec.lock"; sized "$c/flutter/.dart_tool/x" 10; sized "$c/flutter/build/x" 10
+  new "$c/next/package.json"; new "$c/next/next.config.mjs"; sized "$c/next/.next/x" 10
+  new "$c/nuxt/package.json"; new "$c/nuxt/nuxt.config.ts"; sized "$c/nuxt/.nuxt/x" 10; sized "$c/nuxt/.output/x" 10
+  new "$c/svelte/package.json"; new "$c/svelte/svelte.config.js"; sized "$c/svelte/.svelte-kit/x" 10
+  new "$c/ng/package.json"; new "$c/ng/angular.json"; sized "$c/ng/.angular/cache/x" 10; new "$c/ng/.angular/keep"
+  new "$c/turbo/package.json"; new "$c/turbo/turbo.json"; sized "$c/turbo/.turbo/x" 10
+  new "$c/stack/stack.yaml"; sized "$c/stack/.stack-work/x" 10
+  new "$c/cabal/hello.cabal"; sized "$c/cabal/dist-newstyle/x" 10
+  new "$c/elixir/mix.exs"; new "$c/elixir/mix.lock"; sized "$c/elixir/_build/x" 10; sized "$c/elixir/deps/x" 10
+  new "$c/zig/build.zig"; sized "$c/zig/.zig-cache/x" 10; sized "$c/zig/zig-cache/x" 10; sized "$c/zig/zig-out/bin/app" 10
+  # not listed: no project file, a project file or build folder that is a symlink, changed lately
+  sized "$c/plain/build/x" 10; sized "$c/plain/dist/x" 10; sized "$c/plain/out/x" 10; sized "$c/plain/deps/x" 10
+  new "$c/noconf/package.json"; sized "$c/noconf/.next/x" 10           # no next.config.*
+  new "$WORK/ext-pom.xml"; sized "$c/linkedpom/target/x" 10; ln -s "$WORK/ext-pom.xml" "$c/linkedpom/pom.xml"
+  new "$c/linkeddir/pubspec.yaml"; sized "$WORK/ext-dart/x" 10; ln -s "$WORK/ext-dart" "$c/linkeddir/.dart_tool"
+  new "$c/fresh/mix.exs"; sized "$c/fresh/_build/x" 10
+  new "$c/build/inner/pom.xml"; sized "$c/build/inner/target/x" 10    # a project inside a build/ no project makes
+  while IFS= read -r -d '' f; do touch -h -d "100 days ago" "$f"; done < <(find "$HOME_DIR" -print0)
+  touch "$c/fresh/mix.exs"
+  out=$(user_cm --json details stale_build_dirs | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["label"])' | LC_ALL=C sort)
+  want="~/code/android — build/, .gradle/, app/build/ · 100 days idle
+~/code/build/inner — target/ · 100 days idle
+~/code/cabal — dist-newstyle/ · 100 days idle
+~/code/elixir — _build/, deps/ · 100 days idle
+~/code/flutter — .dart_tool/, build/ · 100 days idle
+~/code/groovy — build/ · 100 days idle
+~/code/maven — target/ · 100 days idle
+~/code/next — .next/ · 100 days idle
+~/code/ng — .angular/cache/ · 100 days idle
+~/code/nuxt — .nuxt/, .output/ · 100 days idle
+~/code/stack — .stack-work/ · 100 days idle
+~/code/svelte — .svelte-kit/ · 100 days idle
+~/code/swift — .build/ · 100 days idle
+~/code/turbo — .turbo/ · 100 days idle
+~/code/zig — .zig-cache/, zig-cache/ · 100 days idle"
+  assert_eq "$out" "$want" "one entry per project, each folder only next to its project file"
+  out=$(user_cm --json details stale_build_dirs | grep -F '"label":"~/code/android ')
+  assert_contains "$out" '"bytes":1200'
+  user_cm --json clean stale_build_dirs >/dev/null 2>&1
+  for p in android/build android/.gradle android/app/build maven/target flutter/build flutter/.dart_tool next/.next \
+    nuxt/.output ng/.angular/cache turbo/.turbo elixir/deps zig/.zig-cache zig/zig-cache build/inner/target; do assert_missing "$c/$p"; done
+  for p in android/app/build.gradle.kts android/docs/build/x flutter/pubspec.lock ng/.angular/keep elixir/mix.lock \
+    zig/zig-out/bin/app plain/build/x plain/dist/x plain/out/x plain/deps/x noconf/.next/x linkedpom/target/x \
+    linkeddir/pubspec.yaml fresh/_build/x; do assert_exists "$c/$p"; done
+  assert_exists "$WORK/ext-dart/x"
+  assert_exists "$HOME_DIR/.local/share/Trash/files/.svelte-kit/x"
+}
+
 test_infra_tool_caches() {
   fresh_home
   local h=$HOME_DIR out bin=$WORK/infrabin f

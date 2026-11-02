@@ -197,7 +197,7 @@ msgstr ""
 
 #. stale_build_dirs description
 #, python-brace-format
-msgid "Cargo target/, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules folders of projects untouched for {0}+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install, pod install or terraform init."
+msgid "Build folders of projects untouched for {0}+ days, only next to the project file that makes them: Cargo and Maven target/, Gradle and Android build/ and .gradle/, Flutter .dart_tool/ and build/, SwiftPM .build/, Next.js, Nuxt, SvelteKit, Angular and Turbo caches, Haskell .stack-work/ and dist-newstyle/, Elixir _build/ and deps/, Zig caches, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules. Moved to the Trash; the project's build tool makes them again."
 msgstr ""
 
 #. npm label
