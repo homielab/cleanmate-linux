@@ -3636,10 +3636,27 @@ for l in sys.stdin:
   assert_contains "$out" "Prism Launcher (Flatpak): Three logs"
   [[ $out == *Four* || $out == *mcout* ]] && fail "a symlinked folder was listed: $out" || ok_ "symlinks skipped"
   [[ $(grep -c ' True ' <<<"$out") == 9 ]] && ok_ "all ticked" || fail "entries not ticked: $out"
+  # java locks the item only when it is the game: its command line in the (fake) /proc/4242
+  local proc=$WORK/mcproc a
   running_stub "$bin" java
-  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only user 2>&1 </dev/null)
+  mkdir -p "$proc/4242"
+  for a in "-jar idea.jar" "org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.10"; do
+    printf 'java\0-Xmx2g\0%s\0' "$a" >"$proc/4242/cmdline"
+    out=$(CLEANMATE_PROC=$proc BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only user --dry-run 2>&1 </dev/null)
+    [[ $out == *"Skipping Minecraft caches"* ]] && fail "java $a locked Minecraft: $out" || ok_ "java $a does not lock"
+  done
+  for a in "net.minecraft.client.main.Main" "org.prismlauncher.EntryPoint" "--gameDir" "-Djava.library.path=$h/.minecraft/bin/x"; do
+    printf 'java\0-Xmx2g\0%s\0' "$a" >"$proc/4242/cmdline"
+    out=$(CLEANMATE_PROC=$proc BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only user --dry-run 2>&1 </dev/null)
+    assert_contains "$out" "Skipping Minecraft caches: close java first."
+  done
+  : >"$proc/4242/cmdline" # unreadable or empty: counts as the game
+  out=$(CLEANMATE_PROC=$proc BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only user 2>&1 </dev/null)
   assert_contains "$out" "Skipping Minecraft caches: close java first."
   assert_exists "$m/logs/latest.log"
+  running_stub "$bin" prismlauncher
+  out=$(CLEANMATE_PROC=$proc BASE_PATH="$bin:$BASE_PATH" user_cm --clean --yes --only user --dry-run 2>&1 </dev/null)
+  assert_contains "$out" "Skipping Minecraft caches: close prismlauncher first."
   e1=$(cm --json details minecraft_caches | python3 -c "$list" | grep 'Minecraft: logs' | cut -d' ' -f1)
   user_cm --json clean minecraft_caches --entries "$e1" >/dev/null 2>&1
   assert_missing "$m/logs/latest.log"; assert_exists "$m/logs"; assert_exists "$m/crash-reports/crash-1.txt"

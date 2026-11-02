@@ -2115,8 +2115,8 @@ reg_folders_item steam_caches user "Steam caches" 1 "The web cache of Steam's st
 # in its Flatpak data folder. Rewritten when the launcher or the game runs again. Never saves, mods,
 # resourcepacks, shaderpacks, screenshots, config, options.txt, versions, libraries, assets,
 # launcher_*.json, accounts.json, meta or any other part of an instance. An InstanceDir outside
-# the home is ignored. Skipped while a launcher runs and while Java runs (a game is a java process
-# whose name is only "java", so any Java program blocks the item: the safe side).
+# the home is ignored. Skipped while a launcher runs or the game runs: a java process whose
+# command line names Minecraft (minecraft_java). Other Java programs (IDEs, Gradle) don't block it.
 minecraft_cache_dirs() { # → "label<TAB>folder", real paths in your home
   local x=$HOME/.var/app d r l s c i ci n m
   local -A seen=()
@@ -2162,7 +2162,24 @@ minecraft_cache_dirs() { # → "label<TAB>folder", real paths in your home
   done
 }
 reg_folders_item minecraft_caches user "Minecraft caches" 1 "Launcher logs, crash reports and web cache of Minecraft and Prism Launcher, and the logs and crash reports of each Prism instance. Written again when you play; worlds, mods, resource packs, screenshots, settings and accounts are kept. Close the launcher and the game first." \
-  minecraft_cache_dirs 'minecraft-launc.*|prismlauncher|java'
+  minecraft_cache_dirs 'minecraft-launc.*|prismlauncher'
+# A game is a process named only "java" (or javaw): its command line tells it apart, by the main
+# class (net.minecraft.*, Prism's or MultiMC's EntryPoint), the --gameDir / --assetsDir arguments,
+# or a .minecraft or Prism instance folder. A command line that can't be read counts as the game.
+minecraft_java() { # → "java" when the game runs; fails when no java is Minecraft
+  local out pid name c
+  out=$(pgrep -l -x 'java|javaw' 2>/dev/null) || return 1
+  while read -r pid name; do
+    [[ $pid =~ ^[0-9]+$ ]] || continue
+    c=$(tr '\0' '\n' <"${PROC_DIR:-/proc}/$pid/cmdline" 2>/dev/null) || c=
+    if [[ -z $c ]] || grep -qiE -- 'net\.minecraft\.|(prismlauncher|multimc)\.EntryPoint|^--(gameDir|assetsDir)(=|$)|/\.?minecraft(/|$)|PrismLauncher/instances/' <<<"$c"; then
+      printf '%s\n' "${name:-java}"
+      return 0
+    fi
+  done <<<"$out"
+  return 1
+}
+lockedby_minecraft_caches() { folders_lockedby minecraft_caches || minecraft_java; }
 
 # ── Browsers & apps: one item per browser / app ──
 #
