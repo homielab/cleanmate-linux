@@ -1897,6 +1897,37 @@ test_infra_tool_caches() {
     .minikube/ca.crt .config/helm/repositories.yaml .local/share/helm/plugins/p; do assert_exists "$h/$f"; done
 }
 
+test_language_package_caches() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/langbin f
+  local gone=(.cabal/packages/hackage.haskell.org/x.tar.gz .cache/cabal/packages/h/y .ghcup/cache/ghc.tar.xz
+    .stack/pantry/hackage/z .stack/snapshots/x86_64-linux/s .cache/coursier/v1/https/a.jar .ivy2/cache/org/b.jar
+    .sbt/boot/scala-2.12/c.jar .opam/download-cache/md5/d .cache/composer/repo/e.json .composer/cache/files/f.zip)
+  local kept=(.stack/programs/x86_64-linux/ghc .ghcup/ghc/9.4/bin/ghc .ghcup/bin/ghcup .cabal/bin/hlint .cabal/config
+    .ivy2/local/me/p.jar .sbt/1.0/global.sbt .opam/default/lib/x .opam/config .composer/vendor/bin/phpunit .composer/composer.json)
+  for f in "${gone[@]}" "${kept[@]}"; do new "$h/$f"; done
+  out=$(cm --scan --only dev 2>&1)
+  for f in "Haskell package cache" "Scala package cache" "opam download cache" "Composer cache"; do assert_contains "$out" "$f"; done
+  out=$(cm --json items 2>&1)
+  for f in haskell_cache scala_cache opam_cache composer_cache; do assert_contains "$out" "\"id\":\"$f\""; done
+  running_stub "$bin" ghc-9.4.8 sbt opam composer
+  select_only haskell_cache scala_cache opam_cache composer_cache
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  for f in "${gone[@]}"; do assert_exists "$h/$f"; done
+  cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  for f in "${gone[@]}"; do assert_missing "$h/$f"; done
+  for f in "${kept[@]}"; do assert_exists "$h/$f"; done
+  # tool variables inside HOME are followed; nothing found → the items stay hidden
+  fresh_home
+  h=$HOME_DIR
+  printf 'export STACK_ROOT="$HOME/st"\nexport COMPOSER_CACHE_DIR="$HOME/cc"\nexport OPAMROOT="$HOME/op"\n' >"$h/.bashrc"
+  out=$(in_app 'printf "%s\n" "${ITEM_PATHS[haskell_cache]}" "${ITEM_PATHS[composer_cache]}" "${ITEM_PATHS[opam_cache]}"')
+  for f in st/pantry st/snapshots cc op/download-cache; do assert_contains "$out" "$h/$f"; done
+  out=$(cm --scan --only dev 2>&1)
+  for f in "Haskell package cache" "Scala package cache" "opam download cache" "Composer cache"; do [[ $out == *"$f"* ]] && fail "should be hidden: $f"; done
+  return 0
+}
+
 test_editor_data_of_deleted_projects() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -3486,12 +3517,12 @@ test_build_tool_caches_xdg_root() {
   local h=$HOME_DIR out bad
   # XDG_CACHE_HOME unset: no item gets a path at the disk root (/zig, /pre-commit, …)
   out=$(in_app 'for i in "${ITEM_IDS[@]}"; do printf "%s\n" "${ITEM_PATHS[$i]-}" "${LIST_ROOTS[$i]-}"; done')
-  bad=$(grep -vE "^($h/|$)" <<<"$out" | grep -E '^/(deno|zig|bazel|ccache|sccache|pypoetry|pipx|pre-commit|mesa_shader_cache|helm)' || true)
+  bad=$(grep -vE "^($h/|$)" <<<"$out" | grep -E '^/(deno|zig|bazel|ccache|sccache|pypoetry|pipx|pre-commit|mesa_shader_cache|helm|cabal|coursier|composer)' || true)
   assert_eq "$bad" "" "no cache path at the disk root"
   # XDG_CACHE_HOME inside HOME: its tool folders are kept
   printf 'export XDG_CACHE_HOME="$HOME/xc"\n' >"$h/.bashrc"
   out=$(in_app 'for i in "${ITEM_IDS[@]}"; do printf "%s\n" "${ITEM_PATHS[$i]-}" "${LIST_ROOTS[$i]-}"; done')
-  for f in deno/remote zig/o "bazel/_bazel_$(id -un)/cache" ccache/tmp sccache/0 pypoetry/cache pipx pre-commit mesa_shader_cache helm; do
+  for f in deno/remote zig/o "bazel/_bazel_$(id -un)/cache" ccache/tmp sccache/0 pypoetry/cache pipx pre-commit mesa_shader_cache helm cabal/packages coursier composer; do
     assert_contains "$out" "$h/xc/$f"
   done
 }

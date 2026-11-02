@@ -3467,6 +3467,37 @@ sub_pathsv _p . "$HOME/.cache/helm" "$_xc/helm" "$_d"
 reg_cache_item helm_cache dev "Helm cache" 1 \
   "Chart repository indexes and charts Helm downloaded. Fetched again on the next helm repo update; your repositories and plugins are kept." \
   "$_p" "helm"
+_p=""
+env_home_dirv _d CABAL_DIR
+sub_pathsv _p packages "$HOME/.cabal" "$HOME/.cache/cabal" "$_xc/cabal" "$_d"
+env_home_dirv _d STACK_ROOT
+sub_pathsv _p "pantry snapshots" "$HOME/.stack" "$_d"
+sub_pathsv _p cache "$HOME/.ghcup"
+reg_cache_item haskell_cache dev "Haskell package cache" 0 \
+  "Package downloads of cabal (~/.cabal/packages, ~/.cache/cabal/packages), Stack (~/.stack/pantry, snapshots) and ghcup (~/.ghcup/cache). Downloaded and built again when needed; installed GHC versions, tools and settings are kept." \
+  "$_p" "cabal|ghc|ghc-[0-9.]*|stack|ghcup"
+_p=""
+env_home_dirv _d COURSIER_CACHE
+sub_pathsv _p . "$HOME/.cache/coursier" "$_xc/coursier" "$_d"
+sub_pathsv _p cache "$HOME/.ivy2"
+sub_pathsv _p boot "$HOME/.sbt"
+reg_cache_item scala_cache dev "Scala package cache" 0 \
+  "Libraries Coursier, Ivy and sbt downloaded (~/.cache/coursier, ~/.ivy2/cache, ~/.sbt/boot). Downloaded again on the next build; ~/.ivy2/local and your sbt settings are kept." \
+  "$_p" "sbt|cs|coursier|bloop|metals"
+_p=""
+env_home_dirv _d OPAMROOT
+sub_pathsv _p download-cache "$HOME/.opam" "$_d"
+reg_cache_item opam_cache dev "opam download cache" 0 \
+  "Source archives opam downloaded (~/.opam/download-cache). Downloaded again when a package is installed; your switches and packages are kept." \
+  "$_p" "opam"
+_p=""
+env_home_dirv _d COMPOSER_CACHE_DIR
+env_home_dirv _b COMPOSER_HOME
+sub_pathsv _p . "$HOME/.cache/composer" "$_xc/composer" "$_d"
+sub_pathsv _p cache "$HOME/.composer" "$_b"
+reg_cache_item composer_cache dev "Composer cache" 1 \
+  "PHP packages and metadata Composer downloaded (~/.cache/composer, ~/.composer/cache, COMPOSER_CACHE_DIR). Downloaded again by composer install; your global packages and settings are kept." \
+  "$_p" "composer"
 GAME_PROCS='steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*' # launchers and games (process names)
 _gl=() # folders with a variable part in their name (radv_builtin_shaders*, qtshadercache*)
 for _b in "$HOME"/.cache/radv_builtin_shaders* "$HOME"/.cache/qtshadercache*; do [[ -d $_b ]] && _gl+=("$_b"); done

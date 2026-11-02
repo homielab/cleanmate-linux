@@ -14,6 +14,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- **Developer Junk** (both apps): package caches of Haskell (cabal, Stack, ghcup), Scala (Coursier, Ivy, sbt) and OCaml (opam), not pre-selected, and the Composer cache, each skipped while its tool runs. Installed compilers, tools, local Ivy packages and opam switches are kept.
 - **Developer Junk** (both apps): infrastructure tool caches — the Terraform/OpenTofu plugin cache and the minikube download cache (ISO, preloaded images; not pre-selected) and the Helm cache, each skipped while its tool runs. Clusters, profiles, certificates, Helm repositories and plugins are kept.
 - **Stale project build folders** now include `.terraform/providers` and `.terraform/modules` of Terraform/OpenTofu projects idle for 90 days (moved to the Trash; state files are never touched).
 - **AI agents**: large files, Space Lens and Duplicates can be driven headlessly, without the app. `cm --json lens`, `large` and `dupes` list what is taking up space (they now accept `--limit` besides `--path`/`--min`/`--days`), and `cm --json trash [--home-only]` plus `cm --json restore` move just the confirmed paths to (and back from) the Trash, refusing anything outside your home folder or excluded in *Never clean*. The README documents the commands and the Agent Skill uses them instead of pointing agents to the app — they never delete files by hand. An Agent Skill (`skills/cleanmate/`) lets Claude Code, Codex and other agents scan with `cm --json`, show the result and clean only what you confirm.
