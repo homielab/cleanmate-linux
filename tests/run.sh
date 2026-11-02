@@ -1837,6 +1837,60 @@ $(in_app "urlencode_path '$pods'") $b_pods off ~/code/app/ios — Pods/ · 100 d
   assert_exists "$HOME_DIR/work/repo/sub/target"; assert_exists "$WORK/elsewhere/x"
 }
 
+# Terraform/OpenTofu: of an idle project only .terraform/providers and .terraform/modules, never its state
+test_stale_terraform_providers() {
+  fresh_home
+  local c=$HOME_DIR/code tf out pid hold=()
+  ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups)
+  tf=$c/infra
+  new "$tf/main.tf"; new "$tf/.terraform.lock.hcl"; new "$tf/terraform.tfstate"
+  sized "$tf/.terraform/providers/registry.terraform.io/hashicorp/aws/p" 3000; sized "$tf/.terraform/modules/vpc/m.tf" 1000
+  new "$tf/.terraform/terraform.tfstate"; new "$tf/.terraform/environment"
+  new "$c/fresh/main.tf"; sized "$c/fresh/.terraform/providers/p" 10           # changed lately
+  new "$c/notf/README"; sized "$c/notf/.terraform/providers/p" 10              # no *.tf next to it
+  new "$c/applying/main.tf"; sized "$c/applying/.terraform/providers/p" 10     # terraform works in it
+  while IFS= read -r -d '' f; do touch -h -d "100 days ago" "$f"; done < <(find "$HOME_DIR" -print0)
+  touch "$c/fresh/main.tf"
+  ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
+  mkdir -p "$WORK/tfbin"; cp "$(command -v sleep)" "$WORK/tfbin/terraform"; chmod 755 "$WORK/tfbin" "$WORK/tfbin/terraform"
+  "${hold[@]}" sh -c 'cd "$1" && exec "$2" 60' _ "$c/applying" "$WORK/tfbin/terraform" >/dev/null 2>&1 &
+  pid=$!
+  sleep 0.3
+  out=$(user_cm --json details stale_build_dirs | grep '"event":"entry"')
+  assert_eq "$(wc -l <<<"$out")" "1" "only the idle Terraform project"
+  assert_contains "$out" '"bytes":4000'; assert_contains "$out" "~/code/infra — .terraform/providers/, .terraform/modules/ · 100 days idle"
+  out=$(user_cm --json clean stale_build_dirs 2>&1)
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  assert_missing "$tf/.terraform/providers"; assert_missing "$tf/.terraform/modules"
+  for f in .terraform/terraform.tfstate .terraform/environment terraform.tfstate main.tf .terraform.lock.hcl; do assert_exists "$tf/$f"; done
+  for f in fresh notf applying; do assert_exists "$c/$f/.terraform/providers/p"; done
+}
+
+test_infra_tool_caches() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/infrabin f
+  new "$h/.terraform.d/plugin-cache/registry.terraform.io/hashicorp/aws/p"; new "$h/.terraform.d/credentials.tfrc.json"
+  printf 'plugin_cache_dir = "%s/tfc"\n' "$h" >"$h/.terraformrc"
+  new "$h/tfc/registry.opentofu.org/x/p"; new "$h/tfc/notes/keep"
+  new "$h/.minikube/cache/iso/amd64/minikube.iso"; new "$h/.minikube/cache/preloaded-tarball/p.tar.lz4"
+  new "$h/.minikube/machines/minikube/disk"; new "$h/.minikube/profiles/minikube/config.json"; new "$h/.minikube/ca.crt"
+  new "$h/.cache/helm/repository/bitnami-index.yaml"; new "$h/.config/helm/repositories.yaml"; new "$h/.local/share/helm/plugins/p"
+  out=$(cm --scan --only dev 2>&1)
+  for f in "Terraform plugin cache" "minikube cache" "Helm cache"; do assert_contains "$out" "$f"; done
+  out=$(cm --json items 2>&1)
+  assert_contains "$out" '"id":"helm_cache"'
+  running_stub "$bin" terraform minikube helm
+  select_only terraform_plugin_cache minikube_cache helm_cache
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  assert_exists "$h/.terraform.d/plugin-cache/registry.terraform.io/hashicorp/aws/p"
+  assert_exists "$h/.minikube/cache/iso/amd64/minikube.iso"; assert_exists "$h/.cache/helm/repository/bitnami-index.yaml"
+  cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  for f in .terraform.d/plugin-cache/registry.terraform.io tfc/registry.opentofu.org/x .minikube/cache/iso .minikube/cache/preloaded-tarball \
+    .cache/helm/repository/bitnami-index.yaml; do assert_missing "$h/$f"; done
+  for f in .terraform.d/credentials.tfrc.json tfc/notes/keep .minikube/machines/minikube/disk .minikube/profiles/minikube/config.json \
+    .minikube/ca.crt .config/helm/repositories.yaml .local/share/helm/plugins/p; do assert_exists "$h/$f"; done
+}
+
 test_editor_data_of_deleted_projects() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -3426,12 +3480,12 @@ test_build_tool_caches_xdg_root() {
   local h=$HOME_DIR out bad
   # XDG_CACHE_HOME unset: no item gets a path at the disk root (/zig, /pre-commit, …)
   out=$(in_app 'for i in "${ITEM_IDS[@]}"; do printf "%s\n" "${ITEM_PATHS[$i]-}" "${LIST_ROOTS[$i]-}"; done')
-  bad=$(grep -vE "^($h/|$)" <<<"$out" | grep -E '^/(deno|zig|bazel|ccache|sccache|pypoetry|pipx|pre-commit|mesa_shader_cache)' || true)
+  bad=$(grep -vE "^($h/|$)" <<<"$out" | grep -E '^/(deno|zig|bazel|ccache|sccache|pypoetry|pipx|pre-commit|mesa_shader_cache|helm)' || true)
   assert_eq "$bad" "" "no cache path at the disk root"
   # XDG_CACHE_HOME inside HOME: its tool folders are kept
   printf 'export XDG_CACHE_HOME="$HOME/xc"\n' >"$h/.bashrc"
   out=$(in_app 'for i in "${ITEM_IDS[@]}"; do printf "%s\n" "${ITEM_PATHS[$i]-}" "${LIST_ROOTS[$i]-}"; done')
-  for f in deno/remote zig/o "bazel/_bazel_$(id -un)/cache" ccache/tmp sccache/0 pypoetry/cache pipx pre-commit mesa_shader_cache; do
+  for f in deno/remote zig/o "bazel/_bazel_$(id -un)/cache" ccache/tmp sccache/0 pypoetry/cache pipx pre-commit mesa_shader_cache helm; do
     assert_contains "$out" "$h/xc/$f"
   done
 }

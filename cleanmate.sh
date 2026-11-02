@@ -933,7 +933,7 @@ reg trash        user   "Trash"                             1 "Files you already
 reg trash_drives user   "Trash on external drives"          0 "Files you deleted on USB sticks and other drives stay in that drive's own Trash and keep using its space. Emptying deletes them for good."
 reg app_cache    user   "Stale app caches (>30 days)"       1 "Files under ~/.cache not modified or read for 30+ days."
 reg node_modules dev    "Stale node_modules"                0 "node_modules of projects untouched for 90+ days. Restore with npm/yarn/pnpm install."
-reg stale_build_dirs dev "Stale project build folders"      0 "Cargo target/, Python .venv/ and CocoaPods Pods/ folders of projects untouched for 90+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install or pod install."
+reg stale_build_dirs dev "Stale project build folders"      0 "Cargo target/, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules folders of projects untouched for 90+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install, pod install or terraform init."
 reg npm          dev    "npm cache"                         1 "npm's package download cache (~/.npm/_cacache)."
 reg yarn         dev    "Yarn cache"                        1 "Yarn's package download cache."
 reg pnpm         dev    "pnpm store (unreferenced)"         1 "Packages in the pnpm store no project references (pnpm store prune)."
@@ -3080,7 +3080,8 @@ clean_node_modules() {
 details_node_modules() { [[ -f $NM_LIST ]] && detail_files 100 <"$NM_LIST"; }
 
 # Build folders of projects left alone: Cargo's target/, a Python virtual environment (.venv/ or
-# venv/ with a pyvenv.cfg) and CocoaPods' Pods/, each only next to the project file that makes it.
+# venv/ with a pyvenv.cfg), CocoaPods' Pods/ and the providers/ and modules/ of Terraform's .terraform/
+# (never its state or environment file), each only next to the project file that makes it.
 # Found like stale node_modules (same folders, never inside node_modules, build folders, symlinks or
 # other file systems). A project is left alone when its project files, lockfiles and the .git/index
 # of its repository (in the project or a folder above it in your home) haven't changed for NM_DAYS.
@@ -3100,13 +3101,19 @@ build_dirs_of() { # PROJECT → BD_DIRS: names of its build folders
     for f in .venv venv; do [[ -d $p/$f && ! -L $p/$f && -f $p/$f/pyvenv.cfg ]] && BD_DIRS+=("$f"); done
   fi
   [[ -f $p/Podfile && -d $p/Pods && ! -L $p/Pods ]] && BD_DIRS+=(Pods)
+  if [[ -d $p/.terraform && ! -L $p/.terraform ]]; then # only what terraform init downloads, never state
+    for f in "$p"/*.tf "$p"/*.tf.json; do [[ -f $f ]] && break; done
+    if [[ -f $f ]]; then
+      for f in providers modules; do [[ -d $p/.terraform/$f && ! -L $p/.terraform/$f ]] && BD_DIRS+=(".terraform/$f"); done
+    fi
+  fi
   return 0
 }
 
 project_files() { # PROJECT → PF: its project files, lockfiles and its repository's .git/index (some may not exist)
   local p=$1 d=$1 g
-  PF=("$p"/{Cargo.toml,Cargo.lock,pyproject.toml,setup.py,setup.cfg,Pipfile,Pipfile.lock,poetry.lock,uv.lock,pdm.lock,Podfile,Podfile.lock}
-    "$p"/requirements*.txt)
+  PF=("$p"/{Cargo.toml,Cargo.lock,pyproject.toml,setup.py,setup.cfg,Pipfile,Pipfile.lock,poetry.lock,uv.lock,pdm.lock,Podfile,Podfile.lock,.terraform.lock.hcl}
+    "$p"/requirements*.txt "$p"/*.tf "$p"/*.tf.json)
   while [[ $d == "$HOME"/* ]]; do
     if [[ -f $d/.git ]]; then # a worktree or submodule: "gitdir: PATH"
       { read -r g <"$d/.git"; } 2>/dev/null && g=${g#gitdir: } && { [[ $g == /* ]] || g=$d/$g; } && PF+=("$g/index")
@@ -3115,12 +3122,12 @@ project_files() { # PROJECT → PF: its project files, lockfiles and its reposit
   done
 }
 
-busy_paths() { # files your processes have open, and the folders cargo, rustc, python, uv or pod work in
+busy_paths() { # files your processes have open, and the folders cargo, rustc, python, uv, pod, terraform or tofu work in
   local d c
   open_files
   for d in /proc/[0-9]*; do
     { read -r c <"$d/comm"; } 2>/dev/null || continue
-    case $c in cargo | rustc | python* | uv | pod) readlink -- "$d/cwd" 2>/dev/null ;; esac
+    case $c in cargo | rustc | python* | uv | pod | terraform | tofu) readlink -- "$d/cwd" 2>/dev/null ;; esac
   done
   return 0
 }
@@ -3148,7 +3155,7 @@ stale_build_dirs() { # → SB_DIR (project) / SB_WHAT (its build folders, space-
     what+=("${BD_DIRS[*]}") dirs+=("$p") recs+=("$rec")
   done < <(find "$HOME" -xdev "${XPRUNE[@]}" \( -path "$HOME/.*" -o -path "$HOME/snap" -o -path "$HOME/Applications" \
     -o -path '*/resources/app' -o -name .git -o -name node_modules \) -prune -o \
-    -type d \( -name target -o -name .venv -o -name venv -o -name Pods \) -prune -print 2>/dev/null)
+    -type d \( -name target -o -name .venv -o -name venv -o -name Pods -o -name .terraform \) -prune -print 2>/dev/null)
   # when each project last changed: one stat for all their files
   ((${#files[@]})) && while IFS=$'\t' read -r changed f; do mtime[$f]=$changed; done < <(stat -c $'%Y\t%n' -- "${files[@]}" 2>/dev/null)
   for i in "${!dirs[@]}"; do
@@ -3428,6 +3435,38 @@ sub_pathsv _p "$HEX_NAMES" "$HOME/.cache/sccache" "$_xc/sccache" "$_d"
 reg_cache_item sccache_cache dev "sccache cache" 0 \
   "Compiler outputs sccache saved. Made again by the next build." \
   "$_p" "sccache"
+# Infrastructure tools: Terraform/OpenTofu's shared plugin cache (also the folder TF_PLUGIN_CACHE_DIR or
+# plugin_cache_dir in ~/.terraformrc names, only an absolute path inside HOME), minikube's download cache
+# (never machines/, profiles/ or certificates) and Helm's cache (never its config or data folders).
+tf_rc_cache_dirv() { # VAR → plugin_cache_dir of ~/.terraformrc when it is a plain folder inside HOME, else ""
+  local -n __tf=$1
+  local __l __v=""
+  __tf=""
+  [[ -f $HOME/.terraformrc && ! -L $HOME/.terraformrc ]] || return 0
+  while IFS= read -r __l; do
+    [[ $__l =~ ^[[:space:]]*plugin_cache_dir[[:space:]]*=[[:space:]]*\"([^\"]*)\" ]] && __v=${BASH_REMATCH[1]}
+  done <"$HOME/.terraformrc" 2>/dev/null
+  [[ $__v == "$HOME"/* && $__v != *..* && ! -L $__v ]] && __tf=${__v%/}
+  return 0
+}
+_p=""
+env_home_dirv _d TF_PLUGIN_CACHE_DIR
+tf_rc_cache_dirv _b
+_gl=() # a folder named by the user: only its registry host folders (registry.terraform.io…), so a wrong value deletes nothing else
+for _f in ${_d:+"$_d"/*.*} ${_b:+"$_b"/*.*}; do [[ -d $_f && ! -L $_f ]] && _gl+=("$_f"); done
+uniq_linesv _p "$HOME/.terraform.d/plugin-cache" "${_gl[@]}"
+reg_cache_item terraform_plugin_cache dev "Terraform plugin cache" 0 \
+  "Providers Terraform and OpenTofu keep for all projects (~/.terraform.d/plugin-cache, TF_PLUGIN_CACHE_DIR). Downloaded again by terraform init; your projects and state are kept." \
+  "$_p" "terraform|tofu"
+reg_cache_item minikube_cache dev "minikube cache" 0 \
+  "ISO images, preloaded Kubernetes images and binaries minikube downloaded (~/.minikube/cache). Downloaded again on the next start; your clusters, profiles and certificates are kept." \
+  "$HOME/.minikube/cache" "minikube"
+_p=""
+env_home_dirv _d HELM_CACHE_HOME
+sub_pathsv _p . "$HOME/.cache/helm" "$_xc/helm" "$_d"
+reg_cache_item helm_cache dev "Helm cache" 1 \
+  "Chart repository indexes and charts Helm downloaded. Fetched again on the next helm repo update; your repositories and plugins are kept." \
+  "$_p" "helm"
 GAME_PROCS='steam|steamwebhelper|lutris|heroic|gamescope|wine.*|proton.*' # launchers and games (process names)
 _gl=() # folders with a variable part in their name (radv_builtin_shaders*, qtshadercache*)
 for _b in "$HOME"/.cache/radv_builtin_shaders* "$HOME"/.cache/qtshadercache*; do [[ -d $_b ]] && _gl+=("$_b"); done
@@ -3441,7 +3480,7 @@ sub_pathsv _p GLCache "$_d"
 reg_cache_item gpu_shader_cache apps "GPU shader cache" 0 \
   "Shaders that Mesa, NVIDIA and Qt compiled for your graphics card. The system builds them again; a game may stutter briefly the first time." \
   "$_p" "$GAME_PROCS"
-unset _gl _b
+unset _gl _b _f
 # Desktop search indexes: reset with the tool's own command when it is installed
 # (it stops the indexer and starts over), else delete the folder while the indexer is not running.
 reg_cache_item tracker_index user "Desktop search index (GNOME Tracker)" 0 \
@@ -9276,7 +9315,7 @@ apply_settings() {
   ITEM_DESC[journal]="Archived system logs. Keeps the last ${JOURNAL_KEEP_DAYS} days and at most ${JOURNAL_KEEP_MB} MB."
   ITEM_DESC[tmp]="Your files in /tmp and /var/tmp not touched for ${TMP_DAYS}+ days."
   ITEM_DESC[node_modules]="node_modules of projects untouched for ${NM_DAYS}+ days. Restore with npm/yarn/pnpm install."
-  ITEM_DESC[stale_build_dirs]="Cargo target/, Python .venv/ and CocoaPods Pods/ folders of projects untouched for ${NM_DAYS}+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install or pod install."
+  ITEM_DESC[stale_build_dirs]="Cargo target/, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules folders of projects untouched for ${NM_DAYS}+ days. Moved to the Trash; rebuilt by cargo build, pip/uv install, pod install or terraform init."
 }
 
 save_setting() { # KEY VALUE — change one line of the settings file; the other app may have changed others
