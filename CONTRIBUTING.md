@@ -50,6 +50,9 @@ in `ITEM_LIGHT`: a scan then runs it in a shared process, which costs less than 
 `reg_cache_item`, `reg_list_item` and `reg_folders_item` items are light already. A light scan must not `cd`, `exit` or
 leave variables behind that the next item reads; globals it fills carry its own prefix (`IV_`, `GR_`…).
 
+`cm --scan` ends with the three slowest items (`cm --json scan`: each item's `durationMs`): check that
+a new item isn't one of them.
+
 Each `$(…)` starts a process (about half a millisecond). Code that runs on every start (item
 registration) or in a scan uses the helpers that set a variable instead of printing:
 `env_valuev`, `env_home_dirv`, `runtime_dirv`, `du_sumv`, `open_filesv`, `pluralv`, `humanv` —

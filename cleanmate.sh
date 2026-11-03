@@ -3200,12 +3200,22 @@ own_bytes() { # PATH… → bytes deleting them frees, like du -sbx, but a file 
 # next scan measures each cached folder it is in or contains again. SIZE_CACHE_DAYS caps the rest
 # (an edit deeper down).
 SIZE_CACHE_DAYS=7
-path_sigs() { # PATH… → "PATH<TAB>signature" of each: it and what is in it, and the folders in those
-  # (their files need no stat: adding or removing one changes the time of the folder above)
-  { find "$@" -maxdepth 1 -printf '%H\t%i %T@ %s %n\n'; find "$@" -mindepth 2 -maxdepth 2 -type d -printf '%H\t%i %T@ %s %n\n'; } 2>/dev/null | awk -F'\t' '
-    { split($2, a, " "); i = index(a[2], "."); k = $1; n[k]++; ino[k] += a[1]; sz[k] += a[3]; ln[k] += a[4]
-      if (i) { sec[k] += substr(a[2], 1, i - 1); ns[k] += substr(a[2], i + 1) } else sec[k] += a[2] }
-    END { for (k in n) printf "%s\t%.0f.%.0f.%.0f.%.0f.%.0f.%.0f\n", k, n[k], ino[k], sec[k], ns[k], sz[k], ln[k] }'
+path_sigs() { # JOBS PATH… → "PATH<TAB>signature" of each: it and what is in it, and the folders in those
+  # (their files need no stat: adding or removing one changes the time of the folder above).
+  # Reading the folders two levels down is most of a repeat scan: up to JOBS groups of paths at once
+  # (at most 4: more were not faster, only more processes).
+  local jobs=$1 per k
+  shift
+  (($#)) || return 0
+  ((jobs > 4)) && jobs=4
+  per=$((($# + jobs - 1) / jobs))
+  for ((k = 1; k <= $#; k += per)); do
+    { find "${@:k:per}" -maxdepth 1 -printf '%H\t%i %T@ %s %n\n'; find "${@:k:per}" -mindepth 2 -maxdepth 2 -type d -printf '%H\t%i %T@ %s %n\n'; } 2>/dev/null | awk -F'\t' '
+      { split($2, a, " "); i = index(a[2], "."); k = $1; n[k]++; ino[k] += a[1]; sz[k] += a[3]; ln[k] += a[4]
+        if (i) { sec[k] += substr(a[2], 1, i - 1); ns[k] += substr(a[2], i + 1) } else sec[k] += a[2] }
+      END { for (k in n) { printf "%s\t%.0f.%.0f.%.0f.%.0f.%.0f.%.0f\n", k, n[k], ino[k], sec[k], ns[k], sz[k], ln[k]; fflush() } }' &
+  done # each line in one write, so the groups' lines don't mix
+  wait
 }
 sized_paths() { # NAME MEASURE — stdin: lines of tab-separated paths; stdout: the bytes `MEASURE PATH…` gives for each line, in order
   local name=$1 measure=$2 file forget taken="" src now jobs line sig t b i out p ps running recs=() all=() cache=()
@@ -3230,8 +3240,8 @@ sized_paths() { # NAME MEASURE — stdin: lines of tab-separated paths; stdout: 
     done <"$src"
   fi
   for line in "${recs[@]}"; do IFS=$'\t' read -ra ps <<<"$line"; all+=("${ps[@]}"); done
-  while IFS=$'\t' read -r p sig; do sig_of[$p]=$sig; done < <(path_sigs "${all[@]}")
   jobs=$(nproc 2>/dev/null) && ((jobs > 0)) || jobs=2
+  while IFS=$'\t' read -r p sig; do sig_of[$p]=$sig; done < <(path_sigs "$jobs" "${all[@]}")
   out=$(
     running=0
     for i in "${!recs[@]}"; do
@@ -6722,7 +6732,7 @@ disk_history_lines() { # for System Overview
 
 # ───────────────────────────── scan engine ──────────────────────────────────
 
-declare -A RES_BYTES RES_NOTE RES_RC RES_HUMAN RES_LOCK SEL SCAN_GOT
+declare -A RES_BYTES RES_NOTE RES_RC RES_HUMAN RES_LOCK RES_MS SEL SCAN_GOT SCAN_START # RES_MS: how long the scan of each item took
 
 res_notev() { # VAR ID — the scan note, led by the program that has to be closed first
   local n=${RES_NOTE[$2]}
@@ -6778,32 +6788,36 @@ draw_scan_frame() { # DONE TOTAL CURRENT
 SCAN_BATCHES=4 # shared processes for the light items
 
 scan_worker() { # FILE ID… — scan the items one after the other: a line each in FILE, then FILE.ok
-  local _sw_id _sw_rc _sw_lock
+  local _sw_id _sw_rc _sw_lock _sw_t0 _sw_t1
   for _sw_id in "${@:2}"; do
     SCAN_BYTES=0 SCAN_NOTE="" _sw_lock=""
+    now_msv _sw_t0
+    printf '%s\x1f-\x1f%s\n' "$_sw_id" "$_sw_t0" # started: a scan cut short by the time limit still gets its time
     "scan_$_sw_id" </dev/null >/dev/null 2>&1; _sw_rc=$?
     ((_sw_rc == 0)) && declare -F "lockedby_$_sw_id" >/dev/null && _sw_lock=$("lockedby_$_sw_id" </dev/null 2>/dev/null)
     ((_sw_rc == 0)) && [[ -n ${ITEM_BLIND[$_sw_id]:-} ]] && SCAN_NOTE="$FLATPAK_BLIND_NOTE${SCAN_NOTE:+; $SCAN_NOTE}"
+    now_msv _sw_t1
     # fields split by \x1f: tabs are IFS whitespace, so an empty lock would vanish
-    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$_sw_id" "$_sw_rc" "${SCAN_BYTES:-0}" "${_sw_lock%%$'\n'*}" "${SCAN_NOTE%%$'\n'*}"
+    printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$_sw_id" "$_sw_rc" "${SCAN_BYTES:-0}" "${_sw_lock%%$'\n'*}" "${SCAN_NOTE%%$'\n'*}" $((_sw_t1 - _sw_t0))
   done >"$1"
   : >"$1.ok"
 }
 
 scan_collect() { # FILE — the results a worker wrote (only whole lines: one cut short by a kill is left out)
-  local id rc bytes lock note
+  local id rc bytes lock note ms
   [[ -f $1 ]] || return 0
-  while IFS=$'\x1f' read -r id rc bytes lock note; do
+  while IFS=$'\x1f' read -r id rc bytes lock note ms; do
     [[ -n ${ITEM_CAT[$id]:-} ]] || continue
+    if [[ $rc == - ]]; then SCAN_START[$id]=$bytes; continue; fi
     [[ -n ${SCAN_GOT[$id]:-} ]] || ((++SCAN_DONE))
-    RES_RC[$id]=$rc RES_BYTES[$id]=${bytes:-0} RES_LOCK[$id]=$lock RES_NOTE[$id]=$note SCAN_GOT[$id]=1
+    RES_RC[$id]=$rc RES_BYTES[$id]=${bytes:-0} RES_LOCK[$id]=$lock RES_NOTE[$id]=$note RES_MS[$id]=${ms:-0} SCAN_GOT[$id]=1
   done <"$1"
 }
 
 # Scan all items of the given categories in parallel; fills SCANNED (ordered
 # by category, junk first, biggest first), SCAN_MS and SCAN_COUNT.
 scan_items() { # CATEGORY...
-  SCANNED=() SCAN_CATS=("$@") SCAN_IDS=() SCAN_GOT=() SCAN_DONE=0
+  SCANNED=() SCAN_CATS=("$@") SCAN_IDS=() SCAN_GOT=() SCAN_START=() SCAN_DONE=0
   local found=() id cat tmp t0 now pending first=0 k h i json_last=-1 wait_n=0 watch="" reaped light=()
   local -a w_ids=() w_pid=() w_done=()
   local -A live=() cat_n=()
@@ -6879,7 +6893,9 @@ scan_items() { # CATEGORY...
   SCAN_COUNT=${#SCAN_IDS[@]}
 
   for id in "${SCAN_IDS[@]}"; do
-    [[ -n ${SCAN_GOT[$id]} ]] || RES_RC[$id]=3 RES_BYTES[$id]=0 RES_LOCK[$id]="" RES_NOTE[$id]="scan timed out"
+    # timed out: from its start to the time limit (0 if it never started)
+    [[ -n ${SCAN_GOT[$id]} ]] || RES_RC[$id]=3 RES_BYTES[$id]=0 RES_LOCK[$id]="" RES_NOTE[$id]="scan timed out" \
+      RES_MS[$id]=$((${SCAN_START[$id]:+now - SCAN_START[$id]}+0))
     ((RES_RC[$id] == 1)) && continue
     humanv h "${RES_BYTES[$id]}"
     RES_HUMAN[$id]=$h
@@ -7424,6 +7440,22 @@ scan_report() { # --scan
   plain_results
   found_total
   printf '\n  %s●%s = cleaned by --clean (%s)\n' "$GREEN" "$NC" "$(human "$SELECTED_TOTAL")"
+  scan_timing_line
+}
+
+durationv() { # VAR MS → "350 ms", "4.2 s"
+  if (($2 < 1000)); then printf -v "$1" '%d ms' "$2"; else printf -v "$1" '%d.%d s' $(($2 / 1000)) $(($2 % 1000 / 100)); fi
+}
+
+scan_timing_line() { # "Scanned in 4.2 s; slowest: …" — the three items of the last scan that took longest
+  local id ms t line slow=()
+  while IFS=$'\t' read -r ms id; do
+    durationv t "$ms"; slow+=("${ITEM_LABEL[$id]} $t")
+  done < <(for id in "${SCAN_IDS[@]}"; do printf '%d\t%s\n' "${RES_MS[$id]:-0}" "$id"; done | LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 | head -n 3)
+  durationv t "$SCAN_MS"
+  line="Scanned in $t"
+  ((${#slow[@]})) && { line+="; slowest: ${slow[0]}"; ((${#slow[@]} > 1)) && line+=$(printf ', %s' "${slow[@]:1}"); }
+  printf '  %s%s.%s\n' "$DIM" "$line" "$NC"
 }
 
 DATA_LOSS_SKIPPED=() BLIND_SKIPPED=()
@@ -10672,8 +10704,8 @@ json_item() { # ID [with scan results] → one "item" event (no subshells: calle
     case ${RES_RC[$id]} in 0) status=found ;; 3) status=timeout ;; *) status=clean ;; esac
     ((${SEL[$id]:-0})) && sel=true
     has_entries "$id" && ent=true
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s,"trash":%s,"data_loss":%s}\n' \
-      "$id" "$cat" "$label" "$desc" "$def" "$root" "$status" "${RES_BYTES[$id]:-0}" "$note" "$sel" "$lock" "$ent" "$trash" "$loss"
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s,"trash":%s,"data_loss":%s,"durationMs":%d}\n' \
+      "$id" "$cat" "$label" "$desc" "$def" "$root" "$status" "${RES_BYTES[$id]:-0}" "$note" "$sel" "$lock" "$ent" "$trash" "$loss" "${RES_MS[$id]:-0}"
   else
     printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"trash":%s,"data_loss":%s}\n' \
       "$id" "$cat" "$label" "$desc" "$def" "$root" "$trash" "$loss"
@@ -10722,7 +10754,7 @@ json_main() { # SUBCOMMAND ARGS…
       scan_items "${CATEGORIES[@]}"
       for id in "${SCANNED[@]}"; do json_item "$id" scanned; done
       found_total
-      printf '{"event":"done","ms":%d,"total_bytes":%d,"locations":%d}\n' "$SCAN_MS" "$FOUND_TOTAL" "$SCAN_COUNT" ;;
+      printf '{"event":"done","ms":%d,"durationMs":%d,"total_bytes":%d,"locations":%d}\n' "$SCAN_MS" "$SCAN_MS" "$FOUND_TOTAL" "$SCAN_COUNT" ;;
     details)
       id=${1:-}
       [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error "Unknown item: $id"; return 2; }

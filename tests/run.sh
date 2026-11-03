@@ -173,6 +173,11 @@ test_scan_report() {
   out=$(cm --scan 2>&1) || fail "--scan exited with an error"
   assert_contains "$out" "scan report"
   assert_contains "$out" "Found"
+  grep -Eq '^  Scanned in [0-9]+( ms|\.[0-9] s); slowest: .+ [0-9]+( ms|\.[0-9] s), .+ [0-9]+( ms|\.[0-9] s), .+ [0-9]+( ms|\.[0-9] s)\.$' <<<"$(tail -n 1 <<<"$out")" &&
+    ok_ "ends with the scan time and the three slowest items" || fail "no timing line: $(tail -n 1 <<<"$out")"
+  out=$(in_app 'SCAN_IDS=(trash npm thumbs journal) SCAN_MS=4210
+    RES_MS=([trash]=300 [npm]=1250 [thumbs]=40 [journal]=2000); scan_timing_line')
+  assert_eq "$out" "  Scanned in 4.2 s; slowest: $(in_app 'echo "${ITEM_LABEL[journal]} 2.0 s, ${ITEM_LABEL[npm]} 1.2 s, ${ITEM_LABEL[trash]} 300 ms"')." "the three slowest, slowest first"
 }
 
 # Regression: -prune is ignored under -delete; excluded caches must survive.
@@ -368,6 +373,9 @@ test_project_sizes_cached() {
   assert_eq "$out" "$(for i in 1 2 3 4 5 6; do printf '%s\t%s\n' "$((i * 100))" "$HOME_DIR/code/p$i/node_modules"; done; printf '3000\t%s' "$p/node_modules")" \
     "node_modules: each project with its own size"
   assert_eq "$(wc -l <"$c/sizes-node_modules.tsv")" "7" "node_modules: one cached size per folder"
+  out=$(in_app 'set -- "$HOME"/code/*/node_modules; path_sigs 1 "$@" | sort; echo; path_sigs 4 "$@" | sort')
+  assert_eq "${out#*$'\n\n'}" "${out%%$'\n\n'*}" "signatures read in groups at once are the same as in one"
+  assert_eq "$(grep -c node_modules <<<"$out")" 14 "a signature for each folder"
   sed -i "s|\t3000\t$p/node_modules\$|\t999\t$p/node_modules|" "$c/sizes-node_modules.tsv"
   out=$(in_app 'find_stale_node_modules' | grep -F "$p/")
   assert_eq "${out%%$'\t'*}" "999" "node_modules: an unchanged folder's size comes from the cache"
@@ -1171,6 +1179,18 @@ test_auto_clean_reports_what_is_left() {
   assert_contains "$out" "Google Chrome"
 }
 
+test_flatpak_metainfo_leaves_out_hidden_pages() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  local cmd out
+  cmd=$(grep -m1 "^ *- sed .*metainfo.xml >" "$ROOT/packaging/flathub/com.homielab.CleanMate.yml" | sed 's/^ *- //')
+  [[ -n $cmd ]] || { fail "the Flatpak manifest doesn't filter the metainfo"; return; }
+  out=$(cd "$ROOT" && eval "${cmd% >*}" | python3 -c 'import sys, xml.etree.ElementTree as ET
+shots = [i.text.rsplit("/", 1)[1] for i in ET.parse(sys.stdin).getroot().iter("image")]
+print(len(shots), " ".join(s for s in shots if "uninstall" in s or "startup" in s))')
+  assert_eq "$out" "10 " "Flatpak metainfo: valid XML, no Uninstaller or Startup Items screenshot"
+  assert_contains "$(cat "$ROOT/data/com.homielab.CleanMate.metainfo.xml")" "desktop-8-uninstall.png" # .deb and snap keep it
+}
+
 test_json_protocol() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -1189,6 +1209,13 @@ for l in sys.stdin:
     e = json.loads(l)
     if e.get("id") == "thumbs": print(e["status"], e["bytes"] > 0, e["selected"], e["root"])')
   assert_eq "$out" "found True True False" "thumbs item in scan"
+  out=$(cm --json scan | python3 -c 'import sys, json
+ev = [json.loads(l) for l in sys.stdin]
+items = [e for e in ev if e["event"] == "item"]
+done = ev[-1]
+ok = all(type(e["durationMs"]) is int and e["durationMs"] >= 0 for e in items)
+print(len(items) > 0, ok, type(done["durationMs"]) is int, done["durationMs"] == done["ms"], max(e["durationMs"] for e in items) <= done["durationMs"])')
+  assert_eq "$out" "True True True True True" "durationMs (whole ms) on every item and the report"
   out=$(cm --json details thumbs | python3 -c "$check" 2>&1); assert_contains "$out" "details=1"
   if ((EUID == 0)); then
     out=$(cm --json clean thumbs 2>&1); assert_contains "$out" "Refusing to clean thumbs as root"

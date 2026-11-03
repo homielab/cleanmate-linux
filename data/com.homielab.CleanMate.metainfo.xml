@@ -90,6 +90,7 @@
       <caption>Find large and old files and move them to the Trash, with undo</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-7-large.png</image>
     </screenshot>
+    <!-- not in the Flatpak: the packaging leaves this screenshot out, the page is hidden there -->
     <screenshot>
       <caption>Uninstall apt, Snap and Flatpak apps with the folders they leave behind</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-8-uninstall.png</image>
@@ -102,6 +103,7 @@
       <caption>Find duplicate files and keep the oldest copy of each</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-10-duplicates.png</image>
     </screenshot>
+    <!-- not in the Flatpak: the packaging leaves this screenshot out, the page is hidden there -->
     <screenshot>
       <caption>Choose which apps, services and timers start when you log in</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-11-startup.png</image>

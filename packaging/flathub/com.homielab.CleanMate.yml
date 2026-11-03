@@ -25,7 +25,9 @@ modules:
       # Flathub, not the app, installs updates: no update check, `cm --update` says how
       - touch /app/share/cleanmate/packaged
       - bash po/compile.sh /app/share/locale
-      - install -D -m 644 -t /app/share/metainfo data/com.homielab.CleanMate.metainfo.xml
+      # without the screenshots of the pages the Flatpak hides (Uninstaller, Startup Items)
+      - sed '/<!-- not in the Flatpak/,/<\/screenshot>/d' data/com.homielab.CleanMate.metainfo.xml >com.homielab.CleanMate.metainfo.xml
+      - install -D -m 644 -t /app/share/metainfo com.homielab.CleanMate.metainfo.xml
       - install -D -m 644 -t /app/share/icons/hicolor/scalable/apps data/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg
       # the "Open in Terminal" action runs the host's terminal, which the sandbox can't
       - sed -e '/^Actions=/d' -e '/^\[Desktop Action/,$d' data/com.homielab.CleanMate.desktop >com.homielab.CleanMate.desktop

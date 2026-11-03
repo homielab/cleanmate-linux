@@ -8,10 +8,12 @@ All notable changes are listed here. The format follows
 
 ### Added
 
-- Flatpak for Flathub (`packaging/flathub/`): the desktop app and the `cleanmate` engine, with access to your home folder only. In the Flatpak, items and pages that need your password or the host system (apt, the journal, old kernels, Docker, Uninstaller, Startup Items, Maintenance) are left out and System Junk and Logs say why; items whose program must be closed are not pre-selected, because the sandbox can't see running programs.
+- Flatpak for Flathub (`packaging/flathub/`): the desktop app and the `cleanmate` engine, with access to your home folder only. In the Flatpak, items and pages that need your password or the host system (apt, the journal, old kernels, Docker, Uninstaller, Startup Items, Maintenance) are left out and System Junk and Logs say why; items whose program must be closed are not pre-selected, because the sandbox can't see running programs. Its Flathub listing shows only screenshots of pages the Flatpak has.
+- `cm --scan` ends with how long the scan took and its three slowest items; `cm --json scan` gives `durationMs` for each item and for the whole scan (the same field as the macOS app).
 
 ### Changed
 
+- Repeat scans of a home with many idle projects are faster: the stale `node_modules` item reads its folders in parallel (about 80 → 60 ms for 50 projects).
 - The README starts with what CleanMate does, a screenshot and the install commands, and compares it with BleachBit; the full list of what it cleans moved to `docs/FEATURES.md`.
 - Minecraft caches are skipped only while Minecraft itself runs, not while any Java program (an IDE, a Gradle daemon) is open.
 

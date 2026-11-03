@@ -35,7 +35,7 @@ cm --json scan                    # default groups (no privacy)
 cm --json scan --only logs,dev    # selected groups
 ```
 
-Groups: `system, logs, user, browser, apps, ai, models, dev, privacy`. Each `"event":"item"` line has `id`, `category`, `label`, `description`, `bytes`, `status` (`found`, `clean`, `timeout`), `note`, `selected` (pre-selected by CleanMate), `locked` (empty, or the program that is running), `root`, `trash` (goes to the Trash, undoable; otherwise deleted for good), `data_loss` (may hold the user's data, see rule 6). The last line is `{"event":"done","total_bytes":…}`.
+Groups: `system, logs, user, browser, apps, ai, models, dev, privacy`. Each `"event":"item"` line has `id`, `category`, `label`, `description`, `bytes`, `status` (`found`, `clean`, `timeout`), `note`, `selected` (pre-selected by CleanMate), `locked` (empty, or the program that is running), `root`, `trash` (goes to the Trash, undoable; otherwise deleted for good), `data_loss` (may hold the user's data, see rule 6), `durationMs` (how long its scan took). The last line is `{"event":"done","total_bytes":…,"durationMs":…}`.
 
 Show the user items with `status":"found"` and `bytes` > 0 grouped by `category`, with sizes (human readable), marking locked, root, delete-for-good and `data_loss` items. Suggest the `selected` ones, except `data_loss` items. `cm --json items` lists every item without scanning; `cm --json details ID` explains one item.
 

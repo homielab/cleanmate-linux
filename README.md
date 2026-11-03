@@ -148,7 +148,7 @@ Check now with `cm --check`.
 ## Command line & AI agents
 
 ```bash
-cm --scan                        # what would Smart Scan find? (changes nothing)
+cm --scan                        # what would Smart Scan find, and which items took longest? (changes nothing)
 cm --clean                       # Smart Scan, confirm once, clean
 cm --clean --yes --only logs     # clean logs without asking (never Docker volumes or containers)
 cm --scan --only privacy         # what history is stored?
@@ -165,7 +165,7 @@ name with `cm --json clean docker_volumes`.
 **Machine-readable output.** `cm --json CMD` prints one JSON object per line and nothing else:
 
 ```bash
-cm --json scan --only logs,dev   # items with id, category, label, bytes, locked, root, trash, data_loss
+cm --json scan --only logs,dev   # items with id, category, label, bytes, locked, root, trash, data_loss, durationMs
 cm --json --dry-run clean ID…    # preview
 cm --json clean ID…              # task events, then freed bytes and Trash restore keys
 ```
