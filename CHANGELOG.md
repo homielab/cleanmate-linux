@@ -10,6 +10,7 @@ All notable changes are listed here. The format follows
 
 - Flatpak for Flathub (`packaging/flathub/`): the desktop app and the `cleanmate` engine, with access to your home folder only. In the Flatpak, items and pages that need your password or the host system (apt, the journal, old kernels, Docker, Uninstaller, Startup Items, Maintenance) are left out and System Junk and Logs say why; items whose program must be closed are not pre-selected, because the sandbox can't see running programs. Its Flathub listing shows only screenshots of pages the Flatpak has.
 - **Duplicates › Similar Photos** in the desktop app: finds photos that look alike (resized or re-saved copies, edits, burst shots) on your computer only, suggests keeping the largest one and moves the others you tick to the Trash, with Undo. Hidden folders, Never clean folders and Shotwell or digiKam libraries are skipped.
+- Desktop app, Smart Scan and the cleanup pages: **Stop** ends a scan and lists what it checked so far; **Ctrl+F** searches the results by name or path; **Never Clean This** on a listed folder (old downloads, stale build folders) adds it to *Settings › Never clean*. The confirmation lists every item with *To the Trash* or *Deleted permanently* and the total of each, and after a clean a summary (space freed, Trash vs deleted, Undo, Open Trash) stays until the next scan. The results show how long the scan took.
 - `cm --scan` ends with how long the scan took and its three slowest items; `cm --json scan` gives `durationMs` for each item and for the whole scan (the same field as the macOS app).
 
 ### Changed
@@ -17,6 +18,10 @@ All notable changes are listed here. The format follows
 - Repeat scans of a home with many idle projects are faster: the stale `node_modules` item reads its folders in parallel (about 80 → 60 ms for 50 projects).
 - The README starts with what CleanMate does, a screenshot and the install commands, and compares it with BleachBit; the full list of what it cleans moved to `docs/FEATURES.md`.
 - Minecraft caches are skipped only while Minecraft itself runs, not while any Java program (an IDE, a Gradle daemon) is open.
+
+### Fixed
+
+- A scan that hits its time limit no longer reports an item as clean when its check was cut short.
 
 ## [2.3.0] — 2026-11-02
 

@@ -7,6 +7,7 @@ the window never freezes.
 import json
 import os
 import shutil
+import signal
 
 from gi.repository import Gio, GLib
 
@@ -50,6 +51,16 @@ def human(n):
     return f"{t // 10}.{t % 10} {units[i]}"
 
 
+class Run(Gio.Cancellable):
+    """One engine run: cancel() kills it at once; stop() asks it to end early and still report (a scan
+    then lists the items it got to)."""
+    proc = None
+
+    def stop(self):
+        if self.proc and not self.is_cancelled():
+            self.proc.send_signal(signal.SIGTERM)
+
+
 class Engine:
     """Runs `cleanmate.sh --json …` and streams its events."""
 
@@ -61,7 +72,7 @@ class Engine:
     def run(self, args, on_event, on_done, as_root=False):
         """Start the engine. on_event(dict) per event, on_done(ok, exit_status) at the end.
 
-        Returns a Gio.Cancellable that stops it. With as_root, the command goes
+        Returns a Run (a Gio.Cancellable) that stops it. With as_root, the command goes
         through pkexec (the standard Ubuntu password dialog).
         """
         argv = ["bash", self.path, "--json"]
@@ -70,7 +81,7 @@ class Engine:
         if self.dry_run:
             argv.append("--dry-run")
         argv += list(args)
-        cancellable = Gio.Cancellable()
+        cancellable = Run()
         try:
             launcher = Gio.SubprocessLauncher.new(
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
@@ -83,6 +94,7 @@ class Engine:
             GLib.idle_add(on_done, False, -1)
             return cancellable
         stream = Gio.DataInputStream.new(proc.get_stdout_pipe())
+        cancellable.proc = proc
         cancellable.connect(lambda *_: proc.force_exit())
 
         def finished(p, result):

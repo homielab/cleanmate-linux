@@ -6740,8 +6740,14 @@ res_notev() { # VAR ID — the scan note, led by the program that has to be clos
   printf -v "$1" '%s' "$n"
 }
 SCAN_TIMEOUT=120
+SCAN_STOP=0 # set by SIGTERM during `--json scan` (Stop in the desktop app): end early, list what was scanned
 
-kill_tree() { local c; for c in $(pgrep -P "$1"); do kill_tree "$c"; done; kill "$1" 2>/dev/null; }
+kill_tree() { # PID — it first, so a scan worker can't report a result for the program it was waiting on, then what it started
+  local c kids
+  kids=$(pgrep -P "$1")
+  kill "$1" 2>/dev/null
+  for c in $kids; do kill_tree "$c"; done
+}
 
 now_msv() { local -n __nm=$1; local __t=${EPOCHREALTIME/[.,]/}; __nm=$((__t / 1000)); } # VAR → milliseconds since 1970
 now_ms() { local t; now_msv t; echo "$t"; }
@@ -6850,7 +6856,7 @@ scan_items() { # CATEGORY...
     while [[ -n ${SCAN_GOT[${SCAN_IDS[first]}]:-} ]]; do ((++first)); done
     pending=${ITEM_LABEL[${SCAN_IDS[first]}]}
     now=${EPOCHREALTIME/[.,]/}
-    if ((now / 1000 - t0 >= SCAN_TIMEOUT * 1000)); then
+    if ((SCAN_STOP || now / 1000 - t0 >= SCAN_TIMEOUT * 1000)); then
       for k in "${!w_ids[@]}"; do
         [[ -n ${w_done[k]:-} ]] || { kill_tree "${w_pid[k]}"; scan_collect "$tmp/$k"; }
       done
@@ -6893,6 +6899,8 @@ scan_items() { # CATEGORY...
   SCAN_COUNT=${#SCAN_IDS[@]}
 
   for id in "${SCAN_IDS[@]}"; do
+    # stopped before its scan ended: left out, it was never checked
+    [[ -z ${SCAN_GOT[$id]} ]] && ((SCAN_STOP)) && continue
     # timed out: from its start to the time limit (0 if it never started)
     [[ -n ${SCAN_GOT[$id]} ]] || RES_RC[$id]=3 RES_BYTES[$id]=0 RES_LOCK[$id]="" RES_NOTE[$id]="scan timed out" \
       RES_MS[$id]=$((${SCAN_START[$id]:+now - SCAN_START[$id]}+0))
@@ -6916,7 +6924,7 @@ scan_items() { # CATEGORY...
       printf '%d\t%d\t%d\t%s\n' "${cat_n[${ITEM_CAT[$id]}]}" "$((RES_RC[$id] == 0 ? 0 : 1))" "${RES_BYTES[$id]}" "$id"
     done | sort -t$'\t' -k1,1n -k2,2n -k3,3rn
   )
-  save_scan_cache
+  ((SCAN_STOP)) || save_scan_cache # a stopped scan is no answer for the items it left out
   record_disk_usage
   return 0
 }
@@ -10716,14 +10724,30 @@ json_error() { local m; json_str m "$1"; printf '{"event":"error","message":%s}\
 
 has_entries() { declare -F "entries_$1" >/dev/null; }
 
+entry_folderv() { # VAR ITEM ENTRY_ID [DOWNLOADS] → VAR = the folder the entry is when Settings › Never clean can
+  # take it (a real folder inside your home; the item's scan then skips it), else empty
+  local -n __ef=$1
+  local __efp
+  __ef=""
+  case $3 in
+    /*) urldecode_path __efp "$3" ;;
+    *) [[ $2 == old_downloads && -n ${4:-} ]] || return 0; urldecode_path __efp "$3"; __efp=$4/$__efp ;;
+  esac
+  [[ -d $__efp && ! -L $__efp ]] && exclusion_check __efp "$__efp" && __ef=$__efp
+  return 0
+}
+
 json_entries() { # ID → one "entry" event per part of the item that can be cleaned on its own
-  local eid b sel label note
+  local eid b sel label note path dl=""
   has_entries "$1" || return 0
+  [[ $1 == old_downloads ]] && dl=$(downloads_dir)
   while IFS=$'\t' read -r eid b sel label note; do
     json_str label "$label"
     json_str note "$note"
-    printf '{"event":"entry","item":"%s","id":"%s","bytes":%d,"label":%s,"note":%s,"selected":%s}\n' \
-      "$1" "$eid" "$b" "$label" "$note" "$( ((sel)) && echo true || echo false)"
+    entry_folderv path "$1" "$eid" "$dl"
+    if [[ -n $path ]]; then json_str path "$path"; else path=null; fi
+    printf '{"event":"entry","item":"%s","id":"%s","bytes":%d,"label":%s,"note":%s,"selected":%s,"path":%s}\n' \
+      "$1" "$eid" "$b" "$label" "$note" "$( ((sel)) && echo true || echo false)" "$path"
   done < <("entries_$1" 2>/dev/null)
 }
 
@@ -10751,10 +10775,13 @@ json_main() { # SUBCOMMAND ARGS…
       for id in "${ITEM_IDS[@]}"; do json_item "$id"; done
       printf '{"event":"done"}\n' ;;
     scan)
+      # SIGTERM (Stop in the desktop app) ends the scan early: the items scanned so far are still listed
+      trap 'SCAN_STOP=1' TERM
       scan_items "${CATEGORIES[@]}"
       for id in "${SCANNED[@]}"; do json_item "$id" scanned; done
       found_total
-      printf '{"event":"done","ms":%d,"durationMs":%d,"total_bytes":%d,"locations":%d}\n' "$SCAN_MS" "$SCAN_MS" "$FOUND_TOTAL" "$SCAN_COUNT" ;;
+      printf '{"event":"done","ms":%d,"durationMs":%d,"total_bytes":%d,"locations":%d,"stopped":%s}\n' \
+        "$SCAN_MS" "$SCAN_MS" "$FOUND_TOTAL" "$SCAN_COUNT" "$( ((SCAN_STOP)) && echo true || echo false)" ;;
     details)
       id=${1:-}
       [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error "Unknown item: $id"; return 2; }

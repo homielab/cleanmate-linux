@@ -1584,7 +1584,7 @@ def old_installers_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        maintenance_test(win, report, wait, finish)
+        scan_tools_test(win, report, wait, finish)
 
     def scanned():
         box = page.checks.get("old_installers")
@@ -1659,6 +1659,188 @@ def old_installers_test(win, report, wait, finish):
     page.scan()
     wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", scanned, 60,
          "System Junk scan")
+
+
+def scan_tools_test(win, report, wait, finish):
+    """System Junk in a throwaway home: Stop ends a slow scan (a `snap` that hangs) with what was checked, and a
+    new scan works at once; Ctrl+F filters items and their parts; the confirmation says where each item goes;
+    Never clean takes an old folder of Downloads out for good; after a clean, its summary stays until a new scan."""
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
+    trip = os.path.join(home, "Downloads", "Trip")
+    os.makedirs(trip)
+    os.makedirs(bin_dir)
+    old = time.time() - 120 * 86400  # older than Old downloads' 90 days
+    for path, size in ((os.path.join(trip, "a.jpg"), 4000), (os.path.join(home, "Downloads", "notes.pdf"), 3000)):
+        with open(path, "wb") as f:
+            f.write(b"\0" * size)
+        os.utime(path, (old, old))
+    os.utime(trip, (old, old))
+    real_pgrep = shutil.which("pgrep", path="/usr/bin:/bin")
+    stubs = {"snap": '#!/bin/sh\necho $$ >"$HOME/snap.pid"\nexec sleep 20\n'}  # Old Snap revisions hangs
+    if real_pgrep:  # the engine stops a scan's workers through `pgrep -P`; the tests stub pgrep out
+        stubs["pgrep"] = f'#!/bin/sh\n[ "$1" = -P ] && exec {real_pgrep} "$@"\nexit 1\n'
+    for name, text in stubs.items():
+        with open(os.path.join(bin_dir, name), "w") as f:
+            f.write(text)
+        os.chmod(os.path.join(bin_dir, name), 0o755)
+    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+           "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+    pid_file = os.path.join(home, "snap.pid")
+    as_root = os.geteuid() == 0
+
+    win.show_page("system")
+    page = win.pages["system"]
+    real_engine = page.engine
+    page.engine = Engine(real_engine.path, dry_run=False, env=env)
+    started = []
+
+    def done():
+        if os.path.exists(pid_file):  # never leave the hanging stub behind
+            try:
+                os.kill(int(open(pid_file).read()), 9)
+            except (ValueError, OSError):
+                pass
+        page.search_bar.set_search_mode(False)
+        page.engine = real_engine
+        shutil.rmtree(sandbox, ignore_errors=True)
+        maintenance_test(win, report, wait, finish)
+
+    def idle():
+        return page.running is None and page.stack.get_visible_child_name() in ("results", "start")
+
+    def hanging():
+        GLib.timeout_add(1500, lambda: (stop(), False)[1])  # the quick items are done by then
+
+    def stop():
+        started.append(time.monotonic())
+        page.stop()
+        wait(idle, stopped, 30, "the stopped scan")
+
+    def stopped():
+        took = time.monotonic() - started[0]
+        report(page.stopped and took < 4.5 and "snap_old" not in page.items
+               and page.items.get("old_downloads", {}).get("status") == "found",
+               f"Stop ends the scan in {took:.1f}s and lists the items it checked")
+        report(page.scan_header.get_last_child().get_label()
+               == _("The scan was stopped: items it hadn't checked yet are not listed."),
+               "the results say the scan was stopped")
+        pid = int(open(pid_file).read()) if os.path.exists(pid_file) else 0
+        wait(lambda: not real_pgrep or not alive(pid), rescan, 5, "the hanging scan's process to end")
+
+    def alive(pid):
+        try:
+            with open(f"/proc/{pid}/stat") as f:
+                return f.read().rsplit(")", 1)[1].split()[0] != "Z"
+        except (OSError, IndexError):
+            return False
+
+    def rescan():
+        report(True, "Stop leaves no scan process behind")
+        os.remove(os.path.join(bin_dir, "snap"))
+        os.remove(pid_file)
+        page.scan()
+        wait(lambda: idle() and page.stack.get_visible_child_name() == "results", search, 60, "the scan after Stop")
+
+    def search():
+        report(not page.stopped and page.scan_info.get("stopped") is False and "old_downloads" in page.item_rows,
+               "a new scan right after Stop checks everything")
+        info = page.scan_info
+        took = ngettext("{n} location scanned in {secs}s", "{n} locations scanned in {secs}s", info.get("locations", 0),
+                        secs=f"{info.get('durationMs', -1000) / 1000:.1f}")
+        report(page.scan_header.get_first_child().get_next_sibling().get_label() == took,
+               "the results show how long the scan took")
+        report(win.get_application().get_accels_for_action("win.find") == ["<Control>f"],
+               "Ctrl+F is bound to searching the results")
+        page.find()  # what Ctrl+F does on this page
+        report(page.search_bar.get_search_mode(), "Ctrl+F opens the search of the results")
+        page.search_entry.set_text("old_downloads")
+        page.apply_filter()
+        shown = {i for i, row in page.item_rows.items() if row.get_visible()}
+        report(shown == {"old_downloads"}, "the search keeps only the matching item")
+        page.item_rows["old_downloads"].set_expanded(True)
+        wait(lambda: "old_downloads" in page.entries, parts, 30, "the parts of Old downloads")
+
+    def parts():
+        rows = page.entry_rows.get("old_downloads", {})
+        page.search_entry.set_text("trip")
+        page.apply_filter()
+        report(page.item_rows["old_downloads"].get_visible() and rows.get("Trip") and rows["Trip"].get_visible()
+               and rows.get("notes.pdf") and not rows["notes.pdf"].get_visible(),
+               "the search finds a part by name and hides the others")
+        page.search_entry.set_text("no-such-thing-at-all")
+        page.apply_filter()
+        report(page.no_match.get_visible() and not any(r.get_visible() for r in page.item_rows.values()),
+               "a search with no match says so")
+        page.search_bar.set_search_mode(False)
+        page.apply_filter()
+        report(page.search_entry.get_text() == "" and page.item_rows["old_downloads"].get_visible()
+               and rows["notes.pdf"].get_visible(), "closing the search shows everything again")
+        menu = [w for w in walk(rows["Trip"]) if isinstance(w, Gtk.MenuButton)]
+        report(len(menu) == 1 and not any(isinstance(w, Gtk.MenuButton) for w in walk(rows["notes.pdf"])),
+               "a folder part offers Never clean, a file doesn't")
+        confirm()
+
+    def confirm():
+        saved = dict(page.selected)
+        other = next((i for i in ("tmp", "apt_cache") if i in page.items), None)
+        page.selected = {"old_downloads": True, **({other: True} if other else {})}
+        page.confirm_clean()
+        kinds = dict(page.confirm_rows)
+        report(kinds.get("old_downloads") == "trash" and (not other or kinds.get(other) == "delete"),
+               "the confirmation marks each item: to the Trash or deleted permanently")
+        page.confirm_dialog.close()
+        page.selected = saved
+        if as_root:
+            report(True, "Never clean and the real clean skipped: as root the engine refuses home items")
+            return done()
+        page.never_clean("old_downloads", "Trip")
+        wait(lambda: page.excluding is None, excluded, 30, "Never clean")
+
+    def excluded():
+        listed = os.path.join(home, ".config", "cleanmate", "exclude")
+        text = open(listed).read() if os.path.exists(listed) else ""
+        report(trip in text.splitlines() and "Trip" not in page.entry_rows["old_downloads"],
+               "Never clean adds the folder to Settings › Never clean and takes it off the list")
+        page.scan()
+        wait(lambda: idle() and page.stack.get_visible_child_name() == "results", rescanned, 60, "the scan after Never clean")
+
+    def rescanned():
+        page.item_rows["old_downloads"].set_expanded(True)
+        wait(lambda: "old_downloads" in page.entries, cleanable, 30, "the parts of Old downloads")
+
+    def cleanable():
+        ids = sorted(x["id"] for x in page.entries["old_downloads"])
+        report(ids == ["notes.pdf"], "a new scan leaves the Never clean folder out")
+        page.clean(["old_downloads"])
+        wait(lambda: page.clean_summary is not None and idle()
+             and page.stack.get_visible_child_name() == "results", summary, 60, "the clean of Old downloads")
+
+    def summary():
+        s = page.clean_summary
+        report(s["cleaned"] == 1 and s["trash"] == 1 and s["deleted"] == 0 and len(s["keys"]) == 1
+               and page.summary_row.get_parent() is not None and page.summary_undo is not None
+               and page.summary_undo.get_visible() and os.path.isdir(trip),
+               "after the clean a summary stays on the results: 1 item, to the Trash, with Undo")
+        page.scan()
+        wait(lambda: idle() and page.stack.get_visible_child_name() == "results", rescanned_after, 60, "a new scan")
+
+    def rescanned_after():
+        report(page.clean_summary is None, "a new scan clears the summary")
+        done()
+
+    page.scan()
+    wait(lambda: os.path.exists(pid_file) or idle(), hanging, 60, "the slow scan to start")
+
+
+def walk(widget):
+    """Every widget under WIDGET."""
+    child = widget.get_first_child()
+    while child:
+        yield child
+        yield from walk(child)
+        child = child.get_next_sibling()
 
 
 MAINT_STUBS = {  # tools of Update everything and Rebuild font cache; each logs what it was asked to do

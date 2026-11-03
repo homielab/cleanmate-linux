@@ -1623,6 +1623,47 @@ for l in sys.stdin:
   assert_contains "$out" "Downloads folder is outside your home folder ($HOME_DIR/dl-link)"
 }
 
+test_json_scan_stop() { # the desktop app's Stop: SIGTERM ends a scan early with what it checked
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  local real bin pid watchdog stub rc t0 ms out
+  real=$(PATH=/usr/bin:/bin command -v pgrep) || { SKIPPED="pgrep not installed"; return; }
+  fresh_home
+  bin=$HOME_DIR/bin
+  mkdir -p "$bin"
+  old "$HOME_DIR/Downloads/old.pdf" 120
+  printf '#!/bin/sh\necho $$ >"$HOME/snap.pid"\nexec sleep 30\n' >"$bin/snap" # Old Snap revisions hangs
+  printf '#!/bin/sh\n[ "$1" = -P ] && exec %s "$@"\nexit 1\n' "$real" >"$bin/pgrep" # the workers are found through pgrep -P
+  chmod +x "$bin/snap" "$bin/pgrep"
+  local summary='import sys, json
+ev = [json.loads(l) for l in sys.stdin if l.strip()]
+ids = {e["id"]: e["status"] for e in ev if e["event"] == "item"}
+done = [e for e in ev if e["event"] == "done"]
+print(done[-1]["stopped"] if done else "no done", ids.get("old_downloads"), "snap_old" in ids)'
+  env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" LANG=C.UTF-8 CLEANMATE_NO_UPDATE_CHECK=1 \
+    bash "$SCRIPT" --json --only system scan >"$WORK/stop.json" 2>/dev/null &
+  pid=$!
+  (sleep 15; kill -9 "$pid" 2>/dev/null) &
+  watchdog=$!
+  for _ in {1..100}; do [[ -s $HOME_DIR/snap.pid ]] && break; sleep 0.1; done
+  stub=$(cat "$HOME_DIR/snap.pid" 2>/dev/null)
+  sleep 1 # the quick items are done
+  t0=${EPOCHREALTIME/[.,]/}
+  kill -TERM "$pid"
+  wait "$pid"; rc=$?
+  ms=$(((${EPOCHREALTIME/[.,]/} - t0) / 1000))
+  kill "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null
+  assert_eq "$rc" 0 "a stopped scan exits normally"
+  out=$(python3 -c "$summary" <"$WORK/stop.json")
+  assert_eq "$out" "True found False" "a stopped scan lists what it checked, leaves out the item still running and says stopped"
+  ((ms < 3000)) && ok_ "stopped in ${ms} ms" || fail "Stop took ${ms} ms"
+  for _ in {1..20}; do [[ -n $stub ]] && kill -0 "$stub" 2>/dev/null || break; sleep 0.1; done
+  if [[ -n $stub ]] && kill -0 "$stub" 2>/dev/null; then fail "the stopped scan left its worker running"; kill -9 "$stub"; fi
+  rm "$bin/snap" "$HOME_DIR/snap.pid"
+  out=$(env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" LANG=C.UTF-8 CLEANMATE_NO_UPDATE_CHECK=1 \
+    bash "$SCRIPT" --json --only system scan 2>/dev/null | python3 -c "$summary")
+  assert_eq "$out" "False found False" "a scan right after Stop runs to the end"
+}
+
 test_old_downloads() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -1666,6 +1707,11 @@ for l in sys.stdin:
   assert_eq "$out" "Trip 5000 off Trip/ · untouched for 120 days"$'\n'"old.pdf 1000 off old.pdf · untouched for 120 days" \
     "one entry per file or folder, biggest first"
   assert_contains "$(user_cm --json details old_installers | python3 -c "$list")" "setup.deb 400"
+  out=$(user_cm --json details old_downloads | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["id"], e["path"])')
+  assert_eq "$out" "Trip $dl/Trip"$'\n'"old.pdf None" "a folder entry names the folder Never clean takes, a file none"
   out=$(user_cm --json --dry-run clean old_downloads | python3 -c "$list")
   assert_contains "$out" "ok 6000"
   assert_exists "$dl/old.pdf"
@@ -3339,6 +3385,8 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "locked row “Claude Code — cache & logs” can't be ticked (claude running)"
     assert_contains "$out" "group boxes leave locked rows unticked"
     assert_contains "$out" "age filter keeps only the old file"
+    assert_contains "$out" "the search keeps only the matching item"
+    assert_contains "$out" "the confirmation marks each item: to the Trash or deleted permanently"
     assert_contains "$out" "dry run: the file stays"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the file back where it was" # root: refused
     assert_contains "$out" "three folders deep, the path bar shows each"

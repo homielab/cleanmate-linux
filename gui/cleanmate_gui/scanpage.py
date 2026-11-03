@@ -1,8 +1,12 @@
 """One scan page: start → scanning → results (checkboxes, sizes) → cleaning."""
-from gi.repository import Adw, GLib, Gtk, Pango
+import time
+from urllib.parse import unquote
+
+from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
 from .engine import CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, human
 from .i18n import _, detail_text, item_text, ngettext, note_text
+from .settings import EXCLUSION_REASONS, short_path
 
 
 # Items whose clean-all removes something else than the parts listed (`docker volume prune` keeps named
@@ -59,6 +63,16 @@ class ScanPage(Gtk.Box):
         self.undo_toast = None  # the toast offering Undo after a clean that moved items to the Trash
         self.restoring = None  # Gio.Cancellable of the Undo run
         self.scan_again = False  # Undo finished during a scan: scan once more to show what came back
+        self.scan_info = {}  # the scan's "done" event
+        self.stopping = False  # Stop was pressed: the engine is ending the scan early
+        self.stopped = False  # the results are those of a stopped scan
+        self.clean_summary = None  # what the last clean did; its card stays until the user scans again
+        self.excluding = None  # Gio.Cancellable of a Never clean change
+        self.summary_undo = None  # the Undo button of the clean summary card
+        self.item_rows = {}  # item id → its row
+        self.entry_rows = {}  # item id → {entry id → row}
+        self.group_rows = []  # (group, junk ids, "more items are clean" row or None, [(clean row, item)])
+        self.gone = set()  # items whose every entry went to Never clean: hidden until the next scan
 
         if IN_FLATPAK and {"system", "logs"} & set(categories):
             banner = Adw.Banner(title=_("System files are out of the Flatpak's reach: the package cache, system "
@@ -85,6 +99,10 @@ class ScanPage(Gtk.Box):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, halign=Gtk.Align.CENTER)
         box.append(self.progress)
         box.append(self.progress_label)
+        self.stop_button = Gtk.Button(label=_("Stop"), halign=Gtk.Align.CENTER, css_classes=["pill"],
+                                      tooltip_text=_("Stop and show what was checked so far"))
+        self.stop_button.connect("clicked", lambda *_: self.stop())
+        box.append(self.stop_button)
         scanning = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Scanning…"), child=box)
         self.stack.add_named(scanning, "scanning")
 
@@ -92,8 +110,16 @@ class ScanPage(Gtk.Box):
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
         clamp = Adw.Clamp(maximum_size=820, child=self.results)
-        self.stack.add_named(Gtk.ScrolledWindow(child=clamp, vexpand=True,
-                                                hscrollbar_policy=Gtk.PolicyType.NEVER), "results")
+        self.search_entry = Gtk.SearchEntry(placeholder_text=_("Search results"), hexpand=True)
+        self.search_entry.connect("search-changed", lambda *_: self.apply_filter())
+        self.search_bar = Gtk.SearchBar(child=Adw.Clamp(maximum_size=820, child=self.search_entry))
+        self.search_bar.connect_entry(self.search_entry)
+        self.search_bar.connect("notify::search-mode-enabled",
+                                lambda b, _p: b.get_search_mode() or self.search_entry.set_text(""))
+        results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        results.append(self.search_bar)
+        results.append(Gtk.ScrolledWindow(child=clamp, vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER))
+        self.stack.add_named(results, "results")
 
         # 4. cleaning
         self.clean_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"])
@@ -118,7 +144,18 @@ class ScanPage(Gtk.Box):
         rescan = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Scan again"))
         rescan.connect("clicked", lambda *_: self.scan())
         self.bar.pack_end(rescan)
+        self.search_toggle = Gtk.ToggleButton(icon_name="system-search-symbolic",
+                                              tooltip_text=_("Search results (Ctrl+F)"))
+        self.search_toggle.bind_property("active", self.search_bar, "search-mode-enabled",
+                                         GObject.BindingFlags.BIDIRECTIONAL)
+        self.bar.pack_end(self.search_toggle)
         self.append(self.bar)
+
+        actions = Gio.SimpleActionGroup()  # the menus of the result rows
+        never = Gio.SimpleAction(name="never-clean", parameter_type=GLib.VariantType.new("s"))
+        never.connect("activate", lambda _a, p: self.never_clean(*p.get_string().split("\t", 1)))
+        actions.add_action(never)
+        self.insert_action_group("scan", actions)
 
     # ── scanning ──
     def reload(self):
@@ -126,10 +163,22 @@ class ScanPage(Gtk.Box):
         if not self.running and self.stack.get_visible_child_name() != "cleaning":
             self.scan()
 
-    def scan(self):
+    def find(self):
+        """Ctrl+F: search the results."""
+        if self.stack.get_visible_child_name() == "results":
+            self.search_bar.set_search_mode(True)
+            self.search_entry.grab_focus()
+
+    def scan(self, keep_summary=False):
+        """Scan again; KEEP_SUMMARY keeps the card of the last clean (the scan right after a clean or an Undo)."""
         if self.running:
             return
+        if not keep_summary:
+            self.clean_summary = None
         self.items.clear()
+        self.scan_info = {}
+        self.stopping = False
+        self.stop_button.set_sensitive(True)
         self.progress.set_fraction(0)
         self.progress_label.set_text(_("Starting…"))
         self.stack.set_visible_child_name("scanning")
@@ -137,7 +186,7 @@ class ScanPage(Gtk.Box):
         self.window.set_busy(True)
 
         def on_event(e):
-            if e["event"] == "progress":
+            if e["event"] == "progress" and not self.stopping:
                 self.progress.set_fraction(e["done"] / max(e["total"], 1))
                 self.progress_label.set_text(_("Checking {name}…").format(name=e["current"]) if e["current"] else "")
             elif e["event"] == "item":
@@ -148,6 +197,13 @@ class ScanPage(Gtk.Box):
         def on_done(ok, status):
             self.running = None
             self.window.set_busy(False)
+            self.stopped = self.stopping or bool(self.scan_info.get("stopped"))
+            self.stopping = False
+            if self.stopped and not any(e["status"] == "found" for e in self.items.values()) \
+                    and not self.clean_summary:
+                self.window.toast(_("Scan stopped"))
+                self.stack.set_visible_child_name("start")
+                return
             if not ok and not self.items:
                 self.window.toast(_("The scan failed — try the terminal app (cm) for details."))
                 self.stack.set_visible_child_name("start")
@@ -155,9 +211,20 @@ class ScanPage(Gtk.Box):
             self.show_results()
             if self.scan_again:
                 self.scan_again = False
-                self.scan()
+                self.scan(keep_summary=True)
 
         self.running = self.engine.scan(self.categories, on_event, on_done)
+
+    def stop(self):
+        """End the scan early: the engine lists the items it got to. One that doesn't end soon is killed."""
+        run = self.running
+        if not run or self.stopping:
+            return
+        self.stopping = True
+        self.stop_button.set_sensitive(False)
+        self.progress_label.set_text(_("Stopping…"))
+        run.stop()
+        GLib.timeout_add_seconds(5, lambda: (run is self.running and run.cancel(), False)[1])
 
     # ── results ──
     def show_results(self):
@@ -171,30 +238,42 @@ class ScanPage(Gtk.Box):
         self.entry_selected.clear()
         self.entry_checks.clear()
         self.size_labels.clear()
+        self.item_rows.clear()
+        self.entry_rows.clear()
+        self.group_rows.clear()
+        self.gone.clear()
         # an item whose program is running is skipped by the engine: never tick it
         self.selected = {i: e["selected"] and not e.get("locked") for i, e in self.items.items()
                          if e["status"] == "found"}
 
         found = [e for e in self.items.values() if e["status"] == "found"]
         total = sum(e["bytes"] for e in found)
+        info = self.scan_info
+        scanned = ngettext("{n} location scanned in {secs}s", "{n} locations scanned in {secs}s",
+                           info.get("locations", 0), secs=f"{info.get('durationMs', info.get('ms', 0)) / 1000:.1f}")
         if self.privacy:
             head = ngettext("{n} history list with entries", "{n} history lists with entries", len(found)) \
                 if found else _("Nothing to clear")
-            sub = _("Pick what to clear — nothing happens until you confirm.")
+            lines = [_("Pick what to clear — nothing happens until you confirm."), scanned]
         elif found:
-            info = getattr(self, "scan_info", {})
             head = ngettext("{size} of junk found in {n} item", "{size} of junk found in {n} items", len(found),
                             size=human(total))
-            sub = ngettext("{n} location scanned in {secs}s", "{n} locations scanned in {secs}s",
-                           info.get("locations", 0), secs=f"{info.get('ms', 0) / 1000:.1f}")
+            lines = [scanned]
+        elif self.stopped:
+            head, lines = _("Scan stopped"), [_("Nothing worth removing was found in what was checked."), scanned]
         else:
-            head, sub = _("Your system is clean"), _("Nothing worth removing was found.")
-        title = Gtk.Label(label=head, xalign=0, wrap=True, css_classes=["title-1"])
-        subtitle = Gtk.Label(label=sub, xalign=0, css_classes=["dim-label"])
+            head, lines = _("Your system is clean"), [_("Nothing worth removing was found."), scanned]
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        header.append(title)
-        header.append(subtitle)
+        header.append(Gtk.Label(label=head, xalign=0, wrap=True, css_classes=["title-1"]))
+        for line in lines:
+            header.append(Gtk.Label(label=line, xalign=0, wrap=True, css_classes=["dim-label"]))
+        if self.stopped:
+            header.append(Gtk.Label(label=_("The scan was stopped: items it hadn't checked yet are not listed."),
+                                    xalign=0, wrap=True, css_classes=["warning"]))
+        self.scan_header = header
         self.results.append(header)
+        if self.clean_summary:
+            self.results.append(self.summary_card())
 
         biggest = max([e["bytes"] for e in found] or [1])
         for cat in self.categories:
@@ -214,7 +293,10 @@ class ScanPage(Gtk.Box):
                 group.set_header_suffix(toggle)
                 self.group_buttons.append((toggle, free))
             for e in junk:
-                group.add(self.item_row(e, biggest))
+                row = self.item_row(e, biggest)
+                self.item_rows[e["id"]] = row
+                group.add(row)
+            more, clean_rows = None, []
             if clean:
                 more = Adw.ExpanderRow(title=ngettext("{n} more item is clean", "{n} more items are clean", len(clean)),
                                        use_markup=False)
@@ -224,12 +306,62 @@ class ScanPage(Gtk.Box):
                                          use_markup=False)
                     row.add_css_class("dim-label")
                     more.add_row(row)
+                    clean_rows.append((row, e))
                 group.add(more)
+            self.group_rows.append((group, [e["id"] for e in junk], more, clean_rows))
             self.results.append(group)
+        self.no_match = Adw.StatusPage(icon_name="system-search-symbolic", title=_("No results"),
+                                       description=_("Nothing found matches your search."), visible=False)
+        self.results.append(self.no_match)
 
         self.stack.set_visible_child_name("results")
         self.bar.set_revealed(bool(found))
         self.update_summary()
+        self.apply_filter()
+
+    # ── search: Ctrl+F filters items and their listed parts by name or path ──
+    @staticmethod
+    def matches(words, *texts):
+        hay = " ".join(t for t in texts if t).casefold()
+        return all(w in hay for w in words)
+
+    def item_matches(self, words, e):
+        return self.matches(words, item_text(e["label"]), e["label"], item_text(e["description"]), e["id"],
+                            note_text(e.get("note") or ""))
+
+    def entry_matches(self, words, x):
+        return self.matches(words, detail_text(x["label"]), x["label"], x.get("path") or "", unquote(x["id"]))
+
+    def apply_filter(self):
+        words = self.search_entry.get_text().casefold().split()
+        shown_any = False
+        for group, junk, more, clean_rows in self.group_rows:
+            shown = 0
+            for i in junk:
+                row, e = self.item_rows[i], self.items[i]
+                own = not words or self.item_matches(words, e)
+                parts = self.entry_rows.get(i, {})
+                hits = {x["id"] for x in self.entries.get(i, []) if x["id"] in parts
+                        and (own or self.entry_matches(words, x))}
+                for entry_id, part in parts.items():
+                    part.set_visible(entry_id in hits)
+                visible = (own or bool(hits)) and i not in self.gone
+                row.set_visible(visible)
+                if visible and hits and not own:
+                    row.set_expanded(True)  # show the parts that matched
+                shown += visible
+            if more:
+                n = 0
+                for row, e in clean_rows:
+                    on = not words or self.item_matches(words, e)
+                    row.set_visible(on)
+                    n += on
+                more.set_visible(n > 0)
+                shown += n
+            group.set_visible(shown > 0)
+            shown_any = shown_any or shown > 0
+        if hasattr(self, "no_match"):
+            self.no_match.set_visible(bool(words) and not shown_any)
 
     def item_row(self, e, biggest):
         locked = e.get("locked") or ""  # the program that has to be closed first
@@ -297,10 +429,14 @@ class ScanPage(Gtk.Box):
             picked = {x["id"] for x in found if x["selected"]} or {x["id"] for x in found}
             self.entry_selected[item_id] = picked if on else set()
             self.entry_checks[item_id] = {}
+            self.entry_rows[item_id] = {}
             for x in found:
-                row.add_row(self.entry_row(item_id, x))
+                part = self.entry_row(item_id, x)
+                self.entry_rows[item_id][x["id"]] = part
+                row.add_row(part)
             self.sync_item(item_id)
             self.update_summary()
+            self.apply_filter()
 
         self.engine.details(item_id, on_event, on_done)
 
@@ -315,7 +451,72 @@ class ScanPage(Gtk.Box):
         row.set_activatable_widget(check)
         row.add_suffix(Gtk.Label(label=human(x["bytes"]), width_chars=9, xalign=1,
                                  css_classes=["numeric", "dim-label"]))
+        if x.get("path") and not self.items[item_id]["root"]:  # a folder Settings › Never clean can take
+            menu = Gio.Menu()
+            never = Gio.MenuItem.new(_("Never Clean This"), None)
+            never.set_action_and_target_value("scan.never-clean", GLib.Variant.new_string(f"{item_id}\t{x['id']}"))
+            menu.append_item(never)
+            row.add_suffix(Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.CENTER,
+                                          css_classes=["flat"], tooltip_text=_("More")))
         return row
+
+    # ── Never clean: a listed folder goes to Settings › Never clean; scans skip it from then on ──
+    def never_clean(self, item_id, entry_id):
+        x = next((x for x in self.entries.get(item_id, []) if x["id"] == entry_id), None)
+        if not x or not x.get("path") or self.excluding:
+            return
+        path, result = x["path"], {}
+
+        def on_event(e):
+            if e["event"] in ("task", "error"):
+                result.update(e)
+
+        def on_done(ok, status):
+            self.excluding = None
+            self.window.set_busy(False)
+            if result.get("state") != "ok":
+                reason = result.get("info") or result.get("message", "")
+                self.window.toast(_("Could not change it: {reason}").format(reason=EXCLUSION_REASONS.get(reason, reason)))
+            elif self.engine.dry_run:
+                self.window.toast(_("Dry run: nothing was saved"))
+            else:
+                self.drop_entry(item_id, entry_id)
+                self.window.toast(_("{folder} is never cleaned now").format(folder=short_path(path)), _("Undo"),
+                                  lambda: self.allow_clean(path), timeout=10)
+
+        self.window.set_busy(True)
+        self.excluding = self.engine.settings_set("exclusions", ["add", path], on_event, on_done)
+
+    def allow_clean(self, path):
+        """Undo of Never clean: the folder can be cleaned again; scan again to list it."""
+        def on_done(ok, status):
+            self.window.set_busy(False)
+            if ok:
+                self.window.toast(_("{folder} can be cleaned again").format(folder=short_path(path)))
+                if self.stack.get_visible_child_name() == "results":
+                    self.scan(keep_summary=True)
+
+        self.window.set_busy(True)
+        self.engine.settings_set("exclusions", ["remove", path], lambda e: None, on_done)
+
+    def drop_entry(self, item_id, entry_id):
+        """Take a part out of the results (it went to Never clean); an item left without parts is hidden."""
+        part = self.entry_rows.get(item_id, {}).pop(entry_id, None)
+        if part is None:
+            return
+        self.item_rows[item_id].remove(part)
+        self.entry_checks[item_id].pop(entry_id, None)
+        self.entry_selected[item_id].discard(entry_id)
+        x = next(x for x in self.entries[item_id] if x["id"] == entry_id)
+        self.entries[item_id].remove(x)
+        self.items[item_id]["bytes"] = max(0, self.items[item_id]["bytes"] - x["bytes"])
+        if self.entries[item_id]:
+            self.sync_item(item_id)
+        else:
+            self.gone.add(item_id)
+            self.selected[item_id] = False
+            self.item_rows[item_id].set_visible(False)
+        self.update_summary()
 
     def on_entry_toggled(self, check, item_id, entry_id):
         if self.entry_syncing:
@@ -426,18 +627,37 @@ class ScanPage(Gtk.Box):
             return
         total = sum(self.chosen_bytes(i) for i in ids)
         needs_root = any(self.items[i]["root"] for i in ids)
-        lines = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        for i in ids[:12]:
-            e = self.items[i]
+        kind_text = {"trash": _("To the Trash"), "delete": _("Deleted permanently")}
+        lines = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.confirm_rows = []  # (item id, kind): what the dialog says happens to each
+        for i in ids:
+            e, kind = self.items[i], self.clean_kind(i)
             row = Gtk.Box(spacing=12)
-            row.append(Gtk.Label(label=item_text(e["label"]), xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
+            row.append(Gtk.Label(label=item_text(e["label"]), xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
+                                 tooltip_text=item_text(e["label"])))
             if e["root"]:
-                row.append(Gtk.Image(icon_name="system-lock-screen-symbolic"))
+                row.append(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password")))
+            row.append(Gtk.Label(label=kind_text[kind], css_classes=["caption", "dim-label" if kind == "trash" else "warning"]))
             if not self.privacy:
-                row.append(Gtk.Label(label=human(self.chosen_bytes(i)), css_classes=["numeric", "dim-label"]))
+                row.append(Gtk.Label(label=human(self.chosen_bytes(i)), width_chars=9, xalign=1,
+                                     css_classes=["numeric", "dim-label"]))
             lines.append(row)
-        if len(ids) > 12:
-            lines.append(Gtk.Label(label=_("… and {n} more").format(n=len(ids) - 12), xalign=0, css_classes=["dim-label"]))
+            self.confirm_rows.append((i, kind))
+        rows = Gtk.ScrolledWindow(child=lines, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
+                                  max_content_height=300)
+        extra = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        extra.append(rows)
+        if not self.privacy:  # the totals of each kind
+            trash = [i for i, k in self.confirm_rows if k == "trash"]
+            gone = [i for i, k in self.confirm_rows if k == "delete"]
+            if trash:
+                extra.append(Gtk.Label(xalign=0, wrap=True, label=ngettext(
+                    "To the Trash: {size} in {n} item", "To the Trash: {size} in {n} items", len(trash),
+                    size=human(sum(self.chosen_bytes(i) for i in trash)))))
+            if gone:
+                extra.append(Gtk.Label(xalign=0, wrap=True, label=ngettext(
+                    "Deleted permanently: {size} in {n} item", "Deleted permanently: {size} in {n} items", len(gone),
+                    size=human(sum(self.chosen_bytes(i) for i in gone)))))
 
         if self.privacy:
             heading = ngettext("Clear {n} history list?", "Clear {n} history lists?", len(ids))
@@ -447,7 +667,7 @@ class ScanPage(Gtk.Box):
             body = _("About {size} will be removed.").format(size=human(total)) + " " + self.undo_note(ids)
         if needs_root:
             body += " " + _("Items with a lock need your password.")
-        dialog = Adw.AlertDialog(heading=heading, body=body, extra_child=lines)
+        dialog = Adw.AlertDialog(heading=heading, body=body, extra_child=extra)
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("clean", _("Clear") if self.privacy else _("Clean"))
         dialog.set_response_appearance("clean", Adw.ResponseAppearance.SUGGESTED)
@@ -455,6 +675,11 @@ class ScanPage(Gtk.Box):
         dialog.set_close_response("cancel")
         dialog.connect("response", lambda d, r: r == "clean" and self.clean(ids))
         dialog.present(self.window)
+        self.confirm_dialog = dialog
+
+    def clean_kind(self, item_id):
+        """Where a clean puts the item: "trash" (Undo can bring it back) or "delete" (gone for good)."""
+        return "trash" if self.items[item_id].get("trash") and not self.privacy else "delete"
 
     def undo_note(self, ids):
         """What the confirmation says about undoing: only items that go to the Trash come back."""
@@ -471,6 +696,7 @@ class ScanPage(Gtk.Box):
         self.avail = [None, None]  # free space before the first and after the last run
         self.done_count = 0
         self.total_count = len(ids)
+        self.task_states = {}  # item id → ok / skip / fail
         child = self.clean_list.get_first_child()
         while child:
             self.clean_list.remove(child)
@@ -507,6 +733,7 @@ class ScanPage(Gtk.Box):
             row.set_subtitle(e["info"] or {"ok": _("done"), "skip": _("skipped")}.get(e["state"], _("failed")))
             self.freed += e["freed"]
             self.done_count += 1
+            self.task_states[e["id"]] = e["state"]
             self.clean_progress.set_fraction(self.done_count / max(self.total_count, 1))
 
         def run_root():
@@ -539,6 +766,16 @@ class ScanPage(Gtk.Box):
                         before=human(self.avail[0]), after=human(self.avail[1]))
             self.clean_title.set_text(msg)
             keys = [k for item_keys in self.trashed.values() for k in item_keys]
+            ok = [i for i, state in self.task_states.items() if state == "ok"]
+            trash = [i for i in ok if i in self.trashed or (self.engine.dry_run and self.clean_kind(i) == "trash")]
+            states = list(self.task_states.values())
+            self.clean_summary = {
+                "title": msg, "cleaned": len(ok), "trash": len(trash), "deleted": len(ok) - len(trash),
+                # items that never reported were skipped: the password dialog was dismissed
+                "skipped": states.count("skip") + len(ids) - len(states),
+                "failed": sum(1 for state in states if state not in ("ok", "skip")),
+                "keys": [] if self.engine.dry_run else keys, "undo_until": time.monotonic() + 10, "restored": None,
+            }
             if keys and not self.engine.dry_run:
                 text = ngettext("Freed {size} · {n} item moved to the Trash",
                                 "Freed {size} · {n} items moved to the Trash", len(keys), size=human(self.freed))
@@ -546,7 +783,7 @@ class ScanPage(Gtk.Box):
             else:
                 self.window.toast(msg)
             self.window.refresh_disk()
-            GLib.timeout_add(1200, lambda: (self.scan(), False)[1])
+            GLib.timeout_add(1200, lambda: (self.scan(keep_summary=True), False)[1])
 
         # items with only some entries ticked (or a BY_ENTRY item) run one by one with those entries, the rest together
         some = {i: sorted(self.entry_selected[i]) for i in user_ids if self.by_entries(i)}
@@ -561,11 +798,50 @@ class ScanPage(Gtk.Box):
 
         run_user()
 
+    def summary_card(self):
+        """What the last clean did; stays on top of the results until the user scans again."""
+        s = self.clean_summary
+        parts = [ngettext("{n} item cleaned", "{n} items cleaned", s["cleaned"])]
+        if s["trash"]:
+            parts.append(ngettext("{n} moved to the Trash", "{n} moved to the Trash", s["trash"]))
+        if s["deleted"]:
+            parts.append(ngettext("{n} deleted permanently", "{n} deleted permanently", s["deleted"]))
+        if s["skipped"]:
+            parts.append(ngettext("{n} skipped", "{n} skipped", s["skipped"]))
+        if s["failed"]:
+            parts.append(ngettext("{n} failed", "{n} failed", s["failed"]))
+        if s["restored"] is not None:
+            parts.append(ngettext("Put back {n} item from the Trash", "Put back {n} items from the Trash",
+                                  s["restored"]))
+        row = Adw.ActionRow(title=s["title"], subtitle=" · ".join(parts), use_markup=False, subtitle_lines=0,
+                            css_classes=["clean-summary"])
+        row.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"], valign=Gtk.Align.CENTER))
+        self.summary_undo = None
+        left = s["undo_until"] - time.monotonic()
+        if s["keys"] and s["restored"] is None and left > 0:  # Undo, as long as the toast offered it
+            undo = Gtk.Button(label=_("Undo"), valign=Gtk.Align.CENTER)
+            undo.connect("clicked", lambda *_: self.undo(s["keys"]))
+            row.add_suffix(undo)
+            self.summary_undo = undo
+            GLib.timeout_add(int(left * 1000), lambda: (undo.set_visible(False), False)[1])
+        if s["trash"] and not self.engine.dry_run:
+            trash = Gtk.Button(label=_("Open Trash"), valign=Gtk.Align.CENTER)
+            trash.connect("clicked", lambda *_: Gtk.UriLauncher.new("trash:///").launch(self.window, None, None))
+            row.add_suffix(trash)
+        card = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"])
+        card.append(row)
+        self.summary_row = row
+        return card
+
     # ── undo: put back what the last clean moved to the Trash ──
     def undo(self, keys):
         if self.restoring or not keys:
             return
+        if self.undo_toast:
+            self.undo_toast.dismiss()
         self.undo_toast = None
+        if self.summary_undo:
+            self.summary_undo.set_visible(False)
         back, failed = [], []
 
         def on_event(e):
@@ -583,11 +859,13 @@ class ScanPage(Gtk.Box):
             else:
                 self.window.toast(ngettext("Put back {n} item from the Trash", "Put back {n} items from the Trash",
                                            len(back)))
+            if self.clean_summary and self.clean_summary["keys"] == keys:
+                self.clean_summary["restored"] = len(back)
             self.window.refresh_disk()
             if self.running:  # a scan is on its way: it may have missed what came back
                 self.scan_again = True
             elif self.stack.get_visible_child_name() != "cleaning":  # a clean scans again when it ends
-                self.scan()
+                self.scan(keep_summary=True)
 
         self.window.set_busy(True)
         self.restoring = self.engine.restore(keys, on_event, on_done)

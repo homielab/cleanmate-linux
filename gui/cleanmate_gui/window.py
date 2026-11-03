@@ -180,6 +180,7 @@ class Window(Adw.ApplicationWindow):
         for n, pid in enumerate(SHORTCUT_PAGES, 1):
             app.set_accels_for_action(f"win.page::{pid}", [f"<Control>{n}"])
         for name, cb, accels in (("reload", lambda *_: self.reload_page(), ["<Control>r", "F5"]),
+                                 ("find", lambda *_: self.find_on_page(), ["<Control>f"]),
                                  ("shortcuts", lambda *_: self.show_shortcuts(),
                                   ["<Control>question", "<Control>slash"])):
             action = Gio.SimpleAction(name=name)
@@ -237,12 +238,19 @@ class Window(Adw.ApplicationWindow):
         if page and not self.get_visible_dialog() and hasattr(page, "reload"):
             page.reload()
 
+    def find_on_page(self):
+        """Ctrl+F: search the open page's results (the cleanup pages)."""
+        page = self.content_stack.get_visible_child()
+        if page and not self.get_visible_dialog() and hasattr(page, "find"):
+            page.find()
+
     def show_shortcuts(self):
         section = Gtk.ShortcutsSection(section_name="shortcuts", title=_("Keyboard Shortcuts"))
         groups = [
             (_("Pages"), [(f"<Control>{n}", next(s[1] for s in PAGES if s and s[0] == pid))
                           for n, pid in enumerate(SHORTCUT_PAGES, 1)]),
             (_("General"), [("<Control>r F5", _("Scan, search or list again")),
+                            ("<Control>f", _("Search results")),
                             ("<Control>comma", _("Settings")),
                             ("<Control>question", _("Keyboard Shortcuts")),
                             ("<Control>q", _("Quit"))]),
