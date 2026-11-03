@@ -9,6 +9,7 @@ import os
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
+from .a11y import named
 from .engine import human
 from .i18n import _, ngettext
 from .largefiles import short_path
@@ -53,15 +54,15 @@ class SpaceLensPage(Gtk.Box):
         self.undo_toast = None
 
         # path bar
-        self.up_button = Gtk.Button(icon_name="go-up-symbolic", tooltip_text=_("Up one folder"),
-                                    valign=Gtk.Align.CENTER)
+        self.up_button = named(Gtk.Button(icon_name="go-up-symbolic", tooltip_text=_("Up one folder"),
+                                          valign=Gtk.Align.CENTER))
         self.up_button.connect("clicked", lambda *_a: self.up())
         self.crumbs = Gtk.Box(spacing=2)
         crumbs_scroll = Gtk.ScrolledWindow(child=self.crumbs, hexpand=True, vscrollbar_policy=Gtk.PolicyType.NEVER,
                                            hscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
         crumbs_scroll.set_propagate_natural_height(True)
-        folder_button = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER,
-                                   tooltip_text=_("Explore another folder (also a drive)"))
+        folder_button = named(Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER,
+                                         tooltip_text=_("Explore another folder (also a drive)")))
         folder_button.connect("clicked", lambda *_a: self.choose_folder())
         top = Gtk.Box(spacing=6, margin_top=8, margin_bottom=8, margin_start=12, margin_end=12)
         top.append(self.up_button)
@@ -89,7 +90,7 @@ class SpaceLensPage(Gtk.Box):
         self.trash_button = Gtk.Button(label=_("Move to Trash"), css_classes=["destructive-action"])
         self.trash_button.connect("clicked", lambda *_a: self.confirm_trash())
         self.bar.pack_end(self.trash_button)
-        again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Measure again"))
+        again = named(Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Measure again")))
         again.connect("clicked", lambda *_a: self.load(self.folder, fresh=True))
         self.bar.pack_end(again)
         self.append(self.bar)
@@ -302,8 +303,8 @@ class SpaceLensPage(Gtk.Box):
         row.add_prefix(check)  # prefixes stack leftwards: the box comes first
         for widget in size_widgets(e["bytes"], biggest):
             row.add_suffix(widget)
-        show = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                          tooltip_text=_("Show in Files"))
+        show = named(Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                                tooltip_text=_("Show in Files")))
         show.connect("clicked", lambda *_a: Gtk.FileLauncher.new(Gio.File.new_for_path(path))
                      .open_containing_folder(self.window, None, None))
         row.add_suffix(show)

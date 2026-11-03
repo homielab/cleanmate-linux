@@ -67,6 +67,8 @@ class App(Adw.Application):
         win = Window(self, self.engine)
         if getattr(self, "window_size", None):
             win.set_default_size(*self.window_size)
+        if not self.selftest:  # the self-test and the screenshots always start on System Overview
+            win.restore_state()
         win.present()
         if self.selftest:
             from .selftest import run

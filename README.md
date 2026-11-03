@@ -138,6 +138,9 @@ junk and notifies you: *"Freed 1.2 GB. Worth a look: Docker build cache 2.0 GB, 
 containers or project build folders and never needs your password. In the desktop app it's in *Settings* in the main
 menu (Ctrl+,); both apps share the same settings.
 
+*Settings → Scan groups* turns a whole group off (say, Developer Junk on a machine you don't code on):
+Smart Scan, `--scan`, `--clean` and automatic cleaning leave it out.
+
 ## Low disk alert and scan reminder
 
 CleanMate notifies you when `/` has less than 10 % free (*Settings → Low disk alert*: 5–20 % or

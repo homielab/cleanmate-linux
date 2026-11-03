@@ -14,6 +14,7 @@ import threading
 import gi
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
 
+from .a11y import named
 from . import similar
 from .i18n import _
 
@@ -249,7 +250,7 @@ def row_buttons(row, window, path):
     (Space and a click still tick its box)."""
     for icon, tip, action in (("document-open-symbolic", _("Open"), lambda *_a: open_file(window, path)),
                               ("folder-open-symbolic", _("Show in Files"), lambda *_a: show_in_files(window, path))):
-        button = Gtk.Button(icon_name=icon, valign=Gtk.Align.CENTER, css_classes=["flat"], tooltip_text=tip)
+        button = named(Gtk.Button(icon_name=icon, valign=Gtk.Align.CENTER, css_classes=["flat"], tooltip_text=tip))
         button.connect("clicked", action)
         row.add_suffix(button)
     keys = Gtk.EventControllerKey(propagation_phase=Gtk.PropagationPhase.CAPTURE)

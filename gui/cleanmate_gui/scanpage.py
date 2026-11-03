@@ -4,7 +4,8 @@ from urllib.parse import unquote
 
 from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
-from .engine import CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, human
+from .a11y import named
+from .engine import CAT_GROUP, CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, SMART_SCAN, human
 from .i18n import _, detail_text, item_text, ngettext, note_text
 from .settings import EXCLUSION_REASONS, short_path
 
@@ -48,6 +49,8 @@ class ScanPage(Gtk.Box):
         self.title = title
         self.categories = categories
         self.privacy = categories == ["privacy"]
+        self.smart = categories == SMART_SCAN  # the engine leaves out the groups turned off in Settings
+        self.groups = [] if self.smart else sorted({CAT_GROUP.get(c, c) for c in categories})
         self.items = {}  # id → item event (from the last scan)
         self.selected = {}  # id → bool
         self.checks = {}  # id → Gtk.CheckButton
@@ -92,6 +95,13 @@ class ScanPage(Gtk.Box):
         button.connect("clicked", lambda *_: self.scan())
         start = Adw.StatusPage(icon_name=icon, title=title, description=description, child=button)
         self.stack.add_named(start, "start")
+
+        # 1b. the page's group is turned off in Settings › Scan groups
+        turn_on = Gtk.Button(label=_("Turn On"), halign=Gtk.Align.CENTER, css_classes=["pill", "suggested-action"])
+        turn_on.connect("clicked", lambda *_: self.turn_on())
+        self.stack.add_named(Adw.StatusPage(icon_name=icon, title=title, child=turn_on,
+                                            description=_("This group is turned off in Settings, so Smart Scan "
+                                                          "leaves it out.")), "off")
 
         # 2. scanning
         self.progress = Gtk.ProgressBar(show_text=False, width_request=320, halign=Gtk.Align.CENTER)
@@ -141,11 +151,11 @@ class ScanPage(Gtk.Box):
         self.clean_button.add_css_class("suggested-action")
         self.clean_button.connect("clicked", lambda *_: self.confirm_clean())
         self.bar.pack_end(self.clean_button)
-        rescan = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Scan again"))
+        rescan = named(Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Scan again")))
         rescan.connect("clicked", lambda *_: self.scan())
         self.bar.pack_end(rescan)
-        self.search_toggle = Gtk.ToggleButton(icon_name="system-search-symbolic",
-                                              tooltip_text=_("Search results (Ctrl+F)"))
+        self.search_toggle = named(Gtk.ToggleButton(icon_name="system-search-symbolic",
+                                                    tooltip_text=_("Search results (Ctrl+F)")))
         self.search_toggle.bind_property("active", self.search_bar, "search-mode-enabled",
                                          GObject.BindingFlags.BIDIRECTIONAL)
         self.bar.pack_end(self.search_toggle)
@@ -157,10 +167,44 @@ class ScanPage(Gtk.Box):
         actions.add_action(never)
         self.insert_action_group("scan", actions)
 
+    # ── Settings › Scan groups ──
+    def group_off(self):
+        return bool(self.groups) and not any(self.engine.group_on(g) for g in self.groups)
+
+    def groups_changed(self):
+        """A group was turned on or off: show the page's start or its "turned off" screen."""
+        page = self.stack.get_visible_child_name()
+        if self.group_off() and page == "start":
+            self.stack.set_visible_child_name("off")
+        elif not self.group_off() and page == "off":
+            self.stack.set_visible_child_name("start")
+
+    def turn_on(self):
+        pending = [g for g in self.groups if not self.engine.group_on(g)]
+        result = {}
+
+        def on_event(e):
+            if e["event"] in ("task", "error"):
+                result.update(e)
+
+        def on_done(ok, status):
+            if result.get("state") != "ok":
+                self.window.toast(_("Could not change it: {reason}").format(
+                    reason=result.get("info") or result.get("message", "")))
+            elif pending:
+                return next_group()
+            self.window.groups_changed()
+
+        def next_group():
+            self.engine.settings_set("group_" + pending.pop(0), "1", on_event, on_done)
+
+        if pending:
+            next_group()
+
     # ── scanning ──
     def reload(self):
         """Ctrl+R: scan again, unless a scan or a clean is running."""
-        if not self.running and self.stack.get_visible_child_name() != "cleaning":
+        if not self.running and self.stack.get_visible_child_name() not in ("cleaning", "off"):
             self.scan()
 
     def find(self):
@@ -172,6 +216,9 @@ class ScanPage(Gtk.Box):
     def scan(self, keep_summary=False):
         """Scan again; KEEP_SUMMARY keeps the card of the last clean (the scan right after a clean or an Undo)."""
         if self.running:
+            return
+        if self.group_off():
+            self.stack.set_visible_child_name("off")
             return
         if not keep_summary:
             self.clean_summary = None
@@ -213,7 +260,7 @@ class ScanPage(Gtk.Box):
                 self.scan_again = False
                 self.scan(keep_summary=True)
 
-        self.running = self.engine.scan(self.categories, on_event, on_done)
+        self.running = self.engine.scan(None if self.smart else self.categories, on_event, on_done)
 
     def stop(self):
         """End the scan early: the engine lists the items it got to. One that doesn't end soon is killed."""
@@ -391,8 +438,8 @@ class ScanPage(Gtk.Box):
             bar, size = size_widgets(e["bytes"], biggest)
             self.size_labels[e["id"]] = size
             suffixes += [bar, size]
-        info = Gtk.Button(icon_name="go-next-symbolic", valign=Gtk.Align.CENTER,
-                          css_classes=["flat"], tooltip_text=_("Show what's inside"))
+        info = named(Gtk.Button(icon_name="go-next-symbolic", valign=Gtk.Align.CENTER,
+                                css_classes=["flat"], tooltip_text=_("Show what's inside")))
         info.connect("clicked", lambda *_: self.show_details(e))
         suffixes.append(info)
         if expander:  # an ExpanderRow stacks its suffixes the other way round
@@ -456,8 +503,9 @@ class ScanPage(Gtk.Box):
             never = Gio.MenuItem.new(_("Never Clean This"), None)
             never.set_action_and_target_value("scan.never-clean", GLib.Variant.new_string(f"{item_id}\t{x['id']}"))
             menu.append_item(never)
-            row.add_suffix(Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.CENTER,
-                                          css_classes=["flat"], tooltip_text=_("More")))
+            row.add_suffix(named(Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu,
+                                                valign=Gtk.Align.CENTER, css_classes=["flat"],
+                                                tooltip_text=_("More"))))
         return row
 
     # ── Never clean: a listed folder goes to Settings › Never clean; scans skip it from then on ──
@@ -782,6 +830,8 @@ class ScanPage(Gtk.Box):
                 self.undo_toast = self.window.toast(text, _("Undo"), lambda: self.undo(keys), timeout=10)
             else:
                 self.window.toast(msg)
+            if self.freed or self.privacy:
+                self.window.notify_cleaned(msg, self.engine.dry_run)
             self.window.refresh_disk()
             GLib.timeout_add(1200, lambda: (self.scan(keep_summary=True), False)[1])
 

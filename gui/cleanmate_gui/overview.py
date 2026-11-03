@@ -14,6 +14,7 @@ import time
 
 from gi.repository import Adw, GLib, Gtk
 
+from .a11y import named
 from .engine import IN_FLATPAK, human
 from .i18n import _, ngettext
 from .largefiles import short_path
@@ -641,8 +642,8 @@ class OverviewPage(Gtk.Box):
         row.set_subtitle(subtitle)  # after use_markup=False: a command may hold "&&"
         row.add_prefix(Gtk.Image(icon_name=icon, pixel_size=24, css_classes=[style]))
         if command:
-            copy = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                              tooltip_text=_("Copy the command"))
+            copy = named(Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                                    tooltip_text=_("Copy the command")))
             copy.update_property([Gtk.AccessibleProperty.LABEL], [_("Copy the command")])
             copy.connect("clicked", lambda _b, c=command: self.copy_command(c))
             row.add_suffix(copy)

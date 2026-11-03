@@ -5,7 +5,8 @@ import subprocess
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from . import bugreport
+from .a11y import named
+from . import bugreport, state
 from .bugreport import REPO_URL, WEBSITE_URL
 from .duplicates import DuplicatesPage
 from .engine import FLATPAK_HIDDEN_PAGES, IN_FLATPAK, SMART_SCAN, Selection, human
@@ -73,6 +74,13 @@ if IN_FLATPAK:  # what the Flatpak can't reach is left out (engine.IN_FLATPAK); 
              for s in PAGES if not (s and s[0] in FLATPAK_HIDDEN_PAGES)]
 # Ctrl+1…9: the System Overview (where the app opens) first, then the sidebar from the top
 SHORTCUT_PAGES = ["overview", "smart", "system", "logs", "user", "ai", "dev", "privacy", "lens"]
+# the other tools: Ctrl+0, then Ctrl+Shift+1…4 (pages the Flatpak hides get none)
+MORE_SHORTCUTS = [(pid, accel) for pid, accel in (
+    ("large", "<Control>0"), ("dupes", "<Control><Shift>1"), ("uninstall", "<Control><Shift>2"),
+    ("startup", "<Control><Shift>3"), ("maintenance", "<Control><Shift>4"))
+    if not (IN_FLATPAK and pid in FLATPAK_HIDDEN_PAGES)]
+ACCEL_LABELS = {"<Control>0": "Ctrl+0", "<Control><Shift>1": "Ctrl+Shift+1", "<Control><Shift>2": "Ctrl+Shift+2",
+                "<Control><Shift>3": "Ctrl+Shift+3", "<Control><Shift>4": "Ctrl+Shift+4"}
 
 
 class Window(Adw.ApplicationWindow):
@@ -97,6 +105,9 @@ class Window(Adw.ApplicationWindow):
             row = Gtk.ListBoxRow(child=box)
             if pid in SHORTCUT_PAGES:
                 row.set_tooltip_text(f"{title} (Ctrl+{SHORTCUT_PAGES.index(pid) + 1})")
+            for other, accel in MORE_SHORTCUTS:
+                if other == pid:
+                    row.set_tooltip_text(f"{title} ({ACCEL_LABELS[accel]})")
             row.page_id = pid
             self.sidebar_list.append(row)
         if not IN_FLATPAK:  # the sandbox can't open a terminal on your desktop
@@ -134,8 +145,8 @@ class Window(Adw.ApplicationWindow):
         about.append(_("About CleanMate"), "win.about")
         menu.append_section(None, about)
         side_header = Adw.HeaderBar()
-        side_header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
-                                            tooltip_text=_("Main menu")))
+        side_header.pack_end(named(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
+                                                  tooltip_text=_("Main menu"))))
         side = Adw.ToolbarView(content=Gtk.ScrolledWindow(child=self.sidebar_list, vexpand=True))
         side.add_top_bar(side_header)
         side.add_bottom_bar(disk)
@@ -179,6 +190,8 @@ class Window(Adw.ApplicationWindow):
         self.add_action(go)
         for n, pid in enumerate(SHORTCUT_PAGES, 1):
             app.set_accels_for_action(f"win.page::{pid}", [f"<Control>{n}"])
+        for pid, accel in MORE_SHORTCUTS:
+            app.set_accels_for_action(f"win.page::{pid}", [accel])
         for name, cb, accels in (("reload", lambda *_: self.reload_page(), ["<Control>r", "F5"]),
                                  ("find", lambda *_: self.find_on_page(), ["<Control>f"]),
                                  ("shortcuts", lambda *_: self.show_shortcuts(),
@@ -219,6 +232,7 @@ class Window(Adw.ApplicationWindow):
                 page = TOOL_PAGES[pid](self, spec[1], spec[2], spec[4])
             else:
                 page = ScanPage(self, spec[1], spec[3], spec[2], spec[4])
+                page.groups_changed()
             self.pages[pid] = page
             self.content_stack.add_named(page, pid)
         self.content_stack.set_visible_child_name(pid)
@@ -248,7 +262,8 @@ class Window(Adw.ApplicationWindow):
         section = Gtk.ShortcutsSection(section_name="shortcuts", title=_("Keyboard Shortcuts"))
         groups = [
             (_("Pages"), [(f"<Control>{n}", next(s[1] for s in PAGES if s and s[0] == pid))
-                          for n, pid in enumerate(SHORTCUT_PAGES, 1)]),
+                          for n, pid in enumerate(SHORTCUT_PAGES, 1)]
+             + [(accel, next(s[1] for s in PAGES if s and s[0] == pid)) for pid, accel in MORE_SHORTCUTS]),
             (_("General"), [("<Control>r F5", _("Scan, search or list again")),
                             ("<Control>f", _("Search results")),
                             ("<Control>comma", _("Settings")),
@@ -266,6 +281,38 @@ class Window(Adw.ApplicationWindow):
         win.present()
         self.shortcuts_window = win
         return win
+
+    def groups_changed(self):
+        """Settings › Scan groups changed: the cleanup pages show whether their group is off."""
+        for page in self.pages.values():
+            if hasattr(page, "groups_changed"):
+                page.groups_changed()
+
+    # ── what the window remembers ──
+    def restore_state(self):
+        """Open on the page and at the size of the last run."""
+        saved = state.load()
+        if "width" in saved:
+            self.set_default_size(saved["width"], saved["height"])
+        if saved.get("maximized"):
+            self.maximize()
+        pid = saved.get("page")
+        if pid and pid != "overview" and any(s and s[0] == pid for s in PAGES):
+            self.show_page(pid)
+            self.select_sidebar(pid)
+        self.connect("close-request", lambda *_: self.save_state() or False)
+
+    def save_state(self):
+        width, height = self.get_default_size()
+        state.save(self.content_stack.get_visible_child_name() or "overview", width, height, self.is_maximized())
+
+    def notify_cleaned(self, text, dry_run=False):
+        """A notification with what a clean freed, when you're not looking at the window (never in a dry run)."""
+        if dry_run or self.is_active():
+            return
+        note = Gio.Notification.new(_("Cleanup complete"))
+        note.set_body(text)
+        self.get_application().send_notification("cleaned", note)
 
     def select_sidebar(self, pid):
         row = self.sidebar_list.get_first_child()

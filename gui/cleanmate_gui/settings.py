@@ -15,6 +15,7 @@ import os
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
+from .a11y import named
 from . import i18n
 from .i18n import _, ngettext
 
@@ -49,6 +50,12 @@ NUMBERS = {
 }
 KEEP_FOR = ["journal_days", "journal_mb", "log_max_mb", "app_log_days", "tmp_days", "cache_days",
             "node_modules_days", "installer_days", "download_days", "ai_history_days"]
+# Settings › Scan groups: group_KEY = 0 leaves the group out of Smart Scan in both apps (the engine's
+# `smart_catsv`); its own page then says it is off. Same titles as the sidebar.
+GROUPS = {
+    "system": _("System Junk"), "logs": _("Logs"), "user": _("User & App Junk"), "ai": _("AI Tools"),
+    "dev": _("Developer Junk"), "privacy": _("Privacy"),
+}
 DELAY_MS = 700  # a number is saved this long after its last change
 
 # why the engine refuses a folder for Never clean (the other reasons name the folder and stay as they are)
@@ -164,6 +171,17 @@ class SettingsPage(Adw.PreferencesPage):
         check.connect("notify::active", self.on_switch, "update_check")
         self.rows["update_check"] = check
         updates.add(check)
+
+        scan = self.group(_("Scan groups"), _("A group that is off is left out of Smart Scan, here and in the "
+                                              "terminal app."))
+        for gid, title in GROUPS.items():
+            key = "group_" + gid
+            if key not in self.settings:
+                continue
+            row = Adw.SwitchRow(title=title)
+            row.connect("notify::active", self.on_switch, key)
+            self.rows[key] = row
+            scan.add(row)
 
         keep = self.group(_("Keep for"), _("What cleaning leaves alone. Smart Scan uses the new values "
                                            "on its next scan."))
@@ -287,7 +305,7 @@ class SettingsPage(Adw.PreferencesPage):
             row.restart_button.set_visible(pending)
             row.set_subtitle(_("Restart CleanMate to use the new language. The system's language does not change.")
                              if pending else "")
-        elif key in ("update_check", "recent_files"):
+        elif key in ("update_check", "recent_files") or key.startswith("group_"):
             row.set_active(bool(s["value"]))
         elif key == "exclusions":
             for old in row.folder_rows:
@@ -364,8 +382,8 @@ class SettingsPage(Adw.PreferencesPage):
         row = Adw.ActionRow(title=os.path.basename(path), subtitle=short_path(path), use_markup=False,
                             tooltip_text=path)
         row.add_prefix(Gtk.Image(icon_name="folder-symbolic"))
-        remove = Gtk.Button(icon_name="list-remove-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                            tooltip_text=_("Remove from the list"))
+        remove = named(Gtk.Button(icon_name="list-remove-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                                  tooltip_text=_("Remove from the list")))
         remove.connect("clicked", lambda *_a: self.change_exclusion("remove", path))
         row.add_suffix(remove)
         row.path, row.remove_button = path, remove
@@ -425,6 +443,12 @@ class SettingsPage(Adw.PreferencesPage):
             elif key == "low_disk_pct":
                 self.toast(_("Low disk alert below {pct} free").format(pct=f"{value}%")
                            if value != "0" else _("Low disk alert is off"))
+            elif key.startswith("group_"):
+                title = GROUPS.get(key[len("group_"):], key)
+                self.toast(_("{group} is back in Smart Scan").format(group=title) if value == "1"
+                           else _("{group} is left out of Smart Scan").format(group=title))
+                if hasattr(self.window, "groups_changed"):
+                    self.window.groups_changed()
             elif key == "selections":
                 self.toast(_("Smart Scan is back to its default choices"))
             elif key == "exclusions":
@@ -486,8 +510,8 @@ class ActivityPage(Adw.NavigationPage):
                                 margin_start=12, margin_end=12, margin_top=12, margin_bottom=12)
         self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(child=self.list), vexpand=True), "list")
 
-        self.folder = Gtk.Button(icon_name="folder-open-symbolic", tooltip_text=_("Open the log folder"),
-                                 sensitive=False)
+        self.folder = named(Gtk.Button(icon_name="folder-open-symbolic", tooltip_text=_("Open the log folder"),
+                                       sensitive=False))
         self.folder.connect("clicked", lambda *_a: self.open_folder())
         header = Adw.HeaderBar()
         header.pack_end(self.folder)

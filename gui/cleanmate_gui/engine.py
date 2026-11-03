@@ -11,7 +11,7 @@ import signal
 
 from gi.repository import Gio, GLib
 
-from .i18n import _
+from .i18n import _, saved_setting
 
 # Same groups and order as the terminal app's Smart Scan.
 CATEGORY_TITLES = {
@@ -26,6 +26,9 @@ CATEGORY_TITLES = {
     "privacy": _("Privacy"),
 }
 SMART_SCAN = ["system", "logs", "user", "browser", "apps", "ai", "models", "dev"]
+# each category's group: a sidebar page and a switch in Settings › Scan groups (the engine's CAT_GROUP)
+CAT_GROUP = {"system": "system", "logs": "logs", "user": "user", "browser": "user", "apps": "user", "ai": "ai",
+             "models": "ai", "dev": "dev", "privacy": "privacy"}
 
 # The Flatpak (Flathub) reaches your home folder but not the system: the engine leaves out the items that
 # need root or a host tool, and the window the pages that manage the system's packages and services.
@@ -126,7 +129,15 @@ class Engine:
 
     # ── convenience wrappers ──
     def scan(self, categories, on_event, on_done):
-        return self.run(["--only", ",".join(categories), "scan"], on_event, on_done)
+        """Scan these categories; None = Smart Scan, which leaves out the groups turned off in Settings."""
+        only = ["--only", ",".join(categories)] if categories is not None else []
+        return self.run([*only, "scan"], on_event, on_done)
+
+    def group_on(self, group):
+        """False when Settings › Scan groups turned GROUP off (read from the engine's settings file)."""
+        config = self.env.get("XDG_CONFIG_HOME") or (os.path.join(self.env["HOME"], ".config")
+                                                      if "HOME" in self.env else None)
+        return saved_setting(f"group_{group}", config) != "0"
 
     def details(self, item_id, on_event, on_done):
         return self.run(["details", item_id], on_event, on_done)

@@ -14,6 +14,7 @@ import time
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
+from .a11y import named
 from . import preview, similar
 from .engine import human
 from .i18n import _, ngettext
@@ -168,7 +169,7 @@ class DuplicatesPage(Gtk.Box):
         self.trash_button = Gtk.Button(label=_("Move to Trash"), css_classes=["destructive-action"])
         self.trash_button.connect("clicked", lambda *_a: self.confirm_trash())
         self.bar.pack_end(self.trash_button)
-        again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Search again"))
+        again = named(Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Search again")))
         again.connect("clicked", lambda *_a: self.search())
         self.bar.pack_end(again)
         self.append(self.bar)

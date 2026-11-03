@@ -54,7 +54,6 @@ def run(app, win):
     page = win.pages["smart"]
     win.selection.remember = lambda *_: None  # never change the user's remembered choices
     if app.screenshot:  # headless displays may not animate: no transitions or fade-ins
-        from gi.repository import Gtk
         Gtk.Settings.get_default().set_property("gtk-enable-animations", False)
         page.stack.set_transition_type(Gtk.StackTransitionType.NONE)
         win.content_stack.set_transition_type(Gtk.StackTransitionType.NONE)
@@ -163,11 +162,15 @@ def run(app, win):
         target = user_items[0]["id"]
         for i in list(page.selected):
             page.selected[i] = i == target
+        app.send_notification = lambda nid, note: sent.append(nid)
         page.clean([target])
         wait(lambda: page.clean_title.get_text().startswith(lead(_("Dry run: {size} would be freed"))), after_clean, 60, "dry-run clean")
 
+    sent = []
+
     def after_clean():
         report(True, f"dry-run clean finished: {page.clean_title.get_text()}")
+        report(not sent, "a dry run sends no notification")
         large_files_test(win, report, wait, finish)
 
     if app.screenshot:
@@ -180,12 +183,26 @@ def run(app, win):
         report(accels == [[f"<Control>{n}"] for n in range(1, 10)], "Ctrl+1…9 are bound to the first nine pages")
         report("<Control>r" in app.get_accels_for_action("win.reload"), "Ctrl+R is bound to scanning again")
         report("<Control>question" in app.get_accels_for_action("win.shortcuts"), "Ctrl+? is bound to the shortcuts")
+        from .window import MORE_SHORTCUTS
+        report([[Gtk.accelerator_parse(x) for x in app.get_accels_for_action(f"win.page::{p}")]
+                for p, _a in MORE_SHORTCUTS] == [[Gtk.accelerator_parse(a)] for _p, a in MORE_SHORTCUTS]
+               and MORE_SHORTCUTS[0] == ("large", "<Control>0"),
+               "Ctrl+0 and Ctrl+Shift+1… open the other tool pages")
         ok = True
-        for pid in SHORTCUT_PAGES:
+        for pid in SHORTCUT_PAGES + [p for p, _a in MORE_SHORTCUTS]:
             win.activate_action("win.page", GLib.Variant("s", pid))
             row = win.sidebar_list.get_selected_row()
             ok = ok and win.content_stack.get_visible_child_name() == pid and row and row.page_id == pid
         report(ok, "the page action opens each page and selects it in the sidebar")
+        dev, real_group_on = win.pages["dev"], win.engine.group_on
+        win.engine.group_on = lambda g: g != "dev"
+        win.groups_changed()
+        report(dev.stack.get_visible_child_name() == "off", "a group turned off in Settings shows it on its page")
+        dev.scan()
+        report(dev.running is None, "a group that is off doesn't scan")
+        win.engine.group_on = real_group_on
+        win.groups_changed()
+        report(dev.stack.get_visible_child_name() == "start", "turned on again, the page can scan")
         win.activate_action("win.page", GLib.Variant("s", "smart"))
         busy = win.pages["smart"]
         busy.running = object()  # a scan in progress: Ctrl+R does nothing
@@ -1298,6 +1315,9 @@ def settings_test(win, report, wait, finish):
                and page.rows["remind"].get_selected() == 0
                and not page.rows["language"].restart_button.get_visible(),
                "settings show the saved values and defaults")
+        report(all(page.rows.get(f"group_{g}") and page.rows[f"group_{g}"].get_active()
+                   for g in ("system", "logs", "user", "ai", "dev", "privacy")),
+               "Scan groups: a switch per group, all on by default")
         row.set_value(30)
         wait(idle, dry_changed, 30, "dry-run change")
 
@@ -1491,14 +1511,19 @@ def docker_entries_test(win, report, wait, finish):
             page.selected[i] = i == "docker_dangling"
         report(page.undo_note(["docker_dangling"]) == _("This can't be undone."),
                "the confirmation says an item deleted for good can't be undone")
+        win.get_application().send_notification = lambda nid, note: notes.append(nid)
         page.clean(["docker_dangling"])
         wait(lambda: page.clean_title.get_text().startswith(lead(_("Freed {size}"))), cleaned, 60, "Docker clean")
+
+    notes = []
 
     def cleaned():
         text = open(log).read() if os.path.exists(log) else ""
         removed = [line for line in text.splitlines() if line.startswith("rmi ")]
         report(removed == [f"rmi {drop}"] and "image prune" not in text, "Clean removes only the ticked image")
         report(page.undo_toast is None and not page.trashed, "a clean that deleted everything for good offers no Undo")
+        report(notes == (["cleaned"] if not win.is_active() else []),
+               "a clean while the window isn't in front sends a notification with what it freed")
         report(" → " in page.clean_title.get_text(), f"a real clean shows free space before → after: {page.clean_title.get_text()}")
         wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", volumes, 60,
              "scan after cleaning")

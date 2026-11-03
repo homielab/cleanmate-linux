@@ -1013,6 +1013,13 @@ declare -A ITEM_CAT ITEM_LABEL ITEM_DEFAULT ITEM_DESC ITEM_ROOT
 declare -A CAT_TITLE=([system]="System Junk" [logs]="Logs" [user]="User Junk" [browser]="Browsers"
   [apps]="App Caches" [ai]="AI Tools" [models]="AI Models" [dev]="Developer Junk" [privacy]="Privacy")
 CATEGORIES=(system logs user browser apps ai models dev)
+SMART_CATS=()
+ONLY_GIVEN=0 # --only names the groups: scan those even when they are off in Settings
+# Each category's group, as the desktop app's sidebar and Settings › Scan groups show them
+declare -A CAT_GROUP=([system]=system [logs]=logs [user]=user [browser]=user [apps]=user [ai]=ai [models]=ai
+  [privacy]=privacy)
+CAT_GROUP+=(["dev"]=dev)
+SCAN_GROUPS=(system logs user ai dev privacy)
 
 reg() { ITEM_IDS+=("$1"); ITEM_CAT[$1]=$2; ITEM_LABEL[$1]=$3; ITEM_DEFAULT[$1]=$4; ITEM_DESC[$1]=$5; }
 
@@ -7444,7 +7451,9 @@ start_cleanup() { # cleans the selected SCANNED items; returns 1 if nothing ran
 
 scan_report() { # --scan
   printf '%sCleanMate — scan report%s\n\n' "$BOLD" "$NC"
-  scan_items "${CATEGORIES[@]}"
+  local -a cats
+  smart_catsv cats
+  scan_items "${cats[@]}"
   plain_results
   found_total
   printf '\n  %s●%s = cleaned by --clean (%s)\n' "$GREEN" "$NC" "$(human "$SELECTED_TOTAL")"
@@ -7491,7 +7500,9 @@ data_loss_lines() { # what skip_data_loss left, and how to clean it on purpose
 
 smart_clean() { # --clean
   printf '%sCleanMate — smart clean%s\n\n' "$BOLD" "$NC"
-  scan_items "${CATEGORIES[@]}"
+  local -a cats
+  smart_catsv cats
+  scan_items "${cats[@]}"
   ((ASSUME_YES)) && skip_data_loss
   plain_results
   printf '\n'
@@ -9800,7 +9811,10 @@ declare -A SETTING_RANGE=(
   [update_check]="0 1 1" [low_disk_pct]="0 50 10" [journal_days]="1 365 7" [journal_mb]="16 10000 100"
   [log_max_mb]="10 100000 50" [app_log_days]="1 365 3" [tmp_days]="1 365 10" [cache_days]="1 365 30"
   [node_modules_days]="7 3650 90" [installer_days]="7 3650 30" [download_days]="7 3650 90"
-  [ai_history_days]="1 3650 30" [welcome_shown]="0 1 0")
+  [ai_history_days]="1 3650 30" [welcome_shown]="0 1 0"
+  [group_system]="0 1 1" [group_logs]="0 1 1" [group_user]="0 1 1" [group_ai]="0 1 1" [group_dev]="0 1 1"
+  [group_privacy]="0 1 1")
+# group_*: 0 leaves the group out of Smart Scan (both apps, --scan, --clean, --auto); --only still scans it
 # welcome_shown: the desktop app's welcome was closed once (it reads the file itself at start-up); not on a screen
 SETTING_KEYS=(update_check low_disk_pct journal_days journal_mb log_max_mb app_log_days tmp_days cache_days
   node_modules_days installer_days download_days ai_history_days) # the order of the Settings screens
@@ -9860,6 +9874,21 @@ apply_settings() {
   ITEM_DESC[tmp]="Your files in /tmp and /var/tmp not touched for ${TMP_DAYS}+ days."
   ITEM_DESC[node_modules]="node_modules of projects untouched for ${NM_DAYS}+ days. Restore with npm/yarn/pnpm install."
   ITEM_DESC[stale_build_dirs]="Build folders of projects untouched for ${NM_DAYS}+ days, only next to the project file that makes them: Cargo and Maven target/, Gradle and Android build/ and .gradle/, Flutter .dart_tool/ and build/, SwiftPM .build/, Next.js, Nuxt, SvelteKit, Angular and Turbo caches, Haskell .stack-work/ and dist-newstyle/, Elixir _build/ and deps/, Zig caches, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules. Moved to the Trash; the project's build tool makes them again."
+}
+
+group_on() { # CATEGORY → succeeds unless its group is turned off in Settings
+  local v
+  setting v "group_${CAT_GROUP[$1]:-$1}"
+  ((v))
+}
+
+smart_catsv() { # VAR → the categories Smart Scan covers: CATEGORIES (--only as given), minus groups turned off
+  local -n __sc=$1
+  local __c
+  __sc=()
+  for __c in "${CATEGORIES[@]}"; do
+    if ((ONLY_GIVEN)) || group_on "$__c"; then __sc+=("$__c"); fi
+  done
 }
 
 save_setting() { # KEY VALUE — change one line of the settings file; the other app may have changed others
@@ -10651,7 +10680,9 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
   INTERACTIVE=0 ASSUME_YES=1
   local id b left=() body title
   printf 'CleanMate — automatic Smart Clean (%s)\n\n' "$(date '+%F %T')"
-  scan_items "${CATEGORIES[@]}" # everything is scanned (read-only) …
+  local -a cats
+  smart_catsv cats
+  scan_items "${cats[@]}" # everything is scanned (read-only) …
   for id in "${SCANNED[@]}"; do # … but only user & developer junk is cleaned
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
@@ -10777,7 +10808,9 @@ json_main() { # SUBCOMMAND ARGS…
     scan)
       # SIGTERM (Stop in the desktop app) ends the scan early: the items scanned so far are still listed
       trap 'SCAN_STOP=1' TERM
-      scan_items "${CATEGORIES[@]}"
+      local -a cats
+      smart_catsv cats
+      scan_items "${cats[@]}"
       for id in "${SCANNED[@]}"; do json_item "$id" scanned; done
       found_total
       printf '{"event":"done","ms":%d,"durationMs":%d,"total_bytes":%d,"locations":%d,"stopped":%s}\n' \
@@ -11464,7 +11497,7 @@ json_setting() { # KEY → one "setting" event with what is in effect now
 json_settings() {
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   local k
-  for k in language schedule remind "${SETTING_KEYS[@]}" selections recent_files exclusions; do json_setting "$k"; done
+  for k in language schedule remind "${SETTING_KEYS[@]}" selections recent_files exclusions "${SCAN_GROUPS[@]/#/group_}"; do json_setting "$k"; done
   printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool user_timers)" "$(json_bool packaged)"
 }
 
@@ -12024,7 +12057,8 @@ main_menu() {
   while :; do
     M_KEY=() M_LABEL=() M_DESC=() M_BADGE=()
     load_update_state
-    cat_badge "${CATEGORIES[@]}"; mi 1 "Smart Scan" "Scan everything and clean in one go" "$BADGE"
+    smart_catsv SMART_CATS
+    cat_badge "${SMART_CATS[@]}"; mi 1 "Smart Scan" "Scan everything and clean in one go" "$BADGE"
     mh "Cleanup"
     cat_badge system;            mi 2 "System Junk" "Package cache, old kernels, leftover configs, snaps, temp files" "$BADGE"
     cat_badge logs;              mi 3 "Logs" "Journal, oversized and rotated logs, crash reports, app logs" "$BADGE"
@@ -12050,7 +12084,7 @@ main_menu() {
     mi q "Quit"
     ui_menu "Home" home_top || return 0
     case ${M_KEY[MENU_IDX]} in
-      1) scan_and_review "Smart Scan" "${CATEGORIES[@]}" ;;
+      1) smart_catsv SMART_CATS; scan_and_review "Smart Scan" "${SMART_CATS[@]}" ;;
       2) scan_and_review "System Junk" system ;;
       3) scan_and_review "Logs" logs ;;
       4) scan_and_review "User & App Junk" user browser apps ;;
@@ -12089,6 +12123,7 @@ while (($#)); do
     --only)
       shift
       IFS=, read -ra CATEGORIES <<<"${1:-}"
+      ONLY_GIVEN=1
       for _c in "${CATEGORIES[@]}"; do
         [[ -n ${CAT_TITLE[$_c]:-} ]] || { err "Unknown category: $_c (use system, logs, user, browser, apps, ai, models, dev, privacy)"; exit 2; }
       done ;;

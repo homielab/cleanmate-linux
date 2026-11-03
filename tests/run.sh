@@ -2659,6 +2659,12 @@ download_days 90 7-3650/90
 ai_history_days 30 1-3650/30
 selections 2
 exclusions []
+group_system 1 0-1/1
+group_logs 1 0-1/1
+group_user 1 0-1/1
+group_ai 1 0-1/1
+group_dev 1 0-1/1
+group_privacy 1 0-1/1
 done true false" "every setting with its range and default; bad values fall back to the default"
   # the desktop app changes a number → the terminal app (same file) uses it
   out=$(user_cm --json settings-set journal_days 30 | settings_list)
@@ -2902,7 +2908,7 @@ test_json_recent_files_and_activity() {
   printf '%s\n' '#!/bin/sh' 'f=$HOME/recent; [ -e "$f" ] || echo true >"$f"' \
     'case $1 in get) cat "$f" ;; set) echo "$4" >"$f" ;; esac' >"$g"
   chmod +x "$g"
-  assert_contains "$(user_cm --json settings | settings_list)" $'selections 0\nrecent_files 1\nexclusions []\ndone'
+  assert_contains "$(user_cm --json settings | settings_list)" $'selections 0\nrecent_files 1\nexclusions []\ngroup_system 1 0-1/1\ngroup_logs 1 0-1/1\ngroup_user 1 0-1/1\ngroup_ai 1 0-1/1\ngroup_dev 1 0-1/1\ngroup_privacy 1 0-1/1\ndone'
   out=$(user_cm --json settings-set recent_files 0 | settings_list)
   assert_eq "$out" $'ok recent_files set to 0\nrecent_files 0\ndone  ' "stop remembering recent files"
   assert_eq "$(cat "$HOME_DIR/recent")" false "gsettings changed"
@@ -3537,6 +3543,48 @@ test_similar_photos_hashes_and_groups() {
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
   return 0
+}
+
+test_scan_groups_can_be_turned_off() {
+  fresh_home
+  local out
+  out=$(user_cm --json settings)
+  assert_contains "$out" '"key":"group_dev","value":1,"min":0,"max":1,"default":1'
+  assert_contains "$out" '"key":"group_privacy","value":1'
+  out=$(user_cm --json settings-set group_dev 0)
+  assert_contains "$out" '"state":"ok"'
+  assert_contains "$(cat "$HOME_DIR/.config/cleanmate/settings")" "group_dev=0"
+  out=$(cm --json scan)
+  if grep -q '"category":"dev"' <<<"$out"; then fail "Smart Scan should leave the Developer group out"; else ok_ "Smart Scan leaves Developer out"; fi
+  assert_contains "$out" '"category":"user"'
+  user_cm --json settings-set group_dev 1 >/dev/null
+  assert_contains "$(cm --scan)" "Developer Junk"
+  user_cm --json settings-set group_dev 0 >/dev/null
+  out=$(cm --scan)
+  if grep -qF "Developer Junk" <<<"$out"; then fail "cm --scan should leave Developer out"; else ok_ "cm --scan leaves Developer out"; fi
+  assert_contains "$(cm --json scan --only dev)" '"category":"dev"' # the group's own page still scans it
+  user_cm --json settings-set group_ai 0 >/dev/null
+  out=$(cm --json scan)
+  if grep -q '"category":"\(ai\|models\)"' <<<"$out"; then fail "AI Tools off leaves out ai and models"; else ok_ "AI Tools off leaves out ai and models"; fi
+  user_cm --json settings-set group_dev 1 >/dev/null
+  assert_contains "$(cm --json scan)" '"category":"dev"'
+  assert_contains "$(user_cm --json settings-set group_dev 2)" "must be a number from 0 to 1"
+}
+
+test_icon_buttons_have_accessible_names() {
+  local py out
+  py=$(command -v python3) || { SKIPPED="python3 not available"; return; }
+  if out=$("$py" "$ROOT/tests/a11y_check.py" "$ROOT/gui/cleanmate_gui" 2>&1); then ok_ "$out"
+  else fail "icon-only buttons without an accessible name:"; printf '%s\n' "$out" | sed 's/^/      | /'; fi
+}
+
+test_window_state() {
+  local out
+  python3 -c 'from gi.repository import GLib' 2>/dev/null || { SKIPPED="python3-gi not available"; return; }
+  fresh_home
+  if out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$WORK" python3 "$ROOT/tests/state_test.py" 2>&1); then
+    ok_ "window state: $(grep -m1 '^Ran' <<<"$out")"
+  else fail "window state tests failed"; printf '%s\n' "$out" | sed 's/^/      | /'; fi
 }
 
 test_file_previews() {

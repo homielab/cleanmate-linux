@@ -15,6 +15,7 @@ from urllib.parse import unquote
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
+from .a11y import named
 from .engine import human
 from .i18n import _, ngettext
 from .largefiles import short_path
@@ -143,7 +144,7 @@ class UninstallerPage(Gtk.Box):
                                              "so it starts as if new. Select one app."))
         self.reset_button.connect("clicked", lambda *_: self.reset_check())
         self.bar.pack_end(self.reset_button)
-        again = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("List apps again"))
+        again = named(Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("List apps again")))
         again.connect("clicked", lambda *_: self.load())
         self.bar.pack_end(again)
         self.append(self.bar)
@@ -501,8 +502,8 @@ class UninstallerPage(Gtk.Box):
             row.add_prefix(app_icon(a["desktop"]))
             for widget in size_widgets(sizes[a["id"]], biggest):
                 row.add_suffix(widget)
-            drop = Gtk.Button(icon_name="window-close-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                              tooltip_text=_("Leave this app out"))
+            drop = named(Gtk.Button(icon_name="window-close-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                                    tooltip_text=_("Leave this app out")))
             drop.connect("clicked", lambda _b, i=a["id"]: self.checks[i].set_active(False))
             row.add_suffix(drop)
             group.add(row)

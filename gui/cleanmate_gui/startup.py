@@ -7,6 +7,7 @@ whose program is gone (`missing`) are listed first, under Broken items, with a R
 """
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
+from .a11y import named
 from .i18n import _, ngettext
 
 
@@ -163,8 +164,8 @@ class StartupPage(Gtk.Box):
             remove.connect("clicked", lambda *_a: self.confirm_remove(u))
             row.add_suffix(remove)
         elif u["removable"]:
-            remove = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                                tooltip_text=_("Remove (to the Trash)"))
+            remove = named(Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                                      tooltip_text=_("Remove (to the Trash)")))
             remove.connect("clicked", lambda *_a: self.confirm_remove(u))
             row.add_suffix(remove)
         switch = Gtk.Switch(active=u["enabled"], valign=Gtk.Align.CENTER, sensitive=u["toggle"])
