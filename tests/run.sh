@@ -3347,6 +3347,12 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "Select automatically keeps the oldest copy"
     assert_contains "$out" "ticking every copy shows a warning"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the copies back in their group"
+    assert_contains "$out" "a hidden and a Never clean folder are left out"
+    assert_contains "$out" "nothing is ticked after a photo search"
+    assert_contains "$out" "Select automatically keeps the suggested photo"
+    assert_contains "$out" "Stop ends a photo search at once"
+    assert_contains "$out" "the window stays responsive while reading 1,000 photos"
+    ((EUID == 0)) || assert_contains "$out" "Undo puts the photos back in their group"
     ((EUID == 0)) || assert_contains "$out" "switching an app off writes Hidden=true"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the startup entry back"
     assert_contains "$out" "apps listed, part of Ubuntu hidden"
@@ -3425,6 +3431,25 @@ test_deb_package() {
     appstreamcli validate --no-net "$x/usr/share/metainfo/com.homielab.CleanMate.metainfo.xml" >/dev/null &&
       ok_ "metainfo valid" || fail "metainfo does not validate"
   fi
+}
+
+test_similar_photos_hashes_and_groups() {
+  local py="" c out
+  for c in python3 /usr/bin/python3; do # a Python with GdkPixbuf bindings (a virtualenv may come first)
+    "$c" -c 'import gi; gi.require_version("GdkPixbuf", "2.0"); from gi.repository import GdkPixbuf' 2>/dev/null &&
+      { py=$c; break; }
+  done
+  [[ -n $py ]] || { SKIPPED="python3-gi with GdkPixbuf not available"; return; }
+  fresh_home
+  if out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$WORK" \
+    "$py" "$ROOT/tests/similar_test.py" 2>&1); then
+    ok_ "similar photos: $(tail -n 3 <<<"$out" | grep -m1 '^Ran')"
+    ((VERBOSE)) && printf '%s\n' "$out" | sed 's/^/      | /'
+  else
+    fail "similar photos unit tests failed"
+    printf '%s\n' "$out" | sed 's/^/      | /'
+  fi
+  return 0
 }
 
 test_tui_smoke() {

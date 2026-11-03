@@ -493,7 +493,7 @@ def duplicates_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
-        startup_test(win, report, wait, finish)
+        similar_photos_test(win, report, wait, finish)
 
     def searched():
         report(files() == [copies[::-1]], f"one group of three copies, newest first: {files()}")
@@ -539,6 +539,128 @@ def duplicates_test(win, report, wait, finish):
 
     page.search()
     wait(idle, searched, 60, "duplicates search")
+
+
+def similar_photos_test(win, report, wait, finish):
+    """Duplicates › Similar Photos in a throwaway home: a photo, a smaller copy and a re-saved one group, a different
+    photo, a hidden folder and a Never clean folder stay out; nothing ticked, the full-size photo suggested; Stop
+    returns at once; 1,000 photos keep the window responsive; dry run, then Trash and Undo."""
+    from gi.repository import GdkPixbuf
+    from .duplicates import FILES, PHOTOS
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home = os.path.join(sandbox, "home")
+    pictures, private, hidden = (os.path.join(home, "Pictures", d) for d in ("", "Private", ".edits"))
+    pictures, many = pictures.rstrip("/"), os.path.join(home, "Many")
+    for d in (private, hidden, many, os.path.join(home, ".config", "cleanmate")):
+        os.makedirs(d)
+    with open(os.path.join(home, ".config", "cleanmate", "exclude"), "w") as f:
+        f.write(private + "\n")
+
+    def made_up_photo():  # 8 px grain of random colours
+        grain = GdkPixbuf.Pixbuf.new_from_bytes(GLib.Bytes.new(os.urandom(80 * 60 * 3)), GdkPixbuf.Colorspace.RGB,
+                                                False, 8, 80, 60, 240)
+        return grain.scale_simple(640, 480, GdkPixbuf.InterpType.NEAREST)
+
+    beach, other = made_up_photo(), made_up_photo()
+    photo, smaller, resaved = (os.path.join(pictures, n) for n in ("beach.jpg", "beach small.jpg", "beach low.jpg"))
+    beach.savev(photo, "jpeg", ["quality"], ["95"])  # as many pixels as the re-saved copy, a bigger file
+    beach.scale_simple(320, 240, GdkPixbuf.InterpType.BILINEAR).savev(smaller, "jpeg", ["quality"], ["95"])
+    beach.savev(resaved, "jpeg", ["quality"], ["60"])
+    other.savev(os.path.join(pictures, "other.jpg"), "jpeg", ["quality"], ["90"])
+    for d in (private, hidden):
+        shutil.copy(resaved, d)
+    for i in range(1000):
+        shutil.copy(resaved if i % 2 else smaller, os.path.join(many, f"{i:04d}.jpg"))
+    env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
+           "XDG_CONFIG_HOME": os.path.join(home, ".config")}
+    group = sorted((photo, smaller, resaved))
+    others = [smaller, resaved]
+
+    win.show_page("dupes")
+    page = win.pages["dupes"]
+    real_engine = page.engine
+    page.mode_buttons[PHOTOS].set_active(True)
+    report(page.mode == PHOTOS and not page.size_filter.get_visible(), "Similar Photos: no size filter")
+    page.engine = Engine(real_engine.path, dry_run=True, env=env)
+    page.set_folder(pictures)
+
+    def idle():
+        return page.running is None and page.stack.get_visible_child_name() != "searching"
+
+    def files():
+        return [sorted(f["path"] for f in g["files"]) for g in page.shown_groups()]
+
+    def done():
+        page.engine = real_engine
+        page.mode_buttons[FILES].set_active(True)
+        shutil.rmtree(sandbox, ignore_errors=True)
+        startup_test(win, report, wait, finish)
+
+    def searched():
+        report(files() == [group], f"a photo, its smaller and its re-saved copy are one group; "
+                                   f"a hidden and a Never clean folder are left out: {files()}")
+        report(not page.selected and not any(c.get_active() for c in page.checks.values()),
+               "nothing is ticked after a photo search")
+        g = page.shown_groups()[0] if page.shown_groups() else {"files": [{"path": ""}]}
+        report(g["files"][0]["path"] == photo, "the full-size photo is suggested and listed first")
+        page.select_automatically()
+        report(page.selected == set(others), "Select automatically keeps the suggested photo")
+        page.search()
+        page.stop()
+        report(page.running is None and page.stack.get_visible_child_name() == "results",
+               "Stop ends a photo search at once")
+        page.set_folder(many)
+        gaps, last = [0], [GLib.get_monotonic_time()]
+
+        def tick():
+            now = GLib.get_monotonic_time()
+            gaps[0] = max(gaps[0], now - last[0])
+            last[0] = now
+            return page.stack.get_visible_child_name() == "searching"
+
+        page.search()
+        GLib.timeout_add(20, tick)
+        wait(idle, lambda: many_read(gaps[0] // 1000), 90, "1,000 photo search")
+
+    def many_read(gap_ms):
+        report(len(page.shown_groups()) == 1 and len(page.shown_groups()[0]["files"]) == 1000,
+               "1,000 photos read: one group")
+        report(gap_ms < 500, f"the window stays responsive while reading 1,000 photos (longest pause {gap_ms} ms)")
+        page.set_folder(pictures)
+        page.search()
+        wait(idle, again, 60, "photo search")
+
+    def again():
+        page.select_automatically()
+        page.trash(sorted(page.selected))
+        wait(lambda: page.running is None, dry_trashed, 60, "dry-run trash")
+
+    def dry_trashed():
+        report(all(os.path.exists(p) for p in group) and files() == [group], "dry run: the photos stay")
+        if os.geteuid() == 0:
+            report(True, "Trash and Undo skipped: the engine refuses them as root")
+            return done()
+        page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.trash(sorted(page.selected))
+        wait(lambda: page.running is None, trashed, 60, "trash")
+
+    def trashed():
+        report(os.path.exists(photo) and not any(os.path.exists(p) for p in others) and not files(),
+               "Move to Trash keeps the suggested photo; the group is gone")
+        if not page.undo_toast:
+            report(False, "no Undo toast after moving the photos to the Trash")
+            return done()
+        page.undo_toast.emit("button-clicked")
+        wait(lambda: page.running is None and all(os.path.exists(p) for p in others), undone, 60, "undo")
+
+    def undone():
+        report(files() == [group] and page.shown_groups()[0]["files"][0]["path"] == photo,
+               "Undo puts the photos back in their group")
+        done()
+
+    page.search()
+    wait(idle, searched, 60, "similar photos search")
 
 
 def labels(widget):

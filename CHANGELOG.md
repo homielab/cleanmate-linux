@@ -9,6 +9,7 @@ All notable changes are listed here. The format follows
 ### Added
 
 - Flatpak for Flathub (`packaging/flathub/`): the desktop app and the `cleanmate` engine, with access to your home folder only. In the Flatpak, items and pages that need your password or the host system (apt, the journal, old kernels, Docker, Uninstaller, Startup Items, Maintenance) are left out and System Junk and Logs say why; items whose program must be closed are not pre-selected, because the sandbox can't see running programs. Its Flathub listing shows only screenshots of pages the Flatpak has.
+- **Duplicates › Similar Photos** in the desktop app: finds photos that look alike (resized or re-saved copies, edits, burst shots) on your computer only, suggests keeping the largest one and moves the others you tick to the Trash, with Undo. Hidden folders, Never clean folders and Shotwell or digiKam libraries are skipped.
 - `cm --scan` ends with how long the scan took and its three slowest items; `cm --json scan` gives `durationMs` for each item and for the whole scan (the same field as the macOS app).
 
 ### Changed

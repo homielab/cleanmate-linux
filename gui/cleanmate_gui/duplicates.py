@@ -1,26 +1,56 @@
-"""Duplicates: groups of identical files; keep one copy, move the others to the Trash, undo.
+"""Duplicates: groups of identical files, or of similar photos; keep one, move the others to the Trash, undo.
 
-The engine finds the groups (`--json dupes`: same size, then same content), moves files
-(`--json trash`) and puts them back (`--json restore`); this page only shows the groups and
-keeps the choice. Nothing is ticked after a search; *Select automatically* ticks every copy except
-the oldest of each group (the original; newer ones are usually downloaded or copied again), like
-the terminal app.
+Identical files: the engine finds the groups (`--json dupes`: same size, then same content). Similar photos:
+`similar.py` reads the photos here, on a background thread, with GdkPixbuf. Either way the engine moves files
+(`--json trash`) and puts them back (`--json restore`); this page only shows the groups and keeps the choice.
+Nothing is ticked after a search; *Select automatically* ticks every copy except the oldest of each group (the
+original; newer ones are usually downloaded or copied again), like the terminal app, and every photo except
+the suggested one (most pixels, then biggest file).
 """
+import collections
 import os
+import queue
+import threading
 import time
 
-from gi.repository import Adw, Gio, GLib, Gtk, Pango
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
+from . import similar
 from .engine import human
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
 
 MIN_SIZES = [("100 KB", 100 << 10), ("1 MB", 1 << 20), ("10 MB", 10 << 20), ("100 MB", 100 << 20)]
+FILES, PHOTOS = "files", "photos"  # the two modes: identical files, similar photos
+THUMB = 48  # px, the photo next to each similar photo
+ROWS_AT_ONCE = 100  # file rows added per main-loop turn, so a group of 1,000 photos never freezes the window
 
 
 def group_key(g):
-    return f"{g['bytes']}:{g['hash']}"
+    return g.get("key") or f"{g['bytes']}:{g['hash']}"
+
+
+def file_bytes(g, f):
+    """A file's size: in a group of identical files they all have the group's size."""
+    return f.get("bytes", g.get("bytes", 0))
+
+
+def keeper(g):
+    """The file a group suggests keeping: the oldest copy, or the best photo."""
+    return similar.keeper(g) if "key" in g else oldest_copy(g)
+
+
+def freeable(g):
+    keep = keeper(g)
+    return sum(file_bytes(g, f) for f in g["files"] if f["path"] != keep)
+
+
+def pictures_folder():
+    """Your Pictures folder (xdg-user-dirs), or home when there is none."""
+    path = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES)
+    home = os.path.expanduser("~")
+    return path if path and path != home and os.path.isdir(path) else home
 
 
 def oldest_copy(g):
@@ -29,8 +59,8 @@ def oldest_copy(g):
 
 
 def auto_selection(groups):
-    """Every copy except the oldest of each group."""
-    return {f["path"] for g in groups for f in g["files"] if f["path"] != oldest_copy(g)}
+    """Every copy except the oldest of each group (in a group of similar photos: except the suggested one)."""
+    return {f["path"] for g in groups for f in g["files"] if f["path"] != keeper(g)}
 
 
 def file_icon(path):
@@ -39,17 +69,24 @@ def file_icon(path):
 
 
 class DuplicatesPage(Gtk.Box):
-    """Filters on top; one expandable row per group of identical files below, biggest first."""
+    """Mode and filters on top; one expandable row per group of identical files or similar photos below,
+    most to free first."""
 
     def __init__(self, window, title, icon, description):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.window = window
         self.engine = window.engine
+        self.mode = FILES
         self.folder = os.path.expanduser("~")
+        self.folders = {FILES: self.folder, PHOTOS: pictures_folder()}  # each mode keeps its own folder
+        self.intro = (icon, title, description)
+        self.thumbs = None  # queue of thumbnails to read, served by two daemon threads
         self.groups = []  # "group" events of the last search, biggest first; files newest first
         self.found = 0  # how many groups exist (only the biggest are listed)
         self.selected = set()  # paths
         self.checks = {}  # path → Gtk.CheckButton
+        self.pending_rows = collections.deque()  # (group, its row, file, kept?) still to add
+        self.bulk = False  # ticking many boxes at once: count once at the end
         self.group_rows = {}  # group key → (Adw.ExpanderRow, warning icon)
         self.searched = False
         self.running = None  # Gio.Cancellable of the current engine run
@@ -57,7 +94,15 @@ class DuplicatesPage(Gtk.Box):
         self.generation = 0  # a newer search makes an older one's results stale
         self.undo_toast = None
 
-        # filters
+        # mode, filters
+        self.mode_buttons = {}
+        modes = Gtk.Box(css_classes=["linked"])
+        for mode, label in ((FILES, _("Identical Files")), (PHOTOS, _("Similar Photos"))):
+            button = Gtk.ToggleButton(label=label, active=mode == FILES,
+                                      group=self.mode_buttons.get(FILES))
+            button.connect("toggled", lambda b, m=mode: b.get_active() and self.set_mode(m))
+            self.mode_buttons[mode] = button
+            modes.append(button)
         self.size_drop = Gtk.DropDown.new_from_strings([label for label, _n in MIN_SIZES])
         self.size_drop.set_selected(1)
         self.size_drop.set_tooltip_text(_("Smallest file size to compare"))
@@ -70,13 +115,16 @@ class DuplicatesPage(Gtk.Box):
         folder_button = Gtk.Button(child=folder_box, tooltip_text=_("Folder to search (also a drive)"))
         folder_button.connect("clicked", lambda *_a: self.choose_folder())
         filters = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=18, row_spacing=6,
-                              max_children_per_line=2, margin_top=12, margin_bottom=12,
+                              max_children_per_line=3, margin_top=12, margin_bottom=12,
                               margin_start=12, margin_end=12)
+        filters.append(modes)
         for label, widget in ((_("At least"), self.size_drop), (_("In"), folder_button)):
             box = Gtk.Box(spacing=8, halign=Gtk.Align.START)
             box.append(Gtk.Label(label=label, css_classes=["dim-label"]))
             box.append(widget)
             filters.append(box)
+            if widget is self.size_drop:
+                self.size_filter = box.get_parent()  # the FlowBoxChild, hidden for photos
         self.append(filters)
         self.append(Gtk.Separator())
 
@@ -84,10 +132,15 @@ class DuplicatesPage(Gtk.Box):
         self.append(self.stack)
         button = Gtk.Button(label=_("Search"), halign=Gtk.Align.CENTER, css_classes=["pill", "suggested-action"])
         button.connect("clicked", lambda *_a: self.search())
-        self.stack.add_named(Adw.StatusPage(icon_name=icon, title=title, description=description, child=button),
-                             "start")
+        self.start = Adw.StatusPage(icon_name=icon, title=title, description=description, child=button)
+        self.stack.add_named(self.start, "start")
         spinner = Gtk.Spinner(spinning=True, width_request=32, height_request=32, halign=Gtk.Align.CENTER)
-        self.searching = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Searching…"), child=spinner)
+        self.stop_button = Gtk.Button(label=_("Stop"), halign=Gtk.Align.CENTER, css_classes=["pill"])
+        self.stop_button.connect("clicked", lambda *_a: self.stop())
+        searching = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24)
+        searching.append(spinner)
+        searching.append(self.stop_button)
+        self.searching = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Searching…"), child=searching)
         self.stack.add_named(self.searching, "searching")
         self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title=_("No duplicates found"),
                                     description=_("Try a smaller size or another folder."))
@@ -107,6 +160,48 @@ class DuplicatesPage(Gtk.Box):
         again.connect("clicked", lambda *_a: self.search())
         self.bar.pack_end(again)
         self.append(self.bar)
+
+    # ── mode ──
+    def set_mode(self, mode):
+        """Identical files or similar photos: each has its own folder and results; a search going is stopped."""
+        if mode == self.mode:
+            return
+        if self.moving:  # a Trash or undo run finishes on the mode it started in
+            self.mode_buttons[self.mode].set_active(True)
+            return
+        self.stop(show=False)
+        self.folders[self.mode] = self.folder
+        self.mode = mode
+        self.mode_buttons[mode].set_active(True)
+        self.set_folder(self.folders[mode])
+        self.size_filter.set_visible(mode == FILES)
+        icon, title, description = self.intro
+        if mode == PHOTOS:
+            icon, title = "image-x-generic-symbolic", _("Similar Photos")
+            description = _("Find photos that look alike — resized or re-saved copies, edits, shots taken one after "
+                            "another — keep the best of each and move the others to the Trash. You can undo it. "
+                            "Your photos are read on this computer only.")
+        self.start.set_icon_name(icon)
+        self.start.set_title(title)
+        self.start.set_description(description)
+        self.empty.set_title(_("No similar photos found") if mode == PHOTOS else _("No duplicates found"))
+        self.empty.set_description(_("Try another folder.") if mode == PHOTOS
+                                   else _("Try a smaller size or another folder."))
+        self.groups, self.found, self.selected, self.searched = [], 0, set(), False
+        self.stack.set_visible_child_name("start")
+        self.bar.set_revealed(False)
+
+    def stop(self, show=True):
+        """Stop the search going, at once: its results never show."""
+        if not self.running or self.moving:
+            return
+        self.generation += 1
+        self.running.cancel()
+        self.running = None
+        self.window.set_busy(False)
+        if show:
+            self.stack.set_visible_child_name("results" if self.shown_groups() else "start")
+            self.bar.set_revealed(bool(self.shown_groups()))
 
     # ── searching ──
     def choose_folder(self):
@@ -148,6 +243,8 @@ class DuplicatesPage(Gtk.Box):
         self.stack.set_visible_child_name("searching")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
+        if self.mode == PHOTOS:
+            return self.search_photos(gen)
 
         def on_event(e):
             if gen != self.generation:
@@ -175,6 +272,59 @@ class DuplicatesPage(Gtk.Box):
 
         self.running = self.engine.dupes(min_bytes, self.folder, on_event, on_done)
 
+    def search_photos(self, gen):
+        """Never clean folders from the engine's settings, then list, read and group the photos on a thread."""
+        exclusions = []
+        folder = self.folder
+
+        def on_setting(e):
+            if e.get("event") == "setting" and e.get("key") == "exclusions":
+                exclusions[:] = e.get("value") or []
+
+        def got_settings(ok, status):
+            if gen != self.generation:
+                return
+            cancellable = self.running = Gio.Cancellable()
+            threading.Thread(target=work, args=(cancellable,), daemon=True).start()
+
+        def work(cancellable):
+            last = [0.0]
+
+            def progress(done, total):
+                now = time.monotonic()
+                if done == total or now - last[0] > 0.1:
+                    last[0] = now
+                    GLib.idle_add(show_progress, done, total)
+
+            groups = None
+            try:
+                photos = similar.find_photos(folder, exclusions, cancellable.is_cancelled)
+                GLib.idle_add(show_progress, 0, len(photos))
+                read = similar.hash_photos(photos, cancellable.is_cancelled, progress)
+                groups = similar.group_photos(read, cancellable.is_cancelled)
+            finally:  # the page never stays on "Searching…"
+                GLib.idle_add(finished, cancellable, groups)
+
+        def show_progress(done, total):
+            if gen == self.generation and total:
+                self.searching.set_description(ngettext("Reading {done} of {n} photo…", "Reading {done} of {n} photos…",
+                                                        total, done=done))
+            return False
+
+        def finished(cancellable, found):
+            if gen != self.generation or cancellable.is_cancelled():
+                return False  # stopped, or replaced by a newer search
+            self.running = None
+            self.window.set_busy(False)
+            found = found or []
+            self.groups = found[:similar.GROUPS_LIMIT]
+            self.found = len(found)
+            self.selected = set()
+            self.show_results()
+            return False
+
+        self.running = self.engine.settings(on_setting, got_settings)
+
     # ── results ──
     def shown_groups(self):
         return [g for g in self.groups if len(g["files"]) > 1]
@@ -183,8 +333,16 @@ class DuplicatesPage(Gtk.Box):
         """Tick every copy except the oldest of each group."""
         self.selected = auto_selection(self.shown_groups())
         if show:
-            for path, check in self.checks.items():
-                check.set_active(path in self.selected)
+            self.bulk = True
+            try:
+                for path, check in self.checks.items():
+                    check.set_active(path in self.selected)
+            finally:
+                self.bulk = False
+            for g in self.shown_groups():
+                if group_key(g) in self.group_rows:
+                    self.update_group(g)
+            self.update_summary()
 
     def show_results(self):
         child = self.results.get_first_child()
@@ -193,16 +351,20 @@ class DuplicatesPage(Gtk.Box):
             child = self.results.get_first_child()
         self.checks.clear()
         self.group_rows.clear()
+        self.pending_rows = collections.deque()
         groups = self.shown_groups()
         if not groups:
             self.stack.set_visible_child_name("empty")
             self.bar.set_revealed(False)
             return
 
-        wasted = sum(g["bytes"] * (len(g["files"]) - 1) for g in groups)
-        title = Gtk.Label(label=ngettext("{n} group of duplicates", "{n} groups of duplicates", len(groups)),
+        wasted = sum(freeable(g) for g in groups)
+        photos = self.mode == PHOTOS
+        title = Gtk.Label(label=ngettext("{n} group of similar photos", "{n} groups of similar photos", len(groups))
+                          if photos else ngettext("{n} group of duplicates", "{n} groups of duplicates", len(groups)),
                           xalign=0, wrap=True, css_classes=["title-1"])
-        sub = _("{size} can be freed by keeping one copy of each, in {folder}").format(
+        sub = (_("{size} can be freed by keeping the suggested photo of each, in {folder}") if photos
+               else _("{size} can be freed by keeping one copy of each, in {folder}")).format(
             size=human(wasted), folder=short_path(self.folder))
         if self.found > len(self.groups):
             sub += " — " + _("the {n} biggest of {found}").format(n=len(self.groups), found=self.found)
@@ -210,7 +372,8 @@ class DuplicatesPage(Gtk.Box):
         text.append(title)
         text.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
         auto = Gtk.Button(label=_("Select automatically"), valign=Gtk.Align.CENTER,
-                          tooltip_text=_("Tick every copy except the oldest one of each group"))
+                          tooltip_text=_("Tick every photo except the suggested one of each group") if photos
+                          else _("Tick every copy except the oldest one of each group"))
         auto.connect("clicked", lambda *_a: self.select_automatically())
         header = Gtk.Box(spacing=12)
         header.append(text)
@@ -218,43 +381,98 @@ class DuplicatesPage(Gtk.Box):
         self.results.append(header)
 
         group = Adw.PreferencesGroup()
-        biggest = max(g["bytes"] * (len(g["files"]) - 1) for g in groups)
+        biggest = max(freeable(g) for g in groups)
         expand = len(groups) <= 20
         for g in groups:
             group.add(self.group_row(g, biggest, expand))
         self.results.append(group)
+        self.add_rows(self.pending_rows)
         self.stack.set_visible_child_name("results")
         self.bar.set_revealed(True)
         self.update_summary()
 
     def group_row(self, g, biggest, expand):
-        oldest = oldest_copy(g)
-        row = Adw.ExpanderRow(title=os.path.basename(oldest), use_markup=False, expanded=expand,
+        keep = keeper(g)
+        row = Adw.ExpanderRow(title=os.path.basename(keep), use_markup=False, expanded=expand,
                               css_classes=["item-row"])
+        everything = (_("Every photo is selected: none would be kept") if self.mode == PHOTOS
+                      else _("Every copy is selected: none would be kept"))
         warning = Gtk.Image(icon_name="dialog-warning-symbolic", css_classes=["warning"], visible=False,
-                            tooltip_text=_("Every copy is selected: none would be kept"))
+                            tooltip_text=everything)
         # an ExpanderRow stacks suffixes rightwards
         row.add_suffix(warning)
-        for widget in size_widgets(g["bytes"] * (len(g["files"]) - 1), biggest):
+        for widget in size_widgets(freeable(g), biggest):
             row.add_suffix(widget)
-        row.add_prefix(Gtk.Image(gicon=file_icon(oldest)))
+        row.add_prefix(self.thumbnail(keep) if self.mode == PHOTOS else Gtk.Image(gicon=file_icon(keep)))
         self.group_rows[group_key(g)] = (row, warning)
-        for f in g["files"]:
-            row.add_row(self.file_row(g, f, f["path"] == oldest))
+        self.pending_rows.extend((g, row, f, f["path"] == keep) for f in g["files"])
         self.update_group(g)
         return row
 
-    def file_row(self, g, f, oldest):
+    def add_rows(self, pending):
+        """Add the next file rows; the rest on the next main-loop turns (pending is dropped by a new result)."""
+        if pending is not self.pending_rows:
+            return False
+        for _n in range(min(ROWS_AT_ONCE, len(pending))):
+            g, row, f, keep = pending.popleft()
+            row.add_row(self.file_row(g, f, keep))
+        if pending:
+            GLib.idle_add(self.add_rows, pending)
+        return False
+
+    def thumbnail(self, path):
+        """A small picture of the photo, read on a thread the first time it shows."""
+        image = Gtk.Image(icon_name="image-x-generic-symbolic", pixel_size=THUMB, css_classes=["photo-thumb"])
+
+        def load(*_a):
+            if image.started:
+                return
+            image.started = True
+            if self.thumbs is None:
+                self.thumbs = queue.Queue()
+                for _n in range(2):
+                    threading.Thread(target=self.read_thumbnails, daemon=True).start()
+            self.thumbs.put((path, self.generation, show))
+
+        def show(loaded, gen):
+            if loaded and gen == self.generation:
+                pb = loaded[0]
+                fmt = Gdk.MemoryFormat.R8G8B8A8 if pb.get_has_alpha() else Gdk.MemoryFormat.R8G8B8
+                image.set_from_paintable(Gdk.MemoryTexture.new(pb.get_width(), pb.get_height(), fmt,
+                                                               pb.read_pixel_bytes(), pb.get_rowstride()))
+            return False
+
+        image.started = False
+        image.connect("map", load)
+        return image
+
+    def read_thumbnails(self):
+        while True:
+            path, gen, show = self.thumbs.get()
+            if gen == self.generation:  # still shown
+                GLib.idle_add(show, similar.load_small(path, THUMB * 2, THUMB * 2, fit=True), gen)
+
+    def file_row(self, g, f, keep):
         path = f["path"]
         date = time.strftime("%-d %b %Y %H:%M", time.localtime(f["mtime"]))
-        subtitle = (_("Oldest · modified {date}") if oldest else _("Modified {date}")).format(date=date)
-        row = Adw.ActionRow(title=short_path(os.path.dirname(path)), subtitle=subtitle, use_markup=False,
+        if self.mode == PHOTOS:
+            title = os.path.basename(path)
+            facts = _("{width} × {height} · {size} · {folder}").format(
+                width=f["width"], height=f["height"], size=human(f["bytes"]),
+                folder=short_path(os.path.dirname(path)))
+            subtitle = _("Suggested · {facts}").format(facts=facts) if keep else facts
+            tip = _("Move this photo to the Trash")
+        else:
+            title = short_path(os.path.dirname(path))
+            subtitle = (_("Oldest · modified {date}") if keep else _("Modified {date}")).format(date=date)
+            tip = _("Move this copy to the Trash")
+        row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False,
                             title_lines=1, css_classes=["item-row"], tooltip_text=path)
         check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"],
-                                tooltip_text=_("Move this copy to the Trash"))
+                                tooltip_text=tip)
         check.connect("toggled", self.on_toggled, g, path)
         self.checks[path] = check
-        row.add_prefix(Gtk.Image(icon_name="folder-symbolic"))
+        row.add_prefix(self.thumbnail(path) if self.mode == PHOTOS else Gtk.Image(icon_name="folder-symbolic"))
         row.add_prefix(check)  # prefixes stack leftwards: the box comes first
         row.set_activatable_widget(check)
         show = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
@@ -272,7 +490,10 @@ class DuplicatesPage(Gtk.Box):
         n = len(g["files"])
         ticked = sum(f["path"] in self.selected for f in g["files"])
         if ticked == n:
-            row.set_subtitle(_("Every copy is selected: none would be kept"))
+            row.set_subtitle(_("Every photo is selected: none would be kept") if self.mode == PHOTOS
+                             else _("Every copy is selected: none would be kept"))
+        elif self.mode == PHOTOS:
+            row.set_subtitle(ngettext("{n} photo, {k} selected", "{n} photos, {k} selected", n, k=ticked))
         else:
             row.set_subtitle(ngettext("{n} copy of {size}, {k} selected", "{n} copies of {size}, {k} selected", n,
                                       size=human(g["bytes"]), k=ticked))
@@ -283,6 +504,8 @@ class DuplicatesPage(Gtk.Box):
             self.selected.add(path)
         else:
             self.selected.discard(path)
+        if self.bulk:
+            return
         self.update_group(g)
         self.update_summary()
 
@@ -292,7 +515,7 @@ class DuplicatesPage(Gtk.Box):
     def update_summary(self):
         chosen = self.chosen()
         self.summary.set_markup(ngettext("Selected <b>{size}</b> in {n} file", "Selected <b>{size}</b> in {n} files",
-                                         len(chosen), size=human(sum(g["bytes"] for g, _f in chosen))))
+                                         len(chosen), size=human(sum(file_bytes(g, f) for g, f in chosen))))
         self.trash_button.set_sensitive(bool(chosen) and not self.running)
 
     # ── Trash and undo ──
@@ -304,22 +527,25 @@ class DuplicatesPage(Gtk.Box):
         whole = [g for g in self.shown_groups() if self.all_ticked(g)]
         if whole:
             lines.append(Gtk.Label(
-                label=ngettext("Every copy of {n} file is selected: none of its copies would be kept.",
-                               "Every copy of {n} files is selected: none of their copies would be kept.",
-                               len(whole)),
+                label=ngettext("Every photo of {n} group is selected: none of its photos would be kept.",
+                               "Every photo of {n} groups is selected: none of their photos would be kept.",
+                               len(whole)) if self.mode == PHOTOS else
+                ngettext("Every copy of {n} file is selected: none of its copies would be kept.",
+                         "Every copy of {n} files is selected: none of their copies would be kept.",
+                         len(whole)),
                 xalign=0, wrap=True, css_classes=["warning"], margin_bottom=6))
         for g, f in chosen[:12]:
             row = Gtk.Box(spacing=12)
             row.append(Gtk.Label(label=short_path(f["path"]), xalign=0, hexpand=True,
                                  ellipsize=Pango.EllipsizeMode.START))
-            row.append(Gtk.Label(label=human(g["bytes"]), css_classes=["numeric", "dim-label"]))
+            row.append(Gtk.Label(label=human(file_bytes(g, f)), css_classes=["numeric", "dim-label"]))
             lines.append(row)
         if len(chosen) > 12:
             lines.append(Gtk.Label(label=_("… and {n} more").format(n=len(chosen) - 12), xalign=0, css_classes=["dim-label"]))
         dialog = Adw.AlertDialog(
             heading=ngettext("Move {n} file to the Trash?", "Move {n} files to the Trash?", len(chosen)),
             body=_("{size}. You can undo this right away, or restore the files from the Trash later.").format(
-                size=human(sum(g["bytes"] for g, _f in chosen))),
+                size=human(sum(file_bytes(g, f) for g, f in chosen))),
             extra_child=lines)
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("trash", _("Move to Trash"))
@@ -381,7 +607,8 @@ class DuplicatesPage(Gtk.Box):
         self.window.set_busy(True)
         self.trash_button.set_sensitive(False)
         self.moving = True
-        self.running = self.engine.trash(paths, on_event, on_done, source="Duplicates")
+        self.running = self.engine.trash(paths, on_event, on_done,
+                                         source="Similar Photos" if self.mode == PHOTOS else "Duplicates")
 
     def undo(self, moved):
         if self.running or not moved:
@@ -406,7 +633,8 @@ class DuplicatesPage(Gtk.Box):
             if gen == self.generation:  # the same search is still shown: put the copies back in their groups
                 for g, f in back:
                     if f["path"] not in (x["path"] for x in g["files"]):
-                        g["files"] = sorted(g["files"] + [f], key=lambda x: -x["mtime"])
+                        g["files"] = sorted(g["files"] + [f], reverse=True, key=similar.keep_key if "key" in g
+                                            else lambda x: x["mtime"])
                 self.show_results()
             if failed:
                 self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(

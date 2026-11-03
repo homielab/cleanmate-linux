@@ -18,7 +18,12 @@ drive mounted under `/media`, `/run/media` or `/mnt` things go to that drive's o
 comes back on that drive; read-only and network drives, Timeshift backups and other places outside your
 home folder it only shows. **Duplicates** groups identical files (from 1 MB, in a folder or drive you
 pick); nothing is ticked until you choose, and **Select automatically** ticks every copy except the oldest
-(usually the original); you're warned if every copy of a file is ticked.
+(usually the original); you're warned if every copy of a file is ticked. Its **Similar Photos** mode
+groups photos that look alike (resized or re-saved copies, edits, shots taken one after another) in
+Pictures or a folder you pick, read on your computer only; it suggests keeping the one with the most
+pixels, then the biggest file, ticks nothing until you choose, and moves the others to the Trash, with
+Undo. JPEG and PNG always, WebP, HEIC and AVIF when your system can open them; hidden folders, Never
+clean folders and Shotwell or digiKam libraries are skipped.
 **Large & Old Files** lists
 your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
 Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash). **Startup Items** switches the apps and your systemd user services
