@@ -49,8 +49,9 @@ def suggest_feature(win):
     win._open_url(issue_url(FEATURE_TEMPLATE))
 
 
-def report_bug(win):
-    """Ask the engine for the system details, then show them (`show_report`)."""
+def report_bug(win, extra=None):
+    """Ask the engine for the system details, then show them (`show_report`); EXTRA (what an error page
+    copies) goes below them, and alone when the engine can't answer."""
     found = {}
 
     def on_event(e):
@@ -59,8 +60,9 @@ def report_bug(win):
 
     def on_done(ok, _status):
         win.set_busy(False)
-        if found.get("body"):
-            show_report(win, found["body"])
+        body = "\n\n".join(part for part in (found.get("body"), extra) if part)
+        if body:
+            show_report(win, body)
         else:
             win.toast(_("Could not read the system details."))
 

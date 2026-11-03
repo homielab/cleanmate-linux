@@ -26,6 +26,9 @@ All notable changes are listed here. The format follows
 
 ### Fixed
 
+- Desktop app: results are honest. Items whose check ran out of time are listed under **Not finished** with **Scan Again**, and the scan is never called clean while one remains. An engine failure shows its reason, **Copy Details** and **Report a Bug…** on Smart Scan, Large & Old Files, Duplicates and Space Lens instead of an empty page, and items a crashed clean never reached are marked failed, not skipped.
+- Desktop app: the clean summary separates the space freed from what went to the Trash, and **Empty Trash…** frees it. Free space is shown for both `/` and the home partition when they differ, and System Overview measures again after a clean. `cm --json clean` adds `to_trash` and `disks` to its `done` event.
+- Desktop app, **Uninstaller**: an app that can't be removed keeps its row with the reason, and the summary says how many could not be uninstalled. A dismissed or missing password dialog says so.
 - A scan that hits its time limit no longer reports an item as clean when its check was cut short.
 
 ## [2.3.0] — 2026-11-02

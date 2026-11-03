@@ -13,6 +13,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .a11y import named
 from .engine import IN_FLATPAK, human
+from .errorview import ErrorPage, Failure
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .preview import open_file, row_buttons, show_in_files
@@ -139,6 +140,8 @@ class SpaceLensPage(Gtk.Box):
         self.stack.add_named(self.measuring, "measuring")
         self.empty = Adw.StatusPage(icon_name="folder-symbolic", title=_("This folder is empty"))
         self.stack.add_named(self.empty, "empty")
+        self.failed = ErrorPage(window, lambda: self.load(self.folder, fresh=True), title=_("Couldn't measure this folder"))
+        self.stack.add_named(self.failed, "failed")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
         self.scroll = Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
@@ -314,12 +317,14 @@ class SpaceLensPage(Gtk.Box):
             self.entries, self.info = self.cache[path]
             return self.show_results()
         entries, info = [], {}
+        failure = Failure("cm --json lens", self.engine.env.get("HOME"))
         self.measuring.set_description(_("Adding up {folder}").format(folder=short_path(path)))
         self.stack.set_visible_child_name("measuring")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
 
         def on_event(e):
+            failure.see(e)
             if e["event"] == "entry":
                 entries.append(e)
             elif e["event"] in ("done", "error"):
@@ -330,6 +335,12 @@ class SpaceLensPage(Gtk.Box):
                 return  # replaced by a newer measurement
             self.running = None
             self.window.set_busy(False)
+            if failure.failed and "bytes" not in info:  # no answer: an error, never "this folder is empty"
+                self.entries, self.info = [], {}
+                self.failed.show(failure)
+                self.stack.set_visible_child_name("failed")
+                self.bar.set_revealed(False)
+                return
             if "message" in info:
                 self.window.toast(info["message"])
             elif ok:

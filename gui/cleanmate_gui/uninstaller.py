@@ -17,6 +17,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .a11y import named
 from .engine import human
+from .errorview import Failure, last_line, pkexec_reason
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
@@ -129,6 +130,10 @@ class UninstallerPage(Gtk.Box):
                        margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
         wbox.append(self.work_title)
         wbox.append(self.work_list)
+        # after an uninstall where an app was not removed: its row and reason stay until you go back
+        self.work_back = Gtk.Button(label=_("Back to the List"), halign=Gtk.Align.START, visible=False)
+        self.work_back.connect("clicked", lambda *_: self.load())
+        wbox.append(self.work_back)
         self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=wbox), vexpand=True),
                              "working")
 
@@ -593,7 +598,8 @@ class UninstallerPage(Gtk.Box):
         user_ids = [a["id"] for a in apps if a["kind"] in USER_KINDS and a["id"] not in running]
         # apt and Snap need root: the standard password dialog (never in a dry run, which changes nothing)
         root_ids = [a["id"] for a in apps if a["kind"] not in USER_KINDS and a["id"] not in running]
-        removed, skipped = set(), set()
+        removed, skipped, failed = set(), set(), set()
+        unasked = set()  # the password dialog was dismissed or could not open: these apps were not touched
         app_moved = {}  # trash name → path of the AppImage files that went to the Trash
         rows = {}
         child = self.work_list.get_first_child()
@@ -608,6 +614,7 @@ class UninstallerPage(Gtk.Box):
             rows[a["id"]] = row
         self.sync_all_check()
         self.work_title.set_text(_("Uninstalling…"))
+        self.work_back.set_visible(False)
         self.stack.set_visible_child_name("working")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
@@ -642,23 +649,39 @@ class UninstallerPage(Gtk.Box):
                     info or {"ok": _("removed"), "skip": _("skipped")}.get(e["state"], _("failed")))
             if e["state"] == "ok":
                 removed.add(e["id"])
+            elif e["state"] != "skip":
+                failed.add(e["id"])
+
+        def run(ids, then, as_root=False):
+            """One engine run; apps it never reported on (it crashed, or pkexec didn't run it) get the reason."""
+            failure = Failure("cm --json uninstall", self.engine.env.get("HOME"))
+
+            def events(e):
+                failure.see(e)
+                on_event(e)
+
+            def ended(ok, status):
+                reason = pkexec_reason(status, failure.stderr) if as_root else None
+                for i in ids:
+                    if i in removed or i in skipped or i in failed:
+                        continue
+                    if reason:
+                        set_row(rows[i], "skip", reason)
+                        unasked.add(i)
+                    else:
+                        set_row(rows[i], "fail", last_line(failure.stderr, status, self.engine.env.get("HOME"))
+                                if failure.failed else _("Not removed"))
+                        failed.add(i)
+                then()
+
+            self.running = self.engine.uninstall(ids, events, ended, as_root=as_root)
 
         def run_root():
             if not root_ids:
                 return trash_leftovers()
             for i in root_ids:
                 rows[i].set_subtitle(_("waiting for your password…"))
-            self.running = self.engine.uninstall(root_ids, on_event, root_done, as_root=not dry)
-
-        def root_done(ok, status):
-            for i in root_ids:
-                row = rows[i]
-                if row.get_subtitle() in (_("waiting"), _("waiting for your password…"), _("removing…")):
-                    if status in (126, 127):  # password dialog dismissed / not authorized
-                        set_row(row, "skip", _("Skipped — no password was entered"))
-                    else:
-                        set_row(row, "fail", _("Not removed"))
-            trash_leftovers()
+            run(root_ids, trash_leftovers, as_root=not dry)
 
         def trash_leftovers():
             paths = [l["path"] for a in apps if a["id"] in removed for l in a["leftovers"]
@@ -697,6 +720,11 @@ class UninstallerPage(Gtk.Box):
             if skipped:
                 msg += ngettext("; {n} app skipped because it is running", "; {n} apps skipped because they are running",
                                 len(skipped))
+            if unasked:
+                msg += ngettext("; {n} app skipped: no password was entered",
+                                "; {n} apps skipped: no password was entered", len(unasked))
+            if failed:
+                msg += ngettext("; {n} could not be uninstalled", "; {n} could not be uninstalled", len(failed))
             self.work_title.set_text(msg)
             if app_moved:  # the AppImage files and their folders: one Restore puts them all back
                 everything = {**app_moved, **moved}
@@ -708,10 +736,13 @@ class UninstallerPage(Gtk.Box):
                 self.window.toast(msg)
             self.window.refresh_disk()
             self.selected -= removed
-            GLib.timeout_add(1500, lambda: (self.load(), False)[1])
+            if failed or unasked:  # the rows say why: they stay until Back to the List
+                self.work_back.set_visible(True)
+            else:
+                GLib.timeout_add(1500, lambda: (self.load(), False)[1])
 
         if user_ids:
-            self.running = self.engine.uninstall(user_ids, on_event, lambda ok, st: run_root())
+            run(user_ids, run_root)
         else:
             run_root()
 

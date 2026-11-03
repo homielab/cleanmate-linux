@@ -11,6 +11,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 from .a11y import named
 from . import preview
 from .engine import human
+from .errorview import ErrorPage, Failure
 from .i18n import _, ngettext
 from .scanpage import size_widgets
 
@@ -110,6 +111,8 @@ class LargeFilesPage(Gtk.Box):
         self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title=_("No files match"),
                                     description=_("Try a smaller size, any age, or another folder."))
         self.stack.add_named(self.empty, "empty")
+        self.failed = ErrorPage(window, lambda: self.search(), title=_("The search failed"))
+        self.stack.add_named(self.failed, "failed")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
         # sort and kind: they only change what is listed, no new search
@@ -168,6 +171,7 @@ class LargeFilesPage(Gtk.Box):
         self.generation += 1
         gen = self.generation
         files, info = [], {}
+        failure = Failure("cm --json large", self.engine.env.get("HOME"))
         min_bytes = MIN_SIZES[self.size_drop.get_selected()][1]
         days = AGES[self.age_drop.get_selected()][1]
         self.searching.set_description(_("Files of {size} or more in {folder}").format(size=human(min_bytes), folder=short_path(self.folder)))
@@ -176,6 +180,7 @@ class LargeFilesPage(Gtk.Box):
         self.window.set_busy(True)
 
         def on_event(e):
+            failure.see(e)
             if e["event"] == "file":
                 files.append(e)
             elif e["event"] in ("done", "error"):
@@ -186,6 +191,12 @@ class LargeFilesPage(Gtk.Box):
                 return  # replaced by a newer search
             self.running = None
             self.window.set_busy(False)
+            if failure.failed and "found" not in info:  # no answer: an error, never "no files match"
+                self.files, self.found = [], 0
+                self.selected.clear()
+                self.failed.show(failure)
+                self.stack.set_visible_child_name("failed")
+                return
             if "message" in info:
                 self.window.toast(info["message"])
             self.files = files

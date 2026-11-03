@@ -6893,6 +6893,11 @@ fs_avail() { # free bytes on the filesystems holding / and $HOME
   df -B1 --output=avail,target "$SYS_DISK" "$HOME" 2>/dev/null | tail -n +2 | sort -u -k2,2 | sum_lines
 }
 
+fs_avails() { # "MOUNT<tab>FREE BYTES" for the filesystem holding / and, when it is another one, the one holding $HOME
+  df -B1 --output=avail,target "$SYS_DISK" "$HOME" 2>/dev/null |
+    awk 'NR > 1 { t = $0; sub(/^[ \t]*[0-9]+[ \t]+/, "", t); if (t != "" && !seen[t]++) printf "%s\t%d\n", t, $1 }'
+}
+
 progress_bar() { # VAR DONE TOTAL WIDTH
   local f=0 pa pb
   (($3 > 0)) && f=$(($2 * $4 / $3))
@@ -11141,6 +11146,7 @@ json_allowed() { # ID UID
 
 json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or these entries of one), streaming "task" events
   local id ids=() out rc before freed total=0 avail0 avail1 src bytes note info entries="" e key keys trashed=""
+  local to_trash=0 disks0 disks1 disks="" mount free was
   local -a ENTRY_PICK=()
   while (($#)); do
     case $1 in
@@ -11157,7 +11163,7 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
     ((${#ids[@]} == 1)) || { json_error "--entries works with one item at a time"; return 2; }
     json_pick_entries "${ids[0]}" "$entries" || return
   fi
-  avail0=$(fs_avail)
+  disks0=$(fs_avails)
   for id in "${ids[@]}"; do
     json_task "$id" run
     if item_excluded "$id"; then json_task "$id" skip "In Settings › Never clean"; continue; fi
@@ -11198,12 +11204,22 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
       info="$(human "$freed") freed"
     fi
     total=$((total + freed))
+    # what went to the Trash is still on the disk until the Trash is emptied
+    if [[ -n $keys ]] || { ((DRY_RUN)) && [[ -n ${ITEM_TRASH[$id]:-} ]]; }; then to_trash=$((to_trash + freed)); fi
     json_task "$id" ok "$info" "$freed"
   done
-  avail1=$(fs_avail)
+  disks1=$(fs_avails)
+  avail0=$(cut -f2 <<<"$disks0" | sum_lines) avail1=$(cut -f2 <<<"$disks1" | sum_lines)
+  while IFS=$'\t' read -r mount free; do # free space before → after on each filesystem: / and a separate /home
+    [[ -n $mount ]] || continue
+    was=$(awk -F'\t' -v m="$mount" '$1 == m { print $2; exit }' <<<"$disks0")
+    json_str mount "$mount"
+    disks+=${disks:+,}$(printf '{"mount":%s,"before":%d,"after":%d}' "$mount" "${was:-$free}" "$free")
+  done <<<"$disks1"
   ((DRY_RUN)) || record_cleanup "$total"
-  log "GUI cleanup finished — $(human "$total") freed (dry-run=$DRY_RUN)"
-  printf '{"event":"done","freed":%d,"avail_before":%d,"avail_after":%d,"trash":{%s}}\n' "$total" "$avail0" "$avail1" "$trashed"
+  log "GUI cleanup finished — $(human "$total") freed, $(human "$to_trash") of it in the Trash (dry-run=$DRY_RUN)"
+  printf '{"event":"done","freed":%d,"to_trash":%d,"avail_before":%d,"avail_after":%d,"disks":[%s],"trash":{%s}}\n' \
+    "$total" "$to_trash" "$avail0" "$avail1" "$disks" "$trashed"
 }
 
 json_clean_entries() { # ID — clean ENTRY_PICK of ID (only entries entries_ID lists now) → ENTRY_BYTES, @@scan line

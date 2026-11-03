@@ -49,7 +49,7 @@ cm --clean --yes --only logs,user    # whole groups, plain text output
 
 `cm --clean --yes` cleans what is ticked in the user's saved choices but always skips `data_loss` items, printing `… skipped: may hold data — run cm --json clean ID`.
 
-`--json clean` streams `{"event":"task","id","state","info","freed"}` with state `run`, `ok`, `skip` (app running) or `fail`, then `{"event":"done","freed","avail_before","avail_after","trash":{ID:[keys]}}`. Items in `trash` can be restored with `cm --json restore KEY…`.
+`--json clean` streams `{"event":"task","id","state","info","freed"}` with state `run`, `ok`, `skip` (app running) or `fail`, then `{"event":"done","freed","to_trash","avail_before","avail_after","disks":[{"mount","before","after"}],"trash":{ID:[keys]}}`: `freed` includes `to_trash`, which only frees space once the Trash is emptied; `disks` gives the free space of `/` and, when it is another filesystem, of the home folder. Items in `trash` can be restored with `cm --json restore KEY…`.
 
 Exit code: 0 ok, 1 error, 2 bad arguments (a JSON `error` event says why).
 

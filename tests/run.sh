@@ -1369,6 +1369,42 @@ for l in sys.stdin:
   assert_exists "$dl/a.deb"; assert_missing "$thumb"
 }
 
+test_json_clean_splits_trash_and_disks() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local dl=$HOME_DIR/Downloads thumb=$HOME_DIR/.cache/thumbnails/large/a.png out
+  sized "$dl/a.deb" 1000; touch -d "40 days ago" "$dl/a.deb"
+  sized "$dl/report.pdf" 2000; touch -d "120 days ago" "$dl/report.pdf"; touch -a -d "120 days ago" "$dl/report.pdf"
+  sized "$thumb" 500
+  # / and the home folder on separate filesystems (a /home partition); a mount point may hold spaces
+  mkdir -p "$HOME_DIR/.local/bin"
+  printf '#!/bin/sh\necho "     Avail Mounted on"\nfor a; do case $a in -*) ;; /) echo " 1000 /" ;; *) echo " 2000 /mnt/my home" ;; esac; done\n' \
+    >"$HOME_DIR/.local/bin/df"
+  chmod +x "$HOME_DIR/.local/bin/df"
+  local check='import sys, json
+tasks = {}
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task" and e["state"] != "run": tasks[e["id"]] = (e["state"], e["freed"])
+    elif e["event"] == "done": done = e
+assert all(s == "ok" and f > 0 for s, f in tasks.values()), tasks
+moved = tasks["old_installers"][1] + tasks["old_downloads"][1]
+print(done["freed"] == moved + tasks["thumbs"][1], done["to_trash"] == moved, done["avail_before"], done["avail_after"])
+print(json.dumps(done["disks"]))'
+  out=$(user_cm --json --dry-run clean old_installers old_downloads thumbs | python3 -c "$check")
+  assert_eq "$out" $'True True 3000 3000\n[{"mount": "/", "before": 1000, "after": 1000}, {"mount": "/mnt/my home", "before": 2000, "after": 2000}]' \
+    "dry run: what would go to the Trash is counted apart; free space per filesystem"
+  out=$(user_cm --json clean old_installers old_downloads thumbs | python3 -c "$check")
+  assert_eq "$out" $'True True 3000 3000\n[{"mount": "/", "before": 1000, "after": 1000}, {"mount": "/mnt/my home", "before": 2000, "after": 2000}]' \
+    "done splits what went to the Trash from what was deleted, and lists / and /home apart"
+  assert_missing "$dl/a.deb"; assert_missing "$dl/report.pdf"; assert_missing "$thumb"
+  # one filesystem: one line
+  printf '#!/bin/sh\necho "     Avail Mounted on"\nfor a; do case $a in -*) ;; *) echo " 1000 /" ;; esac; done\n' \
+    >"$HOME_DIR/.local/bin/df"
+  out=$(user_cm --json clean thumbs | tail -n 1 | python3 -c 'import sys, json; print(json.dumps(json.load(sys.stdin)["disks"]))')
+  assert_eq "$out" '[{"mount": "/", "before": 1000, "after": 1000}]' "/ and home on one filesystem: one entry"
+}
+
 test_json_restore_list() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home

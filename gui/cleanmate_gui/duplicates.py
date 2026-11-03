@@ -17,6 +17,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 from .a11y import named
 from . import preview, similar
 from .engine import human
+from .errorview import ErrorPage, Failure
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
@@ -145,6 +146,8 @@ class DuplicatesPage(Gtk.Box):
         self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title=_("No duplicates found"),
                                     description=_("Try a smaller size or another folder."))
         self.stack.add_named(self.empty, "empty")
+        self.failed = ErrorPage(window, lambda: self.search(), title=_("The search failed"))
+        self.stack.add_named(self.failed, "failed")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
         self.scroller = Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
@@ -261,9 +264,12 @@ class DuplicatesPage(Gtk.Box):
         if self.mode == PHOTOS:
             return self.search_photos(gen)
 
+        failure = Failure("cm --json dupes", self.engine.env.get("HOME"))
+
         def on_event(e):
             if gen != self.generation:
                 return
+            failure.see(e)
             if e["event"] == "group":
                 groups.append(e)
             elif e["event"] == "progress" and e["total"]:
@@ -278,6 +284,12 @@ class DuplicatesPage(Gtk.Box):
                 return  # replaced by a newer search
             self.running = None
             self.window.set_busy(False)
+            if failure.failed and "found" not in info:  # no answer: an error, never "no duplicates found"
+                self.groups, self.found = [], 0
+                self.selected = set()
+                self.failed.show(failure)
+                self.stack.set_visible_child_name("failed")
+                return
             if "message" in info:
                 self.window.toast(info["message"])
             self.groups = groups

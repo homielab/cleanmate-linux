@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import signal
+from collections import deque
 
 from gi.repository import Gio, GLib
 
@@ -54,10 +55,18 @@ def human(n):
     return f"{t // 10}.{t % 10} {units[i]}"
 
 
+# the last lines the engine wrote to stderr, kept for the error page and the bug report
+STDERR_LINES = 20
+STDERR_GRACE_MS = 300  # after a failed run, how long to wait for its last stderr lines
+# pkexec's own exit statuses: the password dialog was dismissed (126), not authorized or no dialog (127)
+PKEXEC_DISMISSED, PKEXEC_REFUSED = 126, 127
+
+
 class Run(Gio.Cancellable):
     """One engine run: cancel() kills it at once; stop() asks it to end early and still report (a scan
     then lists the items it got to)."""
     proc = None
+    stderr = ()  # the last STDERR_LINES lines the engine wrote to stderr
 
     def stop(self):
         if self.proc and not self.is_cancelled():
@@ -76,7 +85,9 @@ class Engine:
         """Start the engine. on_event(dict) per event, on_done(ok, exit_status) at the end.
 
         Returns a Run (a Gio.Cancellable) that stops it. With as_root, the command goes
-        through pkexec (the standard Ubuntu password dialog).
+        through pkexec (the standard Ubuntu password dialog). A run that fails (exit status not 0, not
+        cancelled) sends one last event before on_done: {"event": "failed", "status": N, "stderr": [lines]}
+        with the last lines the engine (or pkexec) wrote to stderr.
         """
         argv = ["bash", self.path, "--json"]
         if as_root:  # pkexec from the engine's PATH (the self-test's stub), else the system's
@@ -87,26 +98,61 @@ class Engine:
         cancellable = Run()
         try:
             launcher = Gio.SubprocessLauncher.new(
-                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
             )
             for key, value in self.env.items():
                 launcher.setenv(key, value, True)
             proc = launcher.spawnv(argv)
         except GLib.Error as e:
             GLib.idle_add(on_event, {"event": "error", "message": e.message})
+            GLib.idle_add(on_event, {"event": "failed", "status": -1, "stderr": [e.message]})
             GLib.idle_add(on_done, False, -1)
             return cancellable
         stream = Gio.DataInputStream.new(proc.get_stdout_pipe())
+        errors = Gio.DataInputStream.new(proc.get_stderr_pipe())
+        tail = deque(maxlen=STDERR_LINES)
         cancellable.proc = proc
+        cancellable.stderr = tail
         cancellable.connect(lambda *_: proc.force_exit())
+        # stderr is read on its own: a child the engine left running may hold it open, so the run ends with
+        # stdout and the exit, and waits for the rest of stderr only briefly
+        err_cancel = Gio.Cancellable()
+        cancellable.connect(lambda *_: err_cancel.cancel())
+        state = {"stderr_open": True, "exited": None}
+
+        def end():
+            if state["exited"] is None:
+                return
+            status, state["exited"] = state["exited"], None
+            err_cancel.cancel()
+            if status != 0 and not cancellable.is_cancelled():
+                on_event({"event": "failed", "status": status, "stderr": list(tail)})
+            on_done(status == 0, status)
 
         def finished(p, result):
             try:
                 p.wait_finish(result)
             except GLib.Error:
                 pass
-            status = p.get_exit_status() if p.get_if_exited() else -1
-            on_done(status == 0, status)
+            state["exited"] = p.get_exit_status() if p.get_if_exited() else -1
+            if not state["stderr_open"] or state["exited"] == 0:
+                end()
+            else:
+                GLib.timeout_add(STDERR_GRACE_MS, lambda: end() and False)
+
+        def got_error_line(s, result):  # bytes: a stray non-UTF-8 line must not stop the reading (and the engine)
+            try:
+                line, _len = s.read_line_finish(result)
+            except GLib.Error:
+                line = None
+            if line is None:
+                state["stderr_open"] = False
+                end()
+                return
+            text = bytes(line).decode("utf-8", "replace").rstrip()
+            if text.strip():
+                tail.append(text)
+            s.read_line_async(GLib.PRIORITY_DEFAULT, err_cancel, got_error_line)
 
         def got_line(s, result):
             try:
@@ -125,6 +171,7 @@ class Engine:
             s.read_line_async(GLib.PRIORITY_DEFAULT, cancellable, got_line)
 
         stream.read_line_async(GLib.PRIORITY_DEFAULT, cancellable, got_line)
+        errors.read_line_async(GLib.PRIORITY_DEFAULT, err_cancel, got_error_line)
         return cancellable
 
     # ── convenience wrappers ──

@@ -6,6 +6,7 @@ from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
 from .a11y import named
 from .engine import CAT_GROUP, CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, SMART_SCAN, human
+from .errorview import ErrorPage, Failure, last_line, pkexec_reason
 from .i18n import _, detail_text, item_text, ngettext, note_text, why_running
 from .preview import open_file
 from .settings import EXCLUSION_REASONS, short_path
@@ -73,6 +74,7 @@ class ScanPage(Gtk.Box):
         self.clean_summary = None  # what the last clean did; its card stays until the user scans again
         self.excluding = None  # Gio.Cancellable of a Never clean change
         self.summary_undo = None  # the Undo button of the clean summary card
+        self.summary_empty = None  # its Empty Trash… button
         self.item_rows = {}  # item id → its row
         self.entry_rows = {}  # item id → {entry id → row}
         self.group_rows = []  # (group, junk ids, "more items are clean" row or None, [(clean row, item)])
@@ -117,6 +119,10 @@ class ScanPage(Gtk.Box):
         scanning = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Scanning…"), child=box)
         self.stack.add_named(scanning, "scanning")
 
+        # 2b. the engine failed before it answered: an error, never "your system is clean"
+        self.failed = ErrorPage(window, lambda: self.scan(), title=_("The scan failed"))
+        self.stack.add_named(self.failed, "failed")
+
         # 3. results (filled in by show_results)
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
@@ -139,6 +145,8 @@ class ScanPage(Gtk.Box):
         cbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
                        margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
         cbox.append(self.clean_title)
+        self.clean_disks = Gtk.Label(xalign=0, wrap=True, visible=False, css_classes=["dim-label"])
+        cbox.append(self.clean_disks)
         cbox.append(self.clean_progress)
         cbox.append(self.clean_list)
         self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=820, child=cbox),
@@ -232,8 +240,10 @@ class ScanPage(Gtk.Box):
         self.stack.set_visible_child_name("scanning")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
+        failure = Failure("cm --json scan", self.engine.env.get("HOME"))
 
         def on_event(e):
+            failure.see(e)
             if e["event"] == "progress" and not self.stopping:
                 self.progress.set_fraction(e["done"] / max(e["total"], 1))
                 self.progress_label.set_text(_("Checking {name}…").format(name=e["current"]) if e["current"] else "")
@@ -252,9 +262,10 @@ class ScanPage(Gtk.Box):
                 self.window.toast(_("Scan stopped"))
                 self.stack.set_visible_child_name("start")
                 return
-            if not ok and not self.items:
-                self.window.toast(_("The scan failed — try the terminal app (cm) for details."))
-                self.stack.set_visible_child_name("start")
+            if failure.failed and not self.scan_info and not self.stopped:  # it never said it was done
+                self.items.clear()
+                self.failed.show(failure)
+                self.stack.set_visible_child_name("failed")
                 return
             self.show_results()
             if self.scan_again:
@@ -295,6 +306,8 @@ class ScanPage(Gtk.Box):
                          if e["status"] == "found"}
 
         found = [e for e in self.items.values() if e["status"] == "found"]
+        # cut off at the scan's time limit: not checked to the end, so never counted as clean
+        unfinished = [e for e in self.items.values() if e["status"] == "timeout"]
         total = sum(e["bytes"] for e in found)
         info = self.scan_info
         scanned = ngettext("{n} location scanned in {secs}s", "{n} locations scanned in {secs}s",
@@ -309,6 +322,9 @@ class ScanPage(Gtk.Box):
             lines = [scanned]
         elif self.stopped:
             head, lines = _("Scan stopped"), [_("Nothing worth removing was found in what was checked."), scanned]
+        elif unfinished:
+            head, lines = _("The scan didn't finish"), [_("Nothing worth removing was found in what was checked."),
+                                                         scanned]
         else:
             head, lines = _("Your system is clean"), [_("Nothing worth removing was found."), scanned]
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -318,10 +334,17 @@ class ScanPage(Gtk.Box):
         if self.stopped:
             header.append(Gtk.Label(label=_("The scan was stopped: items it hadn't checked yet are not listed."),
                                     xalign=0, wrap=True, css_classes=["warning"]))
+        if unfinished:
+            header.append(Gtk.Label(label=ngettext(
+                "{n} item took too long to check: it may still hold junk. Scan again to check it.",
+                "{n} items took too long to check: they may still hold junk. Scan again to check them.",
+                len(unfinished)), xalign=0, wrap=True, css_classes=["warning"]))
         self.scan_header = header
         self.results.append(header)
         if self.clean_summary:
             self.results.append(self.summary_card())
+        if unfinished:
+            self.results.append(self.unfinished_group(unfinished))
 
         biggest = max([e["bytes"] for e in found] or [1])
         for cat in self.categories:
@@ -329,7 +352,9 @@ class ScanPage(Gtk.Box):
             if not items:
                 continue
             junk = sorted((e for e in items if e["status"] == "found"), key=lambda e: -e["bytes"])
-            clean = [e for e in items if e["status"] != "found"]
+            clean = [e for e in items if e["status"] not in ("found", "timeout")]
+            if not junk and not clean:
+                continue  # its only items are in "Not finished"
             group = Adw.PreferencesGroup(title=CATEGORY_TITLES.get(cat, cat))
             if junk and not self.privacy:
                 group.set_description(human(sum(e["bytes"] for e in junk)))
@@ -367,6 +392,26 @@ class ScanPage(Gtk.Box):
         self.update_summary()
         self.apply_filter()
 
+    def unfinished_group(self, items):
+        """The items the scan cut off at its time limit: a warning each and Scan Again, never "clean"."""
+        group = Adw.PreferencesGroup(title=_("Not finished"), description=_(
+            "These checks took too long and were stopped, so what they hold isn't listed or counted."))
+        again = Gtk.Button(label=_("Scan Again"), valign=Gtk.Align.CENTER)
+        again.connect("clicked", lambda *_a: self.scan(keep_summary=True))
+        group.set_header_suffix(again)
+        self.unfinished_button = again
+        rows = []
+        for e in sorted(items, key=lambda e: item_text(e["label"])):
+            secs = e.get("durationMs", 0) / 1000
+            row = Adw.ActionRow(title=item_text(e["label"]), use_markup=False, subtitle=_(
+                "Stopped after {secs}s — not checked to the end").format(secs=f"{secs:.0f}") if secs >= 1
+                else _("Not checked: the scan ran out of time"))
+            row.add_prefix(Gtk.Image(icon_name="dialog-warning-symbolic", css_classes=["warning"]))
+            group.add(row)
+            rows.append((row, e))
+        self.group_rows.append((group, [], None, rows))
+        return group
+
     # ── search: Ctrl+F filters items and their listed parts by name or path ──
     @staticmethod
     def matches(words, *texts):
@@ -398,14 +443,14 @@ class ScanPage(Gtk.Box):
                 if visible and hits and not own:
                     row.set_expanded(True)  # show the parts that matched
                 shown += visible
+            n = 0
+            for row, e in clean_rows:
+                on = not words or self.item_matches(words, e)
+                row.set_visible(on)
+                n += on
             if more:
-                n = 0
-                for row, e in clean_rows:
-                    on = not words or self.item_matches(words, e)
-                    row.set_visible(on)
-                    n += on
                 more.set_visible(n > 0)
-                shown += n
+            shown += n
             group.set_visible(shown > 0)
             shown_any = shown_any or shown > 0
         if hasattr(self, "no_match"):
@@ -855,9 +900,10 @@ class ScanPage(Gtk.Box):
         user_ids = [i for i in ids if not self.items[i]["root"]]
         root_ids = [i for i in ids if self.items[i]["root"]]
         self.task_rows = {}
-        self.freed = 0
+        self.freed = 0  # what the items took, freed or moved to the Trash
+        self.to_trash = 0  # the part of it now in the Trash: still on the disk until the Trash is emptied
         self.trashed = {}
-        self.avail = [None, None]  # free space before the first and after the last run
+        self.disks = {}  # mount point → [free before the first run, free after the last run]
         self.done_count = 0
         self.total_count = len(ids)
         self.task_states = {}  # item id → ok / skip / fail
@@ -873,77 +919,99 @@ class ScanPage(Gtk.Box):
             self.clean_list.append(row)
             self.task_rows[i] = row
         self.clean_title.set_text(_("Cleaning…"))
+        self.clean_disks.set_visible(False)
         self.clean_progress.set_fraction(0)
         self.stack.set_visible_child_name("cleaning")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
 
+        def settle(item_id, state, text, freed=0):
+            """An item is done: its row says how, and it counts in the summary."""
+            row = self.task_rows[item_id]
+            icon = {"ok": "emblem-ok-symbolic", "skip": "dialog-warning-symbolic"}.get(state, "dialog-error-symbolic")
+            row.icon.set_from_icon_name(icon)
+            row.icon.set_css_classes([{"ok": "success", "skip": "warning"}.get(state, "error")])
+            row.set_subtitle(text or {"ok": _("done"), "skip": _("skipped")}.get(state, _("failed")))
+            self.freed += freed
+            self.done_count += 1
+            self.task_states[item_id] = state
+            self.clean_progress.set_fraction(self.done_count / max(self.total_count, 1))
+
         def on_event(e):
             if e["event"] == "done" and "avail_before" in e:
-                if self.avail[0] is None:
-                    self.avail[0] = e["avail_before"]
-                self.avail[1] = e["avail_after"]
+                for disk in e.get("disks") or [{"mount": "/", "before": e["avail_before"], "after": e["avail_after"]}]:
+                    self.disks.setdefault(disk["mount"], [disk["before"], None])[1] = disk["after"]
+                self.to_trash += e.get("to_trash", 0)
                 for item_id, keys in (e.get("trash") or {}).items():
                     self.trashed.setdefault(item_id, []).extend(keys)
             if e["event"] != "task" or e["id"] not in self.task_rows:
                 return
-            row = self.task_rows[e["id"]]
             if e["state"] == "run":
-                row.set_subtitle(_("working…"))
+                self.task_rows[e["id"]].set_subtitle(_("working…"))
                 return
-            icon = {"ok": "emblem-ok-symbolic", "skip": "dialog-warning-symbolic"}.get(e["state"], "dialog-error-symbolic")
-            row.icon.set_from_icon_name(icon)
-            row.icon.set_css_classes([{"ok": "success", "skip": "warning"}.get(e["state"], "error")])
-            row.set_subtitle(e["info"] or {"ok": _("done"), "skip": _("skipped")}.get(e["state"], _("failed")))
-            self.freed += e["freed"]
-            self.done_count += 1
-            self.task_states[e["id"]] = e["state"]
-            self.clean_progress.set_fraction(self.done_count / max(self.total_count, 1))
+            settle(e["id"], e["state"], e["info"], e["freed"])
+
+        def run(run_ids, then, as_root=False, entries=None):
+            """One engine run; items it never reported on (it crashed, or pkexec didn't run it) are settled
+            from how it ended, so no row stays "waiting"."""
+            failure = Failure("cm --json clean", self.engine.env.get("HOME"))
+
+            def events(e):
+                failure.see(e)
+                on_event(e)
+
+            def ended(ok, status):
+                reason = pkexec_reason(status, failure.stderr) if as_root else None
+                for i in run_ids:
+                    if i in self.task_states:
+                        continue
+                    if reason:
+                        settle(i, "skip", reason)
+                    else:
+                        settle(i, "fail", last_line(failure.stderr, status, self.engine.env.get("HOME"))
+                               if failure.failed else _("The engine didn't say what happened"))
+                then()
+
+            self.engine.clean(run_ids, events, ended, as_root=as_root, entries=entries)
 
         def run_root():
             if not root_ids:
                 return finish()
             for i in root_ids:
                 self.task_rows[i].set_subtitle(_("waiting for your password…"))
-            self.engine.clean(root_ids, on_event, root_done, as_root=True)
-
-        def root_done(ok, status):
-            if status in (126, 127):  # password dialog dismissed / not authorized
-                for i in root_ids:
-                    row = self.task_rows[i]
-                    if row.get_subtitle() in (_("waiting"), _("waiting for your password…")):
-                        row.icon.set_from_icon_name("dialog-warning-symbolic")
-                        row.icon.set_css_classes(["warning"])
-                        row.set_subtitle(_("Skipped — no password was entered"))
-            finish()
+            run(root_ids, finish, as_root=True)
 
         def finish():
             self.window.set_busy(False)
+            freed = max(self.freed - self.to_trash, 0)  # off the disk now; the rest is in the Trash
             if self.engine.dry_run:
-                msg = _("Dry run: {size} would be freed").format(size=human(self.freed))
+                msg = _("Dry run: {size} would be freed").format(size=human(freed))
+                if self.to_trash:
+                    msg += " · " + _("{size} would go to the Trash").format(size=human(self.to_trash))
             elif self.privacy:
                 msg = _("History cleared")
             else:
-                msg = _("Freed {size}").format(size=human(self.freed))
-                if None not in self.avail:
-                    msg += " · " + _("Free space: {before} → {after}").format(
-                        before=human(self.avail[0]), after=human(self.avail[1]))
+                msg = _("Freed {size}").format(size=human(freed))
+                if self.to_trash:
+                    msg += " · " + _("{size} in the Trash (empty the Trash to get it back)").format(
+                        size=human(self.to_trash))
+            disks = [] if self.privacy or self.engine.dry_run else self.disk_lines()
             self.clean_title.set_text(msg)
+            self.clean_disks.set_text("\n".join(disks))
+            self.clean_disks.set_visible(bool(disks))
             keys = [k for item_keys in self.trashed.values() for k in item_keys]
             ok = [i for i, state in self.task_states.items() if state == "ok"]
             trash = [i for i in ok if i in self.trashed or (self.engine.dry_run and self.clean_kind(i) == "trash")]
             states = list(self.task_states.values())
             self.clean_summary = {
                 "title": msg, "cleaned": len(ok), "trash": len(trash), "deleted": len(ok) - len(trash),
-                # items that never reported were skipped: the password dialog was dismissed
                 "skipped": states.count("skip") + len(ids) - len(states),
                 "failed": sum(1 for state in states if state not in ("ok", "skip")),
+                "to_trash": self.to_trash, "disks": disks, "emptied": None,
                 "keys": [] if self.engine.dry_run else keys, "undo_until": time.monotonic() + 10, "restored": None,
             }
             if keys and not self.engine.dry_run:
-                text = ngettext("Freed {size} · {n} item moved to the Trash",
-                                "Freed {size} · {n} items moved to the Trash", len(keys), size=human(self.freed))
-                self.undo_toast = self.window.toast(text, _("Undo"), lambda: self.undo(keys), timeout=10)
+                self.undo_toast = self.window.toast(msg, _("Undo"), lambda: self.undo(keys), timeout=10)
             else:
                 self.window.toast(msg)
             if self.freed or self.privacy:
@@ -960,9 +1028,18 @@ class ScanPage(Gtk.Box):
             if not runs:
                 return run_root()
             run_ids, entries = runs.pop(0)
-            self.engine.clean(run_ids, on_event, lambda ok, st: run_user(), entries=entries)
+            run(run_ids, run_user, entries=entries)
 
         run_user()
+
+    def disk_lines(self):
+        """Free space before → after the clean, on each filesystem it was measured on (/ and a separate /home)."""
+        disks = [(mount, before, after) for mount, (before, after) in self.disks.items() if after is not None]
+        if len(disks) == 1:
+            return [_("Free space: {before} → {after}").format(before=human(disks[0][1]), after=human(disks[0][2]))]
+        return [_("Free space on {disk}: {before} → {after}").format(disk=mount, before=human(before),
+                                                                     after=human(after))
+                for mount, before, after in sorted(disks, key=lambda d: (d[0] != "/", d[0]))]
 
     def summary_card(self):
         """What the last clean did; stays on top of the results until the user scans again."""
@@ -979,10 +1056,14 @@ class ScanPage(Gtk.Box):
         if s["restored"] is not None:
             parts.append(ngettext("Put back {n} item from the Trash", "Put back {n} items from the Trash",
                                   s["restored"]))
-        row = Adw.ActionRow(title=s["title"], subtitle=" · ".join(parts), use_markup=False, subtitle_lines=0,
+        if s["emptied"] is not None:
+            parts.append(_("Trash emptied: {size} freed").format(size=human(s["emptied"])))
+        subtitle = "\n".join([" · ".join(parts), *s["disks"]])
+        row = Adw.ActionRow(title=s["title"], subtitle=subtitle, use_markup=False, subtitle_lines=0,
                             css_classes=["clean-summary"])
         row.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"], valign=Gtk.Align.CENTER))
         self.summary_undo = None
+        self.summary_empty = None
         left = s["undo_until"] - time.monotonic()
         if s["keys"] and s["restored"] is None and left > 0:  # Undo, as long as the toast offered it
             undo = Gtk.Button(label=_("Undo"), valign=Gtk.Align.CENTER)
@@ -994,10 +1075,66 @@ class ScanPage(Gtk.Box):
             trash = Gtk.Button(label=_("Open Trash"), valign=Gtk.Align.CENTER)
             trash.connect("clicked", lambda *_: Gtk.UriLauncher.new("trash:///").launch(self.window, None, None))
             row.add_suffix(trash)
+            if s["to_trash"] and s["restored"] is None and s["emptied"] is None:
+                empty = Gtk.Button(label=_("Empty Trash…"), valign=Gtk.Align.CENTER,
+                                   tooltip_text=_("Delete what is in the Trash for good, to get the space back"))
+                empty.connect("clicked", lambda *_: self.confirm_empty_trash())
+                row.add_suffix(empty)
+                self.summary_empty = empty
         card = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"])
         card.append(row)
         self.summary_row = row
         return card
+
+    # ── Empty Trash: the space of what a clean moved to the Trash comes back only when the Trash is emptied ──
+    def confirm_empty_trash(self):
+        moved = (self.clean_summary or {}).get("to_trash", 0)
+        body = _("Everything in the Trash is deleted for good: the {size} this cleanup moved there and any files "
+                 "you deleted yourself. This can't be undone.").format(size=human(moved))
+        dialog = Adw.AlertDialog(heading=_("Empty the Trash?"), body=body)
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("empty", _("Empty Trash"))
+        dialog.set_response_appearance("empty", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", lambda d, r: r == "empty" and self.empty_trash())
+        dialog.present(self.window)
+        self.empty_dialog = dialog
+        return dialog
+
+    def empty_trash(self):
+        if self.restoring or self.running:
+            return
+        result = {}
+        failure = Failure("cm --json clean trash", self.engine.env.get("HOME"))
+
+        def on_event(e):
+            failure.see(e)
+            if e["event"] == "task" and e["id"] == "trash" and e["state"] != "run":
+                result.update(e)
+
+        def on_done(ok, status):
+            self.restoring = None
+            self.window.set_busy(False)
+            if result.get("state") == "ok":
+                if self.undo_toast:
+                    self.undo_toast.dismiss()
+                    self.undo_toast = None
+                if self.clean_summary:
+                    self.clean_summary["emptied"] = result.get("freed", 0)
+                    self.clean_summary["keys"] = []  # gone for good: nothing to put back
+                self.window.toast(_("Trash emptied: {size} freed").format(size=human(result.get("freed", 0))))
+            else:
+                reason = result.get("info") or (failure.reason() if failure.failed else "")
+                self.window.toast(_("Could not empty the Trash: {reason}").format(reason=reason), timeout=8)
+            self.window.refresh_disk()
+            if self.stack.get_visible_child_name() == "results":
+                self.scan(keep_summary=True)
+
+        if self.summary_empty:
+            self.summary_empty.set_sensitive(False)
+        self.window.set_busy(True)
+        self.restoring = self.engine.clean(["trash"], on_event, on_done)
 
     # ── undo: put back what the last clean moved to the Trash ──
     def undo(self, keys):

@@ -1120,8 +1120,9 @@ def uninstaller_test(win, report, wait, finish):
             lead("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled")), dry_done, 60, "dry-run uninstall")
 
     def dry_done():
-        dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 2)
-        if os.geteuid() != 0:  # root: Flatpak refused
+        dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 2) + \
+            ngettext("; {n} could not be uninstalled", "; {n} could not be uninstalled", 1)  # root: Flatpak refused
+        if os.geteuid() != 0:
             dry = ngettext("Dry run: {n} app would be uninstalled", "Dry run: {n} apps would be uninstalled", 3) + \
                 ngettext(", {n} folder would be moved to the Trash", ", {n} folders would be moved to the Trash", 3)
         expected = dry
@@ -1579,7 +1580,8 @@ def docker_entries_test(win, report, wait, finish):
         report(page.undo_toast is None and not page.trashed, "a clean that deleted everything for good offers no Undo")
         report(notes == (["cleaned"] if not win.is_active() else []),
                "a clean while the window isn't in front sends a notification with what it freed")
-        report(" → " in page.clean_title.get_text(), f"a real clean shows free space before → after: {page.clean_title.get_text()}")
+        report(page.clean_disks.get_visible() and " → " in page.clean_disks.get_text(),
+               f"a real clean shows free space before → after: {page.clean_disks.get_text()}")
         wait(lambda: page.running is None and page.stack.get_visible_child_name() == "results", volumes, 60,
              "scan after cleaning")
 
@@ -2461,7 +2463,7 @@ def welcome_test(win, report, wait, finish):
     def done():
         win.engine, win.open_terminal = real_engine, real_terminal
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        honest_results_test(win, report, wait, finish)
 
     def step1():
         report(not dialog.back.get_visible() and dialog.skip.get_visible() and dialog.next.get_label() == _("Next"),
@@ -2544,6 +2546,248 @@ def welcome_test(win, report, wait, finish):
 
     # laid out first: the carousel loses a scroll asked before it has a size
     wait(lambda: win.get_visible_dialog() is dialog and dialog.carousel.get_width() > 0, step1, 10, "the welcome")
+
+
+FAKE_ENGINE = """#!/bin/bash
+# the self-test's fake engine: answers COMMAND from COMMAND.jsonl (stdout), COMMAND.err (stderr), COMMAND.rc (exit)
+dir=${0%/*}
+shift
+while [[ ${1:-} == --* ]]; do case $1 in --only) shift 2 ;; *) shift ;; esac; done
+[[ -f $dir/$1.jsonl ]] && cat "$dir/$1.jsonl"
+[[ -f $dir/$1.err ]] && cat "$dir/$1.err" >&2
+exit "$(cat "$dir/$1.rc" 2>/dev/null || echo 0)"
+"""
+
+
+def honest_results_test(win, report, wait, finish):
+    """What the pages say is true, with a fake engine: a scan cut off at its time limit lists its items under
+    Not finished and never says the system is clean; an engine that crashes shows its reason and last lines
+    with Try Again, Copy Details and Report a Bug… on Smart Scan, Large & Old Files, Duplicates and Space Lens;
+    a clean splits what was freed from what is in the Trash (Empty Trash… gets it back) and shows the free
+    space of / and a separate /home; an item the engine never reported on fails with its last line; an app
+    that couldn't be uninstalled keeps its row and reason; System Overview measures again after a clean."""
+    import json
+    from . import errorview
+    from . import window as W
+    from .engine import Engine, human
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    fake = os.path.join(sandbox, "cleanmate.sh")
+    with open(fake, "w") as f:
+        f.write(FAKE_ENGINE)
+    home = os.path.join(sandbox, "home")
+    os.makedirs(home)
+    engine = Engine(fake, dry_run=False, env={"HOME": home, "CLEANMATE_NO_UPDATE_CHECK": "1"})
+    crash = ["Scanning…", f"{home}/.cache/x: Permission denied",
+             "cleanmate.sh: line 4242: RES_BYTES: unbound variable"]
+
+    def answer(command, events=(), rc=0, err=()):
+        for ext, text in (("jsonl", "".join(json.dumps(e) + "\n" for e in events)), ("rc", f"{rc}\n"),
+                          ("err", "".join(line + "\n" for line in err))):
+            with open(os.path.join(sandbox, f"{command}.{ext}"), "w") as f:
+                f.write(text)
+
+    smart = win.pages["smart"]
+    template = next(iter(smart.items.values()), None)
+    real = {}  # page → its engine
+    real_disk_space = W.disk_space
+    app = win.get_application()
+    real_notify = app.send_notification
+    app.send_notification = lambda *_a: None  # the window may not be active: the clean would notify
+
+    def use_fake(page):
+        real.setdefault(page, page.engine)
+        page.engine = engine
+
+    def done():
+        for page, original in real.items():
+            page.engine = original
+        W.disk_space = real_disk_space
+        app.send_notification = real_notify
+        win.refresh_disk()
+        win.show_page("smart")
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    if template is None:
+        report(False, "no scanned item to model the fake scan on")
+        return done()
+
+    def item(item_id, status, size, trash=False, category=None):
+        e = dict(template, id=item_id, label=f"Fake {item_id}", status=status, bytes=size, note="", selected=True,
+                 locked="", entries=False, trash=trash, root=False, durationMs=120000 if status == "timeout" else 5)
+        e["category"] = category or template["category"]
+        return e
+
+    # ── 1. a scan item cut off at the time limit ──
+    def timed_out():
+        use_fake(smart)
+        answer("scan", [item("fake_slow", "timeout", 0), item("fake_ok", "clean", 0),
+                        {"event": "done", "locations": 2, "durationMs": 120000, "stopped": False}])
+        smart.scan()
+        wait(lambda: smart.running is None and smart.stack.get_visible_child_name() == "results", timeout_shown,
+             30, "the fake scan with a timed-out item")
+
+    def timeout_shown():
+        shown = labels(smart.results)
+        report(_("Your system is clean") not in shown and _("The scan didn't finish") in shown,
+               "a timed-out item: the header says the scan didn't finish, never that the system is clean")
+        groups = [g for g, *_r in smart.group_rows if g.get_title() == _("Not finished")]
+        report(len(groups) == 1 and "Fake fake_slow" in labels(groups[0])
+               and _("Scan Again") in labels(groups[0]),
+               "the timed-out item is listed under Not finished with Scan Again, not among the clean ones")
+        clean_rows = [e["id"] for _g, _j, _m, rows in smart.group_rows for _r, e in rows]
+        report(clean_rows.count("fake_slow") == 1 and "fake_ok" in clean_rows, "the clean item stays in its group")
+        crashed_pages()
+
+    # ── 2. the engine crashes on four pages ──
+    def crashed_pages():
+        for command in ("scan", "large", "dupes", "lens"):
+            answer(command, [{"event": "progress", "done": 0, "total": 3, "current": ""}] if command == "scan"
+                   else [], rc=1, err=crash)
+        pages = []
+        for pid in ("smart", "large", "dupes", "lens"):
+            win.show_page(pid)
+            page = win.pages[pid]
+            use_fake(page)
+            pages.append(page)
+        win.pages["smart"].scan()
+        win.pages["large"].search()
+        from .duplicates import FILES
+        win.pages["dupes"].set_mode(FILES)
+        win.pages["dupes"].search()
+        lens = win.pages["lens"]
+        lens.load(lens.folder, fresh=True)
+        wait(lambda: all(p.stack.get_visible_child_name() == "failed" for p in pages), lambda: crash_shown(pages),
+             30, "the error pages")
+
+    def crash_shown(pages):
+        for page in pages:
+            text = page.failed.text.get_label()
+            report(page.failed.get_description() == crash[-1] and "exit status 1" in text
+                   and "~/.cache/x: Permission denied" in text and home not in text,
+                   f"{type(page).__name__}: an engine crash shows its reason and last lines (home folder hidden)")
+            report(page.failed.copy_button.get_visible() and page.failed.report_button.get_visible(),
+                   f"{type(page).__name__}: the error offers Copy Details and Report a Bug…")
+        pages[1].failed.copy()
+        read_clipboard(win, wait, copied)
+
+    def copied(text):
+        report(crash[-1] in text and "cm --json large" in text, "Copy Details copies the command and its last lines")
+        report(errorview.pkexec_reason(127, ["Error executing command as another user: No authentication agent "
+                                             "found."]) == _("Skipped — no password dialog could open (no polkit "
+                                                             "authentication agent is running)")
+               and errorview.pkexec_reason(126, []) == _("Skipped — no password was entered")
+               and errorview.pkexec_reason(1, ["E: boom"]) is None,
+               "pkexec: a dismissed dialog and a missing polkit agent each say so")
+        cleaned_up()
+
+    # ── 3. a clean: two items to the Trash, one deleted; / and /home on separate disks ──
+    def cleaned_up():
+        win.show_page("smart")
+        answer("scan", [item("fake_a", "found", 1000, trash=True), item("fake_b", "found", 2000, trash=True),
+                        item("fake_c", "found", 500), item("fake_d", "found", 700),
+                        {"event": "done", "locations": 4, "durationMs": 10, "stopped": False}])
+        smart.scan()
+        wait(lambda: smart.running is None and smart.stack.get_visible_child_name() == "results", clean_three,
+             30, "the fake scan to clean")
+
+    def clean_three():
+        gb = 1 << 30
+        answer("clean", [{"event": "task", "id": i, "state": "run", "info": "", "freed": 0} for i in ("fake_a",)]
+               + [{"event": "task", "id": i, "state": "ok", "info": f"{human(n)} freed", "freed": n}
+                  for i, n in (("fake_a", 1000), ("fake_b", 2000), ("fake_c", 500))]
+               + [{"event": "done", "freed": 3500, "to_trash": 3000, "avail_before": 30 * gb, "avail_after": 30 * gb,
+                   "disks": [{"mount": "/home", "before": 20 * gb, "after": 20 * gb},
+                             {"mount": "/", "before": 10 * gb, "after": 10 * gb + 500}],
+                   "trash": {"fake_a": ["a.deb"], "fake_b": ["b.deb"]}}])
+        smart.clean(["fake_a", "fake_b", "fake_c"])
+        wait(lambda: smart.clean_summary is not None, clean_done, 30, "the fake clean")
+
+    def clean_done():
+        title = smart.clean_title.get_text()
+        expected = _("Freed {size}").format(size=human(500)) + " · " + _(
+            "{size} in the Trash (empty the Trash to get it back)").format(size=human(3000))
+        report(title == expected, f"the summary splits freed from in the Trash: {title}")
+        lines = smart.clean_disks.get_text().splitlines()
+        report(len(lines) == 2 and lines[0].startswith(_("Free space on {disk}: {before} → {after}").split("{")[0])
+               and "/home" in lines[1], "with / and /home on separate disks, both free spaces are shown")
+        wait(lambda: smart.running is None and smart.stack.get_visible_child_name() == "results"
+             and smart.summary_empty is not None, summary_shown, 30, "the results after the clean")
+
+    def summary_shown():
+        report(smart.summary_empty.get_visible(), "the summary offers Empty Trash…")
+        dialog = smart.confirm_empty_trash()
+        report(human(3000) in dialog.get_body(), "Empty Trash asks first and says how much this cleanup moved there")
+        dialog.close()
+        answer("clean", [{"event": "task", "id": "trash", "state": "ok", "info": "", "freed": 3000},
+                         {"event": "done", "freed": 3000, "to_trash": 0, "avail_before": 0, "avail_after": 0,
+                          "disks": [], "trash": {}}])
+        smart.empty_trash()
+        wait(lambda: smart.restoring is None and smart.clean_summary.get("emptied") == 3000, crashed_clean, 30,
+             "Empty Trash")
+
+    # ── 4. the engine crashes in a clean: the item it never reported on fails with its last line ──
+    def crashed_clean():
+        report(True, "Empty Trash empties it and the summary says what it freed")
+        wait(lambda: smart.running is None and smart.stack.get_visible_child_name() == "results", crash_clean, 30,
+             "the scan after Empty Trash")
+
+    def crash_clean():
+        answer("clean", [{"event": "task", "id": "fake_d", "state": "run", "info": "", "freed": 0}], rc=1, err=crash)
+        smart.clean(["fake_d"])
+        wait(lambda: smart.clean_summary is not None and smart.clean_summary["failed"] == 1, clean_crashed, 30,
+             "the crashed clean")
+
+    def clean_crashed():
+        row = smart.task_rows["fake_d"]
+        report(row.get_subtitle() == crash[-1] and smart.clean_summary["skipped"] == 0,
+               "an item the crashed engine never reported on fails with the engine's last line, not skipped")
+        disks()
+
+    # ── 5. the sidebar shows / and a separate /home; System Overview measures again after a clean ──
+    def disks():
+        gb = 1 << 30
+        W.disk_space = lambda paths=None: [("/", 10 * gb, 50 * gb), ("/home", 20 * gb, 200 * gb)]
+        win.refresh_disk()
+        text = win.disk_label.get_text().splitlines()
+        report(len(text) == 2 and text[0].startswith("/:") and text[1].startswith("/home:"),
+               "the sidebar shows the free space of / and of a separate /home")
+        report(win.overview_stale, "a clean marks System Overview to measure again")
+        win.show_page("overview")
+        overview = win.pages["overview"]
+        report(not win.overview_stale and overview.running is not None, "System Overview measures again when opened")
+        wait(lambda: overview.running is None, uninstall_failed, 30, "System Overview")
+
+    # ── 6. an app that couldn't be uninstalled keeps its row and reason ──
+    def uninstall_failed():
+        win.show_page("uninstall")
+        page = win.pages["uninstall"]
+        wait(lambda: not page.busy, lambda: uninstall(page), 30, "the Uninstaller")
+
+    def uninstall(page):
+        use_fake(page)
+        answer("apps", [{"event": "done", "hidden": 0}])
+        answer("uninstall", [{"event": "task", "id": "app.ok", "state": "ok", "info": "", "freed": 0},
+                             {"event": "task", "id": "app.bad", "state": "fail",
+                              "info": "error: app.bad is needed by the runtime", "freed": 0}])
+        apps = [{"id": i, "name": name, "kind": "flatpak", "leftovers": []}
+                for i, name in (("app.ok", "Fine App"), ("app.bad", "Stuck App"))]
+        page.uninstall(apps, [])
+        wait(lambda: not page.busy, lambda: GLib.timeout_add(2000, lambda: (uninstalled(page), False)[1]), 30,
+             "the fake uninstall")
+
+    def uninstalled(page):
+        shown = labels(page.work_list)
+        report(page.stack.get_visible_child_name() == "working" and "Stuck App" in shown
+               and "error: app.bad is needed by the runtime" in shown and page.work_back.get_visible(),
+               "a failed app keeps its row and reason after the uninstall (no reload)")
+        report(ngettext("; {n} could not be uninstalled", "; {n} could not be uninstalled", 1).format(n=1)
+               in page.work_title.get_text(), f"the summary counts it: {page.work_title.get_text()}")
+        page.work_back.emit("clicked")
+        wait(lambda: not page.busy and page.stack.get_visible_child_name() != "working", done, 30,
+             "Back to the List")
+
+    timed_out()
 
 
 def show_scene_page(win, page_id):

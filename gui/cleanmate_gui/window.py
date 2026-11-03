@@ -25,6 +25,27 @@ TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "dupes": Duplicate
               "uninstall": UninstallerPage, "startup": StartupPage,
               "maintenance": MaintenancePage, "overview": OverviewPage}  # pages with their own engine commands
 
+
+def disk_space(paths=None):
+    """[(mount point, free bytes, total bytes)]: the filesystem holding / and, when it is another one, the one
+    holding your home (in the Flatpak only your home's: / is the sandbox)."""
+    home = os.path.expanduser("~")
+    disks, seen = [], set()
+    for path in paths or ([home] if IN_FLATPAK else ["/", home]):
+        try:
+            dev, st = os.stat(path).st_dev, os.statvfs(path)
+        except OSError:
+            continue
+        if dev in seen:
+            continue
+        seen.add(dev)
+        mount = path
+        while mount != "/" and not os.path.ismount(mount):
+            mount = os.path.dirname(mount)
+        disks.append((mount, st.f_bavail * st.f_frsize, st.f_blocks * st.f_frsize))
+    return disks
+
+
 # (id, title, icon, categories, description) — same order as the terminal app's menu
 PAGES = [
     ("smart", _("Smart Scan"), "starred-symbolic", SMART_SCAN,
@@ -90,6 +111,7 @@ class Window(Adw.ApplicationWindow):
         self.engine = engine
         self.selection = Selection()
         self.pages = {}
+        self.overview_stale = False  # something freed space since System Overview last measured
         self._busy = 0
 
         # ── sidebar ──
@@ -237,6 +259,9 @@ class Window(Adw.ApplicationWindow):
             self.content_stack.add_named(page, pid)
         self.content_stack.set_visible_child_name(pid)
         self.content_page.set_title(spec[1])
+        if pid == "overview" and self.overview_stale:
+            self.overview_stale = False
+            self.pages[pid].reload()
 
     def go_to(self, pid):
         """Ctrl+1…9: open a page and select it in the sidebar."""
@@ -344,11 +369,24 @@ class Window(Adw.ApplicationWindow):
         self.spinner.set_spinning(self._busy > 0)
 
     def refresh_disk(self):
-        st = os.statvfs("/")
-        total, free = st.f_blocks * st.f_frsize, st.f_bavail * st.f_frsize
-        used = 1 - free / total if total else 0
-        self.disk_bar.set_value(used)
-        self.disk_label.set_text(_("{free} free of {total}").format(free=human(free), total=human(total)))
+        """Free space in the sidebar: the system disk, and your home's disk too when it is a separate one
+        (a /home partition). Called after anything that frees space: System Overview measures again too."""
+        disks = disk_space()
+        if disks:
+            _mount, free, total = disks[0]
+            self.disk_bar.set_value(1 - free / total if total else 0)
+        if len(disks) == 1:
+            self.disk_label.set_text(_("{free} free of {total}").format(free=human(disks[0][1]),
+                                                                        total=human(disks[0][2])))
+        else:
+            self.disk_label.set_text("\n".join(_("{disk}: {free} free of {total}").format(
+                disk=mount, free=human(free), total=human(total)) for mount, free, total in disks))
+        overview = self.pages.get("overview")
+        if overview is not None:
+            if self.content_stack.get_visible_child() is overview:
+                overview.reload()
+            else:
+                self.overview_stale = True  # measured again when it is opened
 
     def open_terminal(self, *_):
         for term in ("x-terminal-emulator", "gnome-terminal", "ptyxis", "kgx"):
