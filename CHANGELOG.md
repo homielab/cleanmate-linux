@@ -6,6 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Flatpak for Flathub (`packaging/flathub/`): the desktop app and the `cleanmate` engine, with access to your home folder only. In the Flatpak, items and pages that need your password or the host system (apt, the journal, old kernels, Docker, Uninstaller, Startup Items, Maintenance) are left out and System Junk and Logs say why; items whose program must be closed are not pre-selected, because the sandbox can't see running programs.
+
 ### Changed
 
 - Minecraft caches are skipped only while Minecraft itself runs, not while any Java program (an IDE, a Gradle daemon) is open.

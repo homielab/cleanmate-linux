@@ -30,6 +30,24 @@ _u='\u'
 USER_NAME=${USER:-${_u@P}} # as `id -un`, without starting it (\u of a prompt)
 [[ $USER_NAME == "I have no name!" ]] && USER_NAME="" # bash's answer when the user has no name
 unset _u
+# The Flatpak (Flathub) sees your home folder but not the system: no apt, journal, /var/log,
+# /tmp, other drives, host tools or other apps' processes (see packaging/flathub/README.md).
+# Its XDG_* folders point inside ~/.var/app/…: use your real ones, as the .deb does, so
+# settings, history and the Trash are the same whichever way CleanMate was installed.
+FLATPAK=0
+if [[ ${container:-} == flatpak || -f /.flatpak-info ]]; then
+  FLATPAK=1
+  for _v in CONFIG:.config DATA:.local/share CACHE:.cache STATE:.local/state; do
+    _n=XDG_${_v%%:*}_HOME _h=HOST_XDG_${_v%%:*}_HOME
+    if [[ -z ${!_n:-} || ${!_n} == "$HOME/.var/app/"* ]]; then
+      printf -v "$_n" '%s' "${!_h:-$HOME/${_v#*:}}"
+      export "${_n?}"
+    fi
+  done
+  unset _v _n _h
+fi
+SYS_DISK=/ # the disk the free-space figures are about; the Flatpak can't see /, only your home's
+((FLATPAK)) && SYS_DISK=$HOME
 LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/cleanmate"
 LOG_FILE="$LOG_DIR/clean.log"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cleanmate"
@@ -190,7 +208,7 @@ size_bar() { # VAR BYTES MAX WIDTH — proportional bar coloured by size
 
 refresh_sysinfo() {
   local size used avail total mavail
-  read -r size used avail < <(df -B1 --output=size,used,avail / | tail -n1)
+  read -r size used avail < <(df -B1 --output=size,used,avail "$SYS_DISK" | tail -n1)
   read -r total mavail < <(free -b | awk '/^Mem:/ {print $2, $7}')
   SYS_DISK_PCT=$((used * 100 / size)) SYS_DISK_FREE=$(human "$avail")
   SYS_MEM_PCT=$(((total - mavail) * 100 / total)) SYS_MEM_FREE=$(human "$mavail")
@@ -6478,6 +6496,26 @@ discover_models() {
 }
 discover_models
 
+# ── the Flatpak's limits ──
+# Hidden: items that need root (apt, journal, /var/log, kernels, snaps) or what the sandbox can't
+# reach (/tmp, other drives, Docker, Podman, dconf, the Zeitgeist and search index services).
+# Items skipped while their program runs can't see the host's programs: not ticked by default, a
+# scan note asks to close the program first, and an unattended clean (--clean --yes) leaves them.
+declare -A ITEM_BLIND=()
+FLATPAK_HIDDEN=(tmp trash_drives docker_dangling docker_build docker_containers docker_images docker_volumes podman
+  priv_zeitgeist priv_gsettings tracker_index baloo_index)
+if ((FLATPAK)); then
+  _ids=()
+  for _id in "${ITEM_IDS[@]}"; do
+    if [[ -n ${ITEM_ROOT[$_id]:-} || " ${FLATPAK_HIDDEN[*]} " == *" $_id "* ]]; then unset "ITEM_CAT[$_id]"; continue; fi
+    _ids+=("$_id")
+    declare -F "lockedby_$_id" >/dev/null && ITEM_BLIND[$_id]=1 ITEM_DEFAULT[$_id]=0
+  done
+  ITEM_IDS=("${_ids[@]}")
+  unset _id _ids
+fi
+FLATPAK_BLIND_NOTE="close it first: the Flatpak can't see if it's open"
+
 # ───────────────────────────── preferences & stats ──────────────────────────
 
 PREF_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/cleanmate/selection"
@@ -6631,7 +6669,7 @@ DISK_HISTORY="$LOG_DIR/disk-history.tsv" # day<TAB>free bytes on /<TAB>size of /
 
 record_disk_usage() { # one row per day (the latest reading of the day wins), last 400 days
   local size avail today
-  read -r size avail < <(df -B1 --output=size,avail / 2>/dev/null | tail -n 1)
+  read -r size avail < <(df -B1 --output=size,avail "$SYS_DISK" 2>/dev/null | tail -n 1)
   [[ $avail =~ ^[0-9]+$ ]] || return 0
   printf -v today '%(%Y-%m-%d)T' -1
   mkdir -p "$LOG_DIR" 2>/dev/null || return 0
@@ -6699,7 +6737,7 @@ now_msv() { local -n __nm=$1; local __t=${EPOCHREALTIME/[.,]/}; __nm=$((__t / 10
 now_ms() { local t; now_msv t; echo "$t"; }
 
 fs_avail() { # free bytes on the filesystems holding / and $HOME
-  df -B1 --output=avail,target / "$HOME" 2>/dev/null | tail -n +2 | sort -u -k2,2 | sum_lines
+  df -B1 --output=avail,target "$SYS_DISK" "$HOME" 2>/dev/null | tail -n +2 | sort -u -k2,2 | sum_lines
 }
 
 progress_bar() { # VAR DONE TOTAL WIDTH
@@ -6745,6 +6783,7 @@ scan_worker() { # FILE ID… — scan the items one after the other: a line each
     SCAN_BYTES=0 SCAN_NOTE="" _sw_lock=""
     "scan_$_sw_id" </dev/null >/dev/null 2>&1; _sw_rc=$?
     ((_sw_rc == 0)) && declare -F "lockedby_$_sw_id" >/dev/null && _sw_lock=$("lockedby_$_sw_id" </dev/null 2>/dev/null)
+    ((_sw_rc == 0)) && [[ -n ${ITEM_BLIND[$_sw_id]:-} ]] && SCAN_NOTE="$FLATPAK_BLIND_NOTE${SCAN_NOTE:+; $SCAN_NOTE}"
     # fields split by \x1f: tabs are IFS whitespace, so an empty lock would vanish
     printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$_sw_id" "$_sw_rc" "${SCAN_BYTES:-0}" "${_sw_lock%%$'\n'*}" "${SCAN_NOTE%%$'\n'*}"
   done >"$1"
@@ -7387,12 +7426,15 @@ scan_report() { # --scan
   printf '\n  %s●%s = cleaned by --clean (%s)\n' "$GREEN" "$NC" "$(human "$SELECTED_TOTAL")"
 }
 
-DATA_LOSS_SKIPPED=()
-skip_data_loss() { # unattended clean: untick ITEM_DATA_LOSS items, whatever the remembered choices say → DATA_LOSS_SKIPPED
+DATA_LOSS_SKIPPED=() BLIND_SKIPPED=()
+skip_data_loss() { # unattended clean: untick ITEM_DATA_LOSS items, and in the Flatpak ITEM_BLIND ones,
+  # whatever the remembered choices say → DATA_LOSS_SKIPPED, BLIND_SKIPPED
   local id
-  DATA_LOSS_SKIPPED=()
+  DATA_LOSS_SKIPPED=() BLIND_SKIPPED=()
   for id in "${SCANNED[@]}"; do
-    if [[ -n ${ITEM_DATA_LOSS[$id]:-} ]] && ((RES_RC[$id] == 0 && SEL[$id])); then SEL[$id]=0; DATA_LOSS_SKIPPED+=("$id"); fi
+    ((RES_RC[$id] == 0 && SEL[$id])) || continue
+    if [[ -n ${ITEM_DATA_LOSS[$id]:-} ]]; then SEL[$id]=0; DATA_LOSS_SKIPPED+=("$id")
+    elif [[ -n ${ITEM_BLIND[$id]:-} ]]; then SEL[$id]=0; BLIND_SKIPPED+=("$id"); fi
   done
   return 0
 }
@@ -7401,6 +7443,9 @@ data_loss_lines() { # what skip_data_loss left, and how to clean it on purpose
   local id
   for id in "${DATA_LOSS_SKIPPED[@]}"; do
     printf '  %s%s skipped: may hold data — run cm --json clean %s, or select it in the app%s\n' "$YELLOW" "${ITEM_LABEL[$id]}" "$id" "$NC"
+  done
+  for id in "${BLIND_SKIPPED[@]}"; do
+    printf '  %s%s skipped: the Flatpak can'"'"'t see if its program is open — close it, then select it in the app%s\n' "$YELLOW" "${ITEM_LABEL[$id]}" "$NC"
   done
 }
 
@@ -8879,8 +8924,11 @@ maintenance_menu() {
 # ───────────────────────────── overview ─────────────────────────────────────
 
 # What System Overview shows, measured apart from how each app prints it.
+OS_RELEASE=/etc/os-release # the Flatpak's own is the runtime's; the computer's is under /run/host
+((FLATPAK)) && OS_RELEASE=/run/host/os-release
 sys_facts() { # → OV_OS OV_KERNEL OV_CPU OV_THREADS OV_UPTIME (seconds)
-  OV_OS=$(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")
+  # shellcheck source=/dev/null
+  OV_OS=$(. "$OS_RELEASE" 2>/dev/null && echo "$PRETTY_NAME")
   OV_KERNEL=$(uname -r)
   OV_CPU=$(lscpu 2>/dev/null | awk -F: '/Model name/ {gsub(/^ +/, "", $2); print $2; exit}')
   OV_THREADS=$(nproc 2>/dev/null || echo 0)
@@ -8904,6 +8952,7 @@ SR_LINE_MAX=120 # an activity line is cut to this many characters, so the report
 sr_install() { # → SR_INSTALL: how this copy was installed
   local v
   if [[ -n ${SNAP:-} ]]; then SR_INSTALL="snap${SNAP_REVISION:+ (revision $SNAP_REVISION)}"
+  elif ((FLATPAK)); then SR_INSTALL="Flatpak${FLATPAK_ID:+ ($FLATPAK_ID)}"
   elif packaged; then # the PPA's versions end in -0ppaN; the GitHub Releases .deb is the bare version
     v=$(dpkg-query -W -f '${Version}' cleanmate 2>/dev/null)
     if [[ $v == *ppa* ]]; then SR_INSTALL="PPA ($v)"; else SR_INSTALL=".deb package${v:+ ($v)}"; fi
@@ -8981,7 +9030,8 @@ sr_redact_lines() { # VAR LINE… → VAR = the lines without the home folder (�
 sys_report() { # → SR_* and SR_BODY: the system details a bug report needs
   local re='^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ' l loc choice h=${HOME%/}
   local -a raw=() texts=() dates=()
-  SR_OS=$(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")
+  # shellcheck source=/dev/null
+  SR_OS=$(. "$OS_RELEASE" 2>/dev/null && echo "$PRETTY_NAME")
   SR_KERNEL=$(uname -r 2>/dev/null) SR_ARCH=$(uname -m 2>/dev/null)
   sr_install
   sr_desktop
@@ -9017,7 +9067,12 @@ version_report() { # `--version`: the version, then the system details to paste 
     "$VERSION" "$SR_BODY" "$REPO_URL"
 }
 
-disk_rows() { # → mount<TAB>size<TAB>used<TAB>avail<TAB>fstype<TAB>device per real filesystem
+disk_rows() { # → mount<TAB>size<TAB>used<TAB>avail<TAB>fstype<TAB>device per real filesystem (the Flatpak: home's only)
+  if ((FLATPAK)); then
+    df -B1 --output=target,size,used,avail,fstype,source "$HOME" 2>/dev/null |
+      awk 'NR > 1 && $2 > 0 {print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6}'
+    return 0
+  fi
   df -B1 --output=target,size,used,avail,fstype,source -x tmpfs -x devtmpfs -x squashfs -x overlay -x efivarfs 2>/dev/null |
     awk 'NR > 1 && $2 > 0 {print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6}'
 }
@@ -9075,6 +9130,7 @@ timeshift_snapshot_dirs() { # rsync-mode Timeshift keeps snapshots in /timeshift
 # each of these is a choice for the user, not junk.
 hidden_space_rows() { # → kind<TAB>bytes (- unknown)<TAB>path<TAB>count<TAB>note, kind = reserved|swapfile|timeshift
   local s u a fs name type size d n b
+  ((FLATPAK)) && return 0 # the system's disk, swap and snapshots are out of the Flatpak's sight
   read -r s u a fs < <(df -B1 --output=size,used,avail,fstype / 2>/dev/null | tail -n1)
   # ext4 reserves 5% by default; a bigger gap means something else (a quota) limits "free"
   if [[ $fs == ext[234] && $s =~ ^[0-9]+$ && $u =~ ^[0-9]+$ && $a =~ ^[0-9]+$ ]] &&
@@ -9147,6 +9203,7 @@ apt_settings_readable() { # apt-config answers, and APT's settings folder and fi
 
 protection_rows() { # → id<TAB>on|off|unknown|na<TAB>reason<TAB>command that turns it on (may be empty)
   local f v s
+  ((FLATPAK)) && return 0 # the Flatpak can't read the system's settings (/etc, services)
   # firewall: `ufw status` needs root, its config and service don't
   f=$SYSROOT/etc/ufw/ufw.conf
   if [[ -f $f ]]; then
@@ -9901,6 +9958,10 @@ notify() { # TITLE BODY [ICON] [URGENCY]
   return 0
 }
 
+user_timers() { # systemd user timers can run CleanMate (not from the Flatpak: no host systemd)
+  ((!FLATPAK)) && have systemctl
+}
+
 schedule_get() { # → off | daily | weekly | monthly
   local t=$SYSTEMD_USER_DIR/cleanmate.timer
   if [[ -f $t ]] && systemctl --user is-enabled -q cleanmate.timer 2>/dev/null; then
@@ -9910,7 +9971,7 @@ schedule_get() { # → off | daily | weekly | monthly
 
 schedule_set() { # off | daily | weekly | monthly
   local exe=$SELF
-  have systemctl || { toast "${RED}✘${NC} systemd is not available."; return 1; }
+  user_timers || { toast "${RED}✘${NC} systemd is not available."; return 1; }
   if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would set automatic cleaning to: $1"; return 0; fi
   if [[ $1 == off ]]; then
     systemctl --user disable --now cleanmate.timer >/dev/null 2>&1
@@ -9995,7 +10056,7 @@ last_scan_time() { # VAR → VAR = epoch of the last scan or cleanup by either a
 check_low_disk() { # → CK_DUE, CK_SENT, CK_PCT (free %, floor), CK_AVAIL; notifies at most once a day
   local size avail at
   CK_DUE=0 CK_SENT=0 CK_PCT=-1 CK_AVAIL=0
-  read -r size avail < <(LC_ALL=C df -B1 --output=size,avail / 2>/dev/null | tail -n 1)
+  read -r size avail < <(LC_ALL=C df -B1 --output=size,avail "$SYS_DISK" 2>/dev/null | tail -n 1)
   [[ $size =~ ^[0-9]+$ && $avail =~ ^[0-9]+$ ]] && ((size > 0)) || return 0
   CK_PCT=$((avail * 100 / size)) CK_AVAIL=$avail
   ((LOW_DISK_PCT > 0 && CK_PCT < LOW_DISK_PCT)) || return 0
@@ -10029,7 +10090,7 @@ check_remind() { # → CK_DUE, CK_SENT, CK_LAST (epoch of the last scan, 0 = nev
 
 check_timer_sync() { # turn cleanmate-check.timer on while the low disk alert or the scan reminder is on, else off
   local exe=$SELF t=$SYSTEMD_USER_DIR/cleanmate-check.timer s=$SYSTEMD_USER_DIR/cleanmate-check.service
-  have systemctl && ((!DRY_RUN && EUID != 0)) || return 0
+  user_timers && ((!DRY_RUN && EUID != 0)) || return 0
   [[ -x $BIN_PATH ]] && exe=$BIN_PATH
   if ((LOW_DISK_PCT > 0)) || [[ $REMIND != off ]]; then
     if [[ -f $t ]] && grep -qxF "ExecStart=\"$exe\" --check" "$s" 2>/dev/null &&
@@ -10235,7 +10296,9 @@ cli_uninstall() { # --uninstall: remove commands, launcher, timer; optionally se
   local f
   if packaged; then
     info "CleanMate was installed as a package — remove it with:"
-    if [[ -n ${SNAP:-} ]]; then printf '    sudo snap remove cleanmate\n'; else printf '    sudo apt remove cleanmate\n'; fi
+    if [[ -n ${SNAP:-} ]]; then printf '    sudo snap remove cleanmate\n'
+    elif ((FLATPAK)); then printf '    flatpak uninstall %s\n' "${FLATPAK_ID:-com.homielab.CleanMate}"
+    else printf '    sudo apt remove cleanmate\n'; fi
     return 0
   fi
   printf '  This removes cleanmate, cm, the app-grid entry, automatic cleaning and the daily check.\n'
@@ -10678,6 +10741,8 @@ json_main() { # SUBCOMMAND ARGS…
     dupes) json_dupes "$@" ;;
     trash) json_trash "$@" ;;
     restore) json_restore "$@" ;;
+    startup | startup-set | apps | uninstall | reset | maintenance | maintain) # they run apt, snap, flatpak, systemctl on the host
+      if ((FLATPAK)); then json_error "Not available in the Flatpak: $cmd manages the system's apps and services (use the .deb version)"; return 2; fi ;;&
     startup) json_startup "$@" ;;
     startup-set) json_startup_set "$@" ;;
     settings) json_settings ;;
@@ -11341,7 +11406,7 @@ json_settings() {
   ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
   local k
   for k in language schedule remind "${SETTING_KEYS[@]}" selections recent_files exclusions; do json_setting "$k"; done
-  printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool have systemctl)" "$(json_bool packaged)"
+  printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool user_timers)" "$(json_bool packaged)"
 }
 
 json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, remind off|weekly|monthly,
@@ -11779,12 +11844,14 @@ PKG_SHARE="$SELF_DIR/../share/cleanmate"
 packaged() { [[ -f $PKG_SHARE/packaged || -n ${SNAP:-} ]]; }
 pkg_update_hint() { # how this copy gets updates
   if [[ -n ${SNAP:-} ]]; then printf '    Snaps update automatically (or: sudo snap refresh cleanmate)\n'
+  elif ((FLATPAK)); then printf '    Updated by GNOME Software (or: flatpak update %s)\n' "${FLATPAK_ID:-com.homielab.CleanMate}"
   else printf '    sudo apt update && sudo apt upgrade\n'; fi
 }
 
 gui_dir() { # where the desktop app lives: next to this script (a clone), installed, or packaged
-  local d
-  for d in "$(dirname "$SELF")/gui" "$GUI_HOME" "$PKG_SHARE/gui"; do
+  local d dirs=("$(dirname "$SELF")/gui" "$GUI_HOME" "$PKG_SHARE/gui")
+  ((FLATPAK)) && dirs=("$PKG_SHARE/gui") # never a copy `cm --install` put in your home
+  for d in "${dirs[@]}"; do
     [[ -f $d/cleanmate-gui && -d $d/cleanmate_gui ]] && { printf '%s\n' "$d"; return 0; }
   done
   return 1
@@ -11911,9 +11978,11 @@ main_menu() {
     mi 9 "Large & Old Files" "Find space hogs and forgotten downloads"
     mi 0 "Duplicates" "Find identical files and keep one copy"
     mh "Apps & System"
-    mi u "Uninstaller" "Remove apps and their leftovers"
-    mi t "Startup Items" "Choose what launches at login"
-    mi m "Maintenance" "Updates, repairs, TRIM, free RAM"
+    if ((!FLATPAK)); then # they manage the system's packages and services: out of the Flatpak's reach
+      mi u "Uninstaller" "Remove apps and their leftovers"
+      mi t "Startup Items" "Choose what launches at login"
+      mi m "Maintenance" "Updates, repairs, TRIM, free RAM"
+    fi
     mi i "System Overview" "Storage, memory and your biggest folders"
     mh ""
     ((${#UNDO_BATCH[@]})) && mi z "↶ Undo last Trash" "Put back the $(plural ${#UNDO_BATCH[@]} item) you just moved to the Trash"
@@ -11932,9 +12001,9 @@ main_menu() {
       8) space_lens_menu ;;
       9) large_files_menu ;;
       0) duplicates_menu ;;
-      u) uninstaller_menu ;;
-      t) startup_menu ;;
-      m) maintenance_menu ;;
+      u) ((FLATPAK)) || uninstaller_menu ;; # not in the Flatpak's menu
+      t) ((FLATPAK)) || startup_menu ;;
+      m) ((FLATPAK)) || maintenance_menu ;;
       i) overview ;;
       s) settings_menu ;;
       n) ui_update ;;

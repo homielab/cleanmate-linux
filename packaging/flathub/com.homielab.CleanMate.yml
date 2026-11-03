@@ -1,0 +1,41 @@
+# Flathub manifest: the desktop app (GTK 4 + libadwaita) and its engine (cleanmate.sh), built from a
+# release tag. How to build, test and submit it: packaging/flathub/README.md.
+id: com.homielab.CleanMate
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+command: cleanmate
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # The junk CleanMate cleans is in your home folder: caches, app logs, the Trash, developer and AI
+  # tool leftovers, and the files Space Lens, Large & Old Files and Duplicates look at. Nothing
+  # outside it: items that need the system (apt, the journal, /var/log, kernels) are left out.
+  - --filesystem=home
+modules:
+  - name: cleanmate
+    buildsystem: simple
+    build-commands:
+      - install -D -m 755 cleanmate.sh /app/bin/cleanmate
+      - ln -s cleanmate /app/bin/cm
+      - install -D -m 755 gui/cleanmate-gui /app/share/cleanmate/gui/cleanmate-gui
+      - install -D -m 644 -t /app/share/cleanmate/gui/cleanmate_gui gui/cleanmate_gui/*.py
+      # Flathub, not the app, installs updates: no update check, `cm --update` says how
+      - touch /app/share/cleanmate/packaged
+      - bash po/compile.sh /app/share/locale
+      - install -D -m 644 -t /app/share/metainfo data/com.homielab.CleanMate.metainfo.xml
+      - install -D -m 644 -t /app/share/icons/hicolor/scalable/apps data/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg
+      # the "Open in Terminal" action runs the host's terminal, which the sandbox can't
+      - sed -e '/^Actions=/d' -e '/^\[Desktop Action/,$d' data/com.homielab.CleanMate.desktop >com.homielab.CleanMate.desktop
+      - install -D -m 644 -t /app/share/applications com.homielab.CleanMate.desktop
+    # packaging/flathub/build.sh swaps this for the working tree: keep `sources` the module's last key
+    sources:
+      - type: git
+        url: https://github.com/homielab/cleanmate-linux.git
+        tag: v2.3.0
+        commit: 4ce10d4bdb06801f3a2b3e03d8ffe22a76988d57
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$

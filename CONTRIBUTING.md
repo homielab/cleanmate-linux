@@ -11,7 +11,7 @@ cleanmate.sh                the engine + terminal app (one Bash script, the sour
 gui/                        the desktop app (Python, GTK 4 + libadwaita) — talks to the engine
 po/                         translations of the desktop app (gettext)
 data/                       launcher, AppStream metainfo, icon
-packaging/                  .deb build script, polkit policy
+packaging/                  .deb build script, polkit policy, Flathub manifest (flathub/)
 snap/                       Snap Store draft
 tests/                      test suite (run.sh) and the terminal-UI smoke test
 docs/                       screenshots, roadmap, publishing guide
@@ -171,3 +171,6 @@ counted noun in `cleanmate.sh` needs a pattern there, or it shows in English; ad
 Bump `VERSION` in `cleanmate.sh` and `snap/snapcraft.yaml`, update
 `CHANGELOG.md` and the metainfo release notes, merge to `main`, push a `vX.Y.Z` tag — CI tests,
 builds the `.deb` and creates the GitHub release with the `.deb` and the snap.
+Once CleanMate is on Flathub, the Flathub bot opens a pull request in `flathub/com.homielab.CleanMate`
+for the new tag; copy its `tag` and `commit` into `packaging/flathub/com.homielab.CleanMate.yml`
+([packaging/flathub/README.md](packaging/flathub/README.md)).

@@ -8,7 +8,7 @@ from gi.repository import Adw, Gio, GLib, Gtk
 from . import bugreport
 from .bugreport import REPO_URL, WEBSITE_URL
 from .duplicates import DuplicatesPage
-from .engine import SMART_SCAN, Selection, human
+from .engine import FLATPAK_HIDDEN_PAGES, IN_FLATPAK, SMART_SCAN, Selection, human
 from .i18n import _
 from .largefiles import LargeFilesPage
 from .maintenance import MaintenancePage
@@ -63,6 +63,14 @@ PAGES = [
      _("Your system, disks, free space over time, memory, the space CleanMate freed, and your largest "
        "folders.")),
 ]
+if IN_FLATPAK:  # what the Flatpak can't reach is left out (engine.IN_FLATPAK); the descriptions say what is left
+    _FLATPAK_DESCRIPTIONS = {
+        "system": _("Old installers, downloads and screenshots, and unfinished downloads. The package cache, "
+                    "old kernels and snaps are out of the Flatpak's reach."),
+        "logs": _("Old app logs. The systemd journal, /var/log and crash reports are out of the Flatpak's reach."),
+    }
+    PAGES = [(s[0], s[1], s[2], s[3], _FLATPAK_DESCRIPTIONS.get(s[0], s[4])) if s else s
+             for s in PAGES if not (s and s[0] in FLATPAK_HIDDEN_PAGES)]
 # Ctrl+1…9: the System Overview (where the app opens) first, then the sidebar from the top
 SHORTCUT_PAGES = ["overview", "smart", "system", "logs", "user", "ai", "dev", "privacy", "lens"]
 
@@ -91,12 +99,13 @@ class Window(Adw.ApplicationWindow):
                 row.set_tooltip_text(f"{title} (Ctrl+{SHORTCUT_PAGES.index(pid) + 1})")
             row.page_id = pid
             self.sidebar_list.append(row)
-        more = Gtk.Box(spacing=12)
-        more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
-        more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
-        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Open the terminal app (cm)"))
-        more_row.page_id = "terminal"
-        self.sidebar_list.append(more_row)
+        if not IN_FLATPAK:  # the sandbox can't open a terminal on your desktop
+            more = Gtk.Box(spacing=12)
+            more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
+            more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
+            more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Open the terminal app (cm)"))
+            more_row.page_id = "terminal"
+            self.sidebar_list.append(more_row)
         self.sidebar_list.connect("row-activated", self._on_row_activated)
 
         self.disk_bar = Gtk.LevelBar(min_value=0, max_value=1)
@@ -110,7 +119,8 @@ class Window(Adw.ApplicationWindow):
         main = Gio.Menu()
         main.append(_("Settings"), "win.settings")
         main.append(_("Keyboard Shortcuts"), "win.shortcuts")
-        main.append(_("Open the terminal app"), "win.terminal")
+        if not IN_FLATPAK:
+            main.append(_("Open the terminal app"), "win.terminal")
         menu.append_section(None, main)
         help_ = Gio.Menu()
         help_.append(_("Getting Started…"), "win.welcome")

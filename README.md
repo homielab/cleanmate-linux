@@ -60,6 +60,9 @@ folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app nee
   [Releases](https://github.com/homielab/cleanmate-linux/releases), double-click it (App Center)
   or `sudo apt install ./cleanmate_*_all.deb`.
 - **Just try it:** `bash cleanmate.sh --dry-run` — everything works, nothing is deleted.
+- **Flatpak:** coming to Flathub; build it now with `packaging/flathub/build.sh`. It cleans your home
+  folder only: apt, the journal, old kernels, Docker and the Uninstaller need the PPA or the `.deb`
+  ([what the Flatpak can't do](packaging/flathub/README.md#what-the-flatpak-cant-do)).
 
 Also available for macOS: [CleanMate for macOS](https://github.com/homielab/cleanmate-macos).
 

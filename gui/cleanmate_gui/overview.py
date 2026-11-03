@@ -14,7 +14,7 @@ import time
 
 from gi.repository import Adw, GLib, Gtk
 
-from .engine import human
+from .engine import IN_FLATPAK, human
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
@@ -552,8 +552,12 @@ class OverviewPage(Gtk.Box):
         self.groups["freed"] = freed
         self.results.append(freed)
 
-        # measured last: placeholders until "top_dirs" arrives (show_folders)
-        for key, title in (("outside", _("Space outside your folders")), ("top", _("Largest folders in your home"))):
+        # measured last: placeholders until "top_dirs" arrives (show_folders). The Flatpak sees neither the
+        # space outside your folders (snapshots, swap) nor the system's protection: no group for them
+        later = [("top", _("Largest folders in your home"))]
+        if not IN_FLATPAK:
+            later.insert(0, ("outside", _("Space outside your folders")))
+        for key, title in later:
             group = Adw.PreferencesGroup(title=title, description=_("Measuring…"),
                                          header_suffix=Gtk.Spinner(spinning=True, valign=Gtk.Align.CENTER))
             self.groups[key] = group
@@ -568,13 +572,14 @@ class OverviewPage(Gtk.Box):
         for e in d.get("protection", []):
             protection.add(self.protection_row(e))
         self.groups["protection"] = protection
-        self.results.append(protection)
+        if not IN_FLATPAK:
+            self.results.append(protection)
         self.stack.set_visible_child_name("results")
 
     def show_folders(self):
         """Fill the last two groups once the folder sizes are in (or the run ended without them)."""
         d = self.data
-        if "outside" not in self.groups or self.groups["outside"].get_header_suffix() is None:
+        if "top" not in self.groups or self.groups["top"].get_header_suffix() is None:
             return  # already filled
         outside = Adw.PreferencesGroup(
             title=_("Space outside your folders"),
@@ -621,6 +626,8 @@ class OverviewPage(Gtk.Box):
             top.add(row)
 
         for key, group in (("outside", outside), ("top", top)):
+            if key not in self.groups:
+                continue  # the Flatpak has no "outside" group
             self.results.insert_child_after(group, self.groups[key])
             self.results.remove(self.groups[key])
             self.groups[key] = group

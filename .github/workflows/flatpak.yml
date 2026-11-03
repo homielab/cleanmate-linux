@@ -1,0 +1,42 @@
+name: Flatpak
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: flatpak-builder-lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Manifest and AppStream metadata (Flathub's checks)
+        run: |
+          lint() { docker run --rm -v "$PWD:/src" -w /src ghcr.io/flathub-infra/flatpak-builder-lint:latest "$@"; }
+          lint manifest packaging/flathub/com.homielab.CleanMate.yml
+          lint appstream data/com.homielab.CleanMate.metainfo.xml
+
+  build:
+    name: Build, install and run
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build this commit and install it
+        run: |
+          packaging/flathub/build.sh --manifest
+          flatpak-builder --user --disable-rofiles-fuse --force-clean --install \
+            --state-dir=dist/flatpak/state dist/flatpak/build dist/flatpak/com.homielab.CleanMate.yml
+      - name: Run the engine in the sandbox
+        run: |
+          flatpak run --command=cleanmate com.homielab.CleanMate --version
+          items=$(flatpak run --command=cleanmate com.homielab.CleanMate --json items)
+          grep -q '"id":"trash"' <<<"$items"
+          ! grep -q '"id":"apt_cache"' <<<"$items"
+        shell: bash

@@ -204,6 +204,7 @@ def _sentences():
         (r"\{c0\}", "{count}"),
         (r"(?P<size>\d[\d.,]* ?[KMGTP]?i?B) in total", _("{size} in total")),
         (r"skipped while running: (?P<names>.+)", _("skipped while running: {names}")),
+        (r"close it first: the Flatpak can't see if it's open", _("close it first: the Flatpak can't see if it's open")),
         (r"get it back with: ollama pull (?P<ref>.+)", _("get it back with: ollama pull {ref}")),
     ]
 

@@ -33,6 +33,10 @@
       fallback kernel, never touches logins, keys or settings, and asks for your password only
       for system items. A terminal version with even more tools is included: run cm.
     </p>
+    <p>
+      The Flatpak version cleans your home folder only: the package cache, system logs, old kernels
+      and snaps, Docker, and the Uninstaller, Startup Items and Maintenance tools need the .deb version.
+    </p>
   </description>
 
   <launchable type="desktop-id">com.homielab.CleanMate.desktop</launchable>

@@ -1,7 +1,7 @@
 """One scan page: start → scanning → results (checkboxes, sizes) → cleaning."""
 from gi.repository import Adw, GLib, Gtk, Pango
 
-from .engine import CATEGORY_TITLES, human
+from .engine import CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, human
 from .i18n import _, detail_text, item_text, ngettext, note_text
 
 
@@ -59,6 +59,14 @@ class ScanPage(Gtk.Box):
         self.undo_toast = None  # the toast offering Undo after a clean that moved items to the Trash
         self.restoring = None  # Gio.Cancellable of the Undo run
         self.scan_again = False  # Undo finished during a scan: scan once more to show what came back
+
+        if IN_FLATPAK and {"system", "logs"} & set(categories):
+            banner = Adw.Banner(title=_("System files are out of the Flatpak's reach: the package cache, system "
+                                        "logs and old kernels need the .deb version."),
+                                button_label=_("Learn More"), revealed=True)
+            banner.connect("button-clicked",
+                           lambda *_: Gtk.UriLauncher.new(FLATPAK_LIMITS_URL).launch(window, None, None))
+            self.append(banner)
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vexpand=True)
         self.append(self.stack)
