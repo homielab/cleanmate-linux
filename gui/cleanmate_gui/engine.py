@@ -13,6 +13,7 @@ from collections import deque
 from gi.repository import Gio, GLib
 
 from .i18n import _, saved_setting
+from .messages import human  # noqa: F401 (engine.human is used by every page)
 
 # Same groups and order as the terminal app's Smart Scan.
 CATEGORY_TITLES = {
@@ -39,22 +40,6 @@ FLATPAK_LIMITS_URL = ("https://github.com/homielab/cleanmate-linux/blob/main/pac
                       "#what-the-flatpak-cant-do")
 
 
-def human(n):
-    """Bytes → '1.8 GB', identical to the engine's formatting."""
-    n = int(n or 0)
-    if n < 1024:
-        return f"{n} B"
-    units = ["B", "KB", "MB", "GB", "TB", "PB"]
-    d, i = 1, 0
-    while n // d >= 1024 and i < 5:
-        d, i = d * 1024, i + 1
-    t = (n * 10 + d // 2) // d
-    if t >= 10240 and i < 5:
-        d, i = d * 1024, i + 1
-        t = (n * 10 + d // 2) // d
-    return f"{t // 10}.{t % 10} {units[i]}"
-
-
 # the last lines the engine wrote to stderr, kept for the error page and the bug report
 STDERR_LINES = 20
 STDERR_GRACE_MS = 300  # after a failed run, how long to wait for its last stderr lines
@@ -62,15 +47,65 @@ STDERR_GRACE_MS = 300  # after a failed run, how long to wait for its last stder
 PKEXEC_DISMISSED, PKEXEC_REFUSED = 126, 127
 
 
+# commands that change something on the disk: closing the window while one runs asks first
+WRITING = {"clean", "trash", "restore", "uninstall", "reset", "maintain", "startup-set"}
+
+
+def _children():
+    """pid → its child pids, from /proc."""
+    kids = {}
+    try:
+        names = os.listdir("/proc")
+    except OSError:
+        return kids
+    for name in names:
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat", encoding="utf-8", errors="replace") as f:
+                ppid = int(f.read().rpartition(")")[2].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        kids.setdefault(ppid, []).append(int(name))
+    return kids
+
+
+def kill_tree(pid):
+    """Kill PID and everything it started (find, du, apt …): killing bash alone would leave those running.
+    Stopped first, so it can't start another one meanwhile. A process of root's (pkexec) is beyond reach."""
+    try:
+        os.kill(pid, signal.SIGSTOP)
+    except OSError:
+        return
+    kids, tree, todo = _children(), [pid], [pid]
+    while todo:
+        for child in kids.get(todo.pop(), ()):
+            tree.append(child)
+            todo.append(child)
+    for p in tree:
+        try:
+            os.kill(p, signal.SIGKILL)
+        except OSError:
+            pass
+
+
 class Run(Gio.Cancellable):
-    """One engine run: cancel() kills it at once; stop() asks it to end early and still report (a scan
-    then lists the items it got to)."""
+    """One engine run: cancel() kills it and what it started at once; stop() asks it to end early and still
+    report (a scan then lists the items it got to)."""
     proc = None
     stderr = ()  # the last STDERR_LINES lines the engine wrote to stderr
+    command = ""  # the engine command: scan, clean, large …
+    writes = False  # it changes something on the disk (WRITING)
 
     def stop(self):
         if self.proc and not self.is_cancelled():
             self.proc.send_signal(signal.SIGTERM)
+
+    def kill(self):
+        """End the engine and its children (cancel() does this too)."""
+        pid = self.proc and self.proc.get_identifier()
+        if pid:
+            kill_tree(int(pid))
 
 
 class Engine:
@@ -80,6 +115,16 @@ class Engine:
         self.path = os.path.abspath(path)
         self.dry_run = dry_run
         self.env = env or {}  # extra environment variables for the engine (the self-test's own HOME)
+        self.live = set()  # the runs that haven't ended yet
+
+    def writing(self):
+        """The runs still changing something on the disk (cleaning, moving to the Trash, removing apps …)."""
+        return [r for r in self.live if r.writes]
+
+    def stop_all(self):
+        """Kill every run still going, with what each started (the window is closing)."""
+        for r in list(self.live):
+            r.cancel()
 
     def run(self, args, on_event, on_done, as_root=False):
         """Start the engine. on_event(dict) per event, on_done(ok, exit_status) at the end.
@@ -96,6 +141,8 @@ class Engine:
             argv.append("--dry-run")
         argv += list(args)
         cancellable = Run()
+        cancellable.command = next((a for a in args if not a.startswith("-")), "")
+        cancellable.writes = cancellable.command in WRITING and "--check" not in args
         try:
             launcher = Gio.SubprocessLauncher.new(
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
@@ -104,7 +151,8 @@ class Engine:
                 launcher.setenv(key, value, True)
             proc = launcher.spawnv(argv)
         except GLib.Error as e:
-            GLib.idle_add(on_event, {"event": "error", "message": e.message})
+            GLib.idle_add(on_event, {"event": "error", "message": e.message, "code": "engine_failed",
+                                     "args": {"detail": e.message}})
             GLib.idle_add(on_event, {"event": "failed", "status": -1, "stderr": [e.message]})
             GLib.idle_add(on_done, False, -1)
             return cancellable
@@ -113,7 +161,8 @@ class Engine:
         tail = deque(maxlen=STDERR_LINES)
         cancellable.proc = proc
         cancellable.stderr = tail
-        cancellable.connect(lambda *_: proc.force_exit())
+        cancellable.connect(lambda *_: cancellable.kill())
+        self.live.add(cancellable)
         # stderr is read on its own: a child the engine left running may hold it open, so the run ends with
         # stdout and the exit, and waits for the rest of stderr only briefly
         err_cancel = Gio.Cancellable()
@@ -124,6 +173,7 @@ class Engine:
             if state["exited"] is None:
                 return
             status, state["exited"] = state["exited"], None
+            self.live.discard(cancellable)
             err_cancel.cancel()
             if status != 0 and not cancellable.is_cancelled():
                 on_event({"event": "failed", "status": status, "stderr": list(tail)})

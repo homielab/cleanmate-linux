@@ -9,7 +9,6 @@ in your home to the Trash (`--json reset`: listed first, refused while it runs).
 their own at the end, never ticked. This page only shows them and keeps the choice.
 """
 import os
-import re
 import time
 from urllib.parse import unquote
 
@@ -21,6 +20,7 @@ from .errorview import Failure, last_line, pkexec_reason
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
+from . import messages
 
 SORTS = [(_("Size"), "size"), (_("Last used"), "used"), (_("Name"), "name")]
 UNUSED = [(_("All apps"), 0), (_("Unused for 1+ month"), 1), (_("Unused for 3+ months"), 3),
@@ -159,6 +159,10 @@ class UninstallerPage(Gtk.Box):
     def reload(self):
         self.load()  # no-op while busy
 
+    def find(self):
+        """Ctrl+F: the search box at the top (apps and leftover folders, by name)."""
+        self.search_entry.grab_focus()
+
     def load(self):
         if self.busy:
             return
@@ -180,7 +184,7 @@ class UninstallerPage(Gtk.Box):
             self.running, self.busy = None, False
             self.window.set_busy(False)
             if "message" in info:
-                self.window.toast(info["message"])
+                self.window.toast(messages.text(info))
             self.apps, self.hidden, self.orphans = apps, info.get("hidden", 0), orphans
             self.selected &= set(apps)
             self.orphan_selected &= {o["path"] for o in orphans}
@@ -356,13 +360,13 @@ class UninstallerPage(Gtk.Box):
 
         def on_event(e):
             if e["event"] == "error":
-                failed.append(e["message"])
+                failed.append(messages.text(e))
             elif e["event"] == "task" and e["state"] == "ok":
                 done.append(e["id"])
                 if e["trash"]:
                     moved[e["trash"]] = e["id"]
             elif e["event"] == "task":
-                failed.append(f"{short_path(e['id'])}: {e['info']}")
+                failed.append(f"{short_path(e['id'])}: {messages.text(e)}")
 
         def on_done(ok, status):
             self.running, self.busy = None, False
@@ -536,7 +540,7 @@ class UninstallerPage(Gtk.Box):
             if result.get("event") == "check" and result["ok"]:
                 self.confirm(apps, folders, result)
             else:
-                self.window.toast(result.get("message") or _("Couldn't check what removing these apps does."),
+                self.window.toast(messages.text(result) or _("Couldn't check what removing these apps does."),
                                   timeout=8)
 
         self.running = self.engine.uninstall([a["id"] for a in apps], on_event, on_done, check=True)
@@ -632,7 +636,7 @@ class UninstallerPage(Gtk.Box):
 
         def on_event(e):
             if e["event"] == "error":
-                self.window.toast(e["message"], timeout=8)
+                self.window.toast(messages.text(e), timeout=8)
             if e["event"] == "trashed" and e["trash"]:
                 app_moved[e["trash"]] = e["path"]
             if e["event"] != "task" or e["id"] not in rows:
@@ -640,11 +644,11 @@ class UninstallerPage(Gtk.Box):
             if e["state"] == "run":
                 rows[e["id"]].set_subtitle(_("removing…"))
                 return
-            info = e["info"]
+            info = messages.text(e)
             if e["state"] == "skip":  # started after the check
                 skipped.add(e["id"])
-                m = re.match(r"Skipped: (.+) is running", info or "")
-                info = running_text(m.group(1)) if m else info
+                program = (e.get("args") or {}).get("program")
+                info = running_text(program) if program else info
             set_row(rows[e["id"]], e["state"],
                     info or {"ok": _("removed"), "skip": _("skipped")}.get(e["state"], _("failed")))
             if e["state"] == "ok":
@@ -692,13 +696,13 @@ class UninstallerPage(Gtk.Box):
 
             def on_trash(e):
                 if e["event"] == "error":
-                    self.window.toast(e["message"], timeout=8)
+                    self.window.toast(messages.text(e), timeout=8)
                 elif e["event"] == "task" and e["state"] == "ok":
                     done.append(e["id"])
                     if e["trash"]:
                         moved[e["trash"]] = e["id"]
                 elif e["event"] == "task":
-                    self.window.toast(f"{short_path(e['id'])}: {e['info']}", timeout=8)
+                    self.window.toast(f"{short_path(e['id'])}: {messages.text(e)}", timeout=8)
 
             self.running = self.engine.trash(paths, on_trash, lambda ok, st: finish(moved, len(done)),
                                              source="Uninstaller")
@@ -769,7 +773,7 @@ class UninstallerPage(Gtk.Box):
             self.window.set_busy(False)
             self.update_summary()
             if info.get("event") != "done":
-                self.window.toast(info.get("message") or _("Couldn't find the data of this app."), timeout=8)
+                self.window.toast(messages.text(info) or _("Couldn't find the data of this app."), timeout=8)
             elif info.get("running"):
                 self.window.toast(_("Close {program} first: resetting {name} while it runs can lose what is open "
                                     "in it.").format(program=info["running"], name=app["name"]), timeout=8)
@@ -826,13 +830,13 @@ class UninstallerPage(Gtk.Box):
 
         def on_event(e):
             if e["event"] == "error":
-                failed.append(e["message"])
+                failed.append(messages.text(e))
             elif e["event"] == "task" and e["state"] == "ok":
                 done.append(e["id"])
                 if e["trash"]:
                     moved[e["trash"]] = e["id"]
             elif e["event"] == "task":
-                failed.append(f"{short_path(e['id'])}: {e['info']}")
+                failed.append(f"{short_path(e['id'])}: {messages.text(e)}")
 
         def on_done(ok, status):
             self.running, self.busy = None, False
@@ -865,7 +869,7 @@ class UninstallerPage(Gtk.Box):
 
         def on_event(e):
             if e["event"] == "error":
-                failed.append({"info": e["message"]})
+                failed.append(e)
             elif e["event"] == "task":
                 (back if e["state"] == "ok" else failed).append(e)
 
@@ -874,7 +878,7 @@ class UninstallerPage(Gtk.Box):
             self.window.set_busy(False)
             if failed:
                 self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
-                    back=len(back), failed=len(failed), reason=failed[0]["info"]))
+                    back=len(back), failed=len(failed), reason=messages.text(failed[0])))
             elif apps:
                 self.window.toast(ngettext("Put back {n} item from the Trash", "Put back {n} items from the Trash",
                                            len(back)))

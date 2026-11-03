@@ -18,6 +18,7 @@ from gi.repository import Adw, Gio, GLib, Gtk
 from .a11y import named
 from . import i18n
 from .i18n import _, ngettext
+from . import messages
 
 # each language by its own name, so you can find yours whatever the app is in now
 LANGUAGE_TITLES = {"system": _("Same as system"), "en": "English", "vi": "Tiếng Việt"}
@@ -57,15 +58,6 @@ GROUPS = {
     "dev": _("Developer Junk"), "privacy": _("Privacy"),
 }
 DELAY_MS = 700  # a number is saved this long after its last change
-
-# why the engine refuses a folder for Never clean (the other reasons name the folder and stay as they are)
-EXCLUSION_REASONS = {
-    "Your home folder or a folder above it is too broad to exclude":
-        _("Your home folder or a folder above it is too broad to exclude"),
-    "Only folders inside your home folder can be excluded": _("Only folders inside your home folder can be excluded"),
-    "Folders reached through a symbolic link can't be excluded":
-        _("Folders reached through a symbolic link can't be excluded"),
-}
 
 
 def short_path(path):
@@ -144,7 +136,7 @@ class SettingsPage(Adw.PreferencesPage):
         if "message" in self.info or not self.settings:
             self.status = Adw.PreferencesGroup(
                 title=_("Can't read your settings"),
-                description=self.info.get("message") or _("The cleaning engine didn't answer."))
+                description=messages.text(self.info) or _("The cleaning engine didn't answer."))
             self.add(self.status)
             return
 
@@ -438,8 +430,8 @@ class SettingsPage(Adw.PreferencesPage):
             if key == "welcome_shown":
                 pass  # the welcome was closed: nothing to tell
             elif result.get("state") != "ok":
-                reason = result.get("info") or result.get("message", "")
-                self.toast(_("Could not change it: {reason}").format(reason=EXCLUSION_REASONS.get(reason, reason)))
+                reason = messages.text(result)
+                self.toast(_("Could not change it: {reason}").format(reason=reason))
             elif self.engine.dry_run:
                 self.toast(_("Dry run: nothing was saved"))
             elif key == "schedule":

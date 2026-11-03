@@ -9,6 +9,7 @@ command that turns it on, to copy and run in a terminal; the app never runs it. 
 three numbers and a bar per day over the last 30 days; they count up and grow once per app session, unless
 the system turns animations off.
 """
+import datetime
 import os
 import time
 
@@ -19,11 +20,24 @@ from .engine import IN_FLATPAK, human
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
+from . import messages
 
 FULL = 0.9  # a disk fuller than this is shown in the warning colour
 HISTORY_POINTS = 30  # days in the free-space chart
 WEEK_CHANGE = 100 << 20  # free space changing less than this a week counts as stable
 ANIMATION_MS = 600  # the Freed numbers count up and the bars grow this long
+
+
+def last_scan_text(epoch, today=None):
+    """When either app last scanned or cleaned (the engine's "last_scan"; 0 = never), in calendar days."""
+    if not epoch:
+        return _("No scan yet — see in a minute what can be cleaned.")
+    days = ((today or datetime.date.today()) - datetime.date.fromtimestamp(epoch)).days
+    if days <= 0:
+        return _("Last scan: today")
+    if days == 1:
+        return _("Last scan: yesterday")
+    return ngettext("Last scan: {n} day ago", "Last scan: {n} days ago", days)
 
 
 def usage_bar(fraction, width=160):
@@ -448,7 +462,7 @@ class OverviewPage(Gtk.Box):
             self.window.set_busy(False)
             self.refresh_button.set_sensitive(True)
             if "error" in data or "system" not in data:
-                self.failed.set_description(data.get("error", {}).get("message", ""))
+                self.failed.set_description(messages.text(data.get("error", {})))
                 self.stack.set_visible_child_name("failed")
                 return
             if not shown:
@@ -482,6 +496,22 @@ class OverviewPage(Gtk.Box):
         header.append(text)
         header.append(self.refresh_button)
         self.results.append(header)
+
+        # the way in: System Overview only shows facts, Smart Scan finds what can go
+        scan = Adw.PreferencesGroup()
+        row = Adw.ActionRow(title=_("Smart Scan"), use_markup=False, css_classes=["item-row"],
+                            subtitle=last_scan_text(d.get("last_scan", {}).get("time", 0)))
+        row.add_prefix(Gtk.Image(icon_name="starred-symbolic", pixel_size=32))
+        self.smart_button = named(Gtk.Button(label=_("Run Smart Scan"), valign=Gtk.Align.CENTER,
+                                             css_classes=["suggested-action", "pill"],
+                                             tooltip_text=_("Find the junk you can clean safely")),
+                                  _("Run Smart Scan"))
+        self.smart_button.connect("clicked", lambda _b: self.window.start_smart_scan())
+        row.add_suffix(self.smart_button)
+        row.set_activatable_widget(self.smart_button)
+        self.rows["smart"] = row
+        scan.add(row)
+        self.results.append(scan)
 
         s = d["system"]
         system = Adw.PreferencesGroup(title=_("System"))

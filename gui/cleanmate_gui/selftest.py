@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 
-from gi.repository import Adw, Gdk, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import i18n
 from . import preview
@@ -869,6 +869,15 @@ def startup_test(win, report, wait, finish):
         report(ids == ["autostart:backup.desktop", "autostart:chat.desktop", "autostart:gone.desktop",
                        "systemd:sync.service"],
                f"startup items listed, system services hidden: {ids}")
+        ctrl_f(win)
+        page.find_bar.entry.set_text("chat")
+        page.apply_filter()
+        shown = sorted(k for k, row in page.rows.items() if row.get_visible())
+        report(page.find_bar.get_search_mode() and shown == ["autostart:chat.desktop"],
+               f"Ctrl+F in Startup Items keeps the matching item: {shown}")
+        page.find_bar.set_search_mode(False)
+        page.apply_filter()
+        report(all(row.get_visible() for row in page.rows.values()), "closing the search lists every item again")
         page.show_system.set_active(True)
         sw = page.switches.get("systemd:pipewire.service")
         report(sw is not None and not sw.get_sensitive(), "a system service is shown but can't be switched")
@@ -1057,6 +1066,11 @@ def uninstaller_test(win, report, wait, finish):
         box.set_active(True)
         page.checks["apt:gimp"].set_active(False)
         report(not box.get_active() and not box.get_sensitive(), "unticking the app clears its folders")
+        focused = []
+        page.search_entry.grab_focus = lambda: focused.append(1)  # a headless window may not take focus
+        ctrl_f(win)
+        del page.search_entry.grab_focus
+        report(focused == [1], "Ctrl+F in Uninstall Apps goes to its search box")
         page.search_entry.set_text("spot")
         wait(lambda: not page.rows["apt:gimp"].get_visible(), searched, 5, "search")
 
@@ -2077,6 +2091,14 @@ def maintenance_test(win, report, wait, finish):
         items = [dict(m) for m in page.items.values()]
         report(all(page.controls[m["id"]].get_sensitive() == m["available"] for m in items),
                "only items whose tool is installed can run")
+        ctrl_f(win)
+        page.find_bar.entry.set_text("fonts")
+        page.apply_filter()
+        report(page.find_bar.get_search_mode() and page.rows["fonts"].get_visible()
+               and not page.rows["update"].get_visible(), "Ctrl+F in Maintenance keeps the matching task")
+        page.find_bar.set_search_mode(False)
+        page.apply_filter()
+        report(all(row.get_visible() for row in page.rows.values()), "closing the search lists every task again")
         for m in items:
             if m["id"] == "locate":
                 m.update(available=False, reason="locate/plocate is not installed.")
@@ -2128,7 +2150,7 @@ def overview_test(win, report, wait, finish):
     Space Lens, and System protection (a fake /etc and /sys) shows each check last, with a command to copy
     when one is off."""
     from .engine import Engine, human
-    from .overview import FreedPanel
+    from .overview import FreedPanel, last_scan_text
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
     videos, projects = os.path.join(home, "Videos"), os.path.join(home, "Projects")
@@ -2184,6 +2206,12 @@ def overview_test(win, report, wait, finish):
         report(page.freed is None and bool(page.groups["freed"].get_description()),
                "no Freed numbers before the first cleanup, only a note")
         report(page.chart is None and "history" in page.groups, "one day of free-space history: a note, no chart yet")
+        report(page.smart_button.get_label() == _("Run Smart Scan") and page.smart_button.has_css_class("suggested-action")
+               and page.rows["smart"].get_subtitle() == last_scan_text(0)
+               and page.results.get_first_child().get_next_sibling() is page.rows["smart"].get_ancestor(
+                   Adw.PreferencesGroup),
+               "System Overview opens with Run Smart Scan under its title (its label is its name for screen readers); "
+               "never scanned here")
         report("outside:reserved:/" in page.rows and "outside:swapfile:/swap.img" in page.rows,
                "space outside your folders: ext4 reserved space and the swap file")
         beyond, opened_at = page.rows.get("outside_home"), []
@@ -2258,6 +2286,12 @@ def overview_test(win, report, wait, finish):
 
     def counted():
         freed = page.freed
+        scans = []
+        win.start_smart_scan = lambda: scans.append(1)  # a real one would scan this computer
+        page.smart_button.emit("clicked")
+        del win.start_smart_scan
+        report(page.rows["smart"].get_subtitle() == _("Last scan: yesterday") and scans == [1],
+               f"after yesterday's cleanup: {page.rows['smart'].get_subtitle()!r}; the button starts Smart Scan")
         numbers = {k: label.get_label() for k, (label, _v) in freed.numbers.items()}
         report(numbers == {"freed30": human(2147483648), "lifetime": human(2147483648), "last": human(2147483648)},
                f"Refresh shows what was freed: 30 days, in total, the last cleanup ({numbers})")
@@ -2403,8 +2437,8 @@ def bug_report_test(win, report, wait, finish):
 def welcome_test(win, report, wait, finish):
     """The welcome of a throwaway home with a fake `systemctl --user`: new until closed once; Next and Back move
     through the three steps; step 2 opens the terminal app (stubbed); step 3 turns automatic cleaning and the
-    scan reminder on (their timers come on) and changes the low disk alert, which Settings then shows; Start
-    closes it and saves welcome_shown; Getting Started… in the main menu opens it again and saves nothing."""
+    scan reminder on (their timers come on) and changes the low disk alert, which Settings then shows; its last
+    button, Run Smart Scan, closes it, saves welcome_shown and goes to Smart Scan (stubbed); Getting Started… in the main menu opens it again and saves nothing."""
     from . import welcome as W
     from .engine import Engine
     from .settings import LOW_DISK
@@ -2423,8 +2457,9 @@ def welcome_test(win, report, wait, finish):
            "CLEANMATE_NO_UPDATE_CHECK": "1", "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
     root = os.geteuid() == 0  # the engine refuses settings: the steps work, the options say why they're missing
     real_engine, real_terminal = win.engine, win.open_terminal
-    terminals = []
+    terminals, scans = [], []
     win.open_terminal = lambda *_a: terminals.append(1)
+    win.start_smart_scan = lambda: scans.append(1)
     win.engine = Engine(real_engine.path, dry_run=False, env=env)
     report(W.is_new(config), "with new settings the welcome is shown")
     report(win.lookup_action("welcome") is not None, "the main menu has Getting Started…")
@@ -2465,6 +2500,7 @@ def welcome_test(win, report, wait, finish):
 
     def done():
         win.engine, win.open_terminal = real_engine, real_terminal
+        del win.start_smart_scan
         shutil.rmtree(sandbox, ignore_errors=True)
         honest_results_test(win, report, wait, finish)
 
@@ -2482,7 +2518,8 @@ def welcome_test(win, report, wait, finish):
         wait(at(2), step3, 10, "welcome step 3")
 
     def step3():
-        report(not dialog.skip.get_visible() and dialog.next.get_label() == _("Start"), "step 3 ends with Start")
+        report(not dialog.skip.get_visible() and dialog.next.get_label() == _("Run Smart Scan"),
+               "step 3 ends with Run Smart Scan")
         wait(idle, options, 30, "welcome options")
 
     def options():
@@ -2529,12 +2566,12 @@ def welcome_test(win, report, wait, finish):
 
     def start():
         report("welcome_shown" not in saved(), "the welcome isn't marked seen while it's open")
-        dialog.next.emit("clicked")  # Start
+        dialog.next.emit("clicked")  # Run Smart Scan
         wait(lambda: idle() and "welcome_shown=1" in saved(), started, 30, "welcome closed")
 
     def started():
-        report(not W.is_new(config) and closed(dialog), "Start closes it and saves welcome_shown: "
-               "it doesn't open by itself again")
+        report(not W.is_new(config) and closed(dialog) and scans == [1], "Run Smart Scan closes it, saves "
+               "welcome_shown (it doesn't open by itself again) and goes to Smart Scan")
         before = saved()
         win.activate_action("win.welcome", None)
         again = closes(win.welcome)
@@ -2833,7 +2870,7 @@ def trashed_page_test(win, report, wait, finish):
         page.engine = real_engine
         win.show_page("smart")
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        controls_test(win, report, wait, finish)
 
     def first():
         page.engine = engine
@@ -2920,6 +2957,252 @@ def trashed_page_test(win, report, wait, finish):
         os.remove(os.path.join(trash, "files", "gone.txt"))  # emptied from the Trash in Files
         os.remove(os.path.join(trash, "info", "gone.txt.trashinfo"))
     wait(lambda: page.running is None, first, 60, "the first listing")
+
+
+def ctrl_f(win):
+    """What Ctrl+F does (`win.find`). A dialog closed on a headless display stays the window's visible dialog
+    (it never gets the frame that ends it), and the window ignores Ctrl+F under a dialog: that check is
+    skipped here."""
+    win.get_visible_dialog = lambda: None
+    try:
+        win.activate_action("win.find", None)
+    finally:
+        del win.get_visible_dialog
+
+
+def process_gone(pid):
+    """PID has ended (gone, or a zombie its parent hasn't collected yet)."""
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return f.read().rpartition(")")[2].split()[0] == "Z"
+    except (OSError, IndexError):
+        return True
+
+
+def controls_test(win, report, wait, finish):
+    """One set of controls on every list page, in a throwaway home: Stop ends a Large & Old Files search and a
+    Space Lens measurement (the engine gone in under a second); Ctrl+F narrows Large & Old Files, Space Lens and
+    Duplicates (Startup Items, Maintenance and Uninstall Apps are checked in their own tests), and a ticked row it
+    hides is never moved; Never Clean from a row of each of the three saves the folder in Settings › Never clean;
+    closing the window while something is cleaning asks first; opening CleanMate again brings this window up."""
+    from .app import App
+    from .engine import Engine, Run
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home = os.path.join(sandbox, "home")
+    videos, projects = os.path.join(home, "Videos"), os.path.join(home, "Projects")
+    photos, backup_dir = os.path.join(home, "Photos"), os.path.join(home, "Backup")
+    film, backup, notes = (os.path.join(videos, "film.mkv"), os.path.join(videos, "old backup.iso"),
+                           os.path.join(projects, "notes.bin"))
+    for d in (videos, projects, photos, backup_dir):
+        os.makedirs(d)
+    for path, size in ((film, 120 << 20), (backup, 60 << 20), (notes, 90 << 20)):  # sparse: no real disk use
+        with open(path, "wb") as f:
+            f.truncate(size)
+    data = os.urandom(1536 << 10)
+    for d in (photos, backup_dir):
+        with open(os.path.join(d, "beach.jpg"), "wb") as f:
+            f.write(data)
+    env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
+           "XDG_CONFIG_HOME": os.path.join(home, ".config"), "XDG_CACHE_HOME": os.path.join(home, ".cache"),
+           "XDG_STATE_HOME": os.path.join(home, ".local", "state"), "CLEANMATE_NO_UPDATE_CHECK": "1"}
+    exclude_file = os.path.join(home, ".config", "cleanmate", "exclude")
+    root = os.geteuid() == 0  # the engine refuses settings as root: Never clean isn't saved
+    engine = Engine(win.engine.path, dry_run=False, env=env)
+    pages, real = {}, {}  # the pages used; their engines before
+
+    def open_page(pid):
+        win.show_page(pid)
+        page = win.pages[pid]
+        real.setdefault(pid, page.engine)
+        page.engine = engine
+        return page
+
+    def excluded():
+        return open(exclude_file).read().split("\n") if os.path.exists(exclude_file) else []
+
+    def visible(page):
+        return sorted(os.path.basename(p) for p, row in page.rows.items() if row.get_visible())
+
+    def stopped_in_time(page, name, then):
+        """Start PAGE's run, Stop it at once: its engine must be gone within a second."""
+        pid = page.running and page.running.proc and int(page.running.proc.get_identifier())
+        if not pid:
+            report(False, f"{name}: no engine running to stop")
+            return then()
+        start = time.monotonic()
+        page.stop()
+        wait(lambda: process_gone(pid) or time.monotonic() - start > 3, lambda: (
+            report(process_gone(pid) and time.monotonic() - start < 1 and page.running is None,
+                   f"Stop in {name} ends the engine in {time.monotonic() - start:.2f} s"),
+            then()), 10, f"{name} stopped")
+
+    def never_clean(page, folder, then):
+        """Never Clean from a row's menu (the action its menu item runs)."""
+        menus = [w for w in walk(page) if isinstance(w, Gtk.MenuButton) and w.get_tooltip_text() == _("More")]
+        report(bool(menus), f"{page.__class__.__name__}: rows have a More menu, named for screen readers")
+        page.activate_action("rows.never-clean", GLib.Variant.new_string(folder))
+        wait(lambda: page.excluding is None and not page.running, then, 60, "Never clean saved")
+
+    # ── Large & Old Files ──
+    def large():
+        page = pages["large"] = open_page("large")
+        page.set_folder(home)
+        page.size_drop.set_selected(0)  # 50 MB
+        page.files = []
+        page.search()
+        stopped_in_time(page, "Large & Old Files", lambda: (
+            report(page.stack.get_visible_child_name() == "start", "a stopped first search goes back to the start"),
+            page.search(), wait(lambda: page.running is None and page.files, large_found, 60, "large files")))
+
+    def large_found():
+        page = pages["large"]
+        ctrl_f(win)
+        report(page.find_bar.get_search_mode(), "Ctrl+F opens the search in Large & Old Files")
+        page.find_bar.entry.set_text("backup")
+        page.apply_filter()
+        report(visible(page) == ["old backup.iso"], f"the search keeps the matching file: {visible(page)}")
+        page.all_check.set_active(True)
+        report([e["path"] for e in page.chosen()] == [backup], "the All box ticks only the files listed")
+        page.all_check.set_active(False)
+        page.checks[film].set_active(True)
+        report(not page.chosen() and not page.trash_button.get_sensitive(), "a ticked file the search hides isn't moved")
+        page.checks[film].set_active(False)
+        page.find_bar.set_search_mode(False)
+        page.apply_filter()
+        report(visible(page) == ["film.mkv", "notes.bin", "old backup.iso"], "closing the search lists every file again")
+        if root:
+            report(True, "Never clean skipped: the engine refuses settings as root")
+            return lens()
+        never_clean(page, videos, large_excluded)
+
+    def large_excluded():
+        page = pages["large"]
+        names = sorted(os.path.basename(e["path"]) for e in page.files)
+        report(videos in excluded() and names == ["notes.bin"],
+               f"Never Clean Its Folder (Large & Old Files) saves Videos in Settings and drops its files: {names}")
+        lens()
+
+    # ── Space Lens ──
+    def lens():
+        page = pages["lens"] = open_page("lens")
+        before = page.shown_at
+        page.set_root(home)
+        stopped_in_time(page, "Space Lens", lambda: (
+            report(page.stack.get_visible_child_name() != "measuring"
+                   and (page.folder == before if before else page.stack.get_visible_child_name() == "stopped"),
+                   "a stopped measurement shows the folder before, or Measure Again"),
+            page.set_root(home),
+            wait(lambda: page.running is None and page.folder == home
+                 and page.stack.get_visible_child_name() == "results", lens_listed, 60, "Space Lens list")))
+
+    def lens_listed():
+        page = pages["lens"]
+        ctrl_f(win)
+        report(page.find_bar.get_search_mode(), "Ctrl+F opens the search in Space Lens")
+        page.find_bar.entry.set_text("PROJ")
+        page.apply_filter()
+        report(visible(page) == ["Projects"], f"the search keeps the matching folder, any case: {visible(page)}")
+        page.find_bar.set_search_mode(False)
+        page.apply_filter()
+        report("Projects" in visible(page) and "Photos" in visible(page), "closing the search lists everything again")
+        if root:
+            return dupes()
+        never_clean(page, projects, lambda: wait(lambda: page.running is None
+                                                 and page.stack.get_visible_child_name() == "results",
+                                                 lens_excluded, 60, "Space Lens again"))
+
+    def lens_excluded():
+        page = pages["lens"]
+        entry = next((e for e in page.entries if e["path"] == projects), {})
+        report(projects in excluded() and entry and not entry["movable"] and projects not in page.checks,
+               "Never Clean This Folder (Space Lens) saves it in Settings; it is view only from then on")
+        dupes()
+
+    # ── Duplicates ──
+    def dupes():
+        page = pages["dupes"] = open_page("dupes")
+        page.set_folder(home)
+        page.search()
+        wait(lambda: page.running is None and page.stack.get_visible_child_name() != "searching", dupes_found, 60,
+             "duplicates search")
+
+    def dupes_found():
+        page = pages["dupes"]
+        groups = page.shown_groups()
+        report(len(groups) == 1, f"one group of two copies: {len(groups)}")
+        if not groups:
+            return closing()
+        ctrl_f(win)
+        report(page.find_bar.get_search_mode(), "Ctrl+F opens the search in Duplicates")
+        page.find_bar.entry.set_text("no-such-photo")
+        page.apply_filter()
+        page.selected = {os.path.join(backup_dir, "beach.jpg")}
+        report(not page.listed_groups() and not page.chosen(), "a group the search hides is hidden and never moved")
+        page.find_bar.entry.set_text("backup beach")
+        page.apply_filter()
+        report(len(page.listed_groups()) == 1 and len(page.chosen()) == 1, "words in any order find a copy by folder")
+        page.selected = set()
+        page.find_bar.set_search_mode(False)
+        page.apply_filter()
+        if root:
+            return closing()
+        never_clean(page, backup_dir, dupes_excluded)
+
+    def dupes_excluded():
+        page = pages["dupes"]
+        left = [f["path"] for g in page.groups for f in g["files"]]
+        report(backup_dir in excluded() and not any(p.startswith(backup_dir + "/") for p in left),
+               "Never Clean Its Folder (Duplicates) saves it in Settings and drops its copies")
+        closing()
+
+    # ── closing while cleaning, a second CleanMate ──
+    def closing():
+        cleaning = Run()
+        cleaning.writes = True  # what a clean, a move to the Trash or a put back looks like to the window
+        win.engine.live.add(cleaning)
+        closed = []
+        # what closing the window runs (`close-request`); on a headless display an earlier dialog never quite
+        # closes, and the window would close that one first
+        kept = win.on_close_request()
+        dialog = getattr(win, "close_dialog", None)
+        report(kept and win.get_visible() and dialog is not None and win.get_visible_dialog() is dialog,
+               "closing the window while something is cleaning asks first")
+        win.closing("keep")
+        report(win.get_visible() and not cleaning.is_cancelled(), "Keep Running leaves the window and the clean going")
+        win.close = lambda: closed.append(1)  # the real one would end the self-test
+        win.closing("close")
+        del win.close
+        report(closed and cleaning.is_cancelled(), "Stop and Close ends the clean, then closes")
+        win.close_confirmed = False
+        win.engine.live.discard(cleaning)
+        dialog.force_close()
+
+        app = win.get_application()
+        report(not App(app.engine).get_flags() & Gio.ApplicationFlags.NON_UNIQUE,
+               "CleanMate runs once: opening it again reaches the one running")
+        presented = []
+        win.present = lambda: presented.append(1)
+        app.activate()  # what opening it again does in the running one
+        del win.present
+        report(presented == [1] and len(app.get_windows()) == 1, "opening it again brings this window up, no second one")
+        from .window import terminal_command
+        commands = [terminal_command("/opt/my apps/cleanmate.sh", True, which=lambda t, term=term: t == term)
+                    for term in ("konsole", "xfce4-terminal", "gnome-terminal")]
+        report(commands == [["konsole", "-e", "bash", "/opt/my apps/cleanmate.sh", "--dry-run"],
+                            ["xfce4-terminal", "-x", "bash", "/opt/my apps/cleanmate.sh", "--dry-run"],
+                            ["gnome-terminal", "--", "bash", "/opt/my apps/cleanmate.sh", "--dry-run"]]
+               and terminal_command("/x", which=lambda t: False) is None,
+               "All tools (terminal) opens cm in Konsole, Xfce Terminal or GNOME Terminal, the path one argument")
+        done()
+
+    def done():
+        for pid, engine_before in real.items():
+            win.pages[pid].engine = engine_before
+        win.show_page("smart")
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    large()
 
 
 def show_scene_page(win, page_id):

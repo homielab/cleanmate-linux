@@ -9,7 +9,8 @@ from .engine import CAT_GROUP, CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, 
 from .errorview import ErrorPage, Failure, last_line, pkexec_reason
 from .i18n import _, detail_text, item_text, ngettext, note_text, why_running
 from .preview import open_file
-from .settings import EXCLUSION_REASONS, short_path
+from .settings import short_path
+from . import messages
 
 
 # Items whose clean-all removes something else than the parts listed (`docker volume prune` keeps named
@@ -199,7 +200,7 @@ class ScanPage(Gtk.Box):
         def on_done(ok, status):
             if result.get("state") != "ok":
                 self.window.toast(_("Could not change it: {reason}").format(
-                    reason=result.get("info") or result.get("message", "")))
+                    reason=messages.text(result)))
             elif pending:
                 return next_group()
             self.window.groups_changed()
@@ -574,8 +575,8 @@ class ScanPage(Gtk.Box):
             self.excluding = None
             self.window.set_busy(False)
             if result.get("state") != "ok":
-                reason = result.get("info") or result.get("message", "")
-                self.window.toast(_("Could not change it: {reason}").format(reason=EXCLUSION_REASONS.get(reason, reason)))
+                reason = messages.text(result)
+                self.window.toast(_("Could not change it: {reason}").format(reason=reason))
             elif self.engine.dry_run:
                 self.window.toast(_("Dry run: nothing was saved"))
             else:
@@ -658,7 +659,7 @@ class ScanPage(Gtk.Box):
 
         def on_done(ok, status):  # the answer about todo[0]
             if result.get("state") != "ok":
-                finish(result.get("info") or result.get("message", ""))
+                finish(messages.text(result))
                 return
             added.append(todo.pop(0))
             next_folder()
@@ -674,7 +675,7 @@ class ScanPage(Gtk.Box):
             self.excluding = None
             self.window.set_busy(False)
             if reason is not None:
-                self.window.toast(_("Could not change it: {reason}").format(reason=EXCLUSION_REASONS.get(reason, reason)))
+                self.window.toast(_("Could not change it: {reason}").format(reason=reason))
                 if not added:
                     return
             if self.engine.dry_run:
@@ -925,9 +926,11 @@ class ScanPage(Gtk.Box):
         self.bar.set_revealed(False)
         self.window.set_busy(True)
 
-        def settle(item_id, state, text, freed=0):
-            """An item is done: its row says how, and it counts in the summary."""
+        def settle(item_id, state, text, freed=0, detail=""):
+            """An item is done: its row says how (what a tool printed when it failed in the tooltip), and it
+            counts in the summary."""
             row = self.task_rows[item_id]
+            row.set_tooltip_text(detail or None)
             icon = {"ok": "emblem-ok-symbolic", "skip": "dialog-warning-symbolic"}.get(state, "dialog-error-symbolic")
             row.icon.set_from_icon_name(icon)
             row.icon.set_css_classes([{"ok": "success", "skip": "warning"}.get(state, "error")])
@@ -949,7 +952,7 @@ class ScanPage(Gtk.Box):
             if e["state"] == "run":
                 self.task_rows[e["id"]].set_subtitle(_("working…"))
                 return
-            settle(e["id"], e["state"], e["info"], e["freed"])
+            settle(e["id"], e["state"], messages.text(e), e["freed"], messages.detail(e))
 
         def run(run_ids, then, as_root=False, entries=None):
             """One engine run; items it never reported on (it crashed, or pkexec didn't run it) are settled
@@ -1131,7 +1134,7 @@ class ScanPage(Gtk.Box):
                     self.clean_summary["keys"] = []  # gone for good: nothing to put back
                 self.window.toast(_("Trash emptied: {size} freed").format(size=human(result.get("freed", 0))))
             else:
-                reason = result.get("info") or (failure.reason() if failure.failed else "")
+                reason = messages.text(result) or (failure.reason() if failure.failed else "")
                 self.window.toast(_("Could not empty the Trash: {reason}").format(reason=reason), timeout=8)
             self.window.refresh_disk()
             if self.stack.get_visible_child_name() == "results":
@@ -1155,7 +1158,7 @@ class ScanPage(Gtk.Box):
 
         def on_event(e):
             if e["event"] == "error":
-                failed.append({"info": e["message"]})
+                failed.append(e)
             elif e["event"] == "task":
                 (back if e["state"] == "ok" else failed).append(e)
 
@@ -1164,7 +1167,7 @@ class ScanPage(Gtk.Box):
             self.window.set_busy(False)
             if failed:
                 self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
-                    back=len(back), failed=len(failed), reason=failed[0]["info"]))
+                    back=len(back), failed=len(failed), reason=messages.text(failed[0])))
             else:
                 self.window.toast(ngettext("Put back {n} item from the Trash", "Put back {n} items from the Trash",
                                            len(back)))

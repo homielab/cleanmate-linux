@@ -14,10 +14,13 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 from .a11y import named
 from .engine import IN_FLATPAK, human
 from .errorview import ErrorPage, Failure
+from . import findbar
+from .findbar import FindBar
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .preview import open_file, row_buttons, show_in_files
 from .scanpage import size_widgets
+from . import messages
 
 
 def reason_text(reason):
@@ -99,6 +102,8 @@ class SpaceLensPage(Gtk.Box):
         self.moving = False  # a Trash or undo run: never cancelled, nothing else starts meanwhile
         self.generation = 0  # a newer measurement makes an older one's results stale
         self.undo_toast = None
+        self.shown_at = None  # the folder whose list is on screen (a stopped measurement goes back to it)
+        self.excluding = None  # a Never clean run
 
         # path bar
         self.up_button = named(Gtk.Button(icon_name="go-up-symbolic", tooltip_text=_("Up one folder"),
@@ -135,9 +140,17 @@ class SpaceLensPage(Gtk.Box):
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vexpand=True)
         self.append(self.stack)
-        spinner = Gtk.Spinner(spinning=True, width_request=32, height_request=32, halign=Gtk.Align.CENTER)
-        self.measuring = Adw.StatusPage(icon_name=icon, title=_("Measuring…"), child=spinner)
+        measuring = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, halign=Gtk.Align.CENTER)
+        measuring.append(Gtk.Spinner(spinning=True, width_request=32, height_request=32, halign=Gtk.Align.CENTER))
+        self.stop_button = Gtk.Button(label=_("Stop"), halign=Gtk.Align.CENTER, css_classes=["pill"])
+        self.stop_button.connect("clicked", lambda *_a: self.stop())
+        measuring.append(self.stop_button)
+        self.measuring = Adw.StatusPage(icon_name=icon, title=_("Measuring…"), child=measuring)
         self.stack.add_named(self.measuring, "measuring")
+        again = Gtk.Button(label=_("Measure Again"), halign=Gtk.Align.CENTER, css_classes=["pill", "suggested-action"])
+        again.connect("clicked", lambda *_a: self.load(self.folder, fresh=True))
+        self.stopped = Adw.StatusPage(icon_name=icon, title=_("Measuring stopped"), child=again)
+        self.stack.add_named(self.stopped, "stopped")
         self.empty = Adw.StatusPage(icon_name="folder-symbolic", title=_("This folder is empty"))
         self.stack.add_named(self.empty, "empty")
         self.failed = ErrorPage(window, lambda: self.load(self.folder, fresh=True), title=_("Couldn't measure this folder"))
@@ -146,7 +159,12 @@ class SpaceLensPage(Gtk.Box):
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
         self.scroll = Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
                                          vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
-        self.stack.add_named(self.scroll, "results")
+        self.find_bar = FindBar(self.apply_filter, _("Search this folder"))
+        results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        results.append(self.find_bar)
+        results.append(self.scroll)
+        self.stack.add_named(results, "results")
+        findbar.never_clean_actions(self, self.never_clean_folder)
 
         self.bar = Gtk.ActionBar(revealed=False)
         self.summary = Gtk.Label(xalign=0)
@@ -157,6 +175,7 @@ class SpaceLensPage(Gtk.Box):
         again = named(Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Measure again")))
         again.connect("clicked", lambda *_a: self.load(self.folder, fresh=True))
         self.bar.pack_end(again)
+        self.bar.pack_end(self.find_bar.toggle())
         self.append(self.bar)
 
         keys = Gtk.ShortcutController()
@@ -299,6 +318,28 @@ class SpaceLensPage(Gtk.Box):
         if not self.running and not self.moving:
             self.load(self.folder, fresh=True)
 
+    def find(self):
+        """Ctrl+F: show only the files and folders here whose name has every word typed."""
+        if self.stack.get_visible_child_name() == "results":
+            self.find_bar.open()
+
+    def stop(self):
+        """End the measurement at once (the engine and the du it started); the folder shown before comes back."""
+        if not self.running or self.moving:
+            return
+        self.running.cancel()
+        self.running = None
+        self.generation += 1  # its answer is dropped
+        self.window.set_busy(False)
+        self.window.toast(_("Measuring stopped"))
+        if self.shown_at is not None:
+            self.folder = self.shown_at
+            self.update_crumbs()
+            self.show_results()
+        else:
+            self.stopped.set_description(short_path(self.folder))
+            self.stack.set_visible_child_name("stopped")
+
     def load(self, path, fresh=False):
         if self.moving:
             return
@@ -308,6 +349,8 @@ class SpaceLensPage(Gtk.Box):
             self.window.set_busy(False)
         self.generation += 1
         gen = self.generation
+        if path != self.folder:
+            self.find_bar.set_search_mode(False)  # another folder: the words were for this one
         self.folder = path
         self.selected.clear()
         self.update_crumbs()
@@ -342,7 +385,7 @@ class SpaceLensPage(Gtk.Box):
                 self.bar.set_revealed(False)
                 return
             if "message" in info:
-                self.window.toast(info["message"])
+                self.window.toast(messages.text(info))
             elif ok:
                 self.cache[path] = (entries, info)
             self.entries, self.info = entries, info
@@ -378,6 +421,7 @@ class SpaceLensPage(Gtk.Box):
         self.locks.clear()
         self.links.clear()
         self.all_check = None
+        self.shown_at = self.folder
         self.shown = [e for e in self.entries if self.show_hidden or not is_hidden(e)]
         hidden = [] if self.show_hidden else [e for e in self.entries if is_hidden(e)]
         if not self.entries:
@@ -430,7 +474,33 @@ class SpaceLensPage(Gtk.Box):
         self.stack.set_visible_child_name("results")
         self.scroll.get_vadjustment().set_value(0)
         self.bar.set_revealed(True)
+        self.apply_filter()
+
+    def apply_filter(self):
+        """Ctrl+F: only the rows whose name has every word typed (the hidden items' row only without words)."""
+        words = self.find_bar.words()
+        for path, row in self.rows.items():
+            row.set_visible(not words if path == "hidden" else findbar.matches(words, os.path.basename(path)))
         self.update_summary()
+
+    def listed(self):
+        """The entries listed and not hidden by the search."""
+        return [e for e in self.shown if e["path"] not in self.rows or self.rows[e["path"]].get_visible()]
+
+    # ── Never clean: a folder here goes to Settings › Never clean; it is view only from then on ──
+    def never_clean_folder(self, folder):
+        if self.moving or self.excluding:
+            return
+
+        def again():
+            self.cache.clear()  # the folders above it changed too: view only, or not any more
+            if not self.running and not self.moving:
+                self.load(self.folder, fresh=True)
+
+        def ended():
+            self.excluding = None
+
+        self.excluding = findbar.never_clean(self, folder, again, again, ended)
 
     def header_notes(self, total):
         """The lines under the title: view only and why, how the folder adds up to the disk, what couldn't be read."""
@@ -516,6 +586,8 @@ class SpaceLensPage(Gtk.Box):
                                           tooltip_text=tip))
                 button.connect("clicked", lambda *_a, act=action: act(self.window, path))
                 row.add_suffix(button)
+        if e["kind"] == "dir" and e["movable"] and findbar.can_exclude(self.engine, path):
+            row.add_suffix(findbar.never_clean_button(path))
         if e["kind"] in ("dir", "mount") and not e.get("denied"):  # a click opens the folder; the box ticks it
             row.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
             row.set_activatable(True)
@@ -535,25 +607,30 @@ class SpaceLensPage(Gtk.Box):
         if self.syncing:
             return
         target = button.get_active()  # read once: each row change re-syncs the box
-        for check in self.checks.values():
-            if check.get_sensitive():
+        for e in self.listed():
+            check = self.checks.get(e["path"])
+            if check and check.get_sensitive():
                 check.set_active(target)
 
+    def chosen(self):
+        """The ticked entries listed: one the search hides is never moved."""
+        return [e for e in self.listed() if e["path"] in self.selected]
+
     def update_summary(self):
-        chosen = [e for e in self.shown if e["path"] in self.selected]
+        chosen = self.chosen()
         self.summary.set_markup(ngettext("Selected <b>{size}</b> in {n} item", "Selected <b>{size}</b> in {n} items",
                                          len(chosen), size=human(sum(e["bytes"] for e in chosen))))
         self.trash_button.set_sensitive(bool(chosen) and not self.running)
         if self.all_check:
-            movable = sum(e["movable"] for e in self.shown)
+            movable = sum(e["movable"] for e in self.listed())
             self.syncing = True  # none / some (inconsistent) / all
             self.all_check.set_inconsistent(0 < len(chosen) < movable)
-            self.all_check.set_active(len(chosen) == movable)
+            self.all_check.set_active(movable > 0 and len(chosen) == movable)
             self.syncing = False
 
     # ── Trash and undo ──
     def confirm_trash(self):
-        chosen = [e for e in self.shown if e["path"] in self.selected]
+        chosen = self.chosen()
         if not chosen:
             return
         lines = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -595,7 +672,7 @@ class SpaceLensPage(Gtk.Box):
         def on_event(e):
             nonlocal freed, n
             if e["event"] == "error":
-                failed.append({"info": e["message"]})
+                failed.append(e)
             if e["event"] != "task":
                 return
             if e["state"] == "ok":
@@ -620,8 +697,8 @@ class SpaceLensPage(Gtk.Box):
                            size=human(freed)) if n else _("Nothing was moved")
             if failed:
                 msg += " — " + (ngettext("{n} could not be moved: {reason}", "{n} could not be moved: {reason}",
-                                         len(failed), reason=failed[0]["info"]) if len(failed) > 1
-                                else failed[0]["info"])
+                                         len(failed), reason=messages.text(failed[0])) if len(failed) > 1
+                                else messages.text(failed[0]))
             if moved:
                 self.undo_toast = self.window.toast(msg, _("Undo"), lambda: self.undo(moved), timeout=10)
             else:
@@ -645,7 +722,7 @@ class SpaceLensPage(Gtk.Box):
 
         def on_event(e):
             if e["event"] == "error":
-                failed.append({"info": e["message"]})
+                failed.append(e)
             if e["event"] != "task":
                 return
             if e["state"] == "ok":
@@ -657,7 +734,7 @@ class SpaceLensPage(Gtk.Box):
             self.after_move()
             if failed:
                 self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
-                    back=len(back), failed=len(failed), reason=failed[0]["info"]))
+                    back=len(back), failed=len(failed), reason=messages.text(failed[0])))
             else:
                 self.window.toast(ngettext("Put back {n} item from the Trash", "Put back {n} items from the Trash",
                                            len(back)))

@@ -16,6 +16,7 @@ from .errorview import ErrorPage, Failure
 from .i18n import _, item_text, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
+from . import messages
 
 LIMIT = 500  # as many as the engine's record keeps of what is still in the Trash
 GONE_DAYS = 30  # how long an item that left the Trash stays listed
@@ -31,7 +32,6 @@ SOURCES = {
     "Startup Items": _("Startup Items"),
     "Command Line": _("Command Line"),
 }
-NOT_IN_TRASH = "Not in the Trash any more"  # the engine's reason when an item left the Trash
 
 
 def source_group(source):
@@ -354,15 +354,15 @@ class TrashedPage(Gtk.Box):
 
         def on_event(e):
             if e.get("event") == "error":
-                failed.append(e.get("message") or "")
+                failed.append(messages.text(e))
             if e.get("event") != "task":
                 return
             if e["state"] == "ok":
                 back.add(e.get("trash"))
-            elif e.get("info") == NOT_IN_TRASH:
+            elif e.get("code") == "not_in_trash":
                 gone.add(e.get("trash"))
             else:
-                failed.append(e.get("info") or "")
+                failed.append(messages.text(e))
 
         def on_done(ok, status):
             self.running = None

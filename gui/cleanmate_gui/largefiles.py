@@ -12,8 +12,11 @@ from .a11y import named
 from . import preview
 from .engine import human
 from .errorview import ErrorPage, Failure
+from . import findbar
+from .findbar import FindBar
 from .i18n import _, ngettext
 from .scanpage import size_widgets
+from . import messages
 
 MIN_SIZES = [("50 MB", 50 << 20), ("100 MB", 100 << 20), ("500 MB", 500 << 20), ("1 GB", 1 << 30),
              ("5 GB", 5 << 30)]
@@ -71,6 +74,8 @@ class LargeFilesPage(Gtk.Box):
         self.generation = 0  # a newer search makes an older one's results stale
         self.undo_toast = None
         self.shown = []  # the files listed now: through the kind filter, in the sort order
+        self.rows = {}  # path → its row; Ctrl+F hides the ones that don't match
+        self.excluding = None  # a Never clean run
 
         # filters
         self.size_drop = Gtk.DropDown.new_from_strings([label for label, _ in MIN_SIZES])
@@ -105,8 +110,12 @@ class LargeFilesPage(Gtk.Box):
         button.connect("clicked", lambda *_: self.search())
         self.stack.add_named(Adw.StatusPage(icon_name=icon, title=title, description=description, child=button),
                              "start")
-        spinner = Gtk.Spinner(spinning=True, width_request=32, height_request=32, halign=Gtk.Align.CENTER)
-        self.searching = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Searching…"), child=spinner)
+        searching = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, halign=Gtk.Align.CENTER)
+        searching.append(Gtk.Spinner(spinning=True, width_request=32, height_request=32, halign=Gtk.Align.CENTER))
+        self.stop_button = Gtk.Button(label=_("Stop"), halign=Gtk.Align.CENTER, css_classes=["pill"])
+        self.stop_button.connect("clicked", lambda *_a: self.stop())
+        searching.append(self.stop_button)
+        self.searching = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Searching…"), child=searching)
         self.stack.add_named(self.searching, "searching")
         self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title=_("No files match"),
                                     description=_("Try a smaller size, any age, or another folder."))
@@ -122,8 +131,13 @@ class LargeFilesPage(Gtk.Box):
         self.kind_drop.set_tooltip_text(_("Show only files of this kind"))
         for drop in (self.sort_drop, self.kind_drop):
             drop.connect("notify::selected", lambda *_: self.files and self.show_results())
-        self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
-                                                vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER), "results")
+        self.find_bar = FindBar(self.apply_filter)
+        results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        results.append(self.find_bar)
+        results.append(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
+                                          vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER))
+        self.stack.add_named(results, "results")
+        findbar.never_clean_actions(self, self.never_clean_folder)
 
         self.bar = Gtk.ActionBar(revealed=False)
         self.summary = Gtk.Label(xalign=0)
@@ -134,6 +148,7 @@ class LargeFilesPage(Gtk.Box):
         again = named(Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Search again")))
         again.connect("clicked", lambda *_: self.search())
         self.bar.pack_end(again)
+        self.bar.pack_end(self.find_bar.toggle())
         self.append(self.bar)
 
     # ── searching ──
@@ -159,6 +174,25 @@ class LargeFilesPage(Gtk.Box):
         """Ctrl+R: search again, unless a search or a Trash run is going."""
         if not self.running and not self.moving:
             self.search()
+
+    def find(self):
+        """Ctrl+F: search the files listed by name or folder."""
+        if self.stack.get_visible_child_name() == "results":
+            self.find_bar.open()
+
+    def stop(self):
+        """End the search at once (the engine and the find it started); the last results come back."""
+        if not self.running or self.moving:
+            return
+        self.running.cancel()
+        self.running = None
+        self.generation += 1  # its answer is dropped
+        self.window.set_busy(False)
+        self.window.toast(_("Search stopped"))
+        if self.files:
+            self.show_results()
+        else:
+            self.stack.set_visible_child_name("start")
 
     def search(self):
         if self.moving:
@@ -198,7 +232,7 @@ class LargeFilesPage(Gtk.Box):
                 self.stack.set_visible_child_name("failed")
                 return
             if "message" in info:
-                self.window.toast(info["message"])
+                self.window.toast(messages.text(info))
             self.files = files
             self.found = info.get("found", len(files))
             self.selected.clear()
@@ -216,6 +250,7 @@ class LargeFilesPage(Gtk.Box):
             if drop.get_parent():
                 drop.get_parent().remove(drop)
         self.checks.clear()
+        self.rows.clear()
         self.all_check = None
         self.shown = []
         if not self.files:
@@ -264,7 +299,19 @@ class LargeFilesPage(Gtk.Box):
             self.results.append(group)
         self.stack.set_visible_child_name("results")
         self.bar.set_revealed(True)
+        self.apply_filter()
+
+    def apply_filter(self):
+        """Ctrl+F: only the files whose name or folder has every word typed."""
+        words = self.find_bar.words()
+        for path, row in self.rows.items():
+            folder, name = os.path.split(path)
+            row.set_visible(findbar.matches(words, name, short_path(folder)))
         self.update_summary()
+
+    def listed(self):
+        """The files listed and not hidden by the search."""
+        return [e for e in self.shown if e["path"] not in self.rows or self.rows[e["path"]].get_visible()]
 
     def file_row(self, e, biggest):
         path = e["path"]
@@ -287,6 +334,9 @@ class LargeFilesPage(Gtk.Box):
         for widget in size_widgets(e["bytes"], biggest):
             row.add_suffix(widget)
         preview.row_buttons(row, self.window, path)
+        if findbar.can_exclude(self.engine, folder):
+            row.add_suffix(findbar.never_clean_button(folder, _("Never Clean Its Folder")))
+        self.rows[path] = row
         return row
 
     def on_toggled(self, check, path):
@@ -300,12 +350,12 @@ class LargeFilesPage(Gtk.Box):
         if self.syncing:
             return
         target = button.get_active()  # read once: each row change re-syncs the box
-        for check in self.checks.values():
-            check.set_active(target)
+        for e in self.listed():
+            self.checks[e["path"]].set_active(target)
 
     def chosen(self):
-        """The ticked files that are listed: a file the kind filter hides is never moved."""
-        return [e for e in self.shown if e["path"] in self.selected]
+        """The ticked files that are listed: a file the kind filter or the search hides is never moved."""
+        return [e for e in self.listed() if e["path"] in self.selected]
 
     def update_summary(self):
         chosen = self.chosen()
@@ -314,9 +364,30 @@ class LargeFilesPage(Gtk.Box):
         self.trash_button.set_sensitive(bool(chosen) and not self.running)
         if self.all_check:
             self.syncing = True  # none / some (inconsistent) / all
-            self.all_check.set_inconsistent(0 < len(chosen) < len(self.shown))
-            self.all_check.set_active(len(chosen) == len(self.shown))
+            listed = len(self.listed())
+            self.all_check.set_inconsistent(0 < len(chosen) < listed)
+            self.all_check.set_active(listed > 0 and len(chosen) == listed)
             self.syncing = False
+
+    # ── Never clean: a file's folder goes to Settings › Never clean; searches skip it from then on ──
+    def never_clean_folder(self, folder):
+        if self.moving or self.excluding:
+            return
+
+        def saved():
+            gone = {e["path"] for e in self.files if findbar.inside(e["path"], folder)}
+            self.files = [e for e in self.files if e["path"] not in gone]
+            self.selected -= gone
+            self.show_results()
+
+        def undone():
+            if self.searched and not self.running and not self.moving:
+                self.search()
+
+        def ended():
+            self.excluding = None
+
+        self.excluding = findbar.never_clean(self, folder, saved, undone, ended)
 
     # ── Trash and undo ──
     def confirm_trash(self):
@@ -356,7 +427,7 @@ class LargeFilesPage(Gtk.Box):
         def on_event(e):
             nonlocal freed, n
             if e["event"] == "error":
-                failed.append({"info": e["message"]})
+                failed.append(e)
             if e["event"] != "task":
                 return
             if e["state"] == "ok":
@@ -385,8 +456,8 @@ class LargeFilesPage(Gtk.Box):
                            size=human(freed)) if n else _("Nothing was moved")
             if failed:
                 msg += " — " + (ngettext("{n} could not be moved: {reason}", "{n} could not be moved: {reason}",
-                                         len(failed), reason=failed[0]["info"]) if len(failed) > 1
-                                else failed[0]["info"])
+                                         len(failed), reason=messages.text(failed[0])) if len(failed) > 1
+                                else messages.text(failed[0]))
             if moved:
                 self.undo_toast = self.window.toast(msg, _("Undo"), lambda: self.undo(moved), timeout=10)
             else:
@@ -407,7 +478,7 @@ class LargeFilesPage(Gtk.Box):
 
         def on_event(e):
             if e["event"] == "error":
-                failed.append({"info": e["message"]})
+                failed.append(e)
             if e["event"] != "task":
                 return
             if e["state"] == "ok" and e["trash"] in moved:
@@ -425,7 +496,7 @@ class LargeFilesPage(Gtk.Box):
                 self.show_results()
             if failed:
                 self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
-                    back=len(back), failed=len(failed), reason=failed[0]["info"]))
+                    back=len(back), failed=len(failed), reason=messages.text(failed[0])))
             else:
                 self.window.toast(ngettext("Put back {n} file from the Trash", "Put back {n} files from the Trash",
                                            len(back)))

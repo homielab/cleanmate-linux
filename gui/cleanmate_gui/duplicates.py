@@ -18,9 +18,12 @@ from .a11y import named
 from . import preview, similar
 from .engine import human
 from .errorview import ErrorPage, Failure
+from . import findbar
+from .findbar import FindBar
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
+from . import messages
 
 MIN_SIZES = [("100 KB", 100 << 10), ("1 MB", 1 << 20), ("10 MB", 10 << 20), ("100 MB", 100 << 20)]
 FILES, PHOTOS = "files", "photos"  # the two modes: identical files, similar photos
@@ -94,6 +97,7 @@ class DuplicatesPage(Gtk.Box):
         self.moving = False  # a Trash or undo run: never cancelled, nothing else starts meanwhile
         self.generation = 0  # a newer search makes an older one's results stale
         self.undo_toast = None
+        self.excluding = None  # a Never clean run
 
         # mode, filters
         self.mode_buttons = {}
@@ -164,7 +168,12 @@ class DuplicatesPage(Gtk.Box):
         narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse(f"max-width: {WIDE}sp"))
         narrow.add_setter(self.preview, "visible", False)
         wide.add_breakpoint(narrow)
-        self.stack.add_named(wide, "results")
+        self.find_bar = FindBar(self.apply_filter)
+        results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        results.append(self.find_bar)
+        results.append(wide)
+        self.stack.add_named(results, "results")
+        findbar.never_clean_actions(self, self.never_clean_folder)
 
         self.bar = Gtk.ActionBar(revealed=False)
         self.summary = Gtk.Label(xalign=0)
@@ -175,6 +184,7 @@ class DuplicatesPage(Gtk.Box):
         again = named(Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Search again")))
         again.connect("clicked", lambda *_a: self.search())
         self.bar.pack_end(again)
+        self.bar.pack_end(self.find_bar.toggle())
         self.append(self.bar)
 
     # ── mode ──
@@ -220,6 +230,11 @@ class DuplicatesPage(Gtk.Box):
         if show:
             self.stack.set_visible_child_name("results" if self.shown_groups() else "start")
             self.bar.set_revealed(bool(self.shown_groups()))
+
+    def find(self):
+        """Ctrl+F: show only the groups with a file whose name or folder has every word typed."""
+        if self.stack.get_visible_child_name() == "results":
+            self.find_bar.open()
 
     # ── searching ──
     def choose_folder(self):
@@ -291,7 +306,7 @@ class DuplicatesPage(Gtk.Box):
                 self.stack.set_visible_child_name("failed")
                 return
             if "message" in info:
-                self.window.toast(info["message"])
+                self.window.toast(messages.text(info))
             self.groups = groups
             self.found = info.get("found", len(groups))
             self.selected = set()
@@ -420,7 +435,24 @@ class DuplicatesPage(Gtk.Box):
             self.preview.show(keep, self.photo_facts(next(f for f in g["files"] if f["path"] == keep)), True)
         self.stack.set_visible_child_name("results")
         self.bar.set_revealed(True)
+        self.apply_filter()
+
+    def group_matches(self, words, g):
+        return not words or any(findbar.matches(words, os.path.basename(f["path"]),
+                                                short_path(os.path.dirname(f["path"]))) for f in g["files"])
+
+    def apply_filter(self):
+        words = self.find_bar.words()
+        for g in self.shown_groups():
+            rows = self.group_rows.get(group_key(g))
+            if rows:
+                rows[0].set_visible(self.group_matches(words, g))
         self.update_summary()
+
+    def listed_groups(self):
+        """The groups shown and not hidden by the search."""
+        return [g for g in self.shown_groups() if group_key(g) not in self.group_rows
+                or self.group_rows[group_key(g)][0].get_visible()]
 
     def group_row(self, g, biggest, expand):
         keep = keeper(g)
@@ -518,6 +550,8 @@ class DuplicatesPage(Gtk.Box):
         row.add_prefix(check)  # prefixes stack leftwards: the box comes first
         row.set_activatable_widget(check)
         preview.row_buttons(row, self.window, path)
+        if findbar.can_exclude(self.engine, os.path.dirname(path)):
+            row.add_suffix(findbar.never_clean_button(os.path.dirname(path), _("Never Clean Its Folder")))
         return row
 
     def all_ticked(self, g):
@@ -548,7 +582,28 @@ class DuplicatesPage(Gtk.Box):
         self.update_summary()
 
     def chosen(self):
-        return [(g, f) for g in self.shown_groups() for f in g["files"] if f["path"] in self.selected]
+        """The ticked files of the groups listed: a group the search hides is never moved."""
+        return [(g, f) for g in self.listed_groups() for f in g["files"] if f["path"] in self.selected]
+
+    # ── Never clean: a copy's folder goes to Settings › Never clean; searches skip it from then on ──
+    def never_clean_folder(self, folder):
+        if self.moving or self.excluding:
+            return
+
+        def saved():
+            for g in self.groups:
+                g["files"] = [f for f in g["files"] if not findbar.inside(f["path"], folder)]
+            self.selected = {p for p in self.selected if not findbar.inside(p, folder)}
+            self.show_results()
+
+        def undone():
+            if self.searched and not self.running and not self.moving:
+                self.search()
+
+        def ended():
+            self.excluding = None
+
+        self.excluding = findbar.never_clean(self, folder, saved, undone, ended)
 
     def update_summary(self):
         chosen = self.chosen()
@@ -604,7 +659,7 @@ class DuplicatesPage(Gtk.Box):
         def on_event(e):
             nonlocal freed, n
             if e["event"] == "error":
-                failed.append({"info": e["message"]})
+                failed.append(e)
             if e["event"] != "task":
                 return
             if e["state"] == "ok":
@@ -634,8 +689,8 @@ class DuplicatesPage(Gtk.Box):
                            size=human(freed)) if n else _("Nothing was moved")
             if failed:
                 msg += " — " + (ngettext("{n} could not be moved: {reason}", "{n} could not be moved: {reason}",
-                                         len(failed), reason=failed[0]["info"]) if len(failed) > 1
-                                else failed[0]["info"])
+                                         len(failed), reason=messages.text(failed[0])) if len(failed) > 1
+                                else messages.text(failed[0]))
             if moved:
                 self.undo_toast = self.window.toast(msg, _("Undo"), lambda: self.undo(moved), timeout=10)
             else:
@@ -657,7 +712,7 @@ class DuplicatesPage(Gtk.Box):
 
         def on_event(e):
             if e["event"] == "error":
-                failed.append({"info": e["message"]})
+                failed.append(e)
             if e["event"] != "task":
                 return
             if e["state"] == "ok" and e["trash"] in moved:
@@ -676,7 +731,7 @@ class DuplicatesPage(Gtk.Box):
                 self.show_results()
             if failed:
                 self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(
-                    back=len(back), failed=len(failed), reason=failed[0]["info"]))
+                    back=len(back), failed=len(failed), reason=messages.text(failed[0])))
             else:
                 self.window.toast(ngettext("Put back {n} file from the Trash", "Put back {n} files from the Trash",
                                            len(back)))

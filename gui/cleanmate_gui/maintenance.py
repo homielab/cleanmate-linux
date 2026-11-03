@@ -9,7 +9,10 @@ import os
 
 from gi.repository import Adw, Gtk, Pango
 
+from . import findbar
+from .findbar import FindBar
 from .i18n import _, ngettext
+from . import messages
 
 # id → (title, description, icon); the engine's English labels are the fallback
 TEXTS = {
@@ -27,16 +30,7 @@ TEXTS = {
                       "view-list-symbolic"),
     "journal_limit": (_("Limit journal size"), _("Never let system logs grow past a size"), "text-x-generic-symbolic"),
 }
-MISSING = {
-    "update": _("apt isn't available on this system."),
-    "repair": _("apt isn't available on this system."),
-    "flatpak_unused": _("Flatpak is not installed."),
-    "fstrim": _("fstrim is not installed."),
-    "fonts": _("fontconfig (fc-cache) is not installed."),
-    "locate": _("locate/plocate is not installed."),
-    "snap_versions": _("Snap is not installed."),
-    "journal_limit": _("This system doesn't use the systemd journal."),
-}
+MISSING = messages.maint_missing()
 LOG_LINES = 5000  # the dialog keeps the last lines of a long apt upgrade
 
 
@@ -116,8 +110,12 @@ class MaintenancePage(Gtk.Box):
         self.stack.add_named(self.failed, "failed")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
-        self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
-                                                vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER), "results")
+        self.find_bar = FindBar(self.apply_filter, _("Search tasks"))
+        results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        results.append(self.find_bar)
+        results.append(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
+                                          vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER))
+        self.stack.add_named(results, "results")
         self.load()
 
     # ── loading ──
@@ -142,7 +140,7 @@ class MaintenancePage(Gtk.Box):
             self.running, self.busy = None, False
             self.window.set_busy(False)
             if info or not items:
-                self.failed.set_description(info.get("message", ""))
+                self.failed.set_description(messages.text(info))
                 self.stack.set_visible_child_name("failed")
                 return
             self.show_results(items)
@@ -171,6 +169,17 @@ class MaintenancePage(Gtk.Box):
         self.results.append(tasks)
         self.results.append(limits)
         self.stack.set_visible_child_name("results")
+        self.apply_filter()
+
+    def find(self):
+        """Ctrl+F: show only the rows whose name or description has every word typed."""
+        if self.stack.get_visible_child_name() == "results":
+            self.find_bar.open()
+
+    def apply_filter(self):
+        words = self.find_bar.words()
+        for key, row in self.rows.items():
+            row.set_visible(findbar.matches(words, row.get_title(), row.get_subtitle(), key))
 
     def subtitle(self, m):
         if not m["available"]:
@@ -267,12 +276,12 @@ class MaintenancePage(Gtk.Box):
                     log.add("▸ " + e["label"], "step")
                 else:
                     mark = {"ok": "✔", "skip": "–"}.get(e["state"], "✘")
-                    log.add(f"{mark} {e['info']}", "result")
+                    log.add(f"{mark} {messages.text(e)}", "result")
             elif ev == "log":
                 log.add(e["line"])
             elif ev == "error":
-                state["error"] = e["message"]
-                log.add("✘ " + e["message"], "result")
+                state["error"] = messages.text(e)
+                log.add("✘ " + messages.text(e), "result")
             elif ev == "done":
                 for k in counts:
                     counts[k] += e.get(k, 0)

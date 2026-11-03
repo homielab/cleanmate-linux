@@ -22,6 +22,21 @@ from .trashed import TrashedPage
 from .uninstaller import UninstallerPage
 from .welcome import Welcome
 
+# terminal apps that open cm, the first one installed; each with how it takes a command and its arguments
+# (x-terminal-emulator is the one Debian and Ubuntu let you choose)
+TERMINALS = (("x-terminal-emulator", "-e"), ("gnome-terminal", "--"), ("ptyxis", "--"), ("kgx", "--"),
+             ("konsole", "-e"), ("xfce4-terminal", "-x"))
+
+
+def terminal_command(engine_path, dry_run=False, which=shutil.which):
+    """The command that opens cm in the first terminal app installed, or None. Separate arguments, so a path
+    with spaces or quotes stays one."""
+    for term, flag in TERMINALS:
+        if which(term):
+            return [term, flag, "bash", engine_path] + (["--dry-run"] if dry_run else [])
+    return None
+
+
 TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "dupes": DuplicatesPage,
               "uninstall": UninstallerPage, "startup": StartupPage,
               "maintenance": MaintenancePage, "overview": OverviewPage,
@@ -229,6 +244,8 @@ class Window(Adw.ApplicationWindow):
             app.set_accels_for_action(f"win.{name}", accels)
         self.settings_page = None
         self.welcome = None
+        self.close_confirmed = False
+        self.connect("close-request", lambda *_: self.on_close_request())
 
         self.refresh_disk()
         self.show_page("overview")  # opens at once: the engine answers in the background
@@ -283,7 +300,7 @@ class Window(Adw.ApplicationWindow):
             page.reload()
 
     def find_on_page(self):
-        """Ctrl+F: search the open page's results (the cleanup pages)."""
+        """Ctrl+F: search what the open page lists."""
         page = self.content_stack.get_visible_child()
         if page and not self.get_visible_dialog() and hasattr(page, "find"):
             page.find()
@@ -332,6 +349,43 @@ class Window(Adw.ApplicationWindow):
             self.show_page(pid)
             self.select_sidebar(pid)
         self.connect("close-request", lambda *_: self.save_state() or False)
+
+    def on_close_request(self):
+        """Closing while something is cleaning, moving to the Trash or putting back asks first; then every
+        engine run still going is ended with what it started, so none goes on without the window."""
+        if self.engine.writing() and not self.close_confirmed:
+            self.confirm_close()
+            return True  # stays open until you answer
+        self.engine.stop_all()
+        return False
+
+    def confirm_close(self):
+        dialog = Adw.AlertDialog(
+            heading=_("Stop and close?"),
+            body=_("CleanMate is still changing files. Closing now stops it partway: what is done stays done, "
+                   "the rest is left as it was."))
+        dialog.add_response("keep", _("Keep Running"))
+        dialog.add_response("close", _("Stop and Close"))
+        dialog.set_response_appearance("close", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("keep")
+        dialog.set_close_response("keep")
+        dialog.connect("response", lambda _d, response: self.closing(response))
+        self.close_dialog = dialog
+        dialog.present(self)
+        return dialog
+
+    def closing(self, response):
+        if response == "close":
+            self.close_confirmed = True
+            self.engine.stop_all()
+            self.close()
+
+    def start_smart_scan(self):
+        """System Overview's main button and the welcome's last step: open Smart Scan and scan."""
+        self.go_to("smart")
+        page = self.pages["smart"]
+        if not page.running and page.stack.get_visible_child_name() != "cleaning":
+            page.scan()
 
     def save_state(self):
         width, height = self.get_default_size()
@@ -404,15 +458,11 @@ class Window(Adw.ApplicationWindow):
                 self.overview_stale = True  # measured again when it is opened
 
     def open_terminal(self, *_):
-        for term in ("x-terminal-emulator", "gnome-terminal", "ptyxis", "kgx"):
-            if shutil.which(term):
-                argv = [term, "--", "bash", self.engine.path] if term in ("gnome-terminal", "ptyxis", "kgx") \
-                    else [term, "-e", f"bash {self.engine.path}"]
-                if self.engine.dry_run:
-                    argv[-1:] = [argv[-1] + " --dry-run"] if term == "x-terminal-emulator" else [argv[-1], "--dry-run"]
-                subprocess.Popen(argv, start_new_session=True)
-                return
-        self.toast(_("No terminal app found — run cm in a terminal."))
+        argv = terminal_command(self.engine.path, self.engine.dry_run)
+        if argv:
+            subprocess.Popen(argv, start_new_session=True)
+        else:
+            self.toast(_("No terminal app found — run cm in a terminal."))
 
     def _open_url(self, url):
         Gtk.UriLauncher.new(url).launch(self, None, None)

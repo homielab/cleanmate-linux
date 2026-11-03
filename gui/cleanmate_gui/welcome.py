@@ -2,7 +2,7 @@
 
 1. What CleanMate does and how it deletes safely. 2. What needs your password, what is never touched, and
 the terminal app. 3. The main options — the Settings rows themselves (`SettingsPage` with `keys`), so they
-save the same keys and turn the same timers on and off. Closing it the first time saves `welcome_shown=1`
+save the same keys and turn the same timers on and off — and the way in: its button runs Smart Scan. Closing it the first time saves `welcome_shown=1`
 through the engine; opened from the menu it changes nothing. It doesn't open by itself in the self-test,
 for screenshots or as root (settings are per user, so it would come back every time).
 """
@@ -70,7 +70,7 @@ class Welcome(Adw.Dialog):
         self.back = Gtk.Button(label=_("Back"))
         self.back.connect("clicked", lambda *_a: self.go(self.index - 1))
         self.next = Gtk.Button(label=_("Next"), css_classes=["suggested-action"])
-        self.next.connect("clicked", lambda *_a: self.close() if self.index == len(self.steps) - 1
+        self.next.connect("clicked", lambda *_a: self.start() if self.index == len(self.steps) - 1
                           else self.go(self.index + 1))
         header = Adw.HeaderBar()
         header.pack_start(self.skip)
@@ -163,7 +163,12 @@ class Welcome(Adw.Dialog):
         last = self.index == len(self.steps) - 1
         self.back.set_visible(self.index > 0)
         self.skip.set_visible(not last)
-        self.next.set_label(_("Start") if last else _("Next"))
+        self.next.set_label(_("Run Smart Scan") if last else _("Next"))
+
+    def start(self):
+        """The last step's button: close and run the first Smart Scan."""
+        self.close()
+        self.window.start_smart_scan()
 
     def mark_shown(self):
         """The first time only: saved with the options, in order, so neither undoes the other."""

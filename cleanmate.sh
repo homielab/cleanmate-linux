@@ -7360,7 +7360,7 @@ show_details() { # ID
 # the foreground (may ask; non-zero skips), <fn> ARG runs in the background
 # with its output captured, then <fn>_post ARG RC IDX OUTFILE may set T_INFO.
 
-declare -a T_LABEL=() T_FN=() T_ARG=() T_STATE=() T_INFO=()
+declare -a T_LABEL=() T_FN=() T_ARG=() T_STATE=() T_INFO=() T_CODE=() T_CARGS=()
 RUN_KIND=other RUN_FREED=0 T_CUR=-1
 
 new_tasks() { T_LABEL=() T_FN=() T_ARG=() RUN_FREED=0 RUN_KIND=${1:-other}; }
@@ -7404,7 +7404,7 @@ draw_runner() { # TITLE OUTFILE
 run_tasks() { # TITLE
   local title=$1 i n=${#T_LABEL[@]} out pid rc
   mkdir -p "$LOG_DIR" && : >"$RUN_LOG"
-  T_STATE=() T_INFO=()
+  T_STATE=() T_INFO=() T_CODE=() T_CARGS=()
   for ((i = 0; i < n; i++)); do T_STATE[i]=pending T_INFO[i]=""; done
   RUN_T0=$(now_ms)
   local keepalive=""
@@ -8700,15 +8700,17 @@ apps_menu() {
 # apt must remove exactly what was asked for — and never a part of Ubuntu itself.
 apt_check_removal() { # PKG... → APT_EXTRA_N, APT_EXTRA_TEXT; returns 1 (with a toast, APT_ERR) when it must not go ahead
   local sim others core
-  APT_EXTRA_N=0 APT_EXTRA_TEXT="" APT_ERR=""
+  APT_EXTRA_N=0 APT_EXTRA_TEXT="" APT_ERR="" APT_CODE="" APT_ARGS=()
   if ! sim=$(LC_ALL=C apt-get -s purge "$@" 2>&1); then
     APT_ERR="apt can't remove this cleanly: $(grep -m1 '^E:' <<<"$sim" | cut -c4-)"
+    APT_CODE=apt_refused APT_ARGS=(detail "${APT_ERR#*: }")
     toast "${RED}✘${NC} $APT_ERR"
     return 1
   fi
   core=$(grep '^Purg' <<<"$sim" | awk '{print $2}' | grep -E "$APP_CORE_RE|^linux-image-$(uname -r)\$" | head -n 3 | paste -sd, - | sed 's/,/, /g')
   if [[ -n $core ]]; then
     APT_ERR="Not removed: apt would also take $core, which Ubuntu needs to run."
+    APT_CODE=apt_takes_core APT_ARGS=(packages "$core")
     toast "${RED}✘${NC} $APT_ERR"
     return 1
   fi
@@ -8718,6 +8720,7 @@ apt_check_removal() { # PKG... → APT_EXTRA_N, APT_EXTRA_TEXT; returns 1 (with 
     awk '$2 == "required" || $2 == "important" || $3 == "yes" {print $1}' | head -n 3 | paste -sd, - | sed 's/,/, /g')
   if [[ -n $core ]]; then
     APT_ERR="Not removed: $core is marked as required by Ubuntu. Use apt yourself if you're sure."
+    APT_CODE=apt_required APT_ARGS=(packages "$core")
     toast "${RED}✘${NC} $APT_ERR"
     return 1
   fi
@@ -8975,10 +8978,12 @@ m_drop_caches_post() {
   local after
   after=$(free -b | awk '/^Mem:/ {print $7}')
   T_INFO[$3]="available RAM $(human "$MEM_BEFORE") → $(human "$after")"
+  T_CODE[$3]=ram_freed T_CARGS[$3]="before ${MEM_BEFORE:-0} after ${after:-0}"
 }
 m_fstrim_post() {
   (($2 == 0)) || return 0
   T_INFO[$3]="$(grep -c 'trimmed' "$4") filesystems trimmed"
+  T_CODE[$3]=trimmed T_CARGS[$3]="n $(grep -c 'trimmed' "$4")"
 }
 
 # What "Update everything" would change, without changing anything. apt's list
@@ -9015,7 +9020,10 @@ update_preview() { # → 0 to go ahead; lists what will be updated in the confir
 snap_retain() { snap get system refresh.retain 2>/dev/null; } # empty = snapd's default
 m_snap_retain()   { run_root snap set system refresh.retain=2; }
 m_snap_unretain() { run_root snap unset system refresh.retain; }
-m_snap_retain_post() { (($2 == 0)) && T_INFO[$3]="older versions go at the next snap refresh — or clean them now in System Junk"; return 0; }
+m_snap_retain_post() {
+  (($2 == 0)) && T_INFO[$3]="older versions go at the next snap refresh — or clean them now in System Junk" T_CODE[$3]=snap_retain
+  return 0
+}
 
 JOURNALD_DROPIN=/etc/systemd/journald.conf.d/60-cleanmate.conf
 journal_cap() { # MB, empty = no limit of ours
@@ -10107,24 +10115,24 @@ load_settings() { # the settings file and remembered selections, as saved (by ei
 # reached through a symbolic link are refused (and ignored when the file has them).
 EXCLUDE_FILE="${SETTINGS_FILE%/*}/exclude"
 EXCLUDES=()
-EX_WHY="" EX_PATH=""
+EX_WHY="" EX_CODE="" EX_PATH="" # EX_CODE: EX_WHY as a code for the desktop app
 EX_HOME_REAL=""
 
 exclusion_check() { # VAR PATH → VAR = PATH tidied; returns 1 with EX_WHY when it can't be excluded
   local -n __ex=$1
   local __p=$2
-  EX_WHY="" __ex=""
-  [[ $__p == /* ]] || { EX_WHY="Not a full path: $__p"; return 1; }
-  [[ $__p != *[[:cntrl:]]* ]] || { EX_WHY="The folder's name has control characters"; return 1; }
+  EX_WHY="" EX_CODE="" __ex=""
+  [[ $__p == /* ]] || { EX_WHY="Not a full path: $__p" EX_CODE=not_full_path; return 1; }
+  [[ $__p != *[[:cntrl:]]* ]] || { EX_WHY="The folder's name has control characters" EX_CODE=control_chars; return 1; }
   __p=$(realpath -m -s -- "$__p")
   __ex=$__p
   if [[ $__p == / || $__p == "$HOME" || $HOME == "$__p"/* ]]; then
-    EX_WHY="Your home folder or a folder above it is too broad to exclude"; return 1
+    EX_WHY="Your home folder or a folder above it is too broad to exclude" EX_CODE=too_broad; return 1
   fi
-  [[ $__p == "$HOME"/* ]] || { EX_WHY="Only folders inside your home folder can be excluded"; return 1; }
+  [[ $__p == "$HOME"/* ]] || { EX_WHY="Only folders inside your home folder can be excluded" EX_CODE=outside_home; return 1; }
   [[ -n $EX_HOME_REAL ]] || EX_HOME_REAL=$(realpath -m -- "$HOME")
   if [[ -L $__p || $(realpath -m -- "$__p") != "$EX_HOME_REAL${__p#"$HOME"}" ]]; then
-    EX_WHY="Folders reached through a symbolic link can't be excluded"; return 1
+    EX_WHY="Folders reached through a symbolic link can't be excluded" EX_CODE=symlink; return 1
   fi
 }
 
@@ -10152,12 +10160,12 @@ exclusion_add() { # PATH — EX_WHY says what happened, EX_PATH is PATH tidied; 
   exclusion_check p "$1"
   EX_PATH=$p
   [[ -z $EX_WHY ]] || return 1
-  [[ -d $p ]] || { EX_WHY="Not a folder: $p"; return 1; }
-  for e in "${EXCLUDES[@]}"; do [[ $e == "$p" ]] && { EX_WHY="already in the list"; return 0; }; done
-  ((DRY_RUN)) && { EX_WHY="would be added"; return 0; }
+  [[ -d $p ]] || { EX_WHY="Not a folder: $p" EX_CODE=not_folder; return 1; }
+  for e in "${EXCLUDES[@]}"; do [[ $e == "$p" ]] && { EX_WHY="already in the list" EX_CODE=already_listed; return 0; }; done
+  ((DRY_RUN)) && { EX_WHY="would be added" EX_CODE=would_add; return 0; }
   EXCLUDES+=("$p")
-  save_exclusions || { load_exclusions; EX_WHY="Could not save ${EXCLUDE_FILE/#$HOME/\~}"; return 1; }
-  EX_WHY="added"
+  save_exclusions || { load_exclusions; EX_WHY="Could not save ${EXCLUDE_FILE/#$HOME/\~}" EX_CODE=save_failed; return 1; }
+  EX_WHY="added" EX_CODE=added
 }
 
 exclusion_remove() { # PATH — EX_WHY says what happened; 1 when it isn't in the list or not saved
@@ -10165,11 +10173,11 @@ exclusion_remove() { # PATH — EX_WHY says what happened; 1 when it isn't in th
   load_exclusions
   [[ $p == /* ]] && p=$(realpath -m -s -- "$p")
   for e in "${EXCLUDES[@]}"; do if [[ $e == "$p" ]]; then listed=1; else kept+=("$e"); fi; done
-  ((listed)) || { EX_WHY="Not in the list: $p"; return 1; }
-  ((DRY_RUN)) && { EX_WHY="would be removed"; return 0; }
+  ((listed)) || { EX_WHY="Not in the list: $p" EX_CODE=not_listed; return 1; }
+  ((DRY_RUN)) && { EX_WHY="would be removed" EX_CODE=would_remove; return 0; }
   EXCLUDES=("${kept[@]}")
-  save_exclusions || { load_exclusions; EX_WHY="Could not save ${EXCLUDE_FILE/#$HOME/\~}"; return 1; }
-  EX_WHY="removed"
+  save_exclusions || { load_exclusions; EX_WHY="Could not save ${EXCLUDE_FILE/#$HOME/\~}" EX_CODE=save_failed; return 1; }
+  EX_WHY="removed" EX_CODE=removed
 }
 
 in_exclusion() { # PATH (absolute, tidied) — one of your excluded folders or inside one
@@ -10205,15 +10213,23 @@ outside_exclusions() { # VAR START… → VAR = the starting folders (tidied) th
   done
 }
 
-notify() { # TITLE BODY [ICON] [URGENCY]
+notify() { # CODE TITLE BODY ICON URGENCY [KEY VALUE]…
   # desktop-entry names our launcher, so clicking the notification opens CleanMate (GNOME); the snap's
   # launcher is <snap>_cleanmate.desktop
   have notify-send || return 0
-  local entry=$APP_ID
+  local entry=$APP_ID title=$2 body=$3 text
   [[ -n ${SNAP_INSTANCE_NAME:-} ]] && entry=${SNAP_INSTANCE_NAME}_cleanmate
-  notify-send -a "CleanMate" -i "${3:-user-trash-full}" -u "${4:-normal}" -h "string:desktop-entry:$entry" \
-    "$1" "$2" 2>/dev/null
+  # in the language of the desktop app, when it is here: it translates the code (English otherwise)
+  if text=$(notify_text "$1" "${@:6}") && [[ $text == *$'\n'* ]]; then title=${text%%$'\n'*} body=${text#*$'\n'}; fi
+  notify-send -a "CleanMate" -i "${4:-user-trash-full}" -u "${5:-normal}" -h "string:desktop-entry:$entry" \
+    "$title" "$body" 2>/dev/null
   return 0
+}
+
+notify_text() { # CODE [KEY VALUE]… → the notification's title, a newline and its body, translated by the desktop app
+  local gd
+  gd=$(gui_dir) && have python3 || return 1
+  PYTHONPATH=$gd timeout 10 python3 -m cleanmate_gui.messages notify "$@" 2>/dev/null
 }
 
 user_timers() { # systemd user timers can run CleanMate (not from the Flatpak: no host systemd)
@@ -10229,16 +10245,19 @@ schedule_get() { # → off | daily | weekly | monthly
 
 schedule_set() { # off | daily | weekly | monthly
   local exe=$SELF
+  SCHED_CODE=no_systemd
   user_timers || { toast "${RED}✘${NC} systemd is not available."; return 1; }
+  SCHED_CODE=would_set
   if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would set automatic cleaning to: $1"; return 0; fi
   if [[ $1 == off ]]; then
     systemctl --user disable --now cleanmate.timer >/dev/null 2>&1
     rm -f "$SYSTEMD_USER_DIR/cleanmate.timer" "$SYSTEMD_USER_DIR/cleanmate.service"
     systemctl --user daemon-reload 2>/dev/null
-    toast "${GREEN}✔${NC} Automatic cleaning turned off."
+    toast "${GREEN}✔${NC} Automatic cleaning turned off."; SCHED_CODE=schedule_off
     return 0
   fi
   [[ -x $BIN_PATH ]] && exe=$BIN_PATH
+  SCHED_CODE=timer_failed
   mkdir -p "$SYSTEMD_USER_DIR" || return 1
   cat >"$SYSTEMD_USER_DIR/cleanmate.service" <<EOF
 [Unit]
@@ -10264,9 +10283,12 @@ WantedBy=timers.target
 EOF
   systemctl --user daemon-reload &&
     systemctl --user enable --now cleanmate.timer >/dev/null 2>&1 ||
-    { toast "${RED}✘${NC} Could not enable the systemd timer."; return 1; }
-  if [[ $exe == "$BIN_PATH" ]]; then toast "${GREEN}✔${NC} Automatic cleaning: $1."
-  else toast "${GREEN}✔${NC} Automatic cleaning: $1 — runs ${exe/#$HOME/\~}; install the launcher so moving it won't break this."; fi
+    { toast "${RED}✘${NC} Could not enable the systemd timer."; SCHED_CODE=timer_failed; return 1; }
+  if [[ $exe == "$BIN_PATH" ]]; then toast "${GREEN}✔${NC} Automatic cleaning: $1."; SCHED_CODE=schedule_on
+  else
+    toast "${GREEN}✔${NC} Automatic cleaning: $1 — runs ${exe/#$HOME/\~}; install the launcher so moving it won't break this."
+    SCHED_CODE=schedule_not_installed
+  fi
 }
 
 # ── Low disk alert and scan reminder ──
@@ -10322,8 +10344,8 @@ check_low_disk() { # → CK_DUE, CK_SENT, CK_PCT (free %, floor), CK_AVAIL; noti
   notified_at at low_disk
   ((EPOCHSECONDS - at >= 86400)) || return 0
   ((DRY_RUN)) && return 0
-  notify "Disk almost full" "Only $(human "$avail") ($CK_PCT%) free on /. Open CleanMate to free up space." \
-    drive-harddisk critical
+  notify low_disk "Disk almost full" "Only $(human "$avail") ($CK_PCT%) free on /. Open CleanMate to free up space." \
+    drive-harddisk critical bytes "$avail" pct "$CK_PCT"
   mark_notified low_disk && CK_SENT=1
 }
 
@@ -10339,9 +10361,10 @@ check_remind() { # → CK_DUE, CK_SENT, CK_LAST (epoch of the last scan, 0 = nev
   ((EPOCHSECONDS - at >= days * 86400)) || return 0
   ((DRY_RUN)) && return 0
   if ((CK_LAST)); then
-    notify "Time for a Smart Scan" "Your last scan was $(((EPOCHSECONDS - CK_LAST) / 86400)) days ago. Open CleanMate to see what can be cleaned." system-search
+    notify remind "Time for a Smart Scan" "Your last scan was $(((EPOCHSECONDS - CK_LAST) / 86400)) days ago. Open CleanMate to see what can be cleaned." \
+      system-search normal days "$(((EPOCHSECONDS - CK_LAST) / 86400))"
   else
-    notify "Time for a Smart Scan" "Open CleanMate to see what can be cleaned." system-search
+    notify remind_first "Time for a Smart Scan" "Open CleanMate to see what can be cleaned." system-search
   fi
   mark_notified remind && CK_SENT=1
 }
@@ -10412,10 +10435,10 @@ run_checks() { # --check: the low disk alert and the scan reminder, one line eac
 
 json_check() { # [KIND…] — the same checks for the desktop app: one "check" event per kind
   local k kinds=("$@") due sent
-  ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
+  ((EUID != 0)) || { json_error per_user "Settings are per user: run this as yourself, not as root"; return 2; }
   ((${#kinds[@]})) || kinds=("${CHECK_KINDS[@]}")
   for k in "${kinds[@]}"; do
-    [[ " ${CHECK_KINDS[*]} " == *" $k "* ]] || { json_error "Unknown check: $k (use low_disk, remind)"; return 2; }
+    [[ " ${CHECK_KINDS[*]} " == *" $k "* ]] || { json_error usage "Unknown check: $k (use low_disk, remind)"; return 2; }
   done
   check_timer_sync
   for k in "${kinds[@]}"; do
@@ -10867,7 +10890,7 @@ cli_update() { # --update
 
 auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by the timer
   INTERACTIVE=0 ASSUME_YES=1
-  local id b left=() body title
+  local id b left=() left_args=() body title # left_args: itemN "BYTES LABEL", for the translated notification
   printf 'CleanMate — automatic Smart Clean (%s)\n\n' "$(date '+%F %T')"
   local -a cats
   smart_catsv cats
@@ -10883,7 +10906,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
   start_cleanup
   # the biggest things left for the user to decide about
   while IFS=$'\t' read -r b id; do
-    left+=("${ITEM_LABEL[$id]} $(human "$b")")
+    left+=("${ITEM_LABEL[$id]} $(human "$b")") left_args+=("item$((${#left_args[@]} / 2 + 1))" "$b ${ITEM_LABEL[$id]}")
   done < <(for id in "${SCANNED[@]}"; do
     ((RES_RC[$id] == 0 && !SEL[$id] && RES_BYTES[$id] >= 104857600)) && printf '%s\t%s\n' "${RES_BYTES[$id]}" "$id"
   done | sort -rn | head -n 3)
@@ -10895,7 +10918,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
       body="${body%, } — run cm to review."
     fi
     printf '\n  %s: %s\n' "$title" "$body"
-    notify "$title" "$body"
+    notify auto_clean "$title" "$body" user-trash-full normal freed "$RUN_FREED" "${left_args[@]}"
   fi
   check_low_disk # at most once a day, shared with the daily check
 }
@@ -11046,7 +11069,26 @@ json_item() { # ID [with scan results] → one "item" event (no subshells: calle
   fi
 }
 
-json_error() { local m; json_str m "$1"; printf '{"event":"error","message":%s}\n' "$m"; }
+json_code() { # VAR CODE [KEY VALUE]… → VAR = ',"code":"CODE","args":{"KEY":"VALUE",…}' (empty without CODE)
+  # The desktop app shows a translated text for each code (gui/cleanmate_gui/messages.py); the English
+  # "message"/"info" next to it stays for other readers and as the fallback.
+  local -n __jc=$1
+  local __a="" __v
+  __jc=""
+  [[ -n ${2:-} ]] || return 0
+  __jc=",\"code\":\"$2\""
+  shift 2
+  while (($# >= 2)); do
+    json_str __v "$2"; __a+=${__a:+,}"\"$1\":$__v"; shift 2
+  done
+  __jc+=",\"args\":{$__a}"
+}
+
+json_error() { # CODE MESSAGE [KEY VALUE]…
+  local m c
+  json_str m "$2"; json_code c "$1" "${@:3}"
+  printf '{"event":"error","message":%s%s}\n' "$m" "$c"
+}
 
 has_entries() { declare -F "entries_$1" >/dev/null; }
 
@@ -11080,17 +11122,17 @@ json_entries() { # ID → one "entry" event per part of the item that can be cle
 json_pick_entries() { # ID LIST → ENTRY_PICK: the comma-separated IDs, each checked by format
   local re_var="ENTRY_RE_$1" e
   ENTRY_PICK=()
-  declare -F "clean_entries_$1" >/dev/null || { json_error "$1 can't be cleaned entry by entry"; return 2; }
+  declare -F "clean_entries_$1" >/dev/null || { json_error usage "$1 can't be cleaned entry by entry"; return 2; }
   IFS=, read -ra ENTRY_PICK <<<"$2"
-  ((${#ENTRY_PICK[@]})) || { json_error "No entries given."; return 2; }
+  ((${#ENTRY_PICK[@]})) || { json_error usage "No entries given."; return 2; }
   for e in "${ENTRY_PICK[@]}"; do
-    [[ $e =~ ${!re_var} ]] || { json_error "Not an entry ID of $1: $e"; return 2; }
+    [[ $e =~ ${!re_var} ]] || { json_error usage "Not an entry ID of $1: $e"; return 2; }
   done
 }
 
-json_task() { # ID STATE INFO FREED
-  local info; json_str info "${3:-}"
-  printf '{"event":"task","id":"%s","state":"%s","info":%s,"freed":%d}\n' "$1" "$2" "$info" "${4:-0}"
+json_task() { # ID STATE [CODE INFO FREED [KEY VALUE]…]
+  local info c; json_str info "${4:-}"; json_code c "${3:-}" "${@:6}"
+  printf '{"event":"task","id":"%s","state":"%s","info":%s,"freed":%d%s}\n' "$1" "$2" "$info" "${5:-0}" "$c"
 }
 
 json_main() { # SUBCOMMAND ARGS…
@@ -11112,7 +11154,7 @@ json_main() { # SUBCOMMAND ARGS…
         "$SCAN_MS" "$SCAN_MS" "$FOUND_TOTAL" "$SCAN_COUNT" "$( ((SCAN_STOP)) && echo true || echo false)" ;;
     details)
       id=${1:-}
-      [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error "Unknown item: $id"; return 2; }
+      [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error unknown_item "Unknown item: $id" id "$id"; return 2; }
       local lines=() l out="" first=1
       if declare -F "details_$id" >/dev/null; then mapfile -t lines < <("details_$id" 2>/dev/null); fi
       json_entries "$id"
@@ -11130,7 +11172,7 @@ json_main() { # SUBCOMMAND ARGS…
     trash) json_trash "$@" ;;
     restore) json_restore "$@" ;;
     startup | startup-set | apps | uninstall | reset | maintenance | maintain) # they run apt, snap, flatpak, systemctl on the host
-      if ((FLATPAK)); then json_error "Not available in the Flatpak: $cmd manages the system's apps and services (use the .deb version)"; return 2; fi ;;&
+      if ((FLATPAK)); then json_error flatpak_unavailable "Not available in the Flatpak: $cmd manages the system's apps and services (use the .deb version)"; return 2; fi ;;&
     startup) json_startup "$@" ;;
     startup-set) json_startup_set "$@" ;;
     settings) json_settings ;;
@@ -11144,7 +11186,7 @@ json_main() { # SUBCOMMAND ARGS…
     maintain) json_maintain "$@" ;;
     overview) json_overview ;;
     check) json_check "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|restore --list [--limit N] [--gone DAYS]|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|sysreport|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
+    *) json_error usage "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|restore --list [--limit N] [--gone DAYS]|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|sysreport|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
   esac
 }
 
@@ -11155,35 +11197,35 @@ json_allowed() { # ID UID
 }
 
 json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or these entries of one), streaming "task" events
-  local id ids=() out rc before freed total=0 avail0 avail1 src bytes note info entries="" e key keys trashed=""
+  local id ids=() out rc before freed total=0 avail0 avail1 src bytes note info code entries="" e key keys trashed=""
   local to_trash=0 disks0 disks1 disks="" mount free was
   local -a ENTRY_PICK=()
   while (($#)); do
     case $1 in
-      --entries) entries=${2:-}; [[ -n $entries ]] || { json_error "--entries needs a list of IDs"; return 2; }; shift 2; continue ;;
+      --entries) entries=${2:-}; [[ -n $entries ]] || { json_error usage "--entries needs a list of IDs"; return 2; }; shift 2; continue ;;
     esac
     id=$1
     shift
-    [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error "Unknown item: $id"; return 2; }
-    json_allowed "$id" "$EUID" || { json_error "Refusing to clean $id as root (only system items are allowed)"; return 2; }
+    [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error unknown_item "Unknown item: $id" id "$id"; return 2; }
+    json_allowed "$id" "$EUID" || { json_error refused_as_root "Refusing to clean $id as root (only system items are allowed)"; return 2; }
     ids+=("$id")
   done
-  ((${#ids[@]})) || { json_error "No items given."; return 2; }
+  ((${#ids[@]})) || { json_error usage "No items given."; return 2; }
   if [[ -n $entries ]]; then
-    ((${#ids[@]} == 1)) || { json_error "--entries works with one item at a time"; return 2; }
+    ((${#ids[@]} == 1)) || { json_error usage "--entries works with one item at a time"; return 2; }
     json_pick_entries "${ids[0]}" "$entries" || return
   fi
   disks0=$(fs_avails)
   for id in "${ids[@]}"; do
     json_task "$id" run
-    if item_excluded "$id"; then json_task "$id" skip "In Settings › Never clean"; continue; fi
+    if item_excluded "$id"; then json_task "$id" skip excluded "In Settings › Never clean"; continue; fi
     SCAN_BYTES=0 SCAN_NOTE=""
     "scan_$id" >/dev/null 2>&1; rc=$?
     before=$SCAN_BYTES
-    if ((rc != 0)); then json_task "$id" ok "already clean" 0; continue; fi
+    if ((rc != 0)); then json_task "$id" ok already_clean "already clean" 0; continue; fi
     RES_BYTES[$id]=$before
     if declare -F "precheck_$id" >/dev/null && ! "precheck_$id" >/dev/null 2>&1; then
-      json_task "$id" skip "Skipped: the app is running — close it and try again"; continue
+      json_task "$id" skip app_running "Skipped: the app is running — close it and try again"; continue
     fi
     out=$(mktemp -p "$SESSION_TMP")
     if ((${#ENTRY_PICK[@]})); then
@@ -11200,23 +11242,24 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
     [[ -n $keys ]] && trashed+=${trashed:+,}"\"$id\":[$keys]"
     if ((rc != 0)); then
       info=$(grep -v '^@@' "$out" | grep -v '^\s*$' | tail -n 1)
-      json_task "$id" fail "${info:-failed (exit $rc)}" 0
+      json_task "$id" fail clean_failed "${info:-failed (exit $rc)}" 0 detail "${info:-exit $rc}"
       log "json clean $id failed: $info"
       continue
     fi
     if [[ ${ITEM_CAT[$id]} == privacy ]]; then
-      freed=0 info=$( ((DRY_RUN)) && echo "would be cleared" || echo "cleared")
+      freed=0 code=cleared info="cleared"
+      ((DRY_RUN)) && code=would_clear info="would be cleared"
     elif ((DRY_RUN)); then
-      freed=$before info="$(human "$freed") would be freed"
+      freed=$before code=would_free info="$(human "$freed") would be freed"
     else
       IFS=$'\t' read -r _ src bytes note < <(grep '^@@scan' "$out" | tail -n 1)
       freed=$((before - ${bytes:-0})); ((freed < 0)) && freed=0
-      info="$(human "$freed") freed"
+      code=freed info="$(human "$freed") freed"
     fi
     total=$((total + freed))
     # what went to the Trash is still on the disk until the Trash is emptied
     if [[ -n $keys ]] || { ((DRY_RUN)) && [[ -n ${ITEM_TRASH[$id]:-} ]]; }; then to_trash=$((to_trash + freed)); fi
-    json_task "$id" ok "$info" "$freed"
+    json_task "$id" ok "$code" "$info" "$freed" bytes "$freed" # codes: cleared would_clear would_free freed
   done
   disks1=$(fs_avails)
   avail0=$(cut -f2 <<<"$disks0" | sum_lines) avail1=$(cut -f2 <<<"$disks1" | sum_lines)
@@ -11286,20 +11329,20 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] [--limit N] — the bigge
   local min=$((100 * 1024 * 1024)) days=0 dir=$HOME limit=$LARGE_LIMIT tmp found b m a p kind jp listed=0 sum=0
   while (($#)); do
     case $1 in
-      --min | --days | --path | --limit) (($# >= 2)) || { json_error "$1 needs a value."; return 2; } ;;&
+      --min | --days | --path | --limit) (($# >= 2)) || { json_error usage "$1 needs a value."; return 2; } ;;&
       --min) min=$2 ;;
       --days) days=$2 ;;
       --path) dir=$2 ;;
       --limit) limit=$2 ;;
-      *) json_error "Unknown option for large: $1"; return 2 ;;
+      *) json_error usage "Unknown option for large: $1"; return 2 ;;
     esac
     shift 2
   done
-  [[ $min =~ ^[0-9]+$ ]] || { json_error "Invalid size: $min"; return 2; }
-  [[ $days =~ ^[0-9]+$ ]] || { json_error "Invalid number of days: $days"; return 2; }
-  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error "Invalid limit: $limit"; return 2; }
+  [[ $min =~ ^[0-9]+$ ]] || { json_error usage "Invalid size: $min"; return 2; }
+  [[ $days =~ ^[0-9]+$ ]] || { json_error usage "Invalid number of days: $days"; return 2; }
+  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error usage "Invalid limit: $limit"; return 2; }
   ((limit <= LARGE_LIMIT)) || limit=$LARGE_LIMIT
-  [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
+  [[ -d $dir ]] || { json_error not_folder "Not a folder: $dir" path "$dir"; return 2; }
   dir=$(realpath -- "$dir")
   if in_exclusion "$dir"; then printf '{"event":"done","count":0,"found":0,"total_bytes":0}\n'; return 0; fi
   exclusion_prune
@@ -11462,15 +11505,15 @@ json_lens() { # [--path DIR] [--limit N] — DIR's files and folders with their 
   local -A count=() unread=()
   while (($#)); do
     case $1 in
-      --path) (($# >= 2)) || { json_error "$1 needs a value."; return 2; }; dir=$2 ;;
-      --limit) (($# >= 2)) || { json_error "$1 needs a value."; return 2; }; limit=$2 ;;
-      *) json_error "Unknown option for lens: $1"; return 2 ;;
+      --path) (($# >= 2)) || { json_error usage "$1 needs a value."; return 2; }; dir=$2 ;;
+      --limit) (($# >= 2)) || { json_error usage "$1 needs a value."; return 2; }; limit=$2 ;;
+      *) json_error usage "Unknown option for lens: $1"; return 2 ;;
     esac
     shift 2
   done
-  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error "Invalid limit: $limit"; return 2; }
+  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error usage "Invalid limit: $limit"; return 2; }
   ((limit <= LENS_LIMIT)) || limit=$LENS_LIMIT
-  [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
+  [[ -d $dir ]] || { json_error not_folder "Not a folder: $dir" path "$dir"; return 2; }
   # tidy the path but keep symlinks (a linked home folder stays under $HOME); -D measures the target
   dir=$(realpath -m -s -- "$dir")
   [[ -r $dir && -x $dir ]] || dir_denied=true
@@ -11554,18 +11597,18 @@ json_dupes() { # [--min BYTES] [--path DIR] [--limit N] — groups of identical 
   local min=$((1024 * 1024)) dir=$HOME limit=$DUPES_LIMIT s id m p h i n k key jp files first listed=0 found=0 wasted=0 nfiles=0
   while (($#)); do
     case $1 in
-      --min | --path | --limit) (($# >= 2)) || { json_error "$1 needs a value."; return 2; } ;;&
+      --min | --path | --limit) (($# >= 2)) || { json_error usage "$1 needs a value."; return 2; } ;;&
       --min) min=$2 ;;
       --path) dir=$2 ;;
       --limit) limit=$2 ;;
-      *) json_error "Unknown option for dupes: $1"; return 2 ;;
+      *) json_error usage "Unknown option for dupes: $1"; return 2 ;;
     esac
     shift 2
   done
-  [[ $min =~ ^[0-9]+$ ]] || { json_error "Invalid size: $min"; return 2; }
-  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error "Invalid limit: $limit"; return 2; }
+  [[ $min =~ ^[0-9]+$ ]] || { json_error usage "Invalid size: $min"; return 2; }
+  [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error usage "Invalid limit: $limit"; return 2; }
   ((limit <= DUPES_LIMIT)) || limit=$DUPES_LIMIT
-  [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
+  [[ -d $dir ]] || { json_error not_folder "Not a folder: $dir" path "$dir"; return 2; }
   ((min > 0)) || min=1 # empty files are all alike, never duplicates
   dir=$(realpath -m -s -- "$dir")
   if in_exclusion "$dir"; then printf '{"event":"done","groups":0,"found":0,"files":0,"total_bytes":0}\n'; return 0; fi
@@ -11620,46 +11663,46 @@ json_dupes() { # [--min BYTES] [--path DIR] [--limit N] — groups of identical 
   printf '{"event":"done","groups":%d,"found":%d,"files":%d,"total_bytes":%d}\n' "$listed" "$found" "$nfiles" "$wasted"
 }
 
-json_file_task() { # PATH STATE INFO BYTES [TRASH-NAME] → one "task" event about a file
-  local id info name
-  json_str id "$1"; json_str info "$3"; json_str name "${5:-}"
-  printf '{"event":"task","id":%s,"state":"%s","info":%s,"freed":%d,"trash":%s}\n' "$id" "$2" "$info" "${4:-0}" "$name"
+json_file_task() { # PATH STATE CODE INFO BYTES [TRASH-NAME [KEY VALUE]…] → one "task" event about a file
+  local id info name c
+  json_str id "$1"; json_str info "${4:-}"; json_str name "${6:-}"; json_code c "${3:-}" "${@:7}"
+  printf '{"event":"task","id":%s,"state":"%s","info":%s,"freed":%d,"trash":%s%s}\n' "$id" "$2" "$info" "${5:-0}" "$name" "$c"
 }
 
 json_trash() { # [--home-only] [--source NAME] PATH… — move these to the Trash; "trash" names what `restore` puts back
-  ((EUID != 0)) || { json_error "Refusing to move files to the Trash as root"; return 2; }
+  ((EUID != 0)) || { json_error refused_as_root "Refusing to move files to the Trash as root"; return 2; }
   local home_only=0 TRASH_SOURCE=${TRASH_SOURCE:-Command Line}
   while (($#)); do
     case $1 in
       --home-only) home_only=1 ;; # Space Lens: only what lens_movable allows
-      --source) (($# >= 2)) || { json_error "--source needs a value."; return 2; }; TRASH_SOURCE=$2; shift ;; # shown by restore --list
+      --source) (($# >= 2)) || { json_error usage "--source needs a value."; return 2; }; TRASH_SOURCE=$2; shift ;; # shown by restore --list
       *) break ;;
     esac
     shift
   done
-  (($#)) || { json_error "No files given."; return 2; }
-  local p b moved=0 failed=0 freed=0 errf why name
+  (($#)) || { json_error usage "No files given."; return 2; }
+  local p b moved=0 failed=0 freed=0 errf why name code
   errf=$(mktemp -p "$SESSION_TMP") || return 1
   for p in "$@"; do
-    if [[ $p != /* ]]; then json_file_task "$p" fail "Not an absolute path" 0; ((++failed)); continue; fi
+    if [[ $p != /* ]]; then json_file_task "$p" fail not_absolute "Not an absolute path" 0; ((++failed)); continue; fi
     if ((home_only)) && ! lens_movable "$(realpath -m -s -- "$p")"; then
-      if touches_exclusion "$(realpath -m -s -- "$p")"; then why="Excluded in Settings (Never clean)"
-      else why="Only items inside your home folder or on a writable drive can be moved to the Trash here"; fi
-      json_file_task "$p" fail "$why" 0; ((++failed)); continue
+      if touches_exclusion "$(realpath -m -s -- "$p")"; then why="Excluded in Settings (Never clean)" code=excluded
+      else why="Only items inside your home folder or on a writable drive can be moved to the Trash here" code=not_movable; fi
+      json_file_task "$p" fail "$code" "$why" 0; ((++failed)); continue # codes: excluded not_movable
     fi
-    if [[ ! -e $p && ! -L $p ]]; then json_file_task "$p" fail "Not found" 0; ((++failed)); continue; fi
+    if [[ ! -e $p && ! -L $p ]]; then json_file_task "$p" fail not_found "Not found" 0; ((++failed)); continue; fi
     if [[ -d $p && ! -L $p ]]; then b=$(du -sb -- "$p" 2>/dev/null | cut -f1)
     else b=$(stat -c %s -- "$p" 2>/dev/null); fi
     UNDO_BATCH=()
     if move_to_trash "$p" >/dev/null 2>"$errf"; then
       name=""
       ((${#UNDO_BATCH[@]})) && name=${UNDO_BATCH[0]%%$'\t'*}
-      if ((DRY_RUN)); then json_file_task "$p" ok "would be moved to the Trash" "${b:-0}"
-      else json_file_task "$p" ok "moved to the Trash" "${b:-0}" "$name"; fi
+      if ((DRY_RUN)); then json_file_task "$p" ok would_trash "would be moved to the Trash" "${b:-0}"
+      else json_file_task "$p" ok trashed "moved to the Trash" "${b:-0}" "$name"; fi
       moved=$((moved + 1)) freed=$((freed + ${b:-0}))
     else
       why=$(tail -n 1 "$errf"); why=${why//$'\e'\[*([0-9;])m/}; why=${why#*✘ }
-      json_file_task "$p" fail "${why:-Could not move it to the Trash}" 0
+      json_file_task "$p" fail trash_failed "${why:-Could not move it to the Trash}" 0 "" detail "$why"
       ((++failed))
     fi
   done
@@ -11669,8 +11712,8 @@ json_trash() { # [--home-only] [--source NAME] PATH… — move these to the Tra
 
 json_restore() { # KEY… — put these back from the Trash (keys from the "trash" field of `trash`)
   [[ ${1:-} == --list ]] && { shift; json_restore_list "$@"; return; }
-  ((EUID != 0)) || { json_error "Refusing to restore files as root"; return 2; }
-  (($#)) || { json_error "No files given."; return 2; }
+  ((EUID != 0)) || { json_error refused_as_root "Refusing to restore files as root"; return 2; }
+  (($#)) || { json_error usage "No files given."; return 2; }
   local key info orig raw ok=0 failed=0
   for key in "$@"; do
     orig=""
@@ -11683,14 +11726,14 @@ json_restore() { # KEY… — put these back from the Trash (keys from the "tras
     fi
     # only back where it can have come from: your home folder, or the same drive (never into a Trash)
     if [[ -z $TL_TOP || $orig != "$TL_TOP"/* || $orig == "$TL_DIR" || $orig == "$TL_DIR"/* ]] || is_protected "$orig"; then
-      json_file_task "${orig:-$key}" fail "Not in the Trash any more" 0 "$key"; ((++failed)); continue
+      json_file_task "${orig:-$key}" fail not_in_trash "Not in the Trash any more" 0 "$key"; ((++failed)); continue
     fi
-    if ((DRY_RUN)); then json_file_task "$orig" ok "would be put back" 0 "$key"; ((++ok)); continue; fi
+    if ((DRY_RUN)); then json_file_task "$orig" ok would_restore "would be put back" 0 "$key"; ((++ok)); continue; fi
     UNDO_BATCH=("$key"$'\t'"$orig")
     undo_trash
-    if ((UNDO_OK)); then json_file_task "$orig" ok "put back" 0 "$key"; ((++ok))
-    elif [[ -e $orig || -L $orig ]]; then json_file_task "$orig" fail "A file with this name is already there" 0 "$key"; ((++failed))
-    else json_file_task "$orig" fail "Not in the Trash any more" 0 "$key"; ((++failed)); fi
+    if ((UNDO_OK)); then json_file_task "$orig" ok restored "put back" 0 "$key"; ((++ok))
+    elif [[ -e $orig || -L $orig ]]; then json_file_task "$orig" fail name_taken "A file with this name is already there" 0 "$key"; ((++failed))
+    else json_file_task "$orig" fail not_in_trash "Not in the Trash any more" 0 "$key"; ((++failed)); fi
   done
   printf '{"event":"done","restored":%d,"failed":%d}\n' "$ok" "$failed"
 }
@@ -11725,9 +11768,9 @@ json_restore_list() { # [--limit N] [--gone DAYS] — what CleanMate moved to th
   # one object {"version":"<app version>","count":N,"items":[{trashed,path,size,kind,date,source,inTrash,location}]};
   # "trashed" goes to `restore`, "location" is the item in the Trash. --gone DAYS adds what was moved in the last
   # DAYS days and has left the Trash since ("inTrash":false; size, kind and location null)
-  ((EUID != 0)) || { json_error "Your Trash is per user: run restore --list as yourself, not as root"; return 2; }
+  ((EUID != 0)) || { json_error per_user "Your Trash is per user: run restore --list as yourself, not as root"; return 2; }
   local limit i t p d src w out=""
-  restore_limit limit "$@" || { json_error "$RL_ERROR"; return 2; }
+  restore_limit limit "$@" || { json_error usage "$RL_ERROR"; return 2; }
   trashed_items "$limit" "$RL_SINCE"
   for i in "${!TR_KEY[@]}"; do
     json_str t "${TR_KEY[i]}"; json_str p "${TR_PATH[i]}"; json_str src "${TR_SOURCE[i]}"
@@ -11805,7 +11848,7 @@ json_unit() { # ID KIND NAME ENABLED PATH SYSTEM HIDDEN TOGGLE REMOVABLE DESCRIP
 }
 
 json_startup() {
-  ((EUID != 0)) || { json_error "Startup items are per user: run this as yourself, not as root"; return 2; }
+  ((EUID != 0)) || { json_error per_user "Startup items are per user: run this as yourself, not as root"; return 2; }
   local f b name n=0 units systemd=true unit state p desc miss
   local -A eff=()
   for f in "$SYSTEM_AUTOSTART_DIR"/*.desktop "$AUTOSTART_DIR"/*.desktop; do
@@ -11843,78 +11886,86 @@ json_startup() {
   printf '{"event":"done","count":%d,"systemd":%s}\n' "$n" "$systemd"
 }
 
-json_startup_task() { # ID STATE INFO [TRASH-NAME]
-  local id info name
-  json_str id "$1"; json_str info "$3"; json_str name "${4:-}"
-  printf '{"event":"task","id":%s,"state":"%s","info":%s,"trash":%s}\n' "$id" "$2" "$info" "$name"
+json_startup_task() { # ID STATE CODE INFO [TRASH-NAME [KEY VALUE]…]
+  local id info name c
+  json_str id "$1"; json_str info "${4:-}"; json_str name "${5:-}"; json_code c "${3:-}" "${@:6}"
+  printf '{"event":"task","id":%s,"state":"%s","info":%s,"trash":%s%s}\n' "$id" "$2" "$info" "$name" "$c"
+}
+
+startup_turned() { # ID enable|disable [would] → the "turned on/off" task event
+  if [[ -n ${3:-} ]]; then
+    if [[ $2 == enable ]]; then json_startup_task "$1" ok would_turn_on "would be turned on"
+    else json_startup_task "$1" ok would_turn_off "would be turned off"; fi
+  elif [[ $2 == enable ]]; then json_startup_task "$1" ok turned_on "turned on"
+  else json_startup_task "$1" ok turned_off "turned off"; fi
 }
 
 startup_set_autostart() { # ID FILE-NAME ACTION
   local id=$1 b=$2 act=$3 user sys name
   user=$AUTOSTART_DIR/$b sys=$SYSTEM_AUTOSTART_DIR/$b
-  [[ -f $user || -f $sys ]] || { json_startup_task "$id" fail "Not found"; return; }
+  [[ -f $user || -f $sys ]] || { json_startup_task "$id" fail not_found "Not found"; return; }
   if [[ $act == remove ]]; then
-    if [[ -f $sys || ! -f $user ]]; then json_startup_task "$id" fail "It comes with the system: turn it off instead"; return; fi
-    if ((DRY_RUN)); then json_startup_task "$id" ok "would be moved to the Trash"; return; fi
+    if [[ -f $sys || ! -f $user ]]; then json_startup_task "$id" fail system_turn_off "It comes with the system: turn it off instead"; return; fi
+    if ((DRY_RUN)); then json_startup_task "$id" ok would_trash "would be moved to the Trash"; return; fi
     UNDO_BATCH=()
-    move_to_trash "$user" >/dev/null 2>&1 || { json_startup_task "$id" fail "Could not move it to the Trash"; return; }
+    move_to_trash "$user" >/dev/null 2>&1 || { json_startup_task "$id" fail trash_failed "Could not move it to the Trash"; return; }
     name=""; ((${#UNDO_BATCH[@]})) && name=${UNDO_BATCH[0]%%$'\t'*}
-    json_startup_task "$id" ok "moved to the Trash" "$name"; return
+    json_startup_task "$id" ok trashed "moved to the Trash" "$name"; return
   fi
-  if ((DRY_RUN)); then json_startup_task "$id" ok "would be turned $( [[ $act == enable ]] && echo on || echo off)"; return; fi
+  if ((DRY_RUN)); then startup_turned "$id" "$act" would; return; fi
   if [[ ! -f $user ]]; then # a system entry: your own copy overrides it
-    mkdir -p -- "$AUTOSTART_DIR" && cp -- "$sys" "$user" || { json_startup_task "$id" fail "Could not write $user"; return; }
+    mkdir -p -- "$AUTOSTART_DIR" && cp -- "$sys" "$user" || { json_startup_task "$id" fail write_failed "Could not write $user" "" path "$user"; return; }
   fi
   if [[ $act == disable ]]; then desktop_set "$user" Hidden true >/dev/null
   else run sed -i -e '/^Hidden=/d' -e '/^X-GNOME-Autostart-enabled=false/d' "$user"; fi
   if { [[ $act == disable ]] && is_disabled "$user"; } || { [[ $act == enable ]] && ! is_disabled "$user"; }; then
-    json_startup_task "$id" ok "turned $( [[ $act == enable ]] && echo on || echo off)"
-  else json_startup_task "$id" fail "Could not change $user"; fi
+    startup_turned "$id" "$act"
+  else json_startup_task "$id" fail write_failed "Could not change $user" "" path "$user"; fi
 }
 
 startup_set_systemd() { # ID UNIT ACTION
   local id=$1 unit=$2 act=$3 u state p found="" name err miss=""
-  [[ $unit =~ $UNIT_RE ]] || { json_startup_task "$id" fail "Not a service or timer"; return; }
+  [[ $unit =~ $UNIT_RE ]] || { json_startup_task "$id" fail not_a_unit "Not a service or timer"; return; }
   while IFS=$'\t' read -r u state p; do [[ $u == "$unit" ]] && { found=1; break; }; done < <(systemd_user_units)
-  [[ -n $found ]] || { json_startup_task "$id" fail "Not found"; return; }
-  unit_is_yours "$p" || { json_startup_task "$id" fail "It comes with the system: only shown here"; return; }
+  [[ -n $found ]] || { json_startup_task "$id" fail not_found "Not found"; return; }
+  unit_is_yours "$p" || { json_startup_task "$id" fail system_unit "It comes with the system: only shown here"; return; }
   [[ $act == remove && $p != "$SYSTEMD_USER_DIR"/* ]] && unit_missingv miss "$p"
   if [[ $act == remove && $p != "$SYSTEMD_USER_DIR"/* && -z $miss ]]; then
-    json_startup_task "$id" fail "Only units in ${SYSTEMD_USER_DIR/#$HOME/\~}, or whose program is gone, can be removed"; return
+    json_startup_task "$id" fail not_removable_unit "Only units in ${SYSTEMD_USER_DIR/#$HOME/\~}, or whose program is gone, can be removed" "" path "${SYSTEMD_USER_DIR/#$HOME/\~}"; return
   fi
   if ((DRY_RUN)); then
-    if [[ $act == remove ]]; then json_startup_task "$id" ok "would be moved to the Trash"
-    else json_startup_task "$id" ok "would be turned $( [[ $act == enable ]] && echo on || echo off)"; fi
+    if [[ $act == remove ]]; then json_startup_task "$id" ok would_trash "would be moved to the Trash"
+    else startup_turned "$id" "$act" would; fi
     return
   fi
   if [[ $act == remove ]]; then
     [[ $state == enabled ]] && systemctl --user disable --now "$unit" >/dev/null 2>&1
     UNDO_BATCH=()
-    move_to_trash "$p" >/dev/null 2>&1 || { json_startup_task "$id" fail "Could not move it to the Trash"; return; }
+    move_to_trash "$p" >/dev/null 2>&1 || { json_startup_task "$id" fail trash_failed "Could not move it to the Trash"; return; }
     name=""; ((${#UNDO_BATCH[@]})) && name=${UNDO_BATCH[0]%%$'\t'*}
     systemctl --user daemon-reload >/dev/null 2>&1
     log "startup: removed $unit"
-    json_startup_task "$id" ok "moved to the Trash" "$name"; return
+    json_startup_task "$id" ok trashed "moved to the Trash" "$name"; return
   fi
   # --now: a timer or service starts or stops right away, not only at the next login
   if err=$(systemctl --user "$act" --now "$unit" 2>&1 >/dev/null); then
     log "startup: $act $unit"
-    json_startup_task "$id" ok "turned $( [[ $act == enable ]] && echo on || echo off)"
-  else json_startup_task "$id" fail "${err:-systemctl --user $act failed}"; fi
+    startup_turned "$id" "$act"
+  else json_startup_task "$id" fail systemctl_failed "${err:-systemctl --user $act failed}" "" detail "${err:-systemctl --user $act}"; fi
 }
 
 json_startup_set() { # ID enable|disable|remove
-  ((EUID != 0)) || { json_error "Startup items are per user: run this as yourself, not as root"; return 2; }
-  (($# == 2)) || { json_error "Usage: --json startup-set ID enable|disable|remove"; return 2; }
+  ((EUID != 0)) || { json_error per_user "Startup items are per user: run this as yourself, not as root"; return 2; }
+  (($# == 2)) || { json_error usage "Usage: --json startup-set ID enable|disable|remove"; return 2; }
   local id=$1 act=$2 TRASH_SOURCE="Startup Items"
-  case $act in enable | disable | remove) ;; *) json_error "Unknown action: $act"; return 2 ;; esac
+  case $act in enable | disable | remove) ;; *) json_error usage "Unknown action: $act"; return 2 ;; esac
   case $id in
     autostart:*.desktop)
       local b=${id#autostart:}
-      [[ $b != */* && $b != .* ]] || { json_error "Unknown startup item: $id"; return 2; }
+      [[ $b != */* && $b != .* ]] || { json_error unknown_startup "Unknown startup item: $id" id "$id"; return 2; }
       startup_set_autostart "$id" "$b" "$act" ;;
     systemd:*) startup_set_systemd "$id" "${id#systemd:}" "$act" ;;
-    *) json_error "Unknown startup item: $id"; return 2 ;;
+    *) json_error unknown_startup "Unknown startup item: $id" id "$id"; return 2 ;;
   esac
   printf '{"event":"done"}\n'
 }
@@ -11958,66 +12009,75 @@ json_setting() { # KEY → one "setting" event with what is in effect now
 }
 
 json_settings() {
-  ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
+  ((EUID != 0)) || { json_error per_user "Settings are per user: run this as yourself, not as root"; return 2; }
   local k
   for k in language schedule remind "${SETTING_KEYS[@]}" selections recent_files exclusions "${SCAN_GROUPS[@]/#/group_}"; do json_setting "$k"; done
   printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool user_timers)" "$(json_bool packaged)"
 }
 
+setting_saved() { # KEY VALUE — save one setting for json_settings_set (sets its state, info, code, cargs)
+  cargs=(value "$2")
+  if ((DRY_RUN)); then info="would be set to $2" code=would_set
+  elif save_setting "$1" "$2"; then info="set to $2" code=set
+  else state=fail info="Could not save ${SETTINGS_FILE/#$HOME/\~}" code=save_failed cargs=(path "${SETTINGS_FILE/#$HOME/\~}"); fi
+}
+
 json_settings_set() { # KEY VALUE — schedule off|daily|weekly|monthly, language system|en|vi, remind off|weekly|monthly,
   # selections reset, recent_files 0|1,
   # exclusions add|remove PATH, or a number in range
-  ((EUID != 0)) || { json_error "Settings are per user: run this as yourself, not as root"; return 2; }
+  ((EUID != 0)) || { json_error per_user "Settings are per user: run this as yourself, not as root"; return 2; }
   if [[ ${1:-} == exclusions ]]; then
     (($# == 3)) && [[ $2 == add || $2 == remove ]] ||
-      { json_error "Usage: --json settings-set exclusions add|remove PATH"; return 2; }
+      { json_error usage "Usage: --json settings-set exclusions add|remove PATH"; return 2; }
   else
-    (($# == 2)) || { json_error "Usage: --json settings-set KEY VALUE"; return 2; }
+    (($# == 2)) || { json_error usage "Usage: --json settings-set KEY VALUE"; return 2; }
   fi
-  local key=$1 val=$2 state=ok info
-  local -a r
+  local key=$1 val=$2 state=ok info code=""
+  local -a r cargs=()
   case $key in
     exclusions)
       "exclusion_$val" "$3" || state=fail
-      info=$EX_WHY ;;
+      info=$EX_WHY code=$EX_CODE cargs=(path "${EX_PATH:-$3}") ;;
     schedule)
-      [[ " ${SCHEDULES[*]} " == *" $val "* ]] || { json_error "schedule must be one of: ${SCHEDULES[*]}"; return 2; }
-      UI_TOAST=""
+      [[ " ${SCHEDULES[*]} " == *" $val "* ]] || { json_error bad_value "schedule must be one of: ${SCHEDULES[*]}" key schedule; return 2; }
+      UI_TOAST="" SCHED_CODE=""
       schedule_set "$val" || state=fail
+      code=$SCHED_CODE cargs=(value "$val")
       info=${UI_TOAST//$'\e'\[*([0-9;])m/}
       info=${info#"✔ "} info=${info#"✘ "} ;;
     language | remind)
       [[ " ${SETTING_CHOICES[$key]} " == *" $val "* ]] ||
-        { json_error "$key must be one of: ${SETTING_CHOICES[$key]}"; return 2; }
-      if ((DRY_RUN)); then info="would be set to $val"
-      elif save_setting "$key" "$val"; then info="set to $val"
-      else state=fail info="Could not save ${SETTINGS_FILE/#$HOME/\~}"; fi ;;
+        { json_error bad_value "$key must be one of: ${SETTING_CHOICES[$key]}" key "$key"; return 2; }
+      setting_saved "$key" "$val" ;;
     selections)
-      [[ $val == reset ]] || { json_error "selections can only be reset"; return 2; }
-      if ((DRY_RUN)); then info="would be forgotten"
-      else PREF=(); rm -f -- "$PREF_FILE" && info="forgotten" || state=fail info="Could not remove ${PREF_FILE/#$HOME/\~}"; fi ;;
+      [[ $val == reset ]] || { json_error bad_value "selections can only be reset" key selections; return 2; }
+      if ((DRY_RUN)); then info="would be forgotten" code=would_forget
+      else
+        PREF=()
+        if rm -f -- "$PREF_FILE"; then info="forgotten" code=forgotten
+        else state=fail info="Could not remove ${PREF_FILE/#$HOME/\~}" code=remove_failed cargs=(path "${PREF_FILE/#$HOME/\~}"); fi
+      fi ;;
     recent_files)
-      [[ $val == [01] ]] || { json_error "recent_files must be 0 or 1"; return 2; }
-      have gsettings || { json_error "gsettings is not available"; return 2; }
+      [[ $val == [01] ]] || { json_error bad_value "recent_files must be 0 or 1" key recent_files; return 2; }
+      have gsettings || { json_error no_gsettings "gsettings is not available"; return 2; }
       local on=false; ((val)) && on=true
-      if ((DRY_RUN)); then info="would be set to $val"
-      elif gsettings set org.gnome.desktop.privacy remember-recent-files "$on" 2>/dev/null; then info="set to $val"
-      else state=fail info="gsettings could not change it"; fi ;;
+      cargs=(value "$val")
+      if ((DRY_RUN)); then info="would be set to $val" code=would_set
+      elif gsettings set org.gnome.desktop.privacy remember-recent-files "$on" 2>/dev/null; then info="set to $val" code=set
+      else state=fail info="gsettings could not change it" code=gsettings_failed; fi ;;
     *)
-      [[ -n ${SETTING_RANGE[$key]:-} ]] || { json_error "Unknown setting: $key"; return 2; }
+      [[ -n ${SETTING_RANGE[$key]:-} ]] || { json_error usage "Unknown setting: $key"; return 2; }
       read -ra r <<<"${SETTING_RANGE[$key]}"
-      setting_valid "$key" "$val" || { json_error "$key must be a number from ${r[0]} to ${r[1]}"; return 2; }
+      setting_valid "$key" "$val" || { json_error out_of_range "$key must be a number from ${r[0]} to ${r[1]}" key "$key" min "${r[0]}" max "${r[1]}"; return 2; }
       val=$((10#$val))
-      if ((DRY_RUN)); then info="would be set to $val"
-      elif save_setting "$key" "$val"; then info="set to $val"
-      else state=fail info="Could not save ${SETTINGS_FILE/#$HOME/\~}"; fi ;;
+      setting_saved "$key" "$val" ;;
   esac
   if [[ $state == ok && ($key == remind || $key == low_disk_pct) ]]; then
     apply_settings
     check_timer_sync # the daily check runs while either is on
   fi
-  json_str info "$info"
-  printf '{"event":"task","id":"%s","state":"%s","info":%s}\n' "$key" "$state" "$info"
+  json_str info "$info"; json_code code "$code" "${cargs[@]}"
+  printf '{"event":"task","id":"%s","state":"%s","info":%s%s}\n' "$key" "$state" "$info" "$code"
   ((DRY_RUN)) && load_settings # show what is saved, not what would be
   json_setting "$key"
   printf '{"event":"done"}\n'
@@ -12027,12 +12087,12 @@ json_activity() { # [--limit N] — the activity log the terminal app shows, new
   local limit=1000 n=0 epoch text
   while (($#)); do
     case $1 in
-      --limit) (($# >= 2)) || { json_error "--limit needs a value."; return 2; }; limit=$2 ;;
-      *) json_error "Unknown option for activity: $1"; return 2 ;;
+      --limit) (($# >= 2)) || { json_error usage "--limit needs a value."; return 2; }; limit=$2 ;;
+      *) json_error usage "Unknown option for activity: $1"; return 2 ;;
     esac
     shift 2
   done
-  [[ $limit =~ ^[0-9]{1,6}$ ]] || { json_error "Invalid limit: $limit"; return 2; }
+  [[ $limit =~ ^[0-9]{1,6}$ ]] || { json_error usage "Invalid limit: $limit"; return 2; }
   if [[ -s $LOG_FILE ]] && ((limit > 0)); then
     # each line is "YYYY-MM-DD HH:MM:SS text"; one `date -f` turns all the times into epochs
     local re='^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} '
@@ -12102,17 +12162,18 @@ json_apps() {
 }
 
 json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only says what apt would do and what runs
-  local check=0 a src id apt=() ids=() out rc why gone=0 failed=0 skipped=0 msg extra prog jr="" ji jp
+  local check=0 a src id apt=() ids=() out rc why gone=0 failed=0 skipped=0 msg code="" extra prog jr="" ji jp
+  local -a codeargs=()
   local TRASH_SOURCE="Uninstaller"
   local -A known=() busy=() rc_of=() out_of=()
   [[ ${1:-} == --check ]] && { check=1; shift; }
-  (($#)) || { json_error "No apps given."; return 2; }
+  (($#)) || { json_error usage "No apps given."; return 2; }
   while IFS=$'\t' read -r src id _; do [[ $src == '#hidden' ]] || known[$src:$id]=1; done < <(app_inventory 2>/dev/null)
   for a in "$@"; do
-    [[ -n ${known[$a]:-} ]] || { json_error "Not an app CleanMate can remove: $a"; return 2; }
+    [[ -n ${known[$a]:-} ]] || { json_error not_removable "Not an app CleanMate can remove: $a" app "$a"; return 2; }
     src=${a%%:*}
-    if ((EUID == 0 && !check)) && [[ $src == flatpak ]]; then json_error "Flatpak apps are removed as you, not as root: $a"; return 2; fi
-    if ((EUID == 0 && !check)) && [[ $src == appimage ]]; then json_error "AppImage apps are removed as you, not as root: $a"; return 2; fi
+    if ((EUID == 0 && !check)) && [[ $src == flatpak ]]; then json_error remove_as_user "Flatpak apps are removed as you, not as root: $a" app "$a"; return 2; fi
+    if ((EUID == 0 && !check)) && [[ $src == appimage ]]; then json_error remove_as_user "AppImage apps are removed as you, not as root: $a" app "$a"; return 2; fi
   done
   for a in "$@"; do # a running app is skipped
     prog=$(app_running "${a%%:*}" "${a#*:}") || continue
@@ -12123,25 +12184,25 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
   for a in "$@"; do [[ ${a%%:*} == apt && -z ${busy[$a]:-} ]] && apt+=("${a#*:}"); done
   msg="" extra=0
   if ((${#apt[@]})); then # simulate first: apt may refuse, or take other packages with it
-    if apt_check_removal "${apt[@]}"; then extra=$APT_EXTRA_N; else msg=$APT_ERR; fi
+    if apt_check_removal "${apt[@]}"; then extra=$APT_EXTRA_N; else msg=$APT_ERR code=$APT_CODE codeargs=("${APT_ARGS[@]}"); fi
   fi
   if ((check)); then
-    local jm je
-    json_str jm "$msg"; json_str je "$( ((extra)) && printf '%s' "$APT_EXTRA_TEXT")"
-    printf '{"event":"check","ok":%s,"message":%s,"extra":%d,"extra_text":%s,"running":[%s]}\n{"event":"done"}\n' \
-      "$([[ -z $msg ]] && echo true || echo false)" "$jm" "$extra" "$je" "$jr"
+    local jm je jc
+    json_str jm "$msg"; json_str je "$( ((extra)) && printf '%s' "$APT_EXTRA_TEXT")"; json_code jc "$code" "${codeargs[@]}"
+    printf '{"event":"check","ok":%s,"message":%s%s,"extra":%d,"extra_text":%s,"running":[%s]}\n{"event":"done"}\n' \
+      "$([[ -z $msg ]] && echo true || echo false)" "$jm" "$jc" "$extra" "$je" "$jr"
     return
   fi
-  [[ -z $msg ]] || { json_error "$msg"; return 2; }
+  [[ -z $msg ]] || { json_error "$code" "$msg" "${codeargs[@]}"; return 2; }
   for a in "$@"; do
     [[ -n ${busy[$a]:-} ]] || continue
-    json_file_task "$a" skip "Skipped: ${busy[$a]} is running — close it and try again" 0; ((++skipped))
+    json_file_task "$a" skip program_running "Skipped: ${busy[$a]} is running — close it and try again" 0 "" program "${busy[$a]}"; ((++skipped))
   done
   for src in apt snap flatpak appimage; do # apt and Snap: one command for all of them; Flatpak and AppImage one by one
     ids=() rc_of=() out_of=()
     for a in "$@"; do [[ ${a%%:*} == "$src" && -z ${busy[$a]:-} ]] && ids+=("${a#*:}"); done
     ((${#ids[@]})) || continue
-    for id in "${ids[@]}"; do json_file_task "$src:$id" run "" 0; done
+    for id in "${ids[@]}"; do json_file_task "$src:$id" run "" "" 0; done
     if [[ $src == flatpak ]]; then
       for id in "${ids[@]}"; do out_of[$id]=$(task_uninstall "flatpak:$id" 2>&1 </dev/null); rc_of[$id]=$?; done
     elif [[ $src == appimage ]]; then # to the Trash: a "trashed" event per file, for Restore
@@ -12173,10 +12234,12 @@ json_uninstall() { # [--check] KIND:ID… — remove these apps; --check only sa
       rc=${rc_of[$id]}
       ((rc == 0 || DRY_RUN)) || app_installed "$src" "$id" || rc=0 # the batch failed, but this one is gone
       if ((rc == 0)); then
-        json_file_task "$src:$id" ok "$( ((DRY_RUN)) && echo "would be uninstalled" || echo "uninstalled")" 0; ((++gone))
+        if ((DRY_RUN)); then json_file_task "$src:$id" ok would_uninstall "would be uninstalled" 0
+        else json_file_task "$src:$id" ok uninstalled "uninstalled" 0; fi
+        ((++gone))
       else
         why=$(grep -v '^\s*$' <<<"${out_of[$id]}" | tail -n 1)
-        json_file_task "$src:$id" fail "${why:-failed (exit $rc)}" 0; ((++failed))
+        json_file_task "$src:$id" fail uninstall_failed "${why:-failed (exit $rc)}" 0 "" detail "${why:-exit $rc}"; ((++failed))
         log "json uninstall $src:$id failed: $why"
       fi
     done
@@ -12190,13 +12253,13 @@ json_reset() { # [--check] KIND:ID [FOLDER…] — keep the app, move its data (
   local -a list=() pick=()
   [[ ${1:-} == --check ]] && { check=1; shift; }
   a=${1:-}
-  [[ -n $a ]] || { json_error "No app given."; return 2; }
+  [[ -n $a ]] || { json_error usage "No app given."; return 2; }
   shift
-  ((check || EUID != 0)) || { json_error "Refusing to reset an app as root: its data is in your home"; return 2; }
+  ((check || EUID != 0)) || { json_error refused_as_root "Refusing to reset an app as root: its data is in your home"; return 2; }
   while IFS=$'\t' read -r src id name pkgb datab last desk p; do
     [[ $src:$id == "$a" ]] && found=1 paths=$p
   done < <(app_inventory 2>/dev/null)
-  ((found)) || { json_error "Not an app CleanMate can reset: $a"; return 2; }
+  ((found)) || { json_error not_resettable "Not an app CleanMate can reset: $a" app "$a"; return 2; }
   src=${a%%:*} id=${a#*:}
   mapfile -t list < <(reset_paths "$src" "$id" "$paths")
   prog=$(app_running "$src" "$id") || prog=""
@@ -12209,14 +12272,14 @@ json_reset() { # [--check] KIND:ID [FOLDER…] — keep the app, move its data (
     printf '{"event":"done","count":%d,"bytes":%d,"running":%s}\n' "${#list[@]}" "$total" "$jp"
     return
   fi
-  [[ -z $prog ]] || { json_error "Close $prog first: resetting an app while it runs can lose what is open in it"; return 2; }
+  [[ -z $prog ]] || { json_error close_first "Close $prog first: resetting an app while it runs can lose what is open in it" program "$prog"; return 2; }
   if (($#)); then # only folders of this app that resetting it would take
     for p in "$@"; do
-      printf '%s\n' "${list[@]}" | grep -qxF -- "$p" || { json_error "Not a data folder of $a: $p"; return 2; }
+      printf '%s\n' "${list[@]}" | grep -qxF -- "$p" || { json_error not_data_folder "Not a data folder of $a: $p" path "$p"; return 2; }
       pick+=("$p")
     done
   else pick=("${list[@]}"); fi
-  ((${#pick[@]})) || { json_error "Nothing to reset: this app keeps no data in your home."; return 2; }
+  ((${#pick[@]})) || { json_error nothing_to_reset "Nothing to reset: this app keeps no data in your home."; return 2; }
   log "reset $a"
   json_trash "${pick[@]}"
 }
@@ -12257,52 +12320,57 @@ json_log_lines() { # stdin → one "log" event per non-empty line (a progress li
   done
 }
 
-json_step() { # INDEX STATE INFO → one "task" event about a step of T_FN
-  local label info
-  json_str label "${T_LABEL[$1]}"; json_str info "${3:-}"
-  printf '{"event":"task","id":"%s","label":%s,"state":"%s","info":%s}\n' "${T_FN[$1]#m_}" "$label" "$2" "$info"
+json_step() { # INDEX STATE [CODE INFO [KEY VALUE]…] → one "task" event about a step of T_FN
+  local label info c
+  json_str label "${T_LABEL[$1]}"; json_str info "${4:-}"; json_code c "${3:-}" "${@:5}"
+  printf '{"event":"task","id":"%s","label":%s,"state":"%s","info":%s%s}\n' "${T_FN[$1]#m_}" "$label" "$2" "$info" "$c"
 }
 
 json_maintain() { # ID [on|off] [--user-steps]
   local id=${1:-} a mode="" user_only=0 i fn out rc n_ok=0 n_fail=0 n_skip=0
   local -a steps=()
   shift || true
-  [[ -n ${MAINT_LABEL[$id]:-} ]] || { json_error "Unknown maintenance item: $id"; return 2; }
+  [[ -n ${MAINT_LABEL[$id]:-} ]] || { json_error usage "Unknown maintenance item: $id"; return 2; }
   for a in "$@"; do
     case $a in
       on | off) mode=$a ;;
       --user-steps) user_only=1 ;;
-      *) json_error "Unknown option: $a"; return 2 ;;
+      *) json_error usage "Unknown option: $a"; return 2 ;;
     esac
   done
   if [[ $id == @(snap_versions|journal_limit) ]]; then
-    [[ -n $mode ]] || { json_error "$id needs on or off"; return 2; }
-  elif [[ -n $mode ]]; then json_error "$id has no on or off"; return 2; fi
-  if maint_missing "$id"; then json_error "$MAINT_WHY"; return 2; fi
+    [[ -n $mode ]] || { json_error usage "$id needs on or off"; return 2; }
+  elif [[ -n $mode ]]; then json_error usage "$id has no on or off"; return 2; fi
+  if maint_missing "$id"; then json_error maint_missing "$MAINT_WHY" id "$id"; return 2; fi
   new_tasks
   maint_tasks "$id" "$mode"
   for i in "${!T_FN[@]}"; do
     if maint_user_step "${T_FN[i]}"; then ((EUID == 0)) || steps+=("$i")
     elif ((!user_only)); then steps+=("$i"); fi
   done
-  if ((${#steps[@]} == 0 && EUID == 0)); then json_error "${MAINT_LABEL[$id]} runs as you, not as root"; return 2; fi
-  T_STATE=() T_INFO=()
+  if ((${#steps[@]} == 0 && EUID == 0)); then json_error maint_as_user "${MAINT_LABEL[$id]} runs as you, not as root"; return 2; fi
+  T_STATE=() T_INFO=() T_CODE=() T_CARGS=()
   for i in "${steps[@]}"; do
-    fn=${T_FN[i]} T_INFO[i]=""
+    fn=${T_FN[i]} T_INFO[i]="" T_CODE[i]="" T_CARGS[i]=""
     json_step "$i" run
     if declare -F "${fn}_pre" >/dev/null && ! "${fn}_pre" "${T_ARG[i]}"; then
-      json_step "$i" skip "skipped"; ((++n_skip)); continue
+      json_step "$i" skip skipped "skipped"; ((++n_skip)); continue
     fi
     out=$(mktemp -p "$SESSION_TMP")
     "$fn" "${T_ARG[i]}" </dev/null 2>&1 | tee "$out" | json_log_lines
     rc=${PIPESTATUS[0]}
-    ((rc == 0)) || T_INFO[i]="failed (exit $rc)"
+    ((rc == 0)) || T_INFO[i]="failed (exit $rc)" T_CODE[i]=step_failed T_CARGS[i]="detail exit_$rc"
     declare -F "${fn}_post" >/dev/null && "${fn}_post" "${T_ARG[i]}" "$rc" "$i" "$out"
     if ((rc == 0)); then
-      [[ -n ${T_INFO[i]} ]] || T_INFO[i]=$( ((DRY_RUN)) && echo "would run" || echo "done")
-      json_step "$i" ok "${T_INFO[i]}"; ((++n_ok))
+      if [[ -z ${T_INFO[i]} ]]; then
+        if ((DRY_RUN)); then T_INFO[i]="would run" T_CODE[i]=would_run; else T_INFO[i]="done" T_CODE[i]="done"; fi
+      fi
+      # T_CARGS: KEY VALUE pairs without spaces in the values (set by the steps' _post functions)
+      # shellcheck disable=SC2086
+      json_step "$i" ok "${T_CODE[i]}" "${T_INFO[i]}" ${T_CARGS[i]}; ((++n_ok)) # codes: would_run done
     else
-      json_step "$i" fail "${T_INFO[i]}"; ((++n_fail))
+      # shellcheck disable=SC2086
+      json_step "$i" fail "${T_CODE[i]}" "${T_INFO[i]}" ${T_CARGS[i]}; ((++n_fail)) # codes: step_failed
       log "json maintain $id: ${T_LABEL[i]} failed (exit $rc)"
     fi
     rm -f "$out"
@@ -12328,6 +12396,8 @@ json_overview() {
   done < <(disk_rows)
   printf '{"event":"memory","ram_total":%d,"ram_used":%d,"ram_avail":%d,"swap_total":%d,"swap_used":%d}\n' \
     "$OV_RAM_TOTAL" "$((OV_RAM_TOTAL - OV_RAM_AVAIL))" "$OV_RAM_AVAIL" "$OV_SWAP_TOTAL" "$OV_SWAP_USED"
+  last_scan_time t # by either app; 0 = never
+  printf '{"event":"last_scan","time":%d}\n' "$t"
   if [[ -f $CLEANUP_HISTORY || -n ${STATS[runs]:-} ]]; then
     cut=$((EPOCHSECONDS - 30 * 86400))
     # the last 30 calendar days, today last: noon of each day, so a DST change never skips one

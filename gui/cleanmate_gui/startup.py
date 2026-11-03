@@ -8,7 +8,10 @@ whose program is gone (`missing`) are listed first, under Broken items, with a R
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .a11y import named
+from . import findbar
+from .findbar import FindBar
 from .i18n import _, ngettext
+from . import messages
 
 
 def unit_icon(u):
@@ -51,8 +54,12 @@ class StartupPage(Gtk.Box):
         self.stack.add_named(self.failed, "failed")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
-        self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
-                                                vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER), "results")
+        self.find_bar = FindBar(self.apply_filter, _("Search startup items"))
+        results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        results.append(self.find_bar)
+        results.append(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
+                                          vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER))
+        self.stack.add_named(results, "results")
         self.show_system = Adw.SwitchRow(title=_("Show system services"),
                                          subtitle=_("Parts of Ubuntu that start for every user"))
         self.show_system.connect("notify::active", lambda *_a: self.show_results())
@@ -88,7 +95,7 @@ class StartupPage(Gtk.Box):
             self.running = None
             self.window.set_busy(False)
             if "message" in info:
-                self.failed.set_description(info["message"])
+                self.failed.set_description(messages.text(info))
                 self.stack.set_visible_child_name("failed")
                 return
             self.units, self.info = units, info
@@ -147,6 +154,17 @@ class StartupPage(Gtk.Box):
         self.results.append(options)
         self.update_count()
         self.stack.set_visible_child_name("results")
+        self.apply_filter()
+
+    def find(self):
+        """Ctrl+F: show only the rows whose name or description has every word typed."""
+        if self.stack.get_visible_child_name() == "results":
+            self.find_bar.open()
+
+    def apply_filter(self):
+        words = self.find_bar.words()
+        for key, row in self.rows.items():
+            row.set_visible(findbar.matches(words, row.get_title(), row.get_subtitle(), key))
 
     def unit_row(self, u):
         subtitle = u["description"] if u["description"] and u["description"] != u["name"] else u["command"]
@@ -215,7 +233,7 @@ class StartupPage(Gtk.Box):
             self.results.set_sensitive(True)
             if result.get("state") != "ok":
                 self.set_switch(u["id"], u["enabled"])  # back to what it is
-                self.window.toast(result.get("info") or result.get("message") or _("Could not change it"))
+                self.window.toast(messages.text(result) or _("Could not change it"))
                 return
             if self.engine.dry_run:
                 self.set_switch(u["id"], u["enabled"])
@@ -287,7 +305,7 @@ class StartupPage(Gtk.Box):
             self.window.set_busy(False)
             if result.get("state") != "ok":
                 self.window.toast(_("Could not restore {name}: {reason}").format(
-                    name=u["name"], reason=result.get("info") or result.get("message", "")))
+                    name=u["name"], reason=messages.text(result)))
                 return self.load()
             if u["kind"] == "systemd-user" and u["enabled"]:
                 return self.change(u, "enable", lambda _t: (self.load(), self.window.toast(

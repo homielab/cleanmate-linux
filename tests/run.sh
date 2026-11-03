@@ -3646,9 +3646,23 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "Refresh doesn't count up again"
     assert_contains "$out" "with new settings the welcome is shown"
     assert_contains "$out" "step 2 opens the terminal app"
-    assert_contains "$out" "step 3 ends with Start"
+    assert_contains "$out" "step 3 ends with Run Smart Scan"
     ((EUID == 0)) || assert_contains "$out" "Settings reads back what the welcome saved"
-    ((EUID == 0)) || assert_contains "$out" "Start closes it and saves welcome_shown"
+    ((EUID == 0)) || assert_contains "$out" "Run Smart Scan closes it, saves welcome_shown"
+    assert_contains "$out" "System Overview opens with Run Smart Scan under its title"
+    assert_contains "$out" "Stop in Large & Old Files ends the engine"
+    assert_contains "$out" "Stop in Space Lens ends the engine"
+    assert_contains "$out" "Ctrl+F opens the search in Large & Old Files"
+    assert_contains "$out" "Ctrl+F opens the search in Space Lens"
+    assert_contains "$out" "Ctrl+F opens the search in Duplicates"
+    ((EUID == 0)) || assert_contains "$out" "Ctrl+F in Startup Items keeps the matching item"
+    assert_contains "$out" "Ctrl+F in Maintenance keeps the matching task"
+    assert_contains "$out" "Ctrl+F in Uninstall Apps goes to its search box"
+    ((EUID == 0)) || assert_contains "$out" "Never Clean Its Folder (Large & Old Files) saves Videos in Settings"
+    ((EUID == 0)) || assert_contains "$out" "Never Clean This Folder (Space Lens) saves it in Settings"
+    ((EUID == 0)) || assert_contains "$out" "Never Clean Its Folder (Duplicates) saves it in Settings"
+    assert_contains "$out" "closing the window while something is cleaning asks first"
+    assert_contains "$out" "opening it again brings this window up, no second one"
     ((EUID == 0)) || assert_contains "$out" "closing it from the menu changes no setting"
     assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png" # dry run: nothing deleted
     if [[ $lang == vi* ]]; then
@@ -3704,6 +3718,22 @@ test_similar_photos_hashes_and_groups() {
     ((VERBOSE)) && printf '%s\n' "$out" | sed 's/^/      | /'
   else
     fail "similar photos unit tests failed"
+    printf '%s\n' "$out" | sed 's/^/      | /'
+  fi
+  return 0
+}
+
+test_engine_messages_translated() {
+  # every code the engine sends has a text in the desktop app, in Vietnamese too (tests/messages_test.py)
+  local out
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  if out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$WORK" \
+    python3 "$ROOT/tests/messages_test.py" 2>&1); then
+    ok_ "engine messages: $(tail -n 3 <<<"$out" | grep -m1 '^Ran')"
+    ((VERBOSE)) && printf '%s\n' "$out" | sed 's/^/      | /'
+  else
+    fail "engine message texts are missing or untranslated"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
   return 0
@@ -5684,6 +5714,7 @@ for l in sys.stdin:
     elif e["event"] == "memory": print("memory", e["ram_total"] > 0, e["ram_used"] + e["ram_avail"] == e["ram_total"], e["swap_used"] <= e["swap_total"])
     elif e["event"] == "freed": print("freed", e["bytes"], e["cleanups"], e["lifetime"], e["runs"], e["last_bytes"], e["since"] > 0)
     elif e["event"] == "history": print("history", len(e["points"]))
+    elif e["event"] == "last_scan": print("last_scan", e["time"])
     elif e["event"] == "outside": print("outside", e["kind"], e["bytes"], e["path"], e["count"], bool(e["note"]))
     elif e["event"] == "top_dirs": print("top_dirs", " ".join(d["path"].replace(e["home"] + "/", "") for d in e["dirs"] if d["bytes"] >= 0))
     elif e["event"] != "protection": print(e["event"])'
@@ -5694,10 +5725,11 @@ for l in sys.stdin:
 disk / ext4 /dev/sda2 100000000000 95000000000 5000000000
 disk /boot/efi vfat /dev/sda1 1000000000 100000000 900000000
 memory True True True
+last_scan 0
 history 1
 outside reserved 5000000000 / 1 True
 outside swapfile 2147483648 /swap.img 1 True
-done" "system, real filesystems from df, memory, then free-space history, space outside your folders (reserved, swap file, not a swap partition) and the largest folders; no freed group before the first cleanup"
+done" "system, real filesystems from df, memory, never scanned, then free-space history, space outside your folders (reserved, swap file, not a swap partition) and the largest folders; no freed group before the first cleanup"
   # free-space history: one point per recorded day, oldest first, today's added by opening the overview
   mkdir -p "$state"
   printf '%s\t%s\t%s\n' 2026-01-01 50000000000 100000000000 2026-01-15 40000000000 100000000000 bad-row 1 2 \
@@ -5728,6 +5760,8 @@ for e in map(json.loads, sys.stdin):
   printf 'lifetime=6000\nruns=2\nlast_time=%s\nlast_freed=1000\n' "$(($(date +%s) - 5 * 86400))" >"$state/stats"
   out=$(cm --json overview | python3 -c "$ev" | grep freed)
   assert_eq "$out" "freed 1000 1 6000 2 1000 True" "freed in 30 days counts only the recent cleanup"
+  out=$(cm --json overview | python3 -c "$ev" | grep last_scan)
+  assert_eq "$out" "last_scan $(sed -n 's/^last_time=//p' "$state/stats")" "last_scan: the last cleanup, for System Overview's Smart Scan row"
   out=$(in_app 'load_kv "$STATS_FILE" STATS "^[0-9]+$"; record_cleanup 2048; tail -n 1 "$CLEANUP_HISTORY"')
   assert_contains "$out" $'\t2048'
   out=$(cm --json overview | python3 -c "$ev" | grep freed)

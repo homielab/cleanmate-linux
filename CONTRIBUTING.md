@@ -91,6 +91,7 @@ tests/run.sh               # all tests, ~45 s — safe on your own machine
 tests/run.sh -v docker     # only tests with "docker" in the name, with details
 python3 tests/similar_test.py   # Similar Photos: hashes and grouping on generated photos (needs python3-gi)
 python3 tests/preview_test.py   # thumbnails and video frames of the file pages (python3-gi; videos also gir1.2-gstreamer-1.0)
+python3 tests/messages_test.py  # every code the engine sends has a text in the desktop app, in Vietnamese too
 LC_ALL=vi_VN.UTF-8 tests/run.sh   # same, in a language with a decimal comma (also de_DE.UTF-8; needs `sudo locale-gen vi_VN.UTF-8`). CI runs both
 shellcheck -S warning cleanmate.sh tests/run.sh packaging/build-deb.sh
 bash cleanmate.sh --dry-run   # try it for real without deleting anything
@@ -161,6 +162,14 @@ scan notes ("3 files in /var/log"), the lines of an item's details — go throug
 `i18n.py` (`item_text`, `note_text`, `detail_text`; counted nouns in `_COUNTS`). A new note or
 counted noun in `cleanmate.sh` needs a pattern there, or it shows in English; add a case to
 `tests/run.sh gui_scan_texts_translated`.
+
+Errors, task results and background notifications (low disk, scan reminder, automatic cleaning)
+carry a stable `code` and its `args` next to the English text (`json_code` in `cleanmate.sh`); the
+desktop app turns the code into its language in `gui/cleanmate_gui/messages.py`, and `notify` gets
+the text from `python3 -m cleanmate_gui.messages notify CODE [KEY VALUE]…`. A new code needs a text
+there and in `po/vi.po`: `tests/run.sh engine_messages` (`tests/messages_test.py`) reads every code
+from `cleanmate.sh` and fails on one without. A code set from a variable gets a `# codes: a b` note
+on its line, so the test finds it.
 
 - In code, wrap text in `_("…")`, and counts in `ngettext("{n} file", "{n} files", n)` (it fills in
   `{n}` and any other `{field}=` you pass). Put values in `{named}` fields, never glue sentences together.
