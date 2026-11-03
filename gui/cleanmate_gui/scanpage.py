@@ -6,7 +6,8 @@ from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
 from .a11y import named
 from .engine import CAT_GROUP, CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, SMART_SCAN, human
-from .i18n import _, detail_text, item_text, ngettext, note_text
+from .i18n import _, detail_text, item_text, ngettext, note_text, why_running
+from .preview import open_file
 from .settings import EXCLUSION_REASONS, short_path
 
 
@@ -438,6 +439,11 @@ class ScanPage(Gtk.Box):
             bar, size = size_widgets(e["bytes"], biggest)
             self.size_labels[e["id"]] = size
             suffixes += [bar, size]
+        if e.get("why"):
+            why = named(Gtk.MenuButton(icon_name="help-about-symbolic", valign=Gtk.Align.CENTER,
+                                       css_classes=["flat"], tooltip_text=_("Why is this safe?")))
+            why.set_create_popup_func(lambda b: b.get_popover() or b.set_popover(self.why_popover(e)))
+            suffixes.append(why)
         info = named(Gtk.Button(icon_name="go-next-symbolic", valign=Gtk.Align.CENTER,
                                 css_classes=["flat"], tooltip_text=_("Show what's inside")))
         info.connect("clicked", lambda *_: self.show_details(e))
@@ -546,6 +552,116 @@ class ScanPage(Gtk.Box):
 
         self.window.set_busy(True)
         self.engine.settings_set("exclusions", ["remove", path], lambda e: None, on_done)
+
+    # ── Why is this safe?: what the item is, where, what cleaning does, when it is skipped ──
+    def why_popover(self, e):
+        why, locked = e["why"], e.get("locked") or ""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, width_request=360,
+                      margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
+
+        def text(label, *classes):
+            box.append(Gtk.Label(label=label, wrap=True, xalign=0, max_width_chars=48, use_markup=False,
+                                 css_classes=list(classes)))
+
+        def section(title, lines):
+            box.append(Gtk.Label(label=title, xalign=0, margin_top=8, css_classes=["heading"]))
+            for line in lines:
+                text(f"• {line}")
+
+        text(item_text(e["label"]), "title-4")
+        section(_("What it is"), [])
+        text(item_text(e["description"]))
+        section(_("Where it is"), [])
+        for path in why["where"][:4]:
+            label = Gtk.Label(label=path, xalign=0, selectable=True, ellipsize=Pango.EllipsizeMode.MIDDLE,
+                              max_width_chars=48, css_classes=["monospace", "caption"], tooltip_text=path)
+            box.append(label)
+        if len(why["where"]) > 4:
+            more = len(why["where"]) - 4
+            text(ngettext("and {n} more", "and {n} more", more), "dim-label", "caption")
+        for note in why["where_note"]:
+            text(item_text(note))
+        section(_("After cleaning"), [item_text(line) for line in why["after"]])
+        skipped = ([why_running(why["running"])] if why["running"] else []) + [item_text(line) for line in why["skipped"]]
+        section(_("Skipped when"), skipped or [_("Never: when it is ticked, it is cleaned")])
+        if locked:
+            text(_("Now: {program} is running — close it, then scan again").format(program=locked), "warning")
+        folders = why["folders"]
+        if folders:
+            buttons = Gtk.Box(spacing=6, halign=Gtk.Align.END, margin_top=10)
+            show = Gtk.Button(label=_("Open Folder"), tooltip_text=short_path(folders[0]))
+            show.connect("clicked", lambda *_a: open_file(self.window, folders[0]))
+            buttons.append(show)
+            if not e["root"]:
+                never = Gtk.Button(label=_("Never Clean"), tooltip_text="\n".join(short_path(f) for f in folders))
+                never.connect("clicked", lambda b: (b.get_ancestor(Gtk.Popover).popdown(),
+                                                    self.never_clean_item(e["id"], list(folders))))
+                buttons.append(never)
+            box.append(buttons)
+        return Gtk.Popover(child=box)
+
+    def never_clean_item(self, item_id, folders):
+        """The item's folders go to Settings › Never clean, one after the other; the item is hidden (the
+        next scan leaves it out). Undo takes them out of the list again."""
+        if self.excluding:
+            return
+        todo, added, result = list(folders), [], {}
+
+        def on_event(ev):
+            if ev["event"] in ("task", "error"):
+                result.update(ev)
+
+        def on_done(ok, status):  # the answer about todo[0]
+            if result.get("state") != "ok":
+                finish(result.get("info") or result.get("message", ""))
+                return
+            added.append(todo.pop(0))
+            next_folder()
+
+        def next_folder():
+            result.clear()
+            if not todo:
+                finish(None)
+                return
+            self.excluding = self.engine.settings_set("exclusions", ["add", todo[0]], on_event, on_done)
+
+        def finish(reason):
+            self.excluding = None
+            self.window.set_busy(False)
+            if reason is not None:
+                self.window.toast(_("Could not change it: {reason}").format(reason=EXCLUSION_REASONS.get(reason, reason)))
+                if not added:
+                    return
+            if self.engine.dry_run:
+                self.window.toast(_("Dry run: nothing was saved"))
+                return
+            self.gone.add(item_id)
+            self.selected[item_id] = False
+            self.item_rows[item_id].set_visible(False)
+            self.update_summary()
+            label = item_text(self.items[item_id]["label"])
+            self.window.toast(_("{item} is never cleaned now").format(item=label), _("Undo"),
+                              lambda: self.allow_clean_all(added), timeout=10)
+
+        self.window.set_busy(True)
+        next_folder()
+
+    def allow_clean_all(self, paths):
+        """Undo of Never clean on an item: its folders can be cleaned again; scan again to list it."""
+        left = list(paths)
+
+        def on_done(ok, status):
+            if left and ok:
+                self.engine.settings_set("exclusions", ["remove", left.pop(0)], lambda e: None, on_done)
+                return
+            self.window.set_busy(False)
+            if ok:
+                self.window.toast(_("It can be cleaned again"))
+                if self.stack.get_visible_child_name() == "results":
+                    self.scan(keep_summary=True)
+
+        self.window.set_busy(True)
+        on_done(True, None)
 
     def drop_entry(self, item_id, entry_id):
         """Take a part out of the results (it went to Never clean); an item left without parts is hidden."""

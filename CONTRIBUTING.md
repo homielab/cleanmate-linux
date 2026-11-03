@@ -32,10 +32,21 @@ docs/                       screenshots, roadmap, publishing guide
 
 ```bash
 reg my_cache user "My app cache" 1 "What it is, and why it's safe to remove."
+why my_cache regenerated "~/.cache/my-app"   # effect, where it is, then when it is skipped (optional)
 scan_my_cache()    { dev_scan "~/.cache/my-app" "$HOME/.cache/my-app"; }  # sets SCAN_BYTES/SCAN_NOTE
 clean_my_cache()   { empty_dir "$HOME/.cache/my-app"; }                    # removes it
 details_my_cache() { detail_paths "$HOME/.cache/my-app"; }                 # optional
 ```
+
+Every item needs a `why` (`tests/run.sh every_item_explains` fails without one): the desktop app's
+ⓘ *Why is this safe?* popover and `cm --json scan` (`why`) show it. The effect is `regenerated`
+(deleted, its app or tool rebuilds it), `trash` or `delete` (deleted for good). Where it is: one line
+per path (`~/…` or `/…`), `@NAME` for a function, array or variable that lists the paths, or a
+sentence when there is no fixed path. Skipped-when lines can name a setting as `%CACHE_DAYS%`; the
+general ones (Never clean, open files, password, automatic cleaning) are added for you. Extra lines go
+in `ITEM_AFTER[ID]` (what cleaning does) and `ITEM_RUNNING[ID]` (the programs, `|`-separated, its
+`lockedby_ID` checks). An item whose home folders are all in *Settings › Never clean* is skipped. Then
+run `po/extract-items.sh` (Translations below).
 
 `scan_*` returns 0 when there's something to clean, 2 when it's clean, 1 when it doesn't apply
 (the app isn't installed). For a whole family of folders, look at `reg_cache_item` (browsers,

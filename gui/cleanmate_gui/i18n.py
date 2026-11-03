@@ -105,6 +105,8 @@ def _static():
             _("A model in the Hugging Face cache. Python code downloads it again the next time it is used."),
         "A model downloaded in LM Studio. Download it again from LM Studio's Discover tab.":
             _("A model downloaded in LM Studio. Download it again from LM Studio's Discover tab."),
+        "Ollama's model store (ollama rm)": _("Ollama's model store (ollama rm)"),
+        "Download it again to use it": _("Download it again to use it"),
         "Electron app": _("Electron app"),
         "not used by any container": _("not used by any container"),
         "BuildKit cache": _("BuildKit cache"),
@@ -112,6 +114,14 @@ def _static():
         "needs sqlite3": _("needs sqlite3"),
         "install sqlite3 to count entries": _("install sqlite3 to count entries"),
     }
+
+
+def why_running(programs):
+    """'While Steam or Lutris is running': the programs whose running makes an item skip."""
+    names = [item_text(p) for p in programs]
+    if len(names) > 1:
+        names = [_("{names} or {last}").format(names=", ".join(names[:-1]), last=names[-1])]
+    return _("While {programs} is running").format(programs=names[0])
 
 
 def item_text(text):

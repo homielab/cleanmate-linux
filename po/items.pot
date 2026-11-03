@@ -1,4 +1,4 @@
-# Cleanup item names and descriptions from cleanmate.sh (po/extract-items.sh).
+# Cleanup item names, descriptions and why lines from cleanmate.sh (po/extract-items.sh).
 msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -11,12 +11,36 @@ msgstr ""
 msgid "Downloaded .deb installers. apt re-downloads them if ever needed."
 msgstr ""
 
+#. apt_cache why, packagekit_cache why, thumbs why, app_cache why, node_modules why, npm why
+msgid "Deleted, not moved to the Trash: the app or tool makes it again when it needs it"
+msgstr ""
+
+#. apt_cache why, packagekit_cache why, orphans why, residual why, journal why, old_logs why
+msgid "Asks for your password: these are system files"
+msgstr ""
+
+#. apt_cache why, packagekit_cache why, orphans why, residual why, journal why, old_logs why
+msgid "If you cancel the password prompt"
+msgstr ""
+
+#. apt_cache why, packagekit_cache why, old_installers why, old_downloads why, old_screenshots why, abandoned_downloads why
+msgid "Automatic cleaning leaves it alone"
+msgstr ""
+
 #. packagekit_cache label
 msgid "PackageKit cache"
 msgstr ""
 
 #. packagekit_cache description
 msgid "Packages and package lists GNOME Software and Software Updater downloaded. They are downloaded again when needed."
+msgstr ""
+
+#. packagekit_cache why
+msgid "GNOME Software"
+msgstr ""
+
+#. packagekit_cache why
+msgid "Software Updater"
 msgstr ""
 
 #. old_installers label
@@ -28,6 +52,23 @@ msgstr ""
 msgid "Installers and disk images (.deb, AppImage, .iso, .img, .run, .snap, Flatpak) at the top of your Downloads folder, downloaded more than {0} days ago. Moved to the Trash."
 msgstr ""
 
+#. old_installers why, old_downloads why, old_screenshots why, abandoned_downloads why, stale_build_dirs why, vscode_stale_workspaces why
+msgid "Moved to the Trash: you can put it back until you empty the Trash"
+msgstr ""
+
+#. old_installers why, old_downloads why, old_screenshots why, abandoned_downloads why, old_kernels why, trash_drives why
+msgid "Not ticked by default: it is cleaned only if you tick it"
+msgstr ""
+
+#. old_installers why
+#, python-brace-format
+msgid "Installers downloaded in the last {0} days"
+msgstr ""
+
+#. old_installers why
+msgid "Anything inside a folder of Downloads (only the top of it is looked at)"
+msgstr ""
+
 #. old_downloads label
 msgid "Old downloads"
 msgstr ""
@@ -35,6 +76,11 @@ msgstr ""
 #. old_downloads description
 #, python-brace-format
 msgid "Files and folders at the top of your Downloads folder that you haven't opened or changed for more than {0} days. Moved to the Trash."
+msgstr ""
+
+#. old_downloads why, old_screenshots why
+#, python-brace-format
+msgid "Anything opened or changed in the last {0} days"
 msgstr ""
 
 #. old_screenshots label
@@ -46,6 +92,10 @@ msgstr ""
 msgid "Screenshots and screen recordings in your Pictures folder and its Screenshots folder that you haven't opened or changed for more than {0} days. Moved to the Trash."
 msgstr ""
 
+#. old_screenshots why
+msgid "Other pictures: only screenshots and screen recordings are looked at"
+msgstr ""
+
 #. abandoned_downloads label
 msgid "Abandoned downloads"
 msgstr ""
@@ -53,6 +103,11 @@ msgstr ""
 #. abandoned_downloads description
 #, python-brace-format
 msgid "Unfinished downloads (.crdownload, .part, .aria2, .!qB) at the top of your Downloads folder that haven't changed or been opened for more than {0} days. Moved to the Trash."
+msgstr ""
+
+#. abandoned_downloads why
+#, python-brace-format
+msgid "Downloads that changed or were opened in the last {0} days"
 msgstr ""
 
 #. orphans label
@@ -63,12 +118,36 @@ msgstr ""
 msgid "Packages installed as dependencies that nothing needs any more (apt autoremove)."
 msgstr ""
 
+#. orphans why
+msgid "Packages apt installed only because another package needed them (apt autoremove)"
+msgstr ""
+
+#. orphans why, residual why, journal why, old_logs why, big_logs why, app_logs why
+msgid "Deleted for good, not moved to the Trash"
+msgstr ""
+
+#. orphans why
+msgid "apt can install them again"
+msgstr ""
+
+#. orphans why
+msgid "Packages you installed yourself, and anything an installed package still needs"
+msgstr ""
+
 #. residual label
 msgid "Leftover package configs"
 msgstr ""
 
 #. residual description
 msgid "System config files of packages that were removed but not purged."
+msgstr ""
+
+#. residual why
+msgid "System config files (/etc) of packages that were removed but not purged"
+msgstr ""
+
+#. residual why
+msgid "Packages that are still installed"
 msgstr ""
 
 #. journal label
@@ -80,6 +159,11 @@ msgstr ""
 msgid "Archived system logs. Keeps the last {0} days and at most {1} MB."
 msgstr ""
 
+#. journal why
+#, python-brace-format
+msgid "The last {0} days and the newest {1} MB of logs"
+msgstr ""
+
 #. old_logs label
 msgid "Rotated / archived logs"
 msgstr ""
@@ -87,6 +171,10 @@ msgstr ""
 #. old_logs description
 #, python-brace-format
 msgid "Compressed or rotated log files in /var/log (*.gz, *.{0}, *.old)."
+msgstr ""
+
+#. old_logs why
+msgid "Logs still being written: only rotated and compressed files are removed"
 msgstr ""
 
 #. big_logs label
@@ -98,6 +186,15 @@ msgstr ""
 msgid "Live logs in /var/log over {0} MB, emptied in place — services keep logging normally."
 msgstr ""
 
+#. big_logs why
+msgid "Emptied in place: the service keeps writing to the same file"
+msgstr ""
+
+#. big_logs why
+#, python-brace-format
+msgid "Logs under {0} MB"
+msgstr ""
+
 #. app_logs label
 msgid "Old app logs"
 msgstr ""
@@ -105,6 +202,15 @@ msgstr ""
 #. app_logs description
 #, python-brace-format
 msgid "Log files of apps (VS Code, Slack, …) not written for {0}+ days."
+msgstr ""
+
+#. app_logs why
+msgid "The log folders of apps in ~/.config, ~/.local/share, ~/snap and ~/.var/app"
+msgstr ""
+
+#. app_logs why
+#, python-brace-format
+msgid "Logs written in the last {0} days"
 msgstr ""
 
 #. crash label
@@ -131,12 +237,24 @@ msgstr ""
 msgid "Disabled previous versions of snaps, kept only for rollback."
 msgstr ""
 
+#. snap_old why
+msgid "The snap can no longer go back to these versions"
+msgstr ""
+
+#. snap_old why
+msgid "The version of each snap that runs now"
+msgstr ""
+
 #. old_kernels label
 msgid "Extra old kernels"
 msgstr ""
 
 #. old_kernels description
 msgid "Kernels older than your two newest (never the one running), so a fallback always stays."
+msgstr ""
+
+#. old_kernels why
+msgid "The kernel that runs now and your two newest kernels"
 msgstr ""
 
 #. tmp label
@@ -148,12 +266,25 @@ msgstr ""
 msgid "Your files in /tmp and /var/tmp not touched for {0}+ days."
 msgstr ""
 
+#. tmp why
+#, python-brace-format
+msgid "Files used in the last {0} days"
+msgstr ""
+
+#. tmp why
+msgid "Files of other users"
+msgstr ""
+
 #. thumbs label
 msgid "Thumbnail cache"
 msgstr ""
 
 #. thumbs description
 msgid "Image previews generated by the file manager; rebuilt on demand."
+msgstr ""
+
+#. thumbs why, trash why, npm why, yarn why, pnpm why, bun why
+msgid "Its folder is in Settings › Never clean"
 msgstr ""
 
 #. trash label
@@ -164,12 +295,24 @@ msgstr ""
 msgid "Files you already deleted. Review before emptying!"
 msgstr ""
 
+#. trash why
+msgid "Emptying the Trash can't be undone"
+msgstr ""
+
 #. trash_drives label
 msgid "Trash on external drives"
 msgstr ""
 
 #. trash_drives description
 msgid "Files you deleted on USB sticks and other drives stay in that drive's own Trash and keep using its space. Emptying deletes them for good."
+msgstr ""
+
+#. trash_drives why
+msgid "The Trash folder of each USB stick or other drive you plugged in"
+msgstr ""
+
+#. trash_drives why
+msgid "Emptying a Trash can't be undone"
 msgstr ""
 
 #. app_cache label
@@ -182,6 +325,11 @@ msgstr ""
 msgid "Files under ~/.cache not modified or read for {0}+ days."
 msgstr ""
 
+#. app_cache why
+#, python-brace-format
+msgid "Files changed or read in the last {0} days"
+msgstr ""
+
 #. node_modules label
 msgid "Stale node_modules"
 msgstr ""
@@ -191,6 +339,19 @@ msgstr ""
 msgid "node_modules of projects untouched for {0}+ days. Restore with npm/yarn/pnpm install."
 msgstr ""
 
+#. node_modules why
+msgid "node_modules folders of your projects"
+msgstr ""
+
+#. node_modules why, stale_build_dirs why
+#, python-brace-format
+msgid "Projects changed in the last {0} days"
+msgstr ""
+
+#. node_modules why, stale_build_dirs why
+msgid "Projects in a folder in Settings › Never clean"
+msgstr ""
+
 #. stale_build_dirs label
 msgid "Stale project build folders"
 msgstr ""
@@ -198,6 +359,10 @@ msgstr ""
 #. stale_build_dirs description
 #, python-brace-format
 msgid "Build folders of projects untouched for {0}+ days, only next to the project file that makes them: Cargo and Maven target/, Gradle and Android build/ and .gradle/, Flutter .dart_tool/ and build/, SwiftPM .build/, Next.js, Nuxt, SvelteKit, Angular and Turbo caches, Haskell .stack-work/ and dist-newstyle/, Elixir _build/ and deps/, Zig caches, Python .venv/, CocoaPods Pods/ and Terraform .terraform/providers and modules. Moved to the Trash; the project's build tool makes them again."
+msgstr ""
+
+#. stale_build_dirs why
+msgid "Build folders next to the project file that makes them"
 msgstr ""
 
 #. npm label
@@ -222,6 +387,10 @@ msgstr ""
 
 #. pnpm description
 msgid "Packages in the pnpm store no project references (pnpm store prune)."
+msgstr ""
+
+#. pnpm why
+msgid "Packages a project still uses (pnpm store prune)"
 msgstr ""
 
 #. bun label
@@ -280,12 +449,28 @@ msgstr ""
 msgid "Downloaded package archives, index cache and logs (conda clean --tarballs). Your environments are kept."
 msgstr ""
 
+#. conda why
+msgid "Conda's package folders (pkgs)"
+msgstr ""
+
+#. conda why
+msgid "Your environments: only downloaded archives, the index cache and logs go"
+msgstr ""
+
 #. docker_dangling label
 msgid "Docker: dangling images"
 msgstr ""
 
 #. docker_dangling description
 msgid "Untagged leftover image layers from rebuilds — nothing uses them."
+msgstr ""
+
+#. docker_dangling why
+msgid "Docker's image store (docker image prune)"
+msgstr ""
+
+#. docker_dangling why
+msgid "Image layers a tagged image or a container uses"
 msgstr ""
 
 #. docker_build label
@@ -296,12 +481,28 @@ msgstr ""
 msgid "BuildKit cache. Safe to remove; the next build is slower once."
 msgstr ""
 
+#. docker_build why
+msgid "Docker's build cache (docker builder prune)"
+msgstr ""
+
 #. docker_containers label
 msgid "Docker: stopped containers"
 msgstr ""
 
 #. docker_containers description
 msgid "Containers that aren't running. Anything stored inside them (not in volumes) is lost."
+msgstr ""
+
+#. docker_containers why
+msgid "Docker's stopped containers (docker container prune)"
+msgstr ""
+
+#. docker_containers why
+msgid "Containers that are running"
+msgstr ""
+
+#. docker_containers why, docker_volumes why
+msgid "Unattended cleaning (automatic, or cm --clean --yes): it may hold your data"
 msgstr ""
 
 #. docker_images label
@@ -312,12 +513,28 @@ msgstr ""
 msgid "Images no container uses. They are pulled again when needed."
 msgstr ""
 
+#. docker_images why
+msgid "Docker's images (docker image prune -a)"
+msgstr ""
+
+#. docker_images why
+msgid "Images a container uses, even a stopped one"
+msgstr ""
+
 #. docker_volumes label
 msgid "Docker: unused volumes"
 msgstr ""
 
 #. docker_volumes description
 msgid "Volumes no container uses — they may hold databases or other data. Review before removing!"
+msgstr ""
+
+#. docker_volumes why
+msgid "Docker's volumes (docker volume prune)"
+msgstr ""
+
+#. docker_volumes why
+msgid "Volumes a container uses, even a stopped one"
 msgstr ""
 
 #. podman label
@@ -328,12 +545,24 @@ msgstr ""
 msgid "podman system prune: stopped containers, untagged image layers and unused networks. Volumes and tagged images are kept."
 msgstr ""
 
+#. podman why
+msgid "Podman's containers and images (podman system prune)"
+msgstr ""
+
+#. podman why
+msgid "Running containers, volumes and tagged images"
+msgstr ""
+
 #. game_launcher_caches label
 msgid "Game launcher caches"
 msgstr ""
 
 #. game_launcher_caches description
 msgid "Installers that winetricks and Wine downloaded, and the cover art and temporary installers of Lutris and Heroic. Downloaded again when needed; Wine prefixes, games and saves are kept. Close the launchers and games first."
+msgstr ""
+
+#. game_launcher_caches why
+msgid "The download caches of winetricks and Wine, and the cover art and installer caches of Lutris and Heroic"
 msgstr ""
 
 #. steam_caches label
@@ -344,12 +573,28 @@ msgstr ""
 msgid "The web cache of Steam's store and library pages, depot manifests, logs and crash dumps. Steam downloads or writes them again; games, downloads, saves, screenshots and your sign-in are kept. Close Steam first."
 msgstr ""
 
+#. steam_caches why
+msgid "The appcache, config/htmlcache, depotcache, logs and dumps folders of each Steam folder"
+msgstr ""
+
 #. minecraft_caches label
 msgid "Minecraft caches"
 msgstr ""
 
 #. minecraft_caches description
 msgid "Launcher logs, crash reports and web cache of Minecraft and Prism Launcher, and the logs and crash reports of each Prism instance. Written again when you play; worlds, mods, resource packs, screenshots, settings and accounts are kept. Close the launcher and the game first."
+msgstr ""
+
+#. minecraft_caches why
+msgid "The logs, crash reports and web cache of ~/.minecraft and Prism Launcher"
+msgstr ""
+
+#. minecraft_caches why
+msgid "the Minecraft Launcher"
+msgstr ""
+
+#. minecraft_caches why
+msgid "Prism Launcher"
 msgstr ""
 
 #. browser_firefox label
@@ -424,6 +669,10 @@ msgstr ""
 msgid "What Files and Open dialogs show under “Recent”. Only the list is cleared — your files are not touched."
 msgstr ""
 
+#. priv_recent why, priv_zsh why, priv_bash why, priv_fish why, priv_repl why, priv_misc why
+msgid "Only the entries go: the file itself stays"
+msgstr ""
+
 #. priv_zsh label
 msgid "Zsh history"
 msgstr ""
@@ -488,12 +737,24 @@ msgstr ""
 msgid "Commands typed in Alt+F2, recently used emoji and characters."
 msgstr ""
 
+#. priv_gsettings why
+msgid "GNOME's settings (gsettings): the Alt+F2 history and recent emoji and characters"
+msgstr ""
+
+#. priv_gsettings why
+msgid "The lists start empty; your other settings are kept"
+msgstr ""
+
 #. priv_browser_firefox label
 msgid "Firefox — history & cookies"
 msgstr ""
 
 #. priv_browser_firefox description
 msgid "Browsing history, the downloads list and cookies of Firefox, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while Firefox is running. Needs sqlite3."
+msgstr ""
+
+#. priv_browser_firefox why, priv_browser_chrome why, priv_browser_chromium why, priv_browser_brave why, priv_browser_edge why, priv_browser_vivaldi why
+msgid "You are signed out of websites; passwords, bookmarks and extensions are kept"
 msgstr ""
 
 #. priv_browser_chrome label
@@ -559,6 +820,11 @@ msgstr ""
 #. ai_claude_history description
 #, python-brace-format
 msgid "Session transcripts, checkpoints and todos older than {0} days. Memory, settings and logins are kept."
+msgstr ""
+
+#. ai_claude_history why, ai_claude_desktop_history why, ai_codex_history why, ai_gemini_history why, ai_opencode_history why, ai_misc_history why
+#, python-brace-format
+msgid "Anything changed in the last {0} days"
 msgstr ""
 
 #. ai_claude_desktop_cache label
@@ -718,6 +984,18 @@ msgstr ""
 msgid "Per-project storage (extension state, search index) of VS Code, Cursor, Windsurf and VSCodium for projects that no longer exist. Each is moved to the Trash; close the editor first."
 msgstr ""
 
+#. vscode_stale_workspaces why
+msgid "The workspaceStorage folder of VS Code, Cursor, Windsurf and VSCodium"
+msgstr ""
+
+#. vscode_stale_workspaces why
+msgid "Projects that still exist"
+msgstr ""
+
+#. vscode_stale_workspaces why
+msgid "VS Code"
+msgstr ""
+
 #. uv_cache label
 msgid "uv cache"
 msgstr ""
@@ -750,6 +1028,10 @@ msgstr ""
 msgid "Debug logs of the Firebase CLI (firebase mcp can grow them to gigabytes). A log still being written is skipped. Your login is kept."
 msgstr ""
 
+#. firebase_logs why
+msgid "A log a program still has open"
+msgstr ""
+
 #. firebase_emulators label
 msgid "Firebase emulators"
 msgstr ""
@@ -764,6 +1046,10 @@ msgstr ""
 
 #. deno_cache description
 msgid "Modules and npm packages Deno downloaded, plus its compiled code. Downloaded again on the next run; localStorage data of scripts (location_data) is kept."
+msgstr ""
+
+#. deno_cache why, zig_cache why, bazel_cache why, ccache_cache why, sccache_cache why, nuget_cache why
+msgid "Folders with a file a program has open"
 msgstr ""
 
 #. zig_cache label
@@ -919,6 +1205,11 @@ msgstr ""
 msgid "Dropbox's logs and the .dropbox.cache of your Dropbox folder (older copies of files) untouched for {0} days. Your files and settings are kept. Skipped while Dropbox runs."
 msgstr ""
 
+#. cloud_dropbox why
+#, python-brace-format
+msgid "Cache files changed in the last {0} days"
+msgstr ""
+
 #. cloud_nextcloud label
 msgid "Nextcloud & ownCloud — cache & logs"
 msgstr ""
@@ -967,12 +1258,36 @@ msgstr ""
 msgid "Node.js (nvm), Python (pyenv), Ruby (rbenv), Rust toolchains (rustup), Go SDKs (~/sdk), SDKMAN candidates (Java, Gradle, Maven…) and Flutter (fvm) versions that aren't your default. Deleted; install one again with the same tool. A version that is running is skipped."
 msgstr ""
 
+#. old_runtimes why
+msgid "The versions folders of nvm, pyenv, rbenv, rustup, SDKMAN, fvm and ~/sdk"
+msgstr ""
+
+#. old_runtimes why
+msgid "Your default version of each tool"
+msgstr ""
+
+#. old_runtimes why, old_runtimes_asdf_mise why
+msgid "A version that is running"
+msgstr ""
+
 #. old_runtimes_asdf_mise label
 msgid "Old runtime versions (asdf, mise)"
 msgstr ""
 
 #. old_runtimes_asdf_mise description
 msgid "Node.js, Python, Ruby, Java and other versions asdf or mise installed that are neither the newest of their tool nor pinned in ~/.tool-versions, mise's settings or a project in your home folder. Deleted; install one again with asdf install or mise install. A version that is running is skipped. Close asdf and mise first."
+msgstr ""
+
+#. old_runtimes_asdf_mise why
+msgid "The installs folders of asdf and mise"
+msgstr ""
+
+#. old_runtimes_asdf_mise why
+msgid "The newest version of each tool"
+msgstr ""
+
+#. old_runtimes_asdf_mise why
+msgid "Versions pinned in ~/.tool-versions, mise's settings or a project in your home folder"
 msgstr ""
 
 #. unity_old_editors label
@@ -984,6 +1299,22 @@ msgstr ""
 msgid "Unity Editor versions Unity Hub installed, often {0}–{1} GB each, other than the newest and those your projects use (ProjectSettings/ProjectVersion.txt). Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
 msgstr ""
 
+#. unity_old_editors why
+msgid "The folders Unity Hub installs editors in"
+msgstr ""
+
+#. unity_old_editors why
+msgid "The newest version"
+msgstr ""
+
+#. unity_old_editors why
+msgid "Versions your projects use"
+msgstr ""
+
+#. unity_old_editors why
+msgid "Unity Hub"
+msgstr ""
+
 #. vagrant_old_boxes label
 msgid "Old Vagrant boxes"
 msgstr ""
@@ -991,6 +1322,14 @@ msgstr ""
 #. vagrant_old_boxes description
 #, python-brace-format
 msgid "Box versions Vagrant downloaded (~/.vagrant.d/boxes), often {0}.{1}–{2} GB each, other than the newest of each box and those your machines use. Deleted; vagrant downloads one again when needed. Close Vagrant first."
+msgstr ""
+
+#. vagrant_old_boxes why
+msgid "The newest version of each box"
+msgstr ""
+
+#. vagrant_old_boxes why
+msgid "Versions your machines use"
 msgstr ""
 
 #. unity_caches label
@@ -1009,6 +1348,22 @@ msgstr ""
 msgid "Android emulator system images no virtual device (AVD) uses, often several GB each. Deleted; download one again with Android Studio's SDK Manager. Close Android Studio and the emulator first."
 msgstr ""
 
+#. android_images why
+msgid "The system-images folder of your Android SDK"
+msgstr ""
+
+#. android_images why
+msgid "System images a virtual device uses"
+msgstr ""
+
+#. android_images why, android_sdk_old why
+msgid "Android Studio"
+msgstr ""
+
+#. android_images why, android_sdk_old why, android_avd_snapshots why
+msgid "the emulator"
+msgstr ""
+
 #. android_sdk_old label
 msgid "Old Android SDK components"
 msgstr ""
@@ -1017,12 +1372,32 @@ msgstr ""
 msgid "Old NDK, build-tools, SDK platform and CMake versions in your Android SDK. The newest of each and the versions a project in your home folder pins (build.gradle, local.properties) are kept. A project elsewhere may still need one: download it again with Android Studio's SDK Manager. Close Android Studio, Gradle and the emulator first."
 msgstr ""
 
+#. android_sdk_old why
+msgid "Your Android SDK (~/Android/Sdk, ANDROID_HOME)"
+msgstr ""
+
+#. android_sdk_old why
+msgid "The newest version of each component"
+msgstr ""
+
+#. android_sdk_old why
+msgid "Versions a project in your home folder pins (build.gradle, local.properties)"
+msgstr ""
+
 #. android_avd_snapshots label
 msgid "Android emulator snapshots"
 msgstr ""
 
 #. android_avd_snapshots description
 msgid "Saved states (quick-boot snapshots) of your Android emulator virtual devices, often several GB each. Deleted; the next start is a cold boot and the emulator saves a new one. Apps and data on the device are kept. Close the emulator first."
+msgstr ""
+
+#. android_avd_snapshots why
+msgid "The folders of your Android virtual devices"
+msgstr ""
+
+#. android_avd_snapshots why
+msgid "The apps and data on each virtual device"
 msgstr ""
 
 #. game_runners_old label
@@ -1034,12 +1409,40 @@ msgstr ""
 msgid "Proton and Wine builds (Proton-GE, Wine-GE…) that Steam, Lutris, Heroic or Bottles left behind, often {0}.{1}–{2} GB each. The newest of each and the versions a game or bottle is set to use are kept. Deleted; download one again with the launcher or ProtonUp-Qt. Close the launchers and games first."
 msgstr ""
 
+#. game_runners_old why
+msgid "The Proton and Wine folders of Steam, Lutris, Heroic and Bottles"
+msgstr ""
+
+#. game_runners_old why
+msgid "The newest version of each"
+msgstr ""
+
+#. game_runners_old why
+msgid "Versions a game or bottle is set to use"
+msgstr ""
+
+#. game_runners_old why
+msgid "Wine and Proton games"
+msgstr ""
+
 #. jetbrains_old_versions label
 msgid "Old IDE versions"
 msgstr ""
 
 #. jetbrains_old_versions description
 msgid "Settings, plugins, caches and logs of JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm…) and Android Studio versions that a newer version of the same IDE replaced. Moved to the Trash; skipped while that IDE runs."
+msgstr ""
+
+#. jetbrains_old_versions why
+msgid "The folders of each IDE version in ~/.config, ~/.local/share and ~/.cache (JetBrains, Google)"
+msgstr ""
+
+#. jetbrains_old_versions why
+msgid "The newest version of each IDE"
+msgstr ""
+
+#. jetbrains_old_versions why
+msgid "An IDE that is running"
 msgstr ""
 
 #. vscode_old_extensions label
@@ -1051,6 +1454,18 @@ msgstr ""
 msgid "Versions of VS Code, Cursor, Windsurf and VSCodium extensions that an update left behind, often {0}–{1} MB each. The version in use is kept. Deleted; the editor downloads any version again. Skipped while that editor runs."
 msgstr ""
 
+#. vscode_old_extensions why
+msgid "The extensions folder of VS Code, Cursor, Windsurf and VSCodium"
+msgstr ""
+
+#. vscode_old_extensions why
+msgid "The version in use"
+msgstr ""
+
+#. vscode_old_extensions why
+msgid "An editor that is running"
+msgstr ""
+
 #. ollama_partial label
 msgid "Ollama — unfinished downloads"
 msgstr ""
@@ -1059,11 +1474,19 @@ msgstr ""
 msgid "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again."
 msgstr ""
 
+#. ollama_partial why
+msgid "Complete models are kept; ollama pull starts the download again"
+msgstr ""
+
 #. ai_model_caches label
 msgid "PyTorch, Whisper & Keras — models"
 msgstr ""
 
 #. ai_model_caches description
 msgid "Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a program needs one. A model in use is skipped."
+msgstr ""
+
+#. ai_model_caches why
+msgid "A model a program has open"
 msgstr ""
 

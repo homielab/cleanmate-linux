@@ -15,7 +15,7 @@
 
 One JSON object per line, ending with `{"event":"done"}`; failures are `{"event":"error","message":…}` with exit code 2.
 
-- `items`: every item (`id`, `category`, `label`, `description`, `default`, `root`, `trash`, `data_loss`: deleted for good and may hold data — `docker_volumes`, `docker_containers`; cleaned only when named).
+- `items`: every item (`id`, `category`, `label`, `description`, `default`, `root`, `trash`, `data_loss`: deleted for good and may hold data — `docker_volumes`, `docker_containers`; cleaned only when named), and `why`: why it is safe to clean — `effect` (`regenerated`: deleted, its app or tool rebuilds it; `trash`: moved to the Trash; `delete`: deleted for good), `where` (its paths that exist, `~` for the home folder; all its paths when none exists), `where_note` (where it is, in words, for items without a fixed path), `after` (what cleaning does), `skipped` (when it is left alone, with the current settings), `running` (programs whose running makes it skip; set only for items that check), `folders` (its folders in your home folder: what Settings › Never clean takes). "What it is" is `description`.
 - `scan [--only LIST]`: the same plus `status`, `bytes`, `note`, `selected`, `locked`, `entries` and `durationMs` (how long that item's scan took, whole milliseconds; items are scanned in parallel, so their times overlap); done line has `total_bytes`, `locations` and `durationMs` (the whole scan; `ms` is the same number).
 - `details ID`: `lines` explaining the item; items that can be cleaned in parts also list `entry` events.
 - `clean ID…` and `clean ID --entries E1,E2`: see SKILL.md. Honors `--dry-run`. As root only system items are allowed.

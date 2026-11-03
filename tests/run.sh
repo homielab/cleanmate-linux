@@ -2886,8 +2886,8 @@ for l in sys.stdin:
   mkdir -p "$WORK/nodebin" && printf '#!/bin/sh\n' >"$WORK/nodebin/node" && chmod 755 "$WORK/nodebin" "$WORK/nodebin/node"
   out=$(BASE_PATH="$WORK/nodebin:$BASE_PATH" user_cm --json scan --only dev,system | python3 -c "$tasks" |
     grep -E '^(node_modules|stale_build_dirs|old_installers) ')
-  assert_eq "$out" $'node_modules 0 0 projects idle for 90+ days\nstale_build_dirs 0 \nold_installers 0 ' \
-    "stale node_modules, build folders and old installers skip excluded folders"
+  assert_eq "$out" $'node_modules 0 0 projects idle for 90+ days\nstale_build_dirs 0 ' \
+    "stale node_modules and build folders skip excluded folders; old installers, whose Downloads is excluded, are left out"
   user_cm --json settings-set exclusions remove "$keep" >/dev/null
   user_cm --json settings-set exclusions remove "$d/Downloads" >/dev/null
   out=$(BASE_PATH="$WORK/nodebin:$BASE_PATH" user_cm --json scan --only dev,system | python3 -c "$tasks" |
@@ -2897,6 +2897,54 @@ for l in sys.stdin:
   if ((EUID == 0)); then
     out=$(cm --json settings-set exclusions add "$d/notes" 2>&1); assert_contains "$out" "run this as yourself, not as root"
   fi
+}
+
+test_every_item_explains_why_it_is_safe() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local d=$HOME_DIR out check show
+  sized "$d/.npm/_cacache/x" 5000; sized "$d/.cache/pip/y" 4000; new "$d/.claude/settings.json"
+  # every item: what it is, where it is, what cleaning does, when it is skipped (a new item without why fails here)
+  check='import sys, json
+bad, n = [], 0
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] != "item": continue
+    n += 1
+    w = e.get("why") or {}
+    if w.get("effect") not in ("regenerated", "trash", "delete"): bad.append(e["id"] + ":effect")
+    if not e["description"]: bad.append(e["id"] + ":what")
+    if not (w.get("where") or w.get("where_note")): bad.append(e["id"] + ":where")
+    if not w.get("after"): bad.append(e["id"] + ":after")
+    for k in ("skipped", "running", "folders"):
+        if not isinstance(w.get(k), list): bad.append(e["id"] + ":" + k)
+    if e["trash"] != (w.get("effect") == "trash"): bad.append(e["id"] + ":trash")
+    if "%" in "".join(w.get("skipped", [])): bad.append(e["id"] + ":setting")
+print(n > 100, " ".join(bad) or "ok")'
+  assert_eq "$(user_cm --json items | python3 -c "$check")" "True ok" "every item explains why it is safe"
+  out=$(in_app 'for id in "${ITEM_IDS[@]}"; do [[ -n ${ITEM_EFFECT[$id]:-} ]] || echo "$id"; done')
+  assert_eq "$out" "" "every registered item calls why"
+  show='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] in ("npm", "pip", "ai_claude_history", "trash", "journal"):
+        w = e["why"]
+        print(e["id"], e.get("status", "-"), w["effect"], ",".join(w["where"]), ",".join(p.rsplit("/", 1)[1] for p in w["folders"]),
+              ",".join(w["running"]), "|".join(w["skipped"]))
+    elif e["event"] == "task": print(e["id"], e["state"], e["info"])'
+  out=$(user_cm --json scan | python3 -c "$show")
+  assert_contains "$out" "npm found regenerated ~/.npm/_cacache _cacache  Its folder is in Settings › Never clean"
+  assert_contains "$out" "ai_claude_history clean delete ~/.claude .claude claude Anything changed in the last 30 days|Its folder"
+  assert_contains "$out" "|Automatic cleaning leaves it alone" "unticked history isn't cleaned automatically"
+  # Never clean on the item's folder: the next scan leaves the item out, and a clean skips it
+  user_cm --json settings-set exclusions add "$d/.npm/_cacache" >/dev/null
+  user_cm --json scan >"$WORK/scan.json"
+  out=$(python3 -c "$show" <"$WORK/scan.json")
+  assert_eq "$(grep -c '"id":"npm"' "$WORK/scan.json")" 0 "an item in Never clean is left out"
+  assert_contains "$out" "pip found regenerated"
+  out=$(user_cm --json clean npm | python3 -c "$show")
+  assert_contains "$out" "npm skip In Settings › Never clean"
+  assert_exists "$d/.npm/_cacache/x"
 }
 
 test_json_recent_files_and_activity() {

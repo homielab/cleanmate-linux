@@ -110,6 +110,7 @@ def run(app, win):
         page.checks[first["id"]].set_active(not page.checks[first["id"]].get_active())  # restore
         check_group(first)
         check_locked(found)
+        check_why(first)
         page.show_details(first)
         GLib.timeout_add(1500, lambda: (after_details(), False)[1])
 
@@ -152,6 +153,18 @@ def run(app, win):
         report(not any(page.selected[x["id"]] for x in locked), "group boxes leave locked rows unticked")
         for i, on in before.items():  # restore
             page.checks[i].set_active(on)
+
+    def check_why(first):
+        """The ⓘ popover: four parts in the app's language; every item's why lines are translated."""
+        shown = labels(page.why_popover(first))
+        parts = [_("What it is"), _("Where it is"), _("After cleaning"), _("Skipped when")]
+        report(all(p in shown for p in parts) and i18n.item_text(first["description"]) in shown,
+               f"“{first['label']}” explains why it is safe: what, where, after cleaning, skipped when")
+        lines = {t for e in page.items.values() for k in ("where_note", "after", "skipped") for t in e["why"][k]}
+        missing = sorted(t for t in lines if i18n.untranslated(t))
+        for t in missing:
+            print(f"SELFTEST warn untranslated why line: {t}", flush=True)
+        report(not missing, f"why lines translated: {len(lines) - len(missing)} of {len(lines)}")
 
     def after_details():
         user_items = [e for e in page.items.values()
@@ -1762,7 +1775,10 @@ def scan_tools_test(win, report, wait, finish):
     os.makedirs(trip)
     os.makedirs(bin_dir)
     old = time.time() - 120 * 86400  # older than Old downloads' 90 days
-    for path, size in ((os.path.join(trip, "a.jpg"), 4000), (os.path.join(home, "Downloads", "notes.pdf"), 3000)):
+    pictures = os.path.join(home, "Pictures")  # Old screenshots, for Never Clean in the ⓘ popover
+    os.makedirs(pictures)
+    for path, size in ((os.path.join(trip, "a.jpg"), 4000), (os.path.join(home, "Downloads", "notes.pdf"), 3000),
+                       (os.path.join(pictures, "Screenshot from 2025-01-02.png"), 2000)):
         with open(path, "wb") as f:
             f.write(b"\0" * size)
         os.utime(path, (old, old))
@@ -1918,6 +1934,33 @@ def scan_tools_test(win, report, wait, finish):
 
     def rescanned_after():
         report(page.clean_summary is None, "a new scan clears the summary")
+        e = page.items.get("old_screenshots", {})
+        report(e.get("status") == "found" and e["why"]["folders"] == [pictures], "Old screenshots are found, in Pictures")
+        if e.get("status") != "found":
+            return done()
+        page.never_clean_item("old_screenshots", e["why"]["folders"])
+        wait(lambda: page.excluding is None, item_excluded, 30, "Never clean on an item")
+
+    def listed():
+        path = os.path.join(home, ".config", "cleanmate", "exclude")
+        return open(path).read().splitlines() if os.path.exists(path) else []
+
+    def item_excluded():
+        report(pictures in listed() and not page.item_rows["old_screenshots"].get_visible()
+               and not page.selected["old_screenshots"],
+               "Never Clean in the ⓘ popover adds the item's folder to Settings › Never clean and hides the item")
+        page.scan()
+        wait(lambda: idle() and page.stack.get_visible_child_name() == "results", scan_without, 60, "the scan after Never Clean")
+
+    def scan_without():
+        report(page.items.get("old_screenshots", {}).get("status") != "found", "a new scan leaves the item out")
+        page.allow_clean_all([pictures])
+        wait(lambda: pictures not in listed() and idle()
+             and page.items.get("old_screenshots", {}).get("status") == "found",
+             allowed, 60, "Undo of Never Clean")
+
+    def allowed():
+        report(True, "Undo takes the folder out of Never clean and the item is found again")
         done()
 
     page.scan()

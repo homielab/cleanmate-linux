@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- Desktop app: **Why is this safe?** — an ⓘ button on every Smart Scan and Privacy item says what it is, where it is, what cleaning does (rebuilt, moved to the Trash or deleted for good) and when it is skipped; **Open Folder** and **Never Clean** (the item's folders go to *Settings › Never clean*, and scans leave it out). A row locked by a running program names it. `cm --json items` and `scan` carry the same as `why`.
 - **Settings › Scan groups**: turn off a whole group (System Junk, Logs, User & App Junk, AI Tools, Developer Junk, Privacy) and Smart Scan leaves it out in both apps, `cm --scan`, `--clean` and automatic cleaning; its page in the desktop app says it is off, with **Turn On**.
 - Desktop app: a notification with what a clean freed when the window isn't in front; it reopens on the last page and at the last size; Ctrl+0 and Ctrl+Shift+1…4 open Large & Old Files, Duplicates, Uninstaller, Startup Items and Maintenance; every icon-only button has a name for screen readers.
 - Desktop app, **Large & Old Files**, **Duplicates** and **Similar Photos**: images and videos show a thumbnail, **Open** (or Enter on a row) opens a file in its default app, and Similar Photos shows the photo you point at large beside the list, the suggested one marked. Large & Old Files sorts by size, date modified, name or kind and can show only videos, images, disk images and virtual machines, archives, documents or other files.

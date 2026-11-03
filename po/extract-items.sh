@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The cleanup items' names and descriptions (every `reg` of cleanmate.sh, as `--json items` lists
-# them with default settings) → po/items.pot, then merged into po/cleanmate.pot. Run it after
+# The cleanup items' names, descriptions and "Why is this safe?" lines (every `reg` and `why` of
+# cleanmate.sh, as `--json items` lists them with default settings) → po/items.pot, then merged into po/cleanmate.pot. Run it after
 # xgettext (CONTRIBUTING.md › Translations). Numbers become {0}, {1}… like the desktop app's
 # lookup (gui/cleanmate_gui/i18n.py), so "older than 30 days" is translated for any number of days.
 # Needs bash 4+, python3 and msgcat (gettext).
@@ -17,8 +17,11 @@ for line in sys.stdin:
     e = json.loads(line)
     if e.get("event") != "item":
         continue
-    for field in ("label", "description"):
-        text = e[field]
+    why = e.get("why") or {}
+    texts = [(e["label"], "label"), (e["description"], "description")]
+    texts += [(t, "why") for k in ("where_note", "after", "skipped") for t in why.get(k, [])]
+    texts += [(t, "why") for t in why.get("running", []) if " " in t]  # "the emulator", not process names
+    for text, field in texts:
         if not text:
             continue
         brace = False
@@ -28,9 +31,10 @@ for line in sys.stdin:
         if text not in where:
             order.append(text)
             where[text] = [brace]
-        where[text].append(e["id"] + " " + field)
+        if len(where[text]) < 7:  # a line many items share names a few of them
+            where[text].append(e["id"] + " " + field)
 q = lambda s: "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
-print("# Cleanup item names and descriptions from cleanmate.sh (po/extract-items.sh).")
+print("# Cleanup item names, descriptions and why lines from cleanmate.sh (po/extract-items.sh).")
 print("msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n")
 for text in order:
     brace, *ids = where[text]

@@ -1023,6 +1023,21 @@ SCAN_GROUPS=(system logs user ai dev privacy)
 
 reg() { ITEM_IDS+=("$1"); ITEM_CAT[$1]=$2; ITEM_LABEL[$1]=$3; ITEM_DEFAULT[$1]=$4; ITEM_DESC[$1]=$5; }
 
+# "Why is this safe?" of each item (cm --json items|scan → "why"; the desktop app's ⓘ popover): what it is
+# (its description), where it is, what cleaning does and when it is skipped. Every item needs one (tests
+# check it): reg_*_item fill theirs, a hand-written reg item calls why next to it.
+#   EFFECT  regenerated (deleted; the app or tool makes it again) | trash (moved to your Trash) | delete (for good)
+#   WHERE   newline-separated lines: a path (~ or /), @NAME (an array, scalar or function giving paths) or a sentence
+#   SKIPPED sentences; %VAR% is replaced by that setting's value
+# ITEM_AFTER adds a sentence to "after cleaning"; ITEM_RUNNING names the programs that make it skip, "A|B",
+# when they aren't the item's process names.
+declare -A ITEM_EFFECT ITEM_WHERE ITEM_AFTER ITEM_SKIP ITEM_RUNNING
+why() { # ID EFFECT WHERE [SKIPPED…]
+  ITEM_EFFECT[$1]=$2 ITEM_WHERE[$1]=$3
+  local IFS=$'\n'
+  ITEM_SKIP[$1]="${*:4}"
+}
+
 #   id           category label                          default  description
 reg apt_cache    system "APT package cache"                 1 "Downloaded .deb installers. apt re-downloads them if ever needed."
 reg packagekit_cache system "PackageKit cache"              1 "Packages and package lists GNOME Software and Software Updater downloaded. They are downloaded again when needed."
@@ -1072,6 +1087,13 @@ declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 
 # inside a container): an unattended clean (--clean --yes, --auto) leaves them even when ticked; only
 # `--json clean ID` naming them, or a clean the user confirms, removes them
 declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1)
+# items automatic cleaning (--auto) never cleans, even when ticked: it never empties a Trash or resets a
+# search index behind your back, and you pick which projects to rebuild, images, runtimes, Unity editors,
+# SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
+declare -A AUTO_NEVER=([trash]=1 [trash_drives]=1 [tracker_index]=1 [baloo_index]=1 [stale_build_dirs]=1
+  [android_images]=1 [android_avd_snapshots]=1 [android_sdk_old]=1 [game_runners_old]=1 [old_runtimes]=1
+  [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [jetbrains_old_versions]=1
+  [vscode_old_extensions]=1)
 # items whose scan only looks at a few folders (test, du) and runs no other tool that
 # could hang: a scan runs them in a few shared processes, one after the other, since a
 # process each costs more than the scan. reg_cache_item, reg_list_item and reg_folders_item add theirs;
@@ -1079,6 +1101,61 @@ declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1)
 declare -A ITEM_LIGHT=([bun]=1 [cargo]=1 [gobuild]=1 [gradle]=1 [maven]=1 [npm]=1 [pip]=1 [pnpm]=1 [yarn]=1 [thumbs]=1 [trash]=1
   [android_avd_snapshots]=1 [android_images]=1 [android_sdk_old]=1 [game_runners_old]=1
   [jetbrains_old_versions]=1 [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [vscode_old_extensions]=1)
+
+#   id                effect      where                                   skipped when
+why apt_cache         regenerated "/var/cache/apt/archives"
+why packagekit_cache  regenerated "/var/cache/PackageKit"
+ITEM_RUNNING[packagekit_cache]="PackageKit|GNOME Software|Software Updater"
+why old_installers    trash       "@downloads_dir" "Installers downloaded in the last %OLD_INSTALLER_DAYS% days" \
+  "Anything inside a folder of Downloads (only the top of it is looked at)"
+why old_downloads     trash       "@downloads_dir" "Anything opened or changed in the last %OLD_DOWNLOAD_DAYS% days"
+why old_screenshots   trash       "@pictures_dir" "Anything opened or changed in the last %OLD_DOWNLOAD_DAYS% days" \
+  "Other pictures: only screenshots and screen recordings are looked at"
+why abandoned_downloads trash     "@downloads_dir" "Downloads that changed or were opened in the last %ABANDONED_DAYS% days"
+why orphans           delete      "Packages apt installed only because another package needed them (apt autoremove)" \
+  "Packages you installed yourself, and anything an installed package still needs"
+ITEM_AFTER[orphans]="apt can install them again"
+why residual          delete      "System config files (/etc) of packages that were removed but not purged" \
+  "Packages that are still installed"
+why journal           delete      "/var/log/journal" "The last %JOURNAL_KEEP_DAYS% days and the newest %JOURNAL_KEEP_MB% MB of logs"
+why old_logs          delete      "/var/log" "Logs still being written: only rotated and compressed files are removed"
+why big_logs          delete      "/var/log" "Logs under %LOG_MAX_MB% MB"
+ITEM_AFTER[big_logs]="Emptied in place: the service keeps writing to the same file"
+why app_logs          delete      "The log folders of apps in ~/.config, ~/.local/share, ~/snap and ~/.var/app" \
+  "Logs written in the last %APPLOG_DAYS% days"
+why crash             delete      "/var/crash"
+why coredump          delete      "/var/lib/systemd/coredump"
+why snap_old          delete      "/var/lib/snapd/snaps" "The version of each snap that runs now"
+ITEM_AFTER[snap_old]="The snap can no longer go back to these versions"
+why old_kernels       delete      "/boot" "The kernel that runs now and your two newest kernels"
+why tmp               delete      "/tmp
+/var/tmp" "Files used in the last %TMP_DAYS% days" "Files of other users"
+why thumbs            regenerated "~/.cache/thumbnails"
+why trash             delete      "@TRASH_DIR"
+ITEM_AFTER[trash]="Emptying the Trash can't be undone"
+why trash_drives      delete      "The Trash folder of each USB stick or other drive you plugged in"
+ITEM_AFTER[trash_drives]="Emptying a Trash can't be undone"
+why app_cache         regenerated "~/.cache" "Files changed or read in the last %CACHE_DAYS% days"
+why node_modules      regenerated "node_modules folders of your projects" "Projects changed in the last %NM_DAYS% days" \
+  "Projects in a folder in Settings › Never clean"
+why stale_build_dirs  trash       "Build folders next to the project file that makes them" \
+  "Projects changed in the last %NM_DAYS% days" "Projects in a folder in Settings › Never clean"
+why npm               regenerated "@NPM_PATHS"
+why yarn              regenerated "@YARN_PATHS"
+why pnpm              regenerated "@PNPM_PATHS" "Packages a project still uses (pnpm store prune)"
+why bun               regenerated "@BUN_PATHS"
+why pip               regenerated "@PIP_PATHS"
+why gobuild           regenerated "@GO_PATHS"
+why cargo             regenerated "@CARGO_PATHS"
+why gradle            regenerated "@GRADLE_PATHS"
+why maven             regenerated "@MAVEN_PATHS"
+why conda             regenerated "Conda's package folders (pkgs)" "Your environments: only downloaded archives, the index cache and logs go"
+why docker_dangling   delete      "Docker's image store (docker image prune)" "Image layers a tagged image or a container uses"
+why docker_build      regenerated "Docker's build cache (docker builder prune)"
+why docker_containers delete      "Docker's stopped containers (docker container prune)" "Containers that are running"
+why docker_images     regenerated "Docker's images (docker image prune -a)" "Images a container uses, even a stopped one"
+why docker_volumes    delete      "Docker's volumes (docker volume prune)" "Volumes a container uses, even a stopped one"
+why podman            delete      "Podman's containers and images (podman system prune)" "Running containers, volumes and tagged images"
 
 # ── detail helpers ──
 
@@ -2016,6 +2093,7 @@ reg_folders_item() {
   [[ $id =~ ^[a-z0-9_]+$ ]] || return 1 # ids become function names below
   reg "$id" "$2" "$3" "$4" "$5"
   FOLDERS_FN[$id]=$6 FOLDERS_PROCS[$id]=$7 ITEM_LIGHT[$id]=1
+  why "$id" regenerated "@$6"
   declare -g "ENTRY_RE_$id=^/[A-Za-z0-9/._~%-]+\$" # the cache folder's full path, percent-encoded
   eval "scan_$id() { folders_scan $id; }
         clean_$id() { folders_clean $id; }
@@ -2108,6 +2186,7 @@ game_launcher_cache_dirs() { # → "label<TAB>folder"
 }
 reg_folders_item game_launcher_caches user "Game launcher caches" 1 "Installers that winetricks and Wine downloaded, and the cover art and temporary installers of Lutris and Heroic. Downloaded again when needed; Wine prefixes, games and saves are kept. Close the launchers and games first." \
   game_launcher_cache_dirs "$GAME_PROCS|legendary"
+ITEM_WHERE[game_launcher_caches]+=$'\n'"The download caches of winetricks and Wine, and the cover art and installer caches of Lutris and Heroic"
 
 # Steam caches: the web and app cache of its store and library pages (appcache/httpcache,
 # config/htmlcache), depot manifests (depotcache), logs and crash dumps, in every Steam folder
@@ -2133,6 +2212,7 @@ steam_cache_dirs() { # → "label<TAB>folder", real paths in your home
 }
 reg_folders_item steam_caches user "Steam caches" 1 "The web cache of Steam's store and library pages, depot manifests, logs and crash dumps. Steam downloads or writes them again; games, downloads, saves, screenshots and your sign-in are kept. Close Steam first." \
   steam_cache_dirs 'steam|steamwebhelper'
+ITEM_WHERE[steam_caches]+=$'\n'"The appcache, config/htmlcache, depotcache, logs and dumps folders of each Steam folder"
 
 # Minecraft caches: the official launcher's logs, crash-reports and web cache (webcache2, webcache in
 # older versions) in ~/.minecraft and the Flatpak copy; Prism Launcher's logs and download cache
@@ -2188,6 +2268,8 @@ minecraft_cache_dirs() { # → "label<TAB>folder", real paths in your home
 }
 reg_folders_item minecraft_caches user "Minecraft caches" 1 "Launcher logs, crash reports and web cache of Minecraft and Prism Launcher, and the logs and crash reports of each Prism instance. Written again when you play; worlds, mods, resource packs, screenshots, settings and accounts are kept. Close the launcher and the game first." \
   minecraft_cache_dirs 'minecraft-launc.*|prismlauncher'
+ITEM_WHERE[minecraft_caches]+=$'\n'"The logs, crash reports and web cache of ~/.minecraft and Prism Launcher"
+ITEM_RUNNING[minecraft_caches]="the Minecraft Launcher|Prism Launcher|Minecraft"
 # A game is a process named only "java" (or javaw): its command line tells it apart, by the main
 # class (net.minecraft.*, Prism's or MultiMC's EntryPoint), the --gameDir / --assetsDir arguments,
 # or a .minecraft or Prism instance folder. A command line that can't be read counts as the game.
@@ -2299,6 +2381,7 @@ reg_cache_item() { # ID CATEGORY LABEL DEFAULT DESCRIPTION PATHS [PROCESS_REGEX]
   reg "$id" "$2" "$3" "$4" "$5"
   ITEM_PATHS[$id]=$6
   ITEM_PROCS[$id]=${7:-} ITEM_LIGHT[$id]=1
+  why "$id" regenerated "$6"
   eval "scan_$id() { cache_item_scan $id; }
         clean_$id() { cache_item_clean $id; }
         details_$id() { cache_item_details $id; }"
@@ -2480,6 +2563,8 @@ reg_privacy_item() { # ID LABEL DEFAULT DESCRIPTION MODE NOUN PATHS [SHELL_CMDLI
   [[ $id =~ ^[a-z0-9_]+$ ]] || return 1
   reg "$id" privacy "$2" "$3" "$4"
   PRIV_MODE[$id]=$5 PRIV_NOUN[$id]=$6 ITEM_PATHS[$id]=$7 ITEM_PROCS[$id]=${8:-}
+  why "$id" delete "$7"
+  [[ $5 == delete ]] || ITEM_AFTER[$id]="Only the entries go: the file itself stays"
   eval "scan_$id() { priv_scan $id; }
         clean_$id() { priv_clean $id; }
         details_$id() { priv_details $id; }"
@@ -2529,6 +2614,8 @@ GS_HISTORY_KEYS=("org.gnome.shell command-history" "org.gnome.shell looking-glas
   "org.gnome.Characters recent-characters")
 reg priv_gsettings privacy "Run dialog & emoji history" 1 \
   "Commands typed in Alt+F2, recently used emoji and characters."
+why priv_gsettings delete "GNOME's settings (gsettings): the Alt+F2 history and recent emoji and characters"
+ITEM_AFTER[priv_gsettings]="The lists start empty; your other settings are kept"
 gs_nonempty_keys() {
   local k v schema key
   for k in "${GS_HISTORY_KEYS[@]}"; do
@@ -2719,6 +2806,8 @@ reg_browser_privacy() { # ID LABEL KIND PROCESS_REGEX PROFILE_ROOTS [CMDLINE_REG
   reg "$id" privacy "$2 — history & cookies" 0 \
     "Browsing history, the downloads list and cookies of $2, in every profile. Signs you out of websites; passwords, bookmarks and extensions are kept. Skipped while $2 is running.$extra"
   BPRIV_KIND[$id]=$3 ITEM_PROCS[$id]=$4 ITEM_PATHS[$id]=$5 ITEM_ARGS[$id]=${6:-}
+  why "$id" delete "$5"
+  ITEM_AFTER[$id]="You are signed out of websites; passwords, bookmarks and extensions are kept"
   eval "scan_$id() { bpriv_scan $id; }
         clean_$id() { bpriv_clean $id; }
         details_$id() { bpriv_details $id; }
@@ -2838,6 +2927,8 @@ reg_list_item() { # ID LABEL DEFAULT NOUN DESCRIPTION LIST_FN ROOTS [PROCESS_REG
   [[ $id =~ ^[a-z0-9_]+$ ]] || return 1
   reg "$id" "${LIST_CAT:-ai}" "$2" "$3" "$5"
   LIST_NOUN[$id]=$4 LIST_FN[$id]=$6 LIST_ROOTS[$id]=$7 ITEM_PROCS[$id]=${8:-} LIST_RUN_DEFAULT[$id]=${9:-y} ITEM_LIGHT[$id]=1
+  if [[ $id == *_history ]]; then why "$id" delete "$7" "Anything changed in the last %AI_HISTORY_DAYS% days"
+  else why "$id" regenerated "$7"; fi
   eval "scan_$id() { list_scan $id; }
         clean_$id() { list_clean $id; }
         details_$id() { list_details $id; }"
@@ -3014,6 +3105,9 @@ reg_list_item ai_misc_history "Copilot & Continue — sessions" 0 session \
   ai_misc_history "$HOME/.copilot
 $HOME/.continue"
 reg vscode_stale_workspaces ai "VS Code & forks — data of deleted projects" 0 "Per-project storage (extension state, search index) of VS Code, Cursor, Windsurf and VSCodium for projects that no longer exist. Each is moved to the Trash; close the editor first."
+why vscode_stale_workspaces trash "@editor_workspace_roots
+The workspaceStorage folder of VS Code, Cursor, Windsurf and VSCodium" "Projects that still exist"
+ITEM_RUNNING[vscode_stale_workspaces]="VS Code|VSCodium|Cursor|Windsurf"
 unset _c _d
 
 # Editor data of projects that no longer exist. VS Code and its forks keep a folder per workspace in
@@ -3709,6 +3803,7 @@ firebase_emulators() { contents "$HOME/.cache/firebase/emulators"; }
 LIST_CAT=dev reg_list_item firebase_logs "Firebase CLI logs" 1 file \
   "Debug logs of the Firebase CLI (firebase mcp can grow them to gigabytes). A log still being written is skipped. Your login is kept." \
   firebase_logs "$HOME/.cache/firebase"
+why firebase_logs delete "$HOME/.cache/firebase" "A log a program still has open"
 LIST_CAT=dev reg_list_item firebase_emulators "Firebase emulators" 0 item \
   "Emulators the Firebase CLI downloaded (Firestore, Database, Pub/Sub, UI…). Downloaded again when you start them." \
   firebase_emulators "$HOME/.cache/firebase"
@@ -3965,6 +4060,7 @@ cloud_mega() { contents "$HOME/.local/share/data/Mega Limited/MEGAsync/logs" | c
 LIST_CAT=apps reg_list_item cloud_dropbox "Dropbox — cache & logs" 0 item \
   "Dropbox's logs and the .dropbox.cache of your Dropbox folder (older copies of files) untouched for 7 days. Your files and settings are kept. Skipped while Dropbox runs." \
   cloud_dropbox "$HOME/.dropbox" 'dropbox'
+ITEM_SKIP[cloud_dropbox]="Cache files changed in the last %CLOUD_CACHE_DAYS% days"
 LIST_CAT=apps reg_list_item cloud_nextcloud "Nextcloud & ownCloud — cache & logs" 0 item \
   "Logs and cache of the Nextcloud and ownCloud desktop clients. Your synced folders and settings are kept. Skipped while the client runs." \
   cloud_nextcloud "$HOME/.cache/Nextcloud
@@ -4025,6 +4121,8 @@ unset _p
 # (the tool installs them again); alias/, current, default, version, settings.toml, shims, downloads and
 # .nvmrc are never touched. Not ticked; the desktop app lists each version.
 reg old_runtimes dev "Old runtime versions" 0 "Node.js (nvm), Python (pyenv), Ruby (rbenv), Rust toolchains (rustup), Go SDKs (~/sdk), SDKMAN candidates (Java, Gradle, Maven…) and Flutter (fvm) versions that aren't your default. Deleted; install one again with the same tool. A version that is running is skipped."
+why old_runtimes delete "The versions folders of nvm, pyenv, rbenv, rustup, SDKMAN, fvm and ~/sdk" \
+  "Your default version of each tool" "A version that is running"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_old_runtimes='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
 
@@ -4357,6 +4455,10 @@ clean_entries_old_runtimes() { # encoded version folders (json_clean_entries onl
 # settings files are never touched. Skipped while asdf or mise runs. Not ticked; the desktop app lists
 # each version.
 reg old_runtimes_asdf_mise dev "Old runtime versions (asdf, mise)" 0 "Node.js, Python, Ruby, Java and other versions asdf or mise installed that are neither the newest of their tool nor pinned in ~/.tool-versions, mise's settings or a project in your home folder. Deleted; install one again with asdf install or mise install. A version that is running is skipped. Close asdf and mise first."
+why old_runtimes_asdf_mise delete "@am_roots
+The installs folders of asdf and mise" "The newest version of each tool" \
+  "Versions pinned in ~/.tool-versions, mise's settings or a project in your home folder" "A version that is running"
+ITEM_RUNNING[old_runtimes_asdf_mise]="asdf|mise"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_old_runtimes_asdf_mise='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
 AM_VERSION_RE='^(([A-Za-z][A-Za-z0-9.]*-)*)[vV]?([0-9]{1,9}(\.[0-9]{1,9})*)(.*)$' # flavor-, v, numbers, suffix
@@ -4709,6 +4811,9 @@ clean_entries_old_runtimes_asdf_mise() { # encoded version folders (json_clean_e
 # version a program runs from is skipped and the scan says which. Deleted for good (Unity Hub installs
 # one again); not ticked, automatic cleaning leaves them alone; the desktop app lists each version.
 reg unity_old_editors dev "Old Unity Editor versions" 0 "Unity Editor versions Unity Hub installed, often 5–15 GB each, other than the newest and those your projects use (ProjectSettings/ProjectVersion.txt). Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
+why unity_old_editors delete "@unity_roots
+The folders Unity Hub installs editors in" "The newest version" "Versions your projects use"
+ITEM_RUNNING[unity_old_editors]="Unity|Unity Hub"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_unity_old_editors='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
 UNITY_VERSION_RE='^([0-9]{1,5})\.([0-9]{1,4})\.([0-9]{1,4})([xabfp])([0-9]{1,4})(c([0-9]{1,4}))?$' # 2019.4.40f1c1
@@ -4908,6 +5013,8 @@ clean_entries_unity_old_editors() { # encoded version folders (json_clean_entrie
 # that can't be read keeps every box. Only files are read, vagrant is never run; projects' .vagrant/
 # folders and libvirt volumes are not touched. Not ticked, deleted, skipped while vagrant runs.
 reg vagrant_old_boxes dev "Old Vagrant boxes" 0 "Box versions Vagrant downloaded (~/.vagrant.d/boxes), often 0.5–2 GB each, other than the newest of each box and those your machines use. Deleted; vagrant downloads one again when needed. Close Vagrant first."
+why vagrant_old_boxes delete "~/.vagrant.d/boxes" "The newest version of each box" "Versions your machines use"
+ITEM_RUNNING[vagrant_old_boxes]="Vagrant"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_vagrant_old_boxes='^/[A-Za-z0-9/._~%-]+$' # the provider folder's full path, percent-encoded (urlencode_path)
 VAGRANT_INDEX_MAX=4194304
@@ -5051,6 +5158,9 @@ ITEM_OPEN[unity_caches]=1
 # build-tools, ndk, emulator and the AVDs are never touched. Locked while Android Studio, the
 # emulator, sdkmanager or avdmanager runs. Not ticked; the desktop app lists each image.
 reg android_images dev "Android system images (unused)" 0 "Android emulator system images no virtual device (AVD) uses, often several GB each. Deleted; download one again with Android Studio's SDK Manager. Close Android Studio and the emulator first."
+why android_images delete "@android_sdk_roots
+The system-images folder of your Android SDK" "System images a virtual device uses"
+ITEM_RUNNING[android_images]="Android Studio|the emulator|sdkmanager|avdmanager"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_android_images='^/[A-Za-z0-9/._~%-]+$' # the image folder's full path, percent-encoded (urlencode_path)
 declare -A AU_USED=() # <android-N>/<tag>/<abi> of the images AVDs use
@@ -5224,6 +5334,10 @@ clean_entries_android_images() { # encoded image folders (json_clean_entries onl
 # never touched. Deleted for good (the SDK Manager downloads one again). Locked while Android
 # Studio, Gradle or the emulator runs. Not ticked; the desktop app lists each version.
 reg android_sdk_old dev "Old Android SDK components" 0 "Old NDK, build-tools, SDK platform and CMake versions in your Android SDK. The newest of each and the versions a project in your home folder pins (build.gradle, local.properties) are kept. A project elsewhere may still need one: download it again with Android Studio's SDK Manager. Close Android Studio, Gradle and the emulator first."
+why android_sdk_old delete "@android_sdk_roots
+Your Android SDK (~/Android/Sdk, ANDROID_HOME)" "The newest version of each component" \
+  "Versions a project in your home folder pins (build.gradle, local.properties)"
+ITEM_RUNNING[android_sdk_old]="Android Studio|Gradle|the emulator"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_android_sdk_old='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded (urlencode_path)
 declare -A SDK_PIN=() # "ndk VERSION", "build-tools VERSION", "platform API", "dir PATH" that projects pin
@@ -5399,6 +5513,9 @@ clean_entries_android_sdk_old() { # encoded version folders (json_clean_entries 
 # (userdata*.img, sdcard.img), config and .ini files stay. AVDs as android_images finds them, only
 # inside your home, no symlinks. Locked while the emulator runs. Not ticked; one entry per AVD.
 reg android_avd_snapshots dev "Android emulator snapshots" 0 "Saved states (quick-boot snapshots) of your Android emulator virtual devices, often several GB each. Deleted; the next start is a cold boot and the emulator saves a new one. Apps and data on the device are kept. Close the emulator first."
+why android_avd_snapshots delete "@avd_homes
+The folders of your Android virtual devices" "The apps and data on each virtual device"
+ITEM_RUNNING[android_avd_snapshots]="the emulator"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_android_avd_snapshots='^/[A-Za-z0-9/._~%-]+$' # the snapshots folder's full path, percent-encoded
 
@@ -5500,6 +5617,10 @@ clean_entries_android_avd_snapshots() {
 # GamesConfig and config.json, a bottle's Runner. Deleted for good (the launcher downloads one
 # again). Locked while a launcher, Wine, Proton or gamescope runs. Not ticked; one entry each.
 reg game_runners_old dev "Old Proton and Wine versions" 0 "Proton and Wine builds (Proton-GE, Wine-GE…) that Steam, Lutris, Heroic or Bottles left behind, often 0.5–1 GB each. The newest of each and the versions a game or bottle is set to use are kept. Deleted; download one again with the launcher or ProtonUp-Qt. Close the launchers and games first."
+why game_runners_old delete "@runner_dirs
+The Proton and Wine folders of Steam, Lutris, Heroic and Bottles" "The newest version of each" \
+  "Versions a game or bottle is set to use"
+ITEM_RUNNING[game_runners_old]="Steam|Lutris|Heroic|Bottles|Wine and Proton games"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_game_runners_old='^/[A-Za-z0-9/._~%-]+$' # the version folder's full path, percent-encoded
 declare -A GR_USED=() # "name NAME" of the versions games use; GR_PATHS: paths their settings point at
@@ -5704,6 +5825,8 @@ clean_entries_game_runners_old() { # encoded version folders (json_clean_entries
 # to the Trash (z puts it back). Not ticked; automatic cleaning leaves them alone. User caches
 # leaves ~/.cache/JetBrains and ~/.cache/Google/AndroidStudio… to this item.
 reg jetbrains_old_versions dev "Old IDE versions" 0 "Settings, plugins, caches and logs of JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm…) and Android Studio versions that a newer version of the same IDE replaced. Moved to the Trash; skipped while that IDE runs."
+why jetbrains_old_versions trash "The folders of each IDE version in ~/.config, ~/.local/share and ~/.cache (JetBrains, Google)" \
+  "The newest version of each IDE" "An IDE that is running"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_jetbrains_old_versions='^/[A-Za-z0-9/._~%-]+$' # the version's first folder, full path percent-encoded
 
@@ -5847,6 +5970,8 @@ clean_entries_jetbrains_old_versions() { # encoded first folders (json_clean_ent
 # editor runs, a version with a file open is skipped. Never extensions.json, .obsolete, the newest
 # version, symlinks or folders named otherwise. Not ticked; automatic cleaning leaves them alone.
 reg vscode_old_extensions dev "Old editor extension versions" 0 "Versions of VS Code, Cursor, Windsurf and VSCodium extensions that an update left behind, often 100–500 MB each. The version in use is kept. Deleted; the editor downloads any version again. Skipped while that editor runs."
+why vscode_old_extensions delete "@editor_extension_roots
+The extensions folder of VS Code, Cursor, Windsurf and VSCodium" "The version in use" "An editor that is running"
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
 ENTRY_RE_vscode_old_extensions='^/[A-Za-z0-9/._~%-]+$' # the highest old version's folder, full path percent-encoded
 
@@ -6347,6 +6472,9 @@ reg_model_item() { # KIND REF LABEL DESCRIPTION
   while [[ -n ${ITEM_CAT[$id]:-} ]]; do id+=_; done
   reg "$id" models "$3" 0 "$4"
   MODEL_KIND[$id]=$1 MODEL_REF[$id]=$2 ITEM_ONCE[$id]=1
+  if [[ $1 == ollama ]]; then why "$id" delete "Ollama's model store (ollama rm)"; else why "$id" delete "$2"; fi
+  [[ $1 == lms ]] && ITEM_RUNNING[$id]="LM Studio"
+  ITEM_AFTER[$id]="Download it again to use it"
   eval "scan_$id() { model_scan $id; }
         clean_$id() { model_clean $id; }
         details_$id() { model_details $id; }
@@ -6372,6 +6500,7 @@ ollama_blob_dirsv _p
 LIST_CAT=models reg_list_item ollama_partial "Ollama — unfinished downloads" 0 download \
   "Pieces of Ollama downloads that were interrupted (sha256-…-partial). Complete models are kept; a pull starts them again." \
   ollama_partial "$_p" "ollama"
+ITEM_EFFECT[ollama_partial]=delete ITEM_AFTER[ollama_partial]="Complete models are kept; ollama pull starts the download again"
 
 # Models Python libraries downloaded and fetch again when a program needs them: PyTorch Hub weights (each
 # file in <torch>/hub/checkpoints), Whisper models (each *.pt in <cache>/whisper), sentence-transformers
@@ -6463,6 +6592,7 @@ while IFS=$'\t' read -r _ _d; do _p+=${_p:+$'\n'}$_d; done <<<"$_r"
 LIST_CAT=models reg_list_item ai_model_caches "PyTorch, Whisper & Keras — models" 0 model \
   "Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a program needs one. A model in use is skipped." \
   ai_model_caches "$_p"
+ITEM_SKIP[ai_model_caches]="A model a program has open"
 ITEM_ONCE[ai_model_caches]=1
 unset _p _r _d
 # shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
@@ -6806,7 +6936,8 @@ scan_worker() { # FILE ID… — scan the items one after the other: a line each
     SCAN_BYTES=0 SCAN_NOTE="" _sw_lock=""
     now_msv _sw_t0
     printf '%s\x1f-\x1f%s\n' "$_sw_id" "$_sw_t0" # started: a scan cut short by the time limit still gets its time
-    "scan_$_sw_id" </dev/null >/dev/null 2>&1; _sw_rc=$?
+    if item_excluded "$_sw_id"; then _sw_rc=1 SCAN_NOTE="In Settings › Never clean"
+    else "scan_$_sw_id" </dev/null >/dev/null 2>&1; _sw_rc=$?; fi
     ((_sw_rc == 0)) && declare -F "lockedby_$_sw_id" >/dev/null && _sw_lock=$("lockedby_$_sw_id" </dev/null 2>/dev/null)
     ((_sw_rc == 0)) && [[ -n ${ITEM_BLIND[$_sw_id]:-} ]] && SCAN_NOTE="$FLATPAK_BLIND_NOTE${SCAN_NOTE:+; $SCAN_NOTE}"
     now_msv _sw_t1
@@ -7363,7 +7494,11 @@ show_run_results() { # TITLE
 
 # ── cleanup tasks ──
 
-task_clean_pre() { declare -F "precheck_$1" >/dev/null || return 0; "precheck_$1"; }
+task_clean_pre() {
+  if item_excluded "$1"; then warn "Skipping ${ITEM_LABEL[$1]}: it is in Settings › Never clean."; return 1; fi
+  declare -F "precheck_$1" >/dev/null || return 0
+  "precheck_$1"
+}
 
 task_clean() { # clean, then re-measure so the parent can compute what was freed
   local rc src TRASH_SOURCE="Smart Scan › ${ITEM_LABEL[$1]:-$1}"
@@ -10686,8 +10821,7 @@ auto_mode() { # --auto: unattended Smart Clean of user & developer junk, run by 
   for id in "${SCANNED[@]}"; do # … but only user & developer junk is cleaned
     [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] || SEL[$id]=0
   done
-  SEL[trash]=0 SEL[trash_drives]=0 SEL[tracker_index]=0 SEL[baloo_index]=0 # never empty a Trash or reset a search index behind the user's back
-  SEL[stale_build_dirs]=0 SEL[android_images]=0 SEL[android_avd_snapshots]=0 SEL[android_sdk_old]=0 SEL[game_runners_old]=0 SEL[old_runtimes]=0 SEL[old_runtimes_asdf_mise]=0 SEL[unity_old_editors]=0 SEL[vagrant_old_boxes]=0 SEL[jetbrains_old_versions]=0 SEL[vscode_old_extensions]=0 # the user picks which projects to rebuild, images, runtimes, Unity editors, SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
+  for id in "${!AUTO_NEVER[@]}"; do SEL[$id]=0; done
   skip_data_loss
   plain_results
   printf '\n'
@@ -10731,9 +10865,116 @@ json_str() { # VAR TEXT → a JSON string literal (colours and control character
   printf -v "$1" '"%s"' "$s"
 }
 
+# ── "Why is this safe?" (see why) ──
+
+why_wherev() { # ID → WHY_PATHS: the item's paths (absolute, @NAME resolved), WHY_NOTES: its sentences
+  local l p
+  local -a __wl
+  WHY_PATHS=() WHY_NOTES=()
+  while IFS= read -r l; do
+    case $l in
+      '') ;;
+      '~'|'~/'*) WHY_PATHS+=("$HOME${l:1}") ;;
+      /*) WHY_PATHS+=("$l") ;;
+      @*)
+        if declare -F "${l:1}" >/dev/null; then
+          mapfile -t __wl < <("${l:1}" 2>/dev/null)
+          for p in "${__wl[@]}"; do p=${p##*$'\t'}; [[ $p == /* ]] && WHY_PATHS+=("$p"); done
+        elif declare -p "${l:1}" >/dev/null 2>&1; then
+          local -n __wa=${l:1}
+          for p in "${__wa[@]}"; do [[ $p == /* ]] && WHY_PATHS+=("$p"); done
+          unset -n __wa
+        fi ;;
+      *) WHY_NOTES+=("$l") ;;
+    esac
+  done <<<"${ITEM_WHERE[$1]:-}"
+}
+
+why_running() { # ID → WHY_RUN: the programs whose running makes the item skip (ITEM_RUNNING, else its process names)
+  local id=$1 n m lc
+  local -a cand=() keep=()
+  WHY_RUN=()
+  declare -F "lockedby_$id" >/dev/null || return 0
+  if [[ -n ${ITEM_RUNNING[$id]:-} ]]; then IFS='|' read -ra WHY_RUN <<<"${ITEM_RUNNING[$id]}"; return 0; fi
+  IFS='|' read -ra cand <<<"${ITEM_PROCS[$id]:-${FOLDERS_PROCS[$id]:-}}"
+  for n in "${cand[@]}"; do
+    [[ $n == [-/]* ]] && continue      # -zsh, /usr/bin/zsh: the same shell
+    n=${n%%[.[\\]*} n=${n%-} n=${n%-bin} # wine.* → wine, ghc-[0-9.]* → ghc, vivaldi-bin → vivaldi
+    [[ -n $n ]] && keep+=("$n")
+  done
+  for n in "${keep[@]}"; do # steamwebhelper goes with steam, ZCode with zcode
+    lc=${n,,}
+    for m in "${keep[@]}"; do [[ $lc != "${m,,}" && $lc == "${m,,}"* ]] && continue 2; done
+    for m in "${WHY_RUN[@]}"; do [[ $lc == "${m,,}" ]] && continue 2; done
+    WHY_RUN+=("$n")
+  done
+}
+
+why_fill() { # TEXT → TEXT with each %SETTING% replaced by its value
+  local s=$1 v
+  while [[ $s =~ %([A-Z_]+)% ]]; do v=${BASH_REMATCH[1]}; s=${s//%$v%/${!v:-}}; done
+  WHY_TEXT=$s
+}
+
+json_strs() { # VAR TEXT… → VAR = a JSON array of strings
+  local -n __js=$1
+  local __s __v=""
+  for __s in "${@:2}"; do json_str __s "$__s"; __v+=${__v:+,}$__s; done
+  __js="[$__v]"
+}
+
+json_why() { # VAR ID → VAR = the item's "why" object: where it is, what cleaning does, when it is skipped
+  local -n __jw=$1
+  local id=$2 p l shown=() folders=() after=() skip=() home=0 e w n a s r f
+  local -A seen=()
+  why_wherev "$id"
+  for p in "${WHY_PATHS[@]}"; do
+    [[ -z ${seen[$p]:-} && (-e $p || -L $p) ]] || continue
+    seen[$p]=1
+    shown+=("$p")
+    [[ -d $p && ! -L $p && $p == "$HOME"/?* && -z ${ITEM_ROOT[$id]:-} ]] && folders+=("$p")
+  done
+  ((${#shown[@]})) || for p in "${WHY_PATHS[@]}"; do [[ -n ${seen[$p]:-} ]] || shown+=("$p"); seen[$p]=1; done
+  for p in "${!shown[@]}"; do [[ ${shown[p]} == "$HOME"/* ]] && shown[p]="~${shown[p]#"$HOME"}"; done
+  for p in "${WHY_PATHS[@]}"; do [[ $p == "$HOME"/*/* || ($p == "$HOME"/?* && -d $p) ]] && home=1; done
+  case ${ITEM_EFFECT[$id]:-} in
+    regenerated) after+=("Deleted, not moved to the Trash: the app or tool makes it again when it needs it") ;;
+    trash) after+=("Moved to the Trash: you can put it back until you empty the Trash") ;;
+    delete) after+=("Deleted for good, not moved to the Trash") ;;
+  esac
+  [[ -n ${ITEM_AFTER[$id]:-} ]] && after+=("${ITEM_AFTER[$id]}")
+  [[ -n ${ITEM_ROOT[$id]:-} ]] && after+=("Asks for your password: these are system files")
+  ((ITEM_DEFAULT[$id])) || after+=("Not ticked by default: it is cleaned only if you tick it")
+  [[ -n ${ITEM_OPEN[$id]:-} ]] && skip+=("Folders with a file a program has open")
+  while IFS= read -r l; do [[ -n $l ]] && why_fill "$l" && skip+=("$WHY_TEXT"); done <<<"${ITEM_SKIP[$id]:-}"
+  ((home)) && skip+=("Its folder is in Settings › Never clean")
+  [[ -n ${ITEM_ROOT[$id]:-} ]] && skip+=("If you cancel the password prompt")
+  [[ ${ITEM_CAT[$id]} == user || ${ITEM_CAT[$id]} == dev ]] && [[ -z ${AUTO_NEVER[$id]:-} ]] ||
+    skip+=("Automatic cleaning leaves it alone")
+  [[ -n ${ITEM_DATA_LOSS[$id]:-} ]] && skip+=("Unattended cleaning (automatic, or cm --clean --yes): it may hold your data")
+  why_running "$id"
+  json_str e "${ITEM_EFFECT[$id]:-}"
+  json_strs w "${shown[@]}"; json_strs n "${WHY_NOTES[@]}"; json_strs a "${after[@]}"
+  json_strs s "${skip[@]}"; json_strs r "${WHY_RUN[@]}"; json_strs f "${folders[@]}"
+  __jw="{\"effect\":$e,\"where\":$w,\"where_note\":$n,\"after\":$a,\"skipped\":$s,\"running\":$r,\"folders\":$f}"
+}
+
+item_excluded() { # ID → true when every file and folder of the item is in Settings › Never clean: it is skipped
+  ((${#EXCLUDES[@]})) || return 1
+  local p n=0
+  why_wherev "$1"
+  for p in "${WHY_PATHS[@]}"; do
+    [[ $p == "$HOME"/?* && (-e $p || -L $p) ]] || continue
+    in_exclusion "$p" || return 1
+    n=$((n + 1))
+  done
+  ((n))
+}
+
 json_item() { # ID [with scan results] → one "item" event (no subshells: called for every item)
-  local id=$1 cat label desc note lock status=found def=false root=false trash=false loss=false sel=false ent=false
+  local id=$1 cat label desc note lock status=found def=false root=false trash=false loss=false sel=false ent=false why
   json_str cat "${ITEM_CAT[$id]}"; json_str label "${ITEM_LABEL[$id]}"; json_str desc "${ITEM_DESC[$id]}"
+  json_why why "$id"
   ((ITEM_DEFAULT[$id])) && def=true
   [[ -n ${ITEM_ROOT[$id]:-} ]] && root=true
   [[ -n ${ITEM_TRASH[$id]:-} ]] && trash=true
@@ -10743,11 +10984,11 @@ json_item() { # ID [with scan results] → one "item" event (no subshells: calle
     case ${RES_RC[$id]} in 0) status=found ;; 3) status=timeout ;; *) status=clean ;; esac
     ((${SEL[$id]:-0})) && sel=true
     has_entries "$id" && ent=true
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s,"trash":%s,"data_loss":%s,"durationMs":%d}\n' \
-      "$id" "$cat" "$label" "$desc" "$def" "$root" "$status" "${RES_BYTES[$id]:-0}" "$note" "$sel" "$lock" "$ent" "$trash" "$loss" "${RES_MS[$id]:-0}"
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"status":"%s","bytes":%d,"note":%s,"selected":%s,"locked":%s,"entries":%s,"trash":%s,"data_loss":%s,"durationMs":%d,"why":%s}\n' \
+      "$id" "$cat" "$label" "$desc" "$def" "$root" "$status" "${RES_BYTES[$id]:-0}" "$note" "$sel" "$lock" "$ent" "$trash" "$loss" "${RES_MS[$id]:-0}" "$why"
   else
-    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"trash":%s,"data_loss":%s}\n' \
-      "$id" "$cat" "$label" "$desc" "$def" "$root" "$trash" "$loss"
+    printf '{"event":"item","id":"%s","category":%s,"label":%s,"description":%s,"default":%s,"root":%s,"trash":%s,"data_loss":%s,"why":%s}\n' \
+      "$id" "$cat" "$label" "$desc" "$def" "$root" "$trash" "$loss" "$why"
   fi
 }
 
@@ -10879,6 +11120,7 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
   avail0=$(fs_avail)
   for id in "${ids[@]}"; do
     json_task "$id" run
+    if item_excluded "$id"; then json_task "$id" skip "In Settings › Never clean"; continue; fi
     SCAN_BYTES=0 SCAN_NOTE=""
     "scan_$id" >/dev/null 2>&1; rc=$?
     before=$SCAN_BYTES

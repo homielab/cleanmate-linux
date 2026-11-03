@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-03 12:08+0000\n"
+"POT-Creation-Date: 2026-11-03 18:22+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -45,7 +45,7 @@ msgstr ""
 
 #: gui/cleanmate_gui/bugreport.py:84 gui/cleanmate_gui/duplicates.py:576
 #: gui/cleanmate_gui/largefiles.py:329 gui/cleanmate_gui/maintenance.py:238
-#: gui/cleanmate_gui/scanpage.py:719 gui/cleanmate_gui/settings.py:467
+#: gui/cleanmate_gui/scanpage.py:835 gui/cleanmate_gui/settings.py:467
 #: gui/cleanmate_gui/spacelens.py:365 gui/cleanmate_gui/startup.py:248
 #: gui/cleanmate_gui/uninstaller.py:577 gui/cleanmate_gui/uninstaller.py:777
 msgid "Cancel"
@@ -97,7 +97,7 @@ msgstr ""
 msgid "Search"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:138 gui/cleanmate_gui/scanpage.py:112
+#: gui/cleanmate_gui/duplicates.py:138 gui/cleanmate_gui/scanpage.py:113
 msgid "Stop"
 msgstr ""
 
@@ -331,14 +331,15 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: gui/cleanmate_gui/duplicates.py:628 gui/cleanmate_gui/largefiles.py:380
-#: gui/cleanmate_gui/scanpage.py:532 gui/cleanmate_gui/scanpage.py:830
-#: gui/cleanmate_gui/scanpage.py:872 gui/cleanmate_gui/spacelens.py:418
-#: gui/cleanmate_gui/startup.py:267 gui/cleanmate_gui/uninstaller.py:373
+#: gui/cleanmate_gui/scanpage.py:538 gui/cleanmate_gui/scanpage.py:643
+#: gui/cleanmate_gui/scanpage.py:946 gui/cleanmate_gui/scanpage.py:988
+#: gui/cleanmate_gui/spacelens.py:418 gui/cleanmate_gui/startup.py:267
+#: gui/cleanmate_gui/uninstaller.py:373
 msgid "Undo"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:666 gui/cleanmate_gui/largefiles.py:416
-#: gui/cleanmate_gui/scanpage.py:907 gui/cleanmate_gui/spacelens.py:451
+#: gui/cleanmate_gui/scanpage.py:1023 gui/cleanmate_gui/spacelens.py:451
 #: gui/cleanmate_gui/uninstaller.py:845
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
@@ -411,431 +412,449 @@ msgid ""
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:108
-msgid "Electron app"
+msgid "Ollama's model store (ollama rm)"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:109
-msgid "not used by any container"
+msgid "Download it again to use it"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:110
-msgid "BuildKit cache"
+msgid "Electron app"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:111
-msgid "scan timed out"
+msgid "not used by any container"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:112
-msgid "needs sqlite3"
+msgid "BuildKit cache"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:113
+msgid "scan timed out"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:114
+msgid "needs sqlite3"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:115
 msgid "install sqlite3 to count entries"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:122
+#: gui/cleanmate_gui/i18n.py:123
+#, python-brace-format
+msgid "{names} or {last}"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:124
+#, python-brace-format
+msgid "While {programs} is running"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:132
 #, python-brace-format
 msgid ""
 "Downloads folder is outside your home folder ({path}); CleanMate only cleans "
 "inside it"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:126
+#: gui/cleanmate_gui/i18n.py:136
 #, python-brace-format
 msgid ""
 "Cache folders of {app} ({kind}). Rebuilt automatically — close the app "
 "before cleaning."
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:133
+#: gui/cleanmate_gui/i18n.py:143
 #, python-brace-format
 msgid "{n} item"
 msgid_plural "{n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:134
+#: gui/cleanmate_gui/i18n.py:144
 #, python-brace-format
 msgid "{n} file"
 msgid_plural "{n} files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:135 gui/cleanmate_gui/uninstaller.py:466
+#: gui/cleanmate_gui/i18n.py:145 gui/cleanmate_gui/uninstaller.py:466
 #, python-brace-format
 msgid "{n} folder"
 msgid_plural "{n} folders"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:136
+#: gui/cleanmate_gui/i18n.py:146
 #, python-brace-format
 msgid "{n} leftover folder"
 msgid_plural "{n} leftover folders"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:137
+#: gui/cleanmate_gui/i18n.py:147
 #, python-brace-format
 msgid "{n} app"
 msgid_plural "{n} apps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:138
+#: gui/cleanmate_gui/i18n.py:148
 #, python-brace-format
 msgid "{n} project"
 msgid_plural "{n} projects"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:139
+#: gui/cleanmate_gui/i18n.py:149
 #, python-brace-format
 msgid "{n} package"
 msgid_plural "{n} packages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:140
+#: gui/cleanmate_gui/i18n.py:150
 #, python-brace-format
 msgid "{n} removed package"
 msgid_plural "{n} removed packages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:141
+#: gui/cleanmate_gui/i18n.py:151
 #, python-brace-format
 msgid "{n} package archive"
 msgid_plural "{n} package archives"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:142
+#: gui/cleanmate_gui/i18n.py:152
 #, python-brace-format
 msgid "{n} downloaded installer"
 msgid_plural "{n} downloaded installers"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:143
+#: gui/cleanmate_gui/i18n.py:153
 #, python-brace-format
 msgid "{n} download"
 msgid_plural "{n} downloads"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:144
+#: gui/cleanmate_gui/i18n.py:154
 #, python-brace-format
 msgid "{n} disabled revision"
 msgid_plural "{n} disabled revisions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:145
+#: gui/cleanmate_gui/i18n.py:155
 #, python-brace-format
 msgid "{n} version"
 msgid_plural "{n} versions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:146
+#: gui/cleanmate_gui/i18n.py:156
 #, python-brace-format
 msgid "{n} drive"
 msgid_plural "{n} drives"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:147
+#: gui/cleanmate_gui/i18n.py:157
 #, python-brace-format
 msgid "{n} list"
 msgid_plural "{n} lists"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:148
+#: gui/cleanmate_gui/i18n.py:158
 #, python-brace-format
 msgid "{n} history list"
 msgid_plural "{n} history lists"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:149
+#: gui/cleanmate_gui/i18n.py:159
 #, python-brace-format
 msgid "{n} image"
 msgid_plural "{n} images"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:150
+#: gui/cleanmate_gui/i18n.py:160
 #, python-brace-format
 msgid "{n} dangling image"
 msgid_plural "{n} dangling images"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:151
+#: gui/cleanmate_gui/i18n.py:161
 #, python-brace-format
 msgid "{n} container"
 msgid_plural "{n} containers"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:152
+#: gui/cleanmate_gui/i18n.py:162
 #, python-brace-format
 msgid "{n} stopped container"
 msgid_plural "{n} stopped containers"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:153
+#: gui/cleanmate_gui/i18n.py:163
 #, python-brace-format
 msgid "{n} volume"
 msgid_plural "{n} volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:154
+#: gui/cleanmate_gui/i18n.py:164
 #, python-brace-format
 msgid "{n} anonymous volume"
 msgid_plural "{n} anonymous volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:155
+#: gui/cleanmate_gui/i18n.py:165
 #, python-brace-format
 msgid "{n} named volume"
 msgid_plural "{n} named volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:156
+#: gui/cleanmate_gui/i18n.py:166
 #, python-brace-format
 msgid "{n} AVD"
 msgid_plural "{n} AVDs"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:157
+#: gui/cleanmate_gui/i18n.py:167
 #, python-brace-format
 msgid "{n} snapshot"
 msgid_plural "{n} snapshots"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:158
+#: gui/cleanmate_gui/i18n.py:168
 #, python-brace-format
 msgid "{n} session"
 msgid_plural "{n} sessions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:159
+#: gui/cleanmate_gui/i18n.py:169
 #, python-brace-format
 msgid "{n} model"
 msgid_plural "{n} models"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:160
+#: gui/cleanmate_gui/i18n.py:170
 #, python-brace-format
 msgid "{n} report"
 msgid_plural "{n} reports"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:161
+#: gui/cleanmate_gui/i18n.py:171
 #, python-brace-format
 msgid "{n} dump"
 msgid_plural "{n} dumps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:162
+#: gui/cleanmate_gui/i18n.py:172
 #, python-brace-format
 msgid "{n} command"
 msgid_plural "{n} commands"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:163
+#: gui/cleanmate_gui/i18n.py:173
 #, python-brace-format
 msgid "{n} entry"
 msgid_plural "{n} entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:164
+#: gui/cleanmate_gui/i18n.py:174
 #, python-brace-format
 msgid "{n} remembered choice"
 msgid_plural "{n} remembered choices"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:165
+#: gui/cleanmate_gui/i18n.py:175
 #, python-brace-format
 msgid "{n} history entry"
 msgid_plural "{n} history entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:166
+#: gui/cleanmate_gui/i18n.py:176
 #, python-brace-format
 msgid "{n} cookie"
 msgid_plural "{n} cookies"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:186
+#: gui/cleanmate_gui/i18n.py:196
 #, python-brace-format
 msgid "{count} in /var/log"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:187
+#: gui/cleanmate_gui/i18n.py:197
 #, python-brace-format
 msgid "{count} in ~/.cache"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:188
+#: gui/cleanmate_gui/i18n.py:198
 #, python-brace-format
 msgid "{count} in {count2}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:189
+#: gui/cleanmate_gui/i18n.py:199
 #, python-brace-format
 msgid "{count} on {count2}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:190
+#: gui/cleanmate_gui/i18n.py:200
 #, python-brace-format
 msgid "{count}, {count2}, {count3}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:191
+#: gui/cleanmate_gui/i18n.py:201
 #, python-brace-format
 msgid "{count}, {count2}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:192
+#: gui/cleanmate_gui/i18n.py:202
 #, python-brace-format
 msgid "{count} still configured"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:193
+#: gui/cleanmate_gui/i18n.py:203
 #, python-brace-format
 msgid "{count} older than {days} days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:194
+#: gui/cleanmate_gui/i18n.py:204
 #, python-brace-format
 msgid "{count} untouched for {days}+ days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:195
+#: gui/cleanmate_gui/i18n.py:205
 #, python-brace-format
 msgid "{count} idle for {days}+ days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:196
+#: gui/cleanmate_gui/i18n.py:206
 #, python-brace-format
 msgid "{count} with entries"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:197
+#: gui/cleanmate_gui/i18n.py:207
 #, python-brace-format
 msgid "{count} that no longer exist"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:198
+#: gui/cleanmate_gui/i18n.py:208
 #, python-brace-format
 msgid "{count} not your default"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:199
+#: gui/cleanmate_gui/i18n.py:209
 #, python-brace-format
 msgid "{count} not pinned, not the newest"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:200
+#: gui/cleanmate_gui/i18n.py:210
 #, python-brace-format
 msgid "{count} no AVD uses"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:201
+#: gui/cleanmate_gui/i18n.py:211
 #, python-brace-format
 msgid "{count} replaced by a newer one"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:202
+#: gui/cleanmate_gui/i18n.py:212
 #, python-brace-format
 msgid "{count} — may contain data"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:203
+#: gui/cleanmate_gui/i18n.py:213
 #, python-brace-format
 msgid "{count} kept"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:205
+#: gui/cleanmate_gui/i18n.py:215
 #, python-brace-format
 msgid "{size} in total"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:206
+#: gui/cleanmate_gui/i18n.py:216
 #, python-brace-format
 msgid "skipped while running: {names}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:207
+#: gui/cleanmate_gui/i18n.py:217
 msgid "close it first: the Flatpak can't see if it's open"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:208
+#: gui/cleanmate_gui/i18n.py:218
 #, python-brace-format
 msgid "get it back with: ollama pull {ref}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:249 gui/cleanmate_gui/i18n.py:250
+#: gui/cleanmate_gui/i18n.py:259 gui/cleanmate_gui/i18n.py:260
 #, python-brace-format
 msgid "{days} days old"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:251 gui/cleanmate_gui/i18n.py:252
+#: gui/cleanmate_gui/i18n.py:261 gui/cleanmate_gui/i18n.py:262
 #, python-brace-format
 msgid "untouched for {days} days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:253
+#: gui/cleanmate_gui/i18n.py:263
 #, python-brace-format
 msgid "{days} days idle"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:254
+#: gui/cleanmate_gui/i18n.py:264
 msgid "(running, skipped)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:255
+#: gui/cleanmate_gui/i18n.py:265
 msgid "← running (kept)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:256
+#: gui/cleanmate_gui/i18n.py:266
 msgid "← kept as a fallback"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:257
+#: gui/cleanmate_gui/i18n.py:267
 msgid "← will be removed: "
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:258
+#: gui/cleanmate_gui/i18n.py:268
 #, python-brace-format
 msgid "(revision {revision})"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:259
+#: gui/cleanmate_gui/i18n.py:269
 msgid "Largest archived journal files:"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:261
+#: gui/cleanmate_gui/i18n.py:271
 #, python-brace-format
 msgid "Archived and active journals take up {size} in the file system."
 msgstr ""
@@ -973,7 +992,7 @@ msgstr ""
 msgid "Choose another kind to see the other files."
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:246 gui/cleanmate_gui/scanpage.py:337
+#: gui/cleanmate_gui/largefiles.py:246 gui/cleanmate_gui/scanpage.py:338
 #: gui/cleanmate_gui/spacelens.py:269
 msgid "All"
 msgstr ""
@@ -1132,8 +1151,8 @@ msgstr ""
 msgid "Never let system logs grow past {mb} MB (Settings → Journal size limit)"
 msgstr ""
 
-#: gui/cleanmate_gui/maintenance.py:197 gui/cleanmate_gui/scanpage.py:419
-#: gui/cleanmate_gui/scanpage.py:436 gui/cleanmate_gui/scanpage.py:687
+#: gui/cleanmate_gui/maintenance.py:197 gui/cleanmate_gui/scanpage.py:420
+#: gui/cleanmate_gui/scanpage.py:437 gui/cleanmate_gui/scanpage.py:803
 #: gui/cleanmate_gui/uninstaller.py:257 gui/cleanmate_gui/uninstaller.py:552
 msgid "Needs your password"
 msgstr ""
@@ -1643,376 +1662,430 @@ msgstr ""
 msgid "Open with the default app"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:20
+#: gui/cleanmate_gui/scanpage.py:21
 msgid "Anonymous volume"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:20
+#: gui/cleanmate_gui/scanpage.py:21
 msgid "Named volume — may hold data"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:81
+#: gui/cleanmate_gui/scanpage.py:82
 msgid ""
 "System files are out of the Flatpak's reach: the package cache, system logs "
 "and old kernels need the .deb version."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:83
+#: gui/cleanmate_gui/scanpage.py:84
 msgid "Learn More"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:92
+#: gui/cleanmate_gui/scanpage.py:93
 msgid "Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:100
+#: gui/cleanmate_gui/scanpage.py:101
 msgid "Turn On"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:103
+#: gui/cleanmate_gui/scanpage.py:104
 msgid "This group is turned off in Settings, so Smart Scan leaves it out."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:113
+#: gui/cleanmate_gui/scanpage.py:114
 msgid "Stop and show what was checked so far"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:116
+#: gui/cleanmate_gui/scanpage.py:117
 msgid "Scanning…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:123 gui/cleanmate_gui/window.py:268
+#: gui/cleanmate_gui/scanpage.py:124 gui/cleanmate_gui/window.py:268
 msgid "Search results"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:150 gui/cleanmate_gui/scanpage.py:720
+#: gui/cleanmate_gui/scanpage.py:151 gui/cleanmate_gui/scanpage.py:836
 msgid "Clear"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:150 gui/cleanmate_gui/scanpage.py:720
+#: gui/cleanmate_gui/scanpage.py:151 gui/cleanmate_gui/scanpage.py:836
 msgid "Clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:154
+#: gui/cleanmate_gui/scanpage.py:155
 msgid "Scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:158
+#: gui/cleanmate_gui/scanpage.py:159
 msgid "Search results (Ctrl+F)"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:192 gui/cleanmate_gui/scanpage.py:527
-#: gui/cleanmate_gui/settings.py:434
+#: gui/cleanmate_gui/scanpage.py:193 gui/cleanmate_gui/scanpage.py:533
+#: gui/cleanmate_gui/scanpage.py:632 gui/cleanmate_gui/settings.py:434
 #, python-brace-format
 msgid "Could not change it: {reason}"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:230
+#: gui/cleanmate_gui/scanpage.py:231
 msgid "Starting…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:238
+#: gui/cleanmate_gui/scanpage.py:239
 #, python-brace-format
 msgid "Checking {name}…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:251 gui/cleanmate_gui/scanpage.py:310
+#: gui/cleanmate_gui/scanpage.py:252 gui/cleanmate_gui/scanpage.py:311
 msgid "Scan stopped"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:255
+#: gui/cleanmate_gui/scanpage.py:256
 msgid "The scan failed — try the terminal app (cm) for details."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:272
+#: gui/cleanmate_gui/scanpage.py:273
 msgid "Stopping…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:299
+#: gui/cleanmate_gui/scanpage.py:300
 #, python-brace-format
 msgid "{n} location scanned in {secs}s"
 msgid_plural "{n} locations scanned in {secs}s"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:302
+#: gui/cleanmate_gui/scanpage.py:303
 #, python-brace-format
 msgid "{n} history list with entries"
 msgid_plural "{n} history lists with entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:303
+#: gui/cleanmate_gui/scanpage.py:304
 msgid "Nothing to clear"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:304
+#: gui/cleanmate_gui/scanpage.py:305
 msgid "Pick what to clear — nothing happens until you confirm."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:306
+#: gui/cleanmate_gui/scanpage.py:307
 #, python-brace-format
 msgid "{size} of junk found in {n} item"
 msgid_plural "{size} of junk found in {n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:310
+#: gui/cleanmate_gui/scanpage.py:311
 msgid "Nothing worth removing was found in what was checked."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:312
+#: gui/cleanmate_gui/scanpage.py:313
 msgid "Your system is clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:312
+#: gui/cleanmate_gui/scanpage.py:313
 msgid "Nothing worth removing was found."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:318
+#: gui/cleanmate_gui/scanpage.py:319
 msgid "The scan was stopped: items it hadn't checked yet are not listed."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:338
+#: gui/cleanmate_gui/scanpage.py:339
 msgid "Select or deselect the whole group"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:348
+#: gui/cleanmate_gui/scanpage.py:349
 #, python-brace-format
 msgid "{n} more item is clean"
 msgid_plural "{n} more items are clean"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:352
+#: gui/cleanmate_gui/scanpage.py:353
 msgid "clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:360
+#: gui/cleanmate_gui/scanpage.py:361
 msgid "No results"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:361
+#: gui/cleanmate_gui/scanpage.py:362
 msgid "Nothing found matches your search."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:417
+#: gui/cleanmate_gui/scanpage.py:418
 #, python-brace-format
 msgid "Close {program} and scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:432
+#: gui/cleanmate_gui/scanpage.py:433
 #, python-brace-format
 msgid "{program} is running — close it, then scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:442
+#: gui/cleanmate_gui/scanpage.py:444
+msgid "Why is this safe?"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:448
 msgid "Show what's inside"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:456
+#: gui/cleanmate_gui/scanpage.py:462
 msgid "Loading…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:472
+#: gui/cleanmate_gui/scanpage.py:478
 msgid "Nothing to choose one by one — Clean removes it all"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:503
+#: gui/cleanmate_gui/scanpage.py:509
 msgid "Never Clean This"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:508 gui/cleanmate_gui/window.py:212
+#: gui/cleanmate_gui/scanpage.py:514 gui/cleanmate_gui/window.py:212
 msgid "More"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:529 gui/cleanmate_gui/settings.py:436
+#: gui/cleanmate_gui/scanpage.py:535 gui/cleanmate_gui/scanpage.py:636
+#: gui/cleanmate_gui/settings.py:436
 msgid "Dry run: nothing was saved"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:532 gui/cleanmate_gui/settings.py:456
+#: gui/cleanmate_gui/scanpage.py:538 gui/cleanmate_gui/settings.py:456
 #, python-brace-format
 msgid "{folder} is never cleaned now"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:543 gui/cleanmate_gui/settings.py:457
+#: gui/cleanmate_gui/scanpage.py:549 gui/cleanmate_gui/settings.py:457
 #, python-brace-format
 msgid "{folder} can be cleaned again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:633
+#: gui/cleanmate_gui/scanpage.py:572
+msgid "What it is"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:574
+msgid "Where it is"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:581
+#, python-brace-format
+msgid "and {n} more"
+msgid_plural "and {n} more"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/scanpage.py:584
+msgid "After cleaning"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:586
+msgid "Skipped when"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:586
+msgid "Never: when it is ticked, it is cleaned"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:588
+#, python-brace-format
+msgid "Now: {program} is running — close it, then scan again"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:592
+msgid "Open Folder"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:596
+msgid "Never Clean"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:643
+#, python-brace-format
+msgid "{item} is never cleaned now"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:659
+msgid "It can be cleaned again"
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:749
 #, python-brace-format
 msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:635 gui/cleanmate_gui/spacelens.py:336
+#: gui/cleanmate_gui/scanpage.py:751 gui/cleanmate_gui/spacelens.py:336
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:649
+#: gui/cleanmate_gui/scanpage.py:765
 msgid "Collecting details…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:667
+#: gui/cleanmate_gui/scanpage.py:783
 msgid "Nothing more to show."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:678
+#: gui/cleanmate_gui/scanpage.py:794
 msgid "To the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:678
+#: gui/cleanmate_gui/scanpage.py:794
 msgid "Deleted permanently"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:703
+#: gui/cleanmate_gui/scanpage.py:819
 #, python-brace-format
 msgid "To the Trash: {size} in {n} item"
 msgid_plural "To the Trash: {size} in {n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:707
+#: gui/cleanmate_gui/scanpage.py:823
 #, python-brace-format
 msgid "Deleted permanently: {size} in {n} item"
 msgid_plural "Deleted permanently: {size} in {n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:711
+#: gui/cleanmate_gui/scanpage.py:827
 #, python-brace-format
 msgid "Clear {n} history list?"
 msgid_plural "Clear {n} history lists?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:712 gui/cleanmate_gui/scanpage.py:736
+#: gui/cleanmate_gui/scanpage.py:828 gui/cleanmate_gui/scanpage.py:852
 msgid "This can't be undone."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:714
+#: gui/cleanmate_gui/scanpage.py:830
 #, python-brace-format
 msgid "Clean {n} item?"
 msgid_plural "Clean {n} items?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:715
+#: gui/cleanmate_gui/scanpage.py:831
 #, python-brace-format
 msgid "About {size} will be removed."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:717
+#: gui/cleanmate_gui/scanpage.py:833
 msgid "Items with a lock need your password."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:735
+#: gui/cleanmate_gui/scanpage.py:851
 msgid ""
 "Items moved to the Trash can be undone for 10 seconds; the rest is deleted "
 "for good."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:753 gui/cleanmate_gui/scanpage.py:798
+#: gui/cleanmate_gui/scanpage.py:869 gui/cleanmate_gui/scanpage.py:914
 #: gui/cleanmate_gui/uninstaller.py:604 gui/cleanmate_gui/uninstaller.py:656
 msgid "waiting"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:759
+#: gui/cleanmate_gui/scanpage.py:875
 msgid "Cleaning…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:776
+#: gui/cleanmate_gui/scanpage.py:892
 msgid "working…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:781
+#: gui/cleanmate_gui/scanpage.py:897
 msgid "done"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:781 gui/cleanmate_gui/uninstaller.py:642
+#: gui/cleanmate_gui/scanpage.py:897 gui/cleanmate_gui/uninstaller.py:642
 msgid "skipped"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:781 gui/cleanmate_gui/uninstaller.py:642
+#: gui/cleanmate_gui/scanpage.py:897 gui/cleanmate_gui/uninstaller.py:642
 msgid "failed"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:791 gui/cleanmate_gui/scanpage.py:798
+#: gui/cleanmate_gui/scanpage.py:907 gui/cleanmate_gui/scanpage.py:914
 #: gui/cleanmate_gui/uninstaller.py:650 gui/cleanmate_gui/uninstaller.py:656
 msgid "waiting for your password…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:801 gui/cleanmate_gui/uninstaller.py:658
+#: gui/cleanmate_gui/scanpage.py:917 gui/cleanmate_gui/uninstaller.py:658
 msgid "Skipped — no password was entered"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:807
+#: gui/cleanmate_gui/scanpage.py:923
 #, python-brace-format
 msgid "Dry run: {size} would be freed"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:809
+#: gui/cleanmate_gui/scanpage.py:925
 msgid "History cleared"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:811
+#: gui/cleanmate_gui/scanpage.py:927
 #, python-brace-format
 msgid "Freed {size}"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:813
+#: gui/cleanmate_gui/scanpage.py:929
 #, python-brace-format
 msgid "Free space: {before} → {after}"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:828
+#: gui/cleanmate_gui/scanpage.py:944
 #, python-brace-format
 msgid "Freed {size} · {n} item moved to the Trash"
 msgid_plural "Freed {size} · {n} items moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:854
+#: gui/cleanmate_gui/scanpage.py:970
 #, python-brace-format
 msgid "{n} item cleaned"
 msgid_plural "{n} items cleaned"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:856
+#: gui/cleanmate_gui/scanpage.py:972
 #, python-brace-format
 msgid "{n} moved to the Trash"
 msgid_plural "{n} moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:858
+#: gui/cleanmate_gui/scanpage.py:974
 #, python-brace-format
 msgid "{n} deleted permanently"
 msgid_plural "{n} deleted permanently"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:860
+#: gui/cleanmate_gui/scanpage.py:976
 #, python-brace-format
 msgid "{n} skipped"
 msgid_plural "{n} skipped"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:862
+#: gui/cleanmate_gui/scanpage.py:978
 #, python-brace-format
 msgid "{n} failed"
 msgid_plural "{n} failed"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:864 gui/cleanmate_gui/scanpage.py:910
+#: gui/cleanmate_gui/scanpage.py:980 gui/cleanmate_gui/scanpage.py:1026
 #: gui/cleanmate_gui/spacelens.py:454 gui/cleanmate_gui/uninstaller.py:848
 #, python-brace-format
 msgid "Put back {n} item from the Trash"
@@ -2020,7 +2093,7 @@ msgid_plural "Put back {n} items from the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:878
+#: gui/cleanmate_gui/scanpage.py:994
 msgid "Open Trash"
 msgstr ""
 
@@ -3418,6 +3491,24 @@ msgstr ""
 msgid "Downloaded .deb installers. apt re-downloads them if ever needed."
 msgstr ""
 
+#. apt_cache why, packagekit_cache why, thumbs why, app_cache why, node_modules why, npm why
+msgid ""
+"Deleted, not moved to the Trash: the app or tool makes it again when it "
+"needs it"
+msgstr ""
+
+#. apt_cache why, packagekit_cache why, orphans why, residual why, journal why, old_logs why
+msgid "Asks for your password: these are system files"
+msgstr ""
+
+#. apt_cache why, packagekit_cache why, orphans why, residual why, journal why, old_logs why
+msgid "If you cancel the password prompt"
+msgstr ""
+
+#. apt_cache why, packagekit_cache why, old_installers why, old_downloads why, old_screenshots why, abandoned_downloads why
+msgid "Automatic cleaning leaves it alone"
+msgstr ""
+
 #. packagekit_cache label
 msgid "PackageKit cache"
 msgstr ""
@@ -3426,6 +3517,14 @@ msgstr ""
 msgid ""
 "Packages and package lists GNOME Software and Software Updater downloaded. "
 "They are downloaded again when needed."
+msgstr ""
+
+#. packagekit_cache why
+msgid "GNOME Software"
+msgstr ""
+
+#. packagekit_cache why
+msgid "Software Updater"
 msgstr ""
 
 #. old_installers label
@@ -3440,11 +3539,33 @@ msgid ""
 "ago. Moved to the Trash."
 msgstr ""
 
+#. old_installers why, old_downloads why, old_screenshots why, abandoned_downloads why, stale_build_dirs why, vscode_stale_workspaces why
+msgid "Moved to the Trash: you can put it back until you empty the Trash"
+msgstr ""
+
+#. old_installers why, old_downloads why, old_screenshots why, abandoned_downloads why, old_kernels why, trash_drives why
+msgid "Not ticked by default: it is cleaned only if you tick it"
+msgstr ""
+
+#. old_installers why
+#, python-brace-format
+msgid "Installers downloaded in the last {0} days"
+msgstr ""
+
+#. old_installers why
+msgid "Anything inside a folder of Downloads (only the top of it is looked at)"
+msgstr ""
+
 #. old_downloads description
 #, python-brace-format
 msgid ""
 "Files and folders at the top of your Downloads folder that you haven't "
 "opened or changed for more than {0} days. Moved to the Trash."
+msgstr ""
+
+#. old_downloads why, old_screenshots why
+#, python-brace-format
+msgid "Anything opened or changed in the last {0} days"
 msgstr ""
 
 #. old_screenshots label
@@ -3459,6 +3580,10 @@ msgid ""
 "days. Moved to the Trash."
 msgstr ""
 
+#. old_screenshots why
+msgid "Other pictures: only screenshots and screen recordings are looked at"
+msgstr ""
+
 #. abandoned_downloads label
 msgid "Abandoned downloads"
 msgstr ""
@@ -3471,6 +3596,11 @@ msgid ""
 "Moved to the Trash."
 msgstr ""
 
+#. abandoned_downloads why
+#, python-brace-format
+msgid "Downloads that changed or were opened in the last {0} days"
+msgstr ""
+
 #. orphans label
 msgid "Unused packages & old kernels"
 msgstr ""
@@ -3481,12 +3611,40 @@ msgid ""
 "autoremove)."
 msgstr ""
 
+#. orphans why
+msgid ""
+"Packages apt installed only because another package needed them (apt "
+"autoremove)"
+msgstr ""
+
+#. orphans why, residual why, journal why, old_logs why, big_logs why, app_logs why
+msgid "Deleted for good, not moved to the Trash"
+msgstr ""
+
+#. orphans why
+msgid "apt can install them again"
+msgstr ""
+
+#. orphans why
+msgid ""
+"Packages you installed yourself, and anything an installed package still "
+"needs"
+msgstr ""
+
 #. residual label
 msgid "Leftover package configs"
 msgstr ""
 
 #. residual description
 msgid "System config files of packages that were removed but not purged."
+msgstr ""
+
+#. residual why
+msgid "System config files (/etc) of packages that were removed but not purged"
+msgstr ""
+
+#. residual why
+msgid "Packages that are still installed"
 msgstr ""
 
 #. journal label
@@ -3498,6 +3656,11 @@ msgstr ""
 msgid "Archived system logs. Keeps the last {0} days and at most {1} MB."
 msgstr ""
 
+#. journal why
+#, python-brace-format
+msgid "The last {0} days and the newest {1} MB of logs"
+msgstr ""
+
 #. old_logs label
 msgid "Rotated / archived logs"
 msgstr ""
@@ -3505,6 +3668,10 @@ msgstr ""
 #. old_logs description
 #, python-brace-format
 msgid "Compressed or rotated log files in /var/log (*.gz, *.{0}, *.old)."
+msgstr ""
+
+#. old_logs why
+msgid "Logs still being written: only rotated and compressed files are removed"
 msgstr ""
 
 #. big_logs label
@@ -3518,6 +3685,15 @@ msgid ""
 "normally."
 msgstr ""
 
+#. big_logs why
+msgid "Emptied in place: the service keeps writing to the same file"
+msgstr ""
+
+#. big_logs why
+#, python-brace-format
+msgid "Logs under {0} MB"
+msgstr ""
+
 #. app_logs label
 msgid "Old app logs"
 msgstr ""
@@ -3525,6 +3701,16 @@ msgstr ""
 #. app_logs description
 #, python-brace-format
 msgid "Log files of apps (VS Code, Slack, …) not written for {0}+ days."
+msgstr ""
+
+#. app_logs why
+msgid ""
+"The log folders of apps in ~/.config, ~/.local/share, ~/snap and ~/.var/app"
+msgstr ""
+
+#. app_logs why
+#, python-brace-format
+msgid "Logs written in the last {0} days"
 msgstr ""
 
 #. crash label
@@ -3551,6 +3737,14 @@ msgstr ""
 msgid "Disabled previous versions of snaps, kept only for rollback."
 msgstr ""
 
+#. snap_old why
+msgid "The snap can no longer go back to these versions"
+msgstr ""
+
+#. snap_old why
+msgid "The version of each snap that runs now"
+msgstr ""
+
 #. old_kernels label
 msgid "Extra old kernels"
 msgstr ""
@@ -3559,6 +3753,10 @@ msgstr ""
 msgid ""
 "Kernels older than your two newest (never the one running), so a fallback "
 "always stays."
+msgstr ""
+
+#. old_kernels why
+msgid "The kernel that runs now and your two newest kernels"
 msgstr ""
 
 #. tmp label
@@ -3570,6 +3768,15 @@ msgstr ""
 msgid "Your files in /tmp and /var/tmp not touched for {0}+ days."
 msgstr ""
 
+#. tmp why
+#, python-brace-format
+msgid "Files used in the last {0} days"
+msgstr ""
+
+#. tmp why
+msgid "Files of other users"
+msgstr ""
+
 #. thumbs label
 msgid "Thumbnail cache"
 msgstr ""
@@ -3578,12 +3785,20 @@ msgstr ""
 msgid "Image previews generated by the file manager; rebuilt on demand."
 msgstr ""
 
+#. thumbs why, trash why, npm why, yarn why, pnpm why, bun why
+msgid "Its folder is in Settings › Never clean"
+msgstr ""
+
 #. trash label
 msgid "Trash"
 msgstr ""
 
 #. trash description
 msgid "Files you already deleted. Review before emptying!"
+msgstr ""
+
+#. trash why
+msgid "Emptying the Trash can't be undone"
 msgstr ""
 
 #. trash_drives label
@@ -3596,6 +3811,14 @@ msgid ""
 "Trash and keep using its space. Emptying deletes them for good."
 msgstr ""
 
+#. trash_drives why
+msgid "The Trash folder of each USB stick or other drive you plugged in"
+msgstr ""
+
+#. trash_drives why
+msgid "Emptying a Trash can't be undone"
+msgstr ""
+
 #. app_cache label
 #, python-brace-format
 msgid "Stale app caches (>{0} days)"
@@ -3604,6 +3827,11 @@ msgstr ""
 #. app_cache description
 #, python-brace-format
 msgid "Files under ~/.cache not modified or read for {0}+ days."
+msgstr ""
+
+#. app_cache why
+#, python-brace-format
+msgid "Files changed or read in the last {0} days"
 msgstr ""
 
 #. node_modules label
@@ -3615,6 +3843,19 @@ msgstr ""
 msgid ""
 "node_modules of projects untouched for {0}+ days. Restore with npm/yarn/pnpm "
 "install."
+msgstr ""
+
+#. node_modules why
+msgid "node_modules folders of your projects"
+msgstr ""
+
+#. node_modules why, stale_build_dirs why
+#, python-brace-format
+msgid "Projects changed in the last {0} days"
+msgstr ""
+
+#. node_modules why, stale_build_dirs why
+msgid "Projects in a folder in Settings › Never clean"
 msgstr ""
 
 #. stale_build_dirs label
@@ -3631,6 +3872,10 @@ msgid ""
 "newstyle/, Elixir _build/ and deps/, Zig caches, Python .venv/, CocoaPods "
 "Pods/ and Terraform .terraform/providers and modules. Moved to the Trash; "
 "the project's build tool makes them again."
+msgstr ""
+
+#. stale_build_dirs why
+msgid "Build folders next to the project file that makes them"
 msgstr ""
 
 #. npm label
@@ -3655,6 +3900,10 @@ msgstr ""
 
 #. pnpm description
 msgid "Packages in the pnpm store no project references (pnpm store prune)."
+msgstr ""
+
+#. pnpm why
+msgid "Packages a project still uses (pnpm store prune)"
 msgstr ""
 
 #. bun label
@@ -3715,6 +3964,15 @@ msgid ""
 "Your environments are kept."
 msgstr ""
 
+#. conda why
+msgid "Conda's package folders (pkgs)"
+msgstr ""
+
+#. conda why
+msgid ""
+"Your environments: only downloaded archives, the index cache and logs go"
+msgstr ""
+
 #. docker_dangling label
 msgid "Docker: dangling images"
 msgstr ""
@@ -3723,12 +3981,24 @@ msgstr ""
 msgid "Untagged leftover image layers from rebuilds — nothing uses them."
 msgstr ""
 
+#. docker_dangling why
+msgid "Docker's image store (docker image prune)"
+msgstr ""
+
+#. docker_dangling why
+msgid "Image layers a tagged image or a container uses"
+msgstr ""
+
 #. docker_build label
 msgid "Docker: build cache"
 msgstr ""
 
 #. docker_build description
 msgid "BuildKit cache. Safe to remove; the next build is slower once."
+msgstr ""
+
+#. docker_build why
+msgid "Docker's build cache (docker builder prune)"
 msgstr ""
 
 #. docker_containers label
@@ -3741,12 +4011,33 @@ msgid ""
 "is lost."
 msgstr ""
 
+#. docker_containers why
+msgid "Docker's stopped containers (docker container prune)"
+msgstr ""
+
+#. docker_containers why
+msgid "Containers that are running"
+msgstr ""
+
+#. docker_containers why, docker_volumes why
+msgid ""
+"Unattended cleaning (automatic, or cm --clean --yes): it may hold your data"
+msgstr ""
+
 #. docker_images label
 msgid "Docker: unused images"
 msgstr ""
 
 #. docker_images description
 msgid "Images no container uses. They are pulled again when needed."
+msgstr ""
+
+#. docker_images why
+msgid "Docker's images (docker image prune -a)"
+msgstr ""
+
+#. docker_images why
+msgid "Images a container uses, even a stopped one"
 msgstr ""
 
 #. docker_volumes label
@@ -3759,6 +4050,14 @@ msgid ""
 "before removing!"
 msgstr ""
 
+#. docker_volumes why
+msgid "Docker's volumes (docker volume prune)"
+msgstr ""
+
+#. docker_volumes why
+msgid "Volumes a container uses, even a stopped one"
+msgstr ""
+
 #. podman label
 msgid "Podman: stopped containers & dangling images"
 msgstr ""
@@ -3767,6 +4066,14 @@ msgstr ""
 msgid ""
 "podman system prune: stopped containers, untagged image layers and unused "
 "networks. Volumes and tagged images are kept."
+msgstr ""
+
+#. podman why
+msgid "Podman's containers and images (podman system prune)"
+msgstr ""
+
+#. podman why
+msgid "Running containers, volumes and tagged images"
 msgstr ""
 
 #. game_launcher_caches label
@@ -3780,6 +4087,12 @@ msgid ""
 "Wine prefixes, games and saves are kept. Close the launchers and games first."
 msgstr ""
 
+#. game_launcher_caches why
+msgid ""
+"The download caches of winetricks and Wine, and the cover art and installer "
+"caches of Lutris and Heroic"
+msgstr ""
+
 #. steam_caches label
 msgid "Steam caches"
 msgstr ""
@@ -3789,6 +4102,12 @@ msgid ""
 "The web cache of Steam's store and library pages, depot manifests, logs and "
 "crash dumps. Steam downloads or writes them again; games, downloads, saves, "
 "screenshots and your sign-in are kept. Close Steam first."
+msgstr ""
+
+#. steam_caches why
+msgid ""
+"The appcache, config/htmlcache, depotcache, logs and dumps folders of each "
+"Steam folder"
 msgstr ""
 
 #. minecraft_caches label
@@ -3801,6 +4120,19 @@ msgid ""
 "and the logs and crash reports of each Prism instance. Written again when "
 "you play; worlds, mods, resource packs, screenshots, settings and accounts "
 "are kept. Close the launcher and the game first."
+msgstr ""
+
+#. minecraft_caches why
+msgid ""
+"The logs, crash reports and web cache of ~/.minecraft and Prism Launcher"
+msgstr ""
+
+#. minecraft_caches why
+msgid "the Minecraft Launcher"
+msgstr ""
+
+#. minecraft_caches why
+msgid "Prism Launcher"
 msgstr ""
 
 #. browser_firefox label
@@ -3893,6 +4225,10 @@ msgid ""
 "your files are not touched."
 msgstr ""
 
+#. priv_recent why, priv_zsh why, priv_bash why, priv_fish why, priv_repl why, priv_misc why
+msgid "Only the entries go: the file itself stays"
+msgstr ""
+
 #. priv_zsh label
 msgid "Zsh history"
 msgstr ""
@@ -3960,6 +4296,16 @@ msgstr ""
 msgid "Commands typed in Alt+F2, recently used emoji and characters."
 msgstr ""
 
+#. priv_gsettings why
+msgid ""
+"GNOME's settings (gsettings): the Alt+F2 history and recent emoji and "
+"characters"
+msgstr ""
+
+#. priv_gsettings why
+msgid "The lists start empty; your other settings are kept"
+msgstr ""
+
 #. priv_browser_firefox label
 msgid "Firefox — history & cookies"
 msgstr ""
@@ -3969,6 +4315,11 @@ msgid ""
 "Browsing history, the downloads list and cookies of Firefox, in every "
 "profile. Signs you out of websites; passwords, bookmarks and extensions are "
 "kept. Skipped while Firefox is running. Needs sqlite3."
+msgstr ""
+
+#. priv_browser_firefox why, priv_browser_chrome why, priv_browser_chromium why, priv_browser_brave why, priv_browser_edge why, priv_browser_vivaldi why
+msgid ""
+"You are signed out of websites; passwords, bookmarks and extensions are kept"
 msgstr ""
 
 #. priv_browser_chrome label
@@ -4056,6 +4407,11 @@ msgstr ""
 msgid ""
 "Session transcripts, checkpoints and todos older than {0} days. Memory, "
 "settings and logins are kept."
+msgstr ""
+
+#. ai_claude_history why, ai_claude_desktop_history why, ai_codex_history why, ai_gemini_history why, ai_opencode_history why, ai_misc_history why
+#, python-brace-format
+msgid "Anything changed in the last {0} days"
 msgstr ""
 
 #. ai_claude_desktop_cache label
@@ -4242,6 +4598,18 @@ msgid ""
 "the Trash; close the editor first."
 msgstr ""
 
+#. vscode_stale_workspaces why
+msgid "The workspaceStorage folder of VS Code, Cursor, Windsurf and VSCodium"
+msgstr ""
+
+#. vscode_stale_workspaces why
+msgid "Projects that still exist"
+msgstr ""
+
+#. vscode_stale_workspaces why
+msgid "VS Code"
+msgstr ""
+
 #. uv_cache label
 msgid "uv cache"
 msgstr ""
@@ -4281,6 +4649,10 @@ msgid ""
 "log still being written is skipped. Your login is kept."
 msgstr ""
 
+#. firebase_logs why
+msgid "A log a program still has open"
+msgstr ""
+
 #. firebase_emulators label
 msgid "Firebase emulators"
 msgstr ""
@@ -4299,6 +4671,10 @@ msgstr ""
 msgid ""
 "Modules and npm packages Deno downloaded, plus its compiled code. Downloaded "
 "again on the next run; localStorage data of scripts (location_data) is kept."
+msgstr ""
+
+#. deno_cache why, zig_cache why, bazel_cache why, ccache_cache why, sccache_cache why, nuget_cache why
+msgid "Folders with a file a program has open"
 msgstr ""
 
 #. zig_cache label
@@ -4497,6 +4873,11 @@ msgid ""
 "while Dropbox runs."
 msgstr ""
 
+#. cloud_dropbox why
+#, python-brace-format
+msgid "Cache files changed in the last {0} days"
+msgstr ""
+
 #. cloud_nextcloud label
 msgid "Nextcloud & ownCloud — cache & logs"
 msgstr ""
@@ -4561,6 +4942,19 @@ msgid ""
 "tool. A version that is running is skipped."
 msgstr ""
 
+#. old_runtimes why
+msgid ""
+"The versions folders of nvm, pyenv, rbenv, rustup, SDKMAN, fvm and ~/sdk"
+msgstr ""
+
+#. old_runtimes why
+msgid "Your default version of each tool"
+msgstr ""
+
+#. old_runtimes why, old_runtimes_asdf_mise why
+msgid "A version that is running"
+msgstr ""
+
 #. old_runtimes_asdf_mise label
 msgid "Old runtime versions (asdf, mise)"
 msgstr ""
@@ -4572,6 +4966,20 @@ msgid ""
 "settings or a project in your home folder. Deleted; install one again with "
 "asdf install or mise install. A version that is running is skipped. Close "
 "asdf and mise first."
+msgstr ""
+
+#. old_runtimes_asdf_mise why
+msgid "The installs folders of asdf and mise"
+msgstr ""
+
+#. old_runtimes_asdf_mise why
+msgid "The newest version of each tool"
+msgstr ""
+
+#. old_runtimes_asdf_mise why
+msgid ""
+"Versions pinned in ~/.tool-versions, mise's settings or a project in your "
+"home folder"
 msgstr ""
 
 #. unity_old_editors label
@@ -4586,6 +4994,22 @@ msgid ""
 "Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
 msgstr ""
 
+#. unity_old_editors why
+msgid "The folders Unity Hub installs editors in"
+msgstr ""
+
+#. unity_old_editors why
+msgid "The newest version"
+msgstr ""
+
+#. unity_old_editors why
+msgid "Versions your projects use"
+msgstr ""
+
+#. unity_old_editors why
+msgid "Unity Hub"
+msgstr ""
+
 #. vagrant_old_boxes label
 msgid "Old Vagrant boxes"
 msgstr ""
@@ -4596,6 +5020,14 @@ msgid ""
 "Box versions Vagrant downloaded (~/.vagrant.d/boxes), often {0}.{1}–{2} GB "
 "each, other than the newest of each box and those your machines use. "
 "Deleted; vagrant downloads one again when needed. Close Vagrant first."
+msgstr ""
+
+#. vagrant_old_boxes why
+msgid "The newest version of each box"
+msgstr ""
+
+#. vagrant_old_boxes why
+msgid "Versions your machines use"
 msgstr ""
 
 #. unity_caches label
@@ -4621,6 +5053,22 @@ msgid ""
 "Close Android Studio and the emulator first."
 msgstr ""
 
+#. android_images why
+msgid "The system-images folder of your Android SDK"
+msgstr ""
+
+#. android_images why
+msgid "System images a virtual device uses"
+msgstr ""
+
+#. android_images why, android_sdk_old why
+msgid "Android Studio"
+msgstr ""
+
+#. android_images why, android_sdk_old why, android_avd_snapshots why
+msgid "the emulator"
+msgstr ""
+
 #. android_sdk_old label
 msgid "Old Android SDK components"
 msgstr ""
@@ -4634,6 +5082,19 @@ msgid ""
 "Studio, Gradle and the emulator first."
 msgstr ""
 
+#. android_sdk_old why
+msgid "Your Android SDK (~/Android/Sdk, ANDROID_HOME)"
+msgstr ""
+
+#. android_sdk_old why
+msgid "The newest version of each component"
+msgstr ""
+
+#. android_sdk_old why
+msgid ""
+"Versions a project in your home folder pins (build.gradle, local.properties)"
+msgstr ""
+
 #. android_avd_snapshots label
 msgid "Android emulator snapshots"
 msgstr ""
@@ -4644,6 +5105,14 @@ msgid ""
 "devices, often several GB each. Deleted; the next start is a cold boot and "
 "the emulator saves a new one. Apps and data on the device are kept. Close "
 "the emulator first."
+msgstr ""
+
+#. android_avd_snapshots why
+msgid "The folders of your Android virtual devices"
+msgstr ""
+
+#. android_avd_snapshots why
+msgid "The apps and data on each virtual device"
 msgstr ""
 
 #. game_runners_old label
@@ -4659,6 +5128,22 @@ msgid ""
 "again with the launcher or ProtonUp-Qt. Close the launchers and games first."
 msgstr ""
 
+#. game_runners_old why
+msgid "The Proton and Wine folders of Steam, Lutris, Heroic and Bottles"
+msgstr ""
+
+#. game_runners_old why
+msgid "The newest version of each"
+msgstr ""
+
+#. game_runners_old why
+msgid "Versions a game or bottle is set to use"
+msgstr ""
+
+#. game_runners_old why
+msgid "Wine and Proton games"
+msgstr ""
+
 #. jetbrains_old_versions label
 msgid "Old IDE versions"
 msgstr ""
@@ -4668,6 +5153,20 @@ msgid ""
 "Settings, plugins, caches and logs of JetBrains IDE (IntelliJ IDEA, PyCharm, "
 "WebStorm…) and Android Studio versions that a newer version of the same IDE "
 "replaced. Moved to the Trash; skipped while that IDE runs."
+msgstr ""
+
+#. jetbrains_old_versions why
+msgid ""
+"The folders of each IDE version in ~/.config, ~/.local/share and ~/.cache "
+"(JetBrains, Google)"
+msgstr ""
+
+#. jetbrains_old_versions why
+msgid "The newest version of each IDE"
+msgstr ""
+
+#. jetbrains_old_versions why
+msgid "An IDE that is running"
 msgstr ""
 
 #. vscode_old_extensions label
@@ -4682,6 +5181,18 @@ msgid ""
 "editor downloads any version again. Skipped while that editor runs."
 msgstr ""
 
+#. vscode_old_extensions why
+msgid "The extensions folder of VS Code, Cursor, Windsurf and VSCodium"
+msgstr ""
+
+#. vscode_old_extensions why
+msgid "The version in use"
+msgstr ""
+
+#. vscode_old_extensions why
+msgid "An editor that is running"
+msgstr ""
+
 #. ollama_partial label
 msgid "Ollama — unfinished downloads"
 msgstr ""
@@ -4690,6 +5201,10 @@ msgstr ""
 msgid ""
 "Pieces of Ollama downloads that were interrupted (sha256-…-partial). "
 "Complete models are kept; a pull starts them again."
+msgstr ""
+
+#. ollama_partial why
+msgid "Complete models are kept; ollama pull starts the download again"
 msgstr ""
 
 #. ai_model_caches label
@@ -4701,4 +5216,8 @@ msgid ""
 "Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/."
 "cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a "
 "program needs one. A model in use is skipped."
+msgstr ""
+
+#. ai_model_caches why
+msgid "A model a program has open"
 msgstr ""

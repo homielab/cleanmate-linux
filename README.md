@@ -123,11 +123,12 @@ Checked against BleachBit's own website and documentation (November 2026). More 
   removed; apps that are running are asked about (and skipped when unattended).
 - **System paths are hard-blocked** (`/`, `/usr`, `/etc`, your home folder itself, …), and when it
   runs as root it refuses anything inside a home folder.
-- **Folders you never want touched:** add them in *Settings → Never clean* (both apps), or with *Never Clean
-  This* on a folder in the desktop app's scan results. Large & Old
-  Files, Duplicates, Space Lens, stale `node_modules` and project build folders, old installers and old
-  downloads skip them, and nothing in them is moved to the Trash. Only folders inside your home folder, not
-  the home folder itself. Smart Scan's caches and logs ignore the list: their apps rebuild them.
+- **Folders you never want touched:** add them in *Settings → Never clean* (both apps), with *Never Clean
+  This* on a folder in the desktop app's scan results, or with *Never Clean* in an item's ⓘ *Why is this
+  safe?* popover. Large & Old Files, Duplicates, Space Lens, stale `node_modules` and project build folders,
+  old installers and old downloads skip them, and nothing in them is moved to the Trash. A Smart Scan item
+  whose own folders are all on the list is left out; a folder inside a cache doesn't stop its cache from
+  being cleaned (the app rebuilds it). Only folders inside your home folder, not the home folder itself.
 - **Everything is logged** to `~/.local/state/cleanmate/clean.log` (*Settings → Activity log* in both apps).
 
 ## Automatic cleaning
