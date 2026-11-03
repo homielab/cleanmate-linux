@@ -12,6 +12,7 @@ All notable changes are listed here. The format follows
 
 ### Changed
 
+- The README starts with what CleanMate does, a screenshot and the install commands, and compares it with BleachBit; the full list of what it cleans moved to `docs/FEATURES.md`.
 - Minecraft caches are skipped only while Minecraft itself runs, not while any Java program (an IDE, a Gradle daemon) is open.
 
 ## [2.3.0] — 2026-11-02
