@@ -18,12 +18,14 @@ from .scanpage import ScanPage
 from .settings import SettingsPage
 from .spacelens import SpaceLensPage
 from .startup import StartupPage
+from .trashed import TrashedPage
 from .uninstaller import UninstallerPage
 from .welcome import Welcome
 
 TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "dupes": DuplicatesPage,
               "uninstall": UninstallerPage, "startup": StartupPage,
-              "maintenance": MaintenancePage, "overview": OverviewPage}  # pages with their own engine commands
+              "maintenance": MaintenancePage, "overview": OverviewPage,
+              "trashed": TrashedPage}  # pages with their own engine commands
 
 
 def disk_space(paths=None):
@@ -84,6 +86,8 @@ PAGES = [
     ("overview", _("System Overview"), "utilities-system-monitor-symbolic", None,
      _("Your system, disks, free space over time, memory, the space CleanMate freed, and your largest "
        "folders.")),
+    ("trashed", _("Moved to the Trash"), "user-trash-symbolic", None,
+     _("Everything CleanMate moved to the Trash, also in earlier sessions. Put back one item, a few or all.")),
 ]
 if IN_FLATPAK:  # what the Flatpak can't reach is left out (engine.IN_FLATPAK); the descriptions say what is left
     _FLATPAK_DESCRIPTIONS = {
@@ -95,13 +99,14 @@ if IN_FLATPAK:  # what the Flatpak can't reach is left out (engine.IN_FLATPAK); 
              for s in PAGES if not (s and s[0] in FLATPAK_HIDDEN_PAGES)]
 # Ctrl+1…9: the System Overview (where the app opens) first, then the sidebar from the top
 SHORTCUT_PAGES = ["overview", "smart", "system", "logs", "user", "ai", "dev", "privacy", "lens"]
-# the other tools: Ctrl+0, then Ctrl+Shift+1…4 (pages the Flatpak hides get none)
+# the other tools: Ctrl+0, then Ctrl+Shift+1…5 (pages the Flatpak hides get none)
 MORE_SHORTCUTS = [(pid, accel) for pid, accel in (
     ("large", "<Control>0"), ("dupes", "<Control><Shift>1"), ("uninstall", "<Control><Shift>2"),
-    ("startup", "<Control><Shift>3"), ("maintenance", "<Control><Shift>4"))
+    ("startup", "<Control><Shift>3"), ("maintenance", "<Control><Shift>4"), ("trashed", "<Control><Shift>5"))
     if not (IN_FLATPAK and pid in FLATPAK_HIDDEN_PAGES)]
 ACCEL_LABELS = {"<Control>0": "Ctrl+0", "<Control><Shift>1": "Ctrl+Shift+1", "<Control><Shift>2": "Ctrl+Shift+2",
-                "<Control><Shift>3": "Ctrl+Shift+3", "<Control><Shift>4": "Ctrl+Shift+4"}
+                "<Control><Shift>3": "Ctrl+Shift+3", "<Control><Shift>4": "Ctrl+Shift+4",
+                "<Control><Shift>5": "Ctrl+Shift+5"}
 
 
 class Window(Adw.ApplicationWindow):
@@ -353,6 +358,16 @@ class Window(Adw.ApplicationWindow):
         self.select_sidebar("lens")
         self.split.set_show_content(True)
         self.pages["lens"].open_folder(path)
+
+    def show_trashed(self):
+        """Moved to the Trash, from Settings and a clean's summary (also while a dialog is still closing)."""
+        shown = self.content_stack.get_visible_child_name() == "trashed"
+        self.show_page("trashed")
+        self.select_sidebar("trashed")
+        self.split.set_show_content(True)
+        if shown:  # already open: list again, the clean that led here changed the Trash
+            self.pages["trashed"].reload()
+        return self.pages["trashed"]
 
     # ── helpers used by pages ──
     def toast(self, text, button=None, on_button=None, timeout=4):

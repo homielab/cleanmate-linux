@@ -1064,6 +1064,7 @@ class ScanPage(Gtk.Box):
         row.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"], valign=Gtk.Align.CENTER))
         self.summary_undo = None
         self.summary_empty = None
+        self.summary_trashed = None
         left = s["undo_until"] - time.monotonic()
         if s["keys"] and s["restored"] is None and left > 0:  # Undo, as long as the toast offered it
             undo = Gtk.Button(label=_("Undo"), valign=Gtk.Align.CENTER)
@@ -1075,6 +1076,11 @@ class ScanPage(Gtk.Box):
             trash = Gtk.Button(label=_("Open Trash"), valign=Gtk.Align.CENTER)
             trash.connect("clicked", lambda *_: Gtk.UriLauncher.new("trash:///").launch(self.window, None, None))
             row.add_suffix(trash)
+            moved = Gtk.Button(label=_("View Moved Items"), valign=Gtk.Align.CENTER,
+                               tooltip_text=_("Everything CleanMate moved to the Trash, to put back what you need"))
+            moved.connect("clicked", lambda *_: self.window.show_trashed())
+            row.add_suffix(moved)
+            self.summary_trashed = moved
             if s["to_trash"] and s["restored"] is None and s["emptied"] is None:
                 empty = Gtk.Button(label=_("Empty Trash…"), valign=Gtk.Align.CENTER,
                                    tooltip_text=_("Delete what is in the Trash for good, to get the space back"))

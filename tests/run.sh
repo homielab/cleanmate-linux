@@ -1416,6 +1416,7 @@ d = json.load(sys.stdin)
 assert d["version"] == sys.argv[2] and d["count"] == len(d["items"]), d
 for i in d["items"]:
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d", i["date"]), i["date"]
+    assert i["inTrash"] is True and i["location"] == sys.argv[1] + "/.local/share/Trash/files/" + i["trashed"], i
     print(i["trashed"], i["path"].replace(sys.argv[1], "~"), i["size"], i["kind"], i["source"], sep="|")'
   out=$(user_cm --json restore --list)
   assert_eq "$out" "{\"version\":\"$APPV\",\"count\":0,\"items\":[]}" "nothing trashed: an empty list"
@@ -1454,6 +1455,20 @@ film one.mkv|~/Videos/film one.mkv|1234|file|Command Line" "newest first, with s
   printf '[Trash Info]\nPath=%s/Downloads/a.deb\nDeletionDate=2026-01-01T00:00:00\n' "$HOME_DIR" >"$trash/info/a.deb.trashinfo"
   out=$(user_cm --json restore --list)
   assert_eq "$out" "{\"version\":\"$APPV\",\"count\":0,\"items\":[]}" "only what is still in the Trash"
+  # --gone: what left the Trash lately, but not what is back where it was
+  local gone='import sys, json
+for i in json.load(sys.stdin)["items"]:
+    print(i["trashed"], i["path"].replace(sys.argv[1], "~"), i["inTrash"], i["size"], i["kind"], i["location"], i["source"], sep="|")'
+  out=$(user_cm --json restore --list --gone 30 | python3 -c "$gone" "$HOME_DIR")
+  assert_eq "$out" "a.deb|~/Downloads/a.deb|False|None|None|None|Smart Scan › Old installers in Downloads" \
+    "--gone lists what left the Trash, not what was put back"
+  out=$(user_cm restore --list --gone 30 2>&1)
+  assert_contains "$out" "$HOME_DIR/Downloads/a.deb"; assert_contains "$out" "(no longer in the Trash)"
+  out=$(sed "s/^[0-9]*\(\ta.deb\t\)/$(($(date +%s) - 40 * 86400))\1/" "$ledger") # moved 40 days ago
+  printf '%s\n' "$out" >"$ledger" # (not sed -i: the file stays the user's)
+  out=$(user_cm --json restore --list --gone 30)
+  assert_eq "$out" "{\"version\":\"$APPV\",\"count\":0,\"items\":[]}" "--gone: only what was moved in those days"
+  out=$(user_cm --json restore --list --gone 0 2>&1); assert_contains "$out" "--gone needs a number of days above 0"
   # the terminal form
   user_cm --json trash "$film" >/dev/null
   out=$(user_cm restore --list 2>&1)
@@ -3615,6 +3630,11 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     ((EUID == 0)) || assert_contains "$out" "a clean that deleted everything for good offers no Undo"
     assert_contains "$out" "the confirmation says an item that goes to the Trash can be undone"
     ((EUID == 0)) || assert_contains "$out" "Undo puts the installer back from the Trash and the scan lists it again"
+    ((EUID == 0)) || assert_contains "$out" "the clean's summary leads to Moved to the Trash"
+    ((EUID == 0)) || assert_contains "$out" "Put Back returns the file to its folder and drops its row"
+    ((EUID == 0)) || assert_contains "$out" "an item emptied from the Trash is greyed out, says so and has no box"
+    ((EUID == 0)) || assert_contains "$out" "Settings › Moved to the Trash opens the page"
+    ((EUID != 0)) || assert_contains "$out" "as root Moved to the Trash says why it can't list"
     assert_contains "$out" "a missing tool locks the row with why"
     ((EUID == 0)) || assert_contains "$out" "Rebuild font cache runs as you; the log shows its output, then done"
     assert_contains "$out" "Update everything asks for the password once"

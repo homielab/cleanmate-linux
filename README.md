@@ -186,10 +186,11 @@ cm --json dupes [--min BYTES] [--path DIR] [--limit N]              # groups of 
 
 `trash [--home-only] PATH…` moves the paths the user confirmed into the Trash (one `task` line per path with a `trash` restore key, or `fail` with the reason — it refuses anything touched by *Never clean* or outside your home folder) and `restore KEY…` puts Trash items back. Nothing is ever deleted for good by hand.
 
-`restore --list [--limit N]` lists what CleanMate moved to the Trash (from any session, app or command)
+`restore --list [--limit N] [--gone DAYS]` lists what CleanMate moved to the Trash (from any session, app or command)
 and is still there, newest first, at most 200 — one object:
-`{"version":"<app version>","count":N,"items":[{"trashed","path","size","kind","date","source"}]}`, where `trashed` goes
-straight to `restore`. Things you trashed yourself are not listed. `cm restore --list` prints the same
+`{"version":"<app version>","count":N,"items":[{"trashed","path","size","kind","date","source","inTrash","location"}]}`, where `trashed` goes
+straight to `restore` and `location` is the item in the Trash. `--gone DAYS` also lists what it moved there in the last
+DAYS days that has left the Trash since and isn't back in its place (`inTrash` false; `size`, `kind`, `location` null). Things you trashed yourself are not listed. `cm restore --list` prints the same
 for people: date, size and where each item was.
 
 **AI agents.** An [Agent Skill](https://agentskills.io) in `skills/cleanmate/` teaches Claude Code, Codex

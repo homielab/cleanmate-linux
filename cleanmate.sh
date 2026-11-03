@@ -898,7 +898,8 @@ trash_info_read() { # FILE → TI_PATH, TI_DATE: Path= and DeletionDate= of a .t
   done <"$1"
 }
 
-trash_record_live() { # LINE SEEN — a ledger line whose item is still in the Trash → TRL_* fields, TL_* (trash_locate);
+trash_record_live() { # LINE SEEN — 0: a ledger line whose item is still in the Trash → TRL_* fields, TL_* (trash_locate);
+  # 2: ours, but it left the Trash (emptied, deleted or put back; TRL_* set); 1: anything else (a drive not mounted).
   # SEEN (assoc array, read newest first) skips older records of a key: only the newest can be what the Trash holds
   local -n __seen=$2
   local k pe ie when info
@@ -906,24 +907,33 @@ trash_record_live() { # LINE SEEN — a ledger line whose item is still in the T
   [[ $TRL_EPOCH =~ ^[0-9]+$ && -n $k && -n $pe && -z ${__seen[$k]:-} ]] || return 1
   __seen[$k]=1
   urldecode_path TRL_KEY "$k"
+  urldecode_path TRL_PATH "$pe"
   trash_locate "$TRL_KEY" || return 1
   info=$TL_DIR/info/$TL_NAME.trashinfo
-  [[ (-e $TL_DIR/files/$TL_NAME || -L $TL_DIR/files/$TL_NAME) && -f $info && ! -L $info ]] || return 1
+  [[ (-e $TL_DIR/files/$TL_NAME || -L $TL_DIR/files/$TL_NAME) && -f $info && ! -L $info ]] || return 2
   trash_info_read "$info"
-  [[ $TI_PATH == "$ie" && $TI_DATE == "$when" ]] || return 1 # emptied, then the name was used again
-  urldecode_path TRL_PATH "$pe"
+  [[ $TI_PATH == "$ie" && $TI_DATE == "$when" ]] || return 2 # emptied, then the name was used again
 }
 
-trashed_items() { # LIMIT → TR_KEY TR_PATH TR_BYTES TR_KIND TR_EPOCH TR_SOURCE: what CleanMate moved to the
-  # Trash and is still there, newest first (read only: the ledger is never written here)
-  local limit=$1 lines=() i f b
+trashed_items() { # LIMIT [SINCE] → TR_KEY TR_PATH TR_BYTES TR_KIND TR_EPOCH TR_SOURCE TR_WHERE: what CleanMate moved
+  # to the Trash and is still there (TR_WHERE = the item in the Trash), newest first; with SINCE (epoch) also what it
+  # moved there since then that has left the Trash and is not back where it was (TR_WHERE, TR_KIND and TR_BYTES
+  # empty). Read only: the ledger is never written here
+  local limit=$1 since=${2:-} lines=() i f b rc
   local -A seen=()
-  TR_KEY=() TR_PATH=() TR_BYTES=() TR_KIND=() TR_EPOCH=() TR_SOURCE=()
+  TR_KEY=() TR_PATH=() TR_BYTES=() TR_KIND=() TR_EPOCH=() TR_SOURCE=() TR_WHERE=()
   [[ -f $TRASH_LEDGER && -r $TRASH_LEDGER ]] || return 0
   mapfile -t lines <"$TRASH_LEDGER"
   for ((i = ${#lines[@]} - 1; i >= 0 && ${#TR_KEY[@]} < limit; i--)); do
-    trash_record_live "${lines[i]}" seen || continue
+    trash_record_live "${lines[i]}" seen
+    rc=$?
+    if ((rc == 2)) && [[ -n $since ]] && ((TRL_EPOCH >= since)) && [[ ! -e $TRL_PATH && ! -L $TRL_PATH ]]; then
+      TR_KEY+=("$TRL_KEY") TR_PATH+=("$TRL_PATH") TR_BYTES+=("") TR_KIND+=("") TR_WHERE+=("")
+      TR_EPOCH+=("$TRL_EPOCH") TR_SOURCE+=("${TRL_SOURCE:-CleanMate}")
+    fi
+    ((rc == 0)) || continue
     f=$TL_DIR/files/$TL_NAME
+    TR_WHERE+=("$f")
     if [[ -d $f && ! -L $f ]]; then
       b=$(du -sb -- "$f" 2>/dev/null)
       b=${b%%[[:space:]]*}
@@ -11134,7 +11144,7 @@ json_main() { # SUBCOMMAND ARGS…
     maintain) json_maintain "$@" ;;
     overview) json_overview ;;
     check) json_check "$@" ;;
-    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|restore --list [--limit N]|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|sysreport|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
+    *) json_error "Usage: --json items|scan|details ID|clean ID…|large|lens|dupes|trash PATH…|restore KEY…|restore --list [--limit N] [--gone DAYS]|startup|startup-set ID enable|disable|remove|settings|settings-set KEY VALUE|activity [--limit N]|sysreport|apps|uninstall [--check] ID…|reset [--check] ID [FOLDER…]|maintenance|maintain ID [on|off] [--user-steps]|overview|check [low_disk|remind]…"; return 2 ;;
   esac
 }
 
@@ -11685,16 +11695,21 @@ json_restore() { # KEY… — put these back from the Trash (keys from the "tras
   printf '{"event":"done","restored":%d,"failed":%d}\n' "$ok" "$failed"
 }
 
-restore_limit() { # VAR ARGS… — the --limit of `restore --list` (default 200) into VAR; 2 on a bad option
+restore_limit() { # VAR ARGS… — the --limit of `restore --list` (default 200) into VAR, --gone DAYS into RL_SINCE
+  # (the epoch DAYS days ago, empty without it); 2 on a bad option
   local -n __rl=$1
   shift
-  __rl=200
+  __rl=200 RL_SINCE=""
   while (($#)); do
     case $1 in
       --limit)
         [[ ${2:-} =~ ^[0-9]+$ ]] && ((10#$2 > 0)) || { RL_ERROR="--limit needs a number above 0."; return 2; }
         __rl=$((10#$2)); shift ;;
-      *) RL_ERROR="Unknown option: $1 (restore --list [--limit N])"; return 2 ;;
+      --gone)
+        [[ ${2:-} =~ ^[0-9]+$ ]] && ((10#$2 > 0 && 10#$2 <= 36500)) || { RL_ERROR="--gone needs a number of days above 0."; return 2; }
+        printf -v RL_SINCE '%(%s)T' -1
+        RL_SINCE=$((RL_SINCE - 10#$2 * 86400)); shift ;;
+      *) RL_ERROR="Unknown option: $1 (restore --list [--limit N] [--gone DAYS])"; return 2 ;;
     esac
     shift
   done
@@ -11706,25 +11721,32 @@ iso_datev() { # VAR EPOCH → ISO 8601 local time with the UTC offset, e.g. 2026
   __id=${__id:0:${#__id}-2}:${__id:${#__id}-2}
 }
 
-json_restore_list() { # [--limit N] — what CleanMate moved to the Trash and is still there, newest first:
-  # one object {"version":"<app version>","count":N,"items":[{trashed,path,size,kind,date,source}]}; "trashed" goes to `restore`
+json_restore_list() { # [--limit N] [--gone DAYS] — what CleanMate moved to the Trash and is still there, newest first:
+  # one object {"version":"<app version>","count":N,"items":[{trashed,path,size,kind,date,source,inTrash,location}]};
+  # "trashed" goes to `restore`, "location" is the item in the Trash. --gone DAYS adds what was moved in the last
+  # DAYS days and has left the Trash since ("inTrash":false; size, kind and location null)
   ((EUID != 0)) || { json_error "Your Trash is per user: run restore --list as yourself, not as root"; return 2; }
-  local limit i t p d src out=""
+  local limit i t p d src w out=""
   restore_limit limit "$@" || { json_error "$RL_ERROR"; return 2; }
-  trashed_items "$limit"
+  trashed_items "$limit" "$RL_SINCE"
   for i in "${!TR_KEY[@]}"; do
     json_str t "${TR_KEY[i]}"; json_str p "${TR_PATH[i]}"; json_str src "${TR_SOURCE[i]}"
     iso_datev d "${TR_EPOCH[i]}"
-    out+="${out:+,}{\"trashed\":$t,\"path\":$p,\"size\":${TR_BYTES[i]},\"kind\":\"${TR_KIND[i]}\",\"date\":\"$d\",\"source\":$src}"
+    if [[ -n ${TR_WHERE[i]} ]]; then
+      json_str w "${TR_WHERE[i]}"
+      out+="${out:+,}{\"trashed\":$t,\"path\":$p,\"size\":${TR_BYTES[i]},\"kind\":\"${TR_KIND[i]}\",\"date\":\"$d\",\"source\":$src,\"inTrash\":true,\"location\":$w}"
+    else
+      out+="${out:+,}{\"trashed\":$t,\"path\":$p,\"size\":null,\"kind\":null,\"date\":\"$d\",\"source\":$src,\"inTrash\":false,\"location\":null}"
+    fi
   done
   printf '{"version":"%s","count":%d,"items":[%s]}\n' "$VERSION" "${#TR_KEY[@]}" "$out"
 }
 
-restore_list_text() { # [--limit N] — `cm restore --list`: one line per item (date, size, where it was)
+restore_list_text() { # [--limit N] [--gone DAYS] — `cm restore --list`: one line per item (date, size, where it was)
   ((EUID != 0)) || { err "Your Trash is per user: run cm restore --list as yourself, not as root."; return 2; }
   local limit i d h p
   restore_limit limit "$@" || { err "$RL_ERROR"; return 2; }
-  trashed_items "$limit"
+  trashed_items "$limit" "$RL_SINCE"
   if ((${#TR_KEY[@]} == 0)); then
     printf '  Nothing CleanMate moved to the Trash is still there.\n'
     return 0
@@ -11732,8 +11754,12 @@ restore_list_text() { # [--limit N] — `cm restore --list`: one line per item (
   printf '\n  %s%s CleanMate moved to the Trash%s %s(newest first)%s\n\n' "$BOLD" "$(plural ${#TR_KEY[@]} item)" "$NC" "$DIM" "$NC"
   for i in "${!TR_KEY[@]}"; do
     printf -v d '%(%Y-%m-%d %H:%M)T' "${TR_EPOCH[i]}"
-    humanv h "${TR_BYTES[i]}"
     p=${TR_PATH[i]//[[:cntrl:]]/?}
+    if [[ -z ${TR_WHERE[i]} ]]; then
+      printf '  %s  %9s  %s %s(no longer in the Trash)%s\n' "$d" "-" "$p" "$DIM" "$NC"
+      continue
+    fi
+    humanv h "${TR_BYTES[i]}"
     printf '  %s  %9s  %s\n' "$d" "$h" "$p"
   done
   printf '\n  %sTo put one back: Restore it from the Trash in Files, or run cm --json restore KEY (KEY = its "trashed" in cm --json restore --list).%s\n\n' "$DIM" "$NC"
@@ -12439,8 +12465,9 @@ Scan & clean without the app
                     desktop notification
       --check       What the daily check runs: notify when / is almost full (Low disk
                     alert) or no scan ran for a while (Scan reminder); cleans nothing
-  restore --list [--limit N]
+  restore --list [--limit N] [--gone DAYS]
                     What CleanMate moved to the Trash and is still there, newest first
+                    (--gone: also what it moved in the last DAYS days that has left the Trash)
 
 Install & update
       --install     Install the cm command, the desktop app and the app-grid entry
@@ -12454,7 +12481,7 @@ For the desktop app
                     lens [--path DIR] [--limit N], places,
                     dupes [--min BYTES] [--path DIR] [--limit N], startup, startup-set ID enable|disable|remove,
                     trash [--home-only] [--source NAME] PATH…, restore KEY…,
-                    restore --list [--limit N], apps, uninstall [--check] KIND:ID…,
+                    restore --list [--limit N] [--gone DAYS], apps, uninstall [--check] KIND:ID…,
                     reset [--check] KIND:ID [FOLDER…]
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help
@@ -12618,7 +12645,7 @@ case $MODE in
   restore)
     INTERACTIVE=0 _args=()
     for _a in "${JSON_ARGS[@]}"; do [[ $_a == --list ]] || _args+=("$_a"); done
-    ((${#_args[@]} < ${#JSON_ARGS[@]})) || { err "Use: cm restore --list [--limit N] (put items back with cm --json restore KEY…)"; exit 2; }
+    ((${#_args[@]} < ${#JSON_ARGS[@]})) || { err "Use: cm restore --list [--limit N] [--gone DAYS] (put items back with cm --json restore KEY…)"; exit 2; }
     restore_list_text "${_args[@]}"; exit ;;
   gui) launch_gui; exit ;;
 esac

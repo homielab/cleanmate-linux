@@ -224,6 +224,14 @@ class SettingsPage(Adw.PreferencesPage):
         self.rows["activity"] = activity
         data.add(activity)
 
+        trashed = Adw.ActionRow(title=_("Moved to the Trash"),
+                                subtitle=_("Put back what CleanMate moved to the Trash, also in earlier sessions"),
+                                activatable=True)
+        trashed.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
+        trashed.connect("activated", lambda *_a: self.show_trashed())
+        self.rows["trashed"] = trashed
+        data.add(trashed)
+
         for key in self.settings:
             self.show_value(key)
 
@@ -480,6 +488,13 @@ class SettingsPage(Adw.PreferencesPage):
         if dialog:
             dialog.push_subpage(self.activity)
         return self.activity
+
+    def show_trashed(self):
+        """Close Settings and open the Moved to the Trash page."""
+        dialog = self.get_ancestor(Adw.PreferencesDialog)
+        if dialog:
+            dialog.close()
+        return self.window.show_trashed()
 
     def toast(self, text):
         """In the dialog the page is in (Settings or the welcome), else in the window."""

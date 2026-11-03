@@ -4,8 +4,9 @@ Used by tests/run.sh on a virtual display. Only cleans in dry-run mode and
 never touches system items (so no password prompt can appear). The Large & Old
 Files, Space Lens, Duplicates and Startup Items checks move files to the Trash for real, and the Settings
 check saves settings for real, the Docker check removes an image and a volume through a fake `docker`, the drive Trash
-check empties a fake drive's Trash, and the old installers check moves a download to the Trash, but only in a
-throwaway folder they made, with the engine pointed at it.
+check empties a fake drive's Trash, the old installers check moves a download to the Trash and the Moved to the
+Trash check moves files there and puts them back, but only in a throwaway folder they made, with the engine pointed
+at it.
 """
 import os
 import shutil
@@ -1774,6 +1775,8 @@ def old_installers_test(win, report, wait, finish):
              "scan after cleaning")
 
     def undo():
+        report(page.summary_trashed is not None and page.summary_trashed.get_label() == _("View Moved Items"),
+               "the clean's summary leads to Moved to the Trash")
         if not page.undo_toast:
             return old_downloads()
         page.undo_toast.emit("button-clicked")
@@ -2606,7 +2609,7 @@ def honest_results_test(win, report, wait, finish):
         win.refresh_disk()
         win.show_page("smart")
         shutil.rmtree(sandbox, ignore_errors=True)
-        finish()
+        trashed_page_test(win, report, wait, finish)
 
     if template is None:
         report(False, "no scanned item to model the fake scan on")
@@ -2788,6 +2791,135 @@ def honest_results_test(win, report, wait, finish):
              "Back to the List")
 
     timed_out()
+
+
+def trashed_page_test(win, report, wait, finish):
+    """Moved to the Trash in a throwaway home: four files moved there by different tools, one emptied from the
+    Trash since, are listed newest first, the emptied one greyed out with no box; the source filter and search
+    narrow the list; Put Back returns the ticked file and drops its row, Put Back All… the rest; Settings leads
+    here. As root the page shows why it can't list (the engine refuses)."""
+    import subprocess
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home = os.path.join(sandbox, "home")
+    trash = os.path.join(home, ".local", "share", "Trash")
+    env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
+           "XDG_STATE_HOME": os.path.join(home, ".local", "state"), "XDG_CONFIG_HOME": os.path.join(home, ".config"),
+           "CLEANMATE_NO_UPDATE_CHECK": "1"}
+    moved = [("Downloads/a.deb", "Smart Scan › Old installers in Downloads"), ("Videos/film.mkv", "Large & Old Files"),
+             ("Pictures/copy.jpg", "Duplicates"), ("Documents/gone.txt", "Space Lens")]
+    win.show_page("trashed")
+    page = win.pages["trashed"]
+    real_engine = page.engine
+    engine = Engine(real_engine.path, dry_run=False, env=env)
+    settings = None
+
+    def run(*args):
+        return subprocess.run(["bash", real_engine.path, "--json", *args], env={**os.environ, **env},
+                              capture_output=True, text=True, timeout=60)
+
+    def idle():
+        return page.running is None and page.stack.get_visible_child_name() != "loading"
+
+    def keys():
+        return [i["trashed"] for i in page.items]
+
+    def visible():
+        return [k for k, row in page.rows.items() if row.get_visible()]
+
+    def done():
+        if settings is not None:
+            settings.force_close()
+        page.engine = real_engine
+        win.show_page("smart")
+        shutil.rmtree(sandbox, ignore_errors=True)
+        finish()
+
+    def first():
+        page.engine = engine
+        page.load()
+        wait(idle, listed, 60, "the Moved to the Trash list")
+
+    def listed():
+        if os.geteuid() == 0:
+            report(page.stack.get_visible_child_name() == "failed" and page.failed.get_description(),
+                   f"as root Moved to the Trash says why it can't list: {page.failed.get_description()}")
+            return done()
+        report(keys() == ["gone.txt", "copy.jpg", "film.mkv", "a.deb"],
+               f"Moved to the Trash lists what was moved, newest first, also what left the Trash: {keys()}")
+        gone = page.rows.get("gone.txt")
+        report(gone is not None and gone.gone and "gone.txt" not in page.checks
+               and _("No longer in the Trash") in gone.get_subtitle() and sorted(page.checks) == [
+                   "a.deb", "copy.jpg", "film.mkv"],
+               "an item emptied from the Trash is greyed out, says so and has no box")
+        report([page.source_drop.get_model().get_string(i) for i in range(page.source_drop.get_model().get_n_items())]
+               == [_("All sources"), _("Smart Scan"), _("Large & Old Files"), _("Duplicates"), _("Space Lens")],
+               "the source filter lists the tools that moved something")
+        page.source_drop.set_selected(page.sources.index("Duplicates"))
+        dupes = visible()
+        page.source_drop.set_selected(page.sources.index("Smart Scan"))
+        smart = visible()
+        page.source_drop.set_selected(0)
+        report(dupes == ["copy.jpg"] and smart == ["a.deb"], f"the source filter narrows the list: {dupes} {smart}")
+        page.search_entry.set_text("videos")
+        page.apply_filter()  # search-changed comes after a delay
+        found = visible()
+        page.search_entry.set_text("")
+        page.apply_filter()
+        report(found == ["film.mkv"] and len(visible()) == 4, f"search finds a file by its folder: {found}")
+        page.checks["a.deb"].set_active(True)
+        page.source_drop.set_selected(page.sources.index("Duplicates"))
+        report(not page.chosen() and not page.restore_button.get_sensitive(),
+               "a ticked item the filter hides is not put back")
+        page.source_drop.set_selected(0)
+        report(page.chosen() == ["a.deb"] and page.restore_button.get_sensitive(), "Put Back is offered for the ticked one")
+        page.restore_button.emit("clicked")
+        wait(lambda: page.running is None, put_back, 60, "Put Back")
+
+    def put_back():
+        report(os.path.exists(os.path.join(home, "Downloads", "a.deb"))
+               and not os.path.exists(os.path.join(trash, "files", "a.deb")) and keys() == ["gone.txt", "copy.jpg",
+                                                                                             "film.mkv"],
+               f"Put Back returns the file to its folder and drops its row: {keys()}")
+        dialog = page.confirm_put_back_all()
+        if dialog is None:
+            report(False, "Put Back All… offers nothing")
+            return done()
+        dialog.emit("response", "restore")
+        dialog.force_close()
+        wait(lambda: page.running is None, all_back, 60, "Put Back All")
+
+    def all_back():
+        report(all(os.path.exists(os.path.join(home, p)) for p, _s in moved[1:3]) and keys() == ["gone.txt"]
+               and not page.all_button.get_sensitive(),
+               f"Put Back All… returns every item still in the Trash; the emptied one stays listed: {keys()}")
+        nonlocal settings
+        win.show_page("smart")
+        settings = win.show_settings()
+        settings_page = win.settings_page
+        settings_page.engine = Engine(real_engine.path, dry_run=True, env=env)
+        settings_page.load()
+        wait(lambda: "trashed" in settings_page.rows and not settings_page.busy(), from_settings, 30,
+             "Settings")
+
+    def from_settings():
+        win.settings_page.rows["trashed"].emit("activated")
+        report(win.content_stack.get_visible_child_name() == "trashed", "Settings › Moved to the Trash opens the page")
+        wait(idle, done, 60, "the list from Settings")
+
+    if os.geteuid() != 0:
+        for path, source in moved:
+            full = os.path.join(home, path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "wb") as f:
+                f.write(b"\0" * 2048)
+            out = run("trash", "--source", source, full)
+            if out.returncode or os.path.exists(full):
+                report(False, f"could not move {path} to the Trash: {out.stdout} {out.stderr}")
+                return done()
+        os.remove(os.path.join(trash, "files", "gone.txt"))  # emptied from the Trash in Files
+        os.remove(os.path.join(trash, "info", "gone.txt.trashinfo"))
+    wait(lambda: page.running is None, first, 60, "the first listing")
 
 
 def show_scene_page(win, page_id):
