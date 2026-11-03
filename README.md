@@ -178,7 +178,8 @@ cm --json clean ID…              # task events, then freed bytes and Trash res
 **Drive these headlessly too** — what takes up space, without going through the app:
 
 ```bash
-cm --json lens [--path DIR] [--limit N]                            # one folder, biggest first; movable:false = look only
+cm --json lens [--path DIR] [--limit N]                            # one folder, biggest first; movable:false = look only, reason says why
+cm --json places                                                   # where Space Lens can start: home, the system disk, other disks
 cm --json large [--min BYTES] [--days N] [--path DIR] [--limit N]   # big files: path, bytes, kind, mtime/atime
 cm --json dupes [--min BYTES] [--path DIR] [--limit N]              # groups of identical files, newest copy first
 ```

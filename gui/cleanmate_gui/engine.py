@@ -157,6 +157,10 @@ class Engine:
     def lens(self, folder, on_event, on_done):
         return self.run(["lens", "--path", folder], on_event, on_done)
 
+    def places(self, on_event, on_done):
+        """Where Space Lens can start: home, the system disk, each disk mounted ("place" events)."""
+        return self.run(["places"], on_event, on_done)
+
     def trash(self, paths, on_event, on_done, home_only=False, source=None):
         """Move paths to the Trash; source names the page for `restore --list`."""
         args = ["trash", *(["--home-only"] if home_only else []), *(["--source", source] if source else [])]

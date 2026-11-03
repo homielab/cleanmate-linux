@@ -2340,6 +2340,63 @@ for l in sys.stdin:
   assert_exists "$big/Deeper/Deepest/a.bin"
 }
 
+# Space Lens outside your home folder (/, /var, other disks): view only, each with the reason the app shows;
+# folders you can't read are counted apart (never sudo); disks mounted inside are listed with their use
+test_json_lens_whole_disk() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out outside realdf
+  out=$(in_app 'for p in / "$HOME" "$HOME/.config" "$HOME/movie" /usr/bin /etc/fstab /opt/x /boot/vmlinuz /var/log/journal/x \
+    /var/log/syslog /var/crash /var/lib/docker /var/lib/containers/s /var/lib/snapd /snap/core /var/lib/flatpak \
+    /var/cache/apt/archives /var/lib/dpkg /tmp/x /home/other /root /swapfile /srv/www; do
+    lens_reason r "$p"; echo "${p##*/}=${r:--}"; done' | paste -sd' ')
+  assert_eq "$out" "=home ${HOME_DIR##*/}=home .config=protected movie=- bin=packages fstab=packages x=packages \
+vmlinuz=kernels x=journal syslog=logs crash=logs docker=docker s=docker snapd=snap core=snap flatpak=flatpak \
+archives=apt dpkg=apt x=temp other=user root=user swapfile=swap www=system" "each place outside home says why it is view only"
+  assert_contains "$(in_app 'for r in "${!LENS_REASON_TEXT[@]}"; do echo "$r"; done' | sort | paste -sd' ')" \
+    "apt backup docker drive drive_ro drive_top excluded flatpak home journal kernels logs mount packages protected snap swap system temp user"
+  # unreadable folders (as root the test runs as nobody, who can't read them either), and a disk mounted inside
+  outside=$(mktemp -d -p "$WORK" whole.XXXX)
+  sized "$outside/locked/a.bin" 100; sized "$outside/open/shut/b.bin" 100; sized "$outside/open/c.bin" 5000
+  mkdir -p "$outside/disk"; sized "$outside/disk/d.bin" 10
+  ((EUID == 0)) && chown -R 65534:65534 "$outside"
+  chmod 000 "$outside/locked" "$outside/open/shut"
+  realdf=$(command -v df)
+  mkdir -p "$HOME_DIR/.local/bin"
+  cat >"$HOME_DIR/.local/bin/df" <<EOF
+#!/bin/sh
+case "\$*" in
+  *--output=target,size*) printf 'Mounted 1B-blocks Used Avail Type Filesystem\\n%s 9000 7000 2000 ext4 /dev/sdz9\\n' "$outside/disk" ;;
+  *) exec $realdf "\$@" ;;
+esac
+EOF
+  chmod +x "$HOME_DIR/.local/bin/df"
+  out=$(user_cm --json lens --path "$outside" | python3 -c 'import sys, json
+for e in map(json.loads, sys.stdin):
+    if e["event"] == "entry":
+        print(e["kind"], str(e["movable"]).lower(), bool(e["reason"]), str(e["denied"]).lower(), e["unreadable"],
+              e["bytes"] if e["kind"] == "mount" else "-", e["path"].rsplit("/", 1)[1])
+    elif e["event"] == "done": print("done", e["found"], str(e["denied"]).lower(), e["unreadable"])' | LC_ALL=C sort)
+  assert_eq "$out" $'dir false True false 1 - open\ndir false True true 1 - locked\ndone 3 false 2\nmount false True false 0 7000 disk' \
+    "outside home: view only with a reason; unreadable folders counted apart; a disk mounted inside listed once with its use"
+  out=$(user_cm --json lens --path "$outside/locked" | python3 -c 'import sys, json
+for e in map(json.loads, sys.stdin): print(e["event"], e.get("count"), str(e.get("denied")).lower())')
+  assert_eq "$out" "done 0 true" "a folder you can't read: no permission, not empty"
+  out=$(user_cm --json places | python3 -c 'import sys, json
+for e in map(json.loads, sys.stdin): print(e["event"], e.get("kind", ""), e.get("path", "").replace(sys.argv[1], "HOME").replace(sys.argv[2], "OUT"))' "$HOME_DIR" "$outside")
+  assert_eq "$out" $'place home HOME\nplace system /\nplace drive OUT/disk\ndone  ' "places: home, the system disk, then each disk"
+  # the terminal Space Lens reads the same folder with the same engine rules
+  local as=() script=$SCRIPT
+  ((EUID == 0)) && as=(setpriv --reuid=65534 --regid=65534 --clear-groups) script=$WORK/cleanmate-as-user.sh
+  out=$("${as[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 bash -c 'source "$1"
+    SESSION_TMP=$(mktemp -d -p "$HOME"); ui_busy() { wait "$2"; }; sl_load "$2"
+    for i in "${!SL_PATH[@]}"; do echo "${SL_PATH[i]##*/} ${SL_SIZE[i]} ${SL_REASON[i]:+view-only}"; done
+    echo "unreadable ${SL_UNREAD[.]:-0} ${SL_UNREAD[$2/locked]:-0} ${SL_UNREAD[$2/open]:-0}"' _ "$script" "$outside" | LC_ALL=C sort)
+  assert_eq "$(sed -E 's/^(locked|open) [0-9]+ /\1 N /' <<<"$out")" $'disk 7000 view-only\nlocked N view-only\nopen N view-only\nunreadable 2 1 1' \
+    "terminal Space Lens: the same reasons, unreadable folders and mounted disk as the desktop app"
+  chmod 755 "$outside/locked" "$outside/open/shut"
+}
+
 # Space Lens on drives mounted for you: writable local ones move into the drive's own Trash and come
 # back; read-only, network ones, the drive's top, its Trash, Timeshift backups and symlinks stay view only
 test_space_lens_on_external_drives() {
@@ -3478,6 +3535,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the file back where it was" # root: refused
     assert_contains "$out" "three folders deep, the path bar shows each"
     assert_contains "$out" "outside the home folder: view only"
+    assert_contains "$out" "hiding hidden files leaves dot names out"
+    assert_contains "$out" "a system folder: the path bar starts at its disk"
+    assert_contains "$out" "outside your home folder: the system disk's use minus home"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the folder back where it was"
     assert_contains "$out" "Select automatically keeps the oldest copy"
     assert_contains "$out" "ticking every copy shows a warning"
@@ -5553,6 +5613,7 @@ test_json_overview() {
 case "$*" in
   *target*) printf 'Mounted on Size Used Avail Type Filesystem\n/ 100000000000 95000000000 5000000000 ext4 /dev/sda2\n/boot/efi 1000000000 100000000 900000000 vfat /dev/sda1\n/empty 0 0 0 ext4 /dev/loop9\n' ;;
   *fstype*) printf 'Size Used Avail Type\n100000000000 90000000000 5000000000 ext4\n' ;;
+  *used,source*) printf 'Used Filesystem\n95000000000 /dev/sda2\n95000000000 /dev/sda2\n' ;;
   *) printf 'Size Avail\n100000000000 5000000000\n' ;;
 esac
 STUB
@@ -5598,6 +5659,10 @@ $(date -d "$(date +%F)" +%s) 5000000000 100000000000" "history points: epoch of 
   mkdir -p "$HOME_DIR/Projects" && head -c 1000000 /dev/zero >"$HOME_DIR/Projects/app"
   out=$(cm --json overview | python3 -c "$ev" | grep top_dirs)
   assert_contains "$out" "top_dirs Videos Projects ."
+  out=$(cm --json overview | python3 -c 'import sys, json
+for e in map(json.loads, sys.stdin):
+    if e["event"] == "top_dirs": print(e["home_bytes"] > 4000000, e["home_bytes"] + e["outside_home"])')
+  assert_eq "$out" "True 95000000000" "outside home = the system disk's use minus your home folder (same disk)"
   mkdir -p "$WORK/ts/snapshots/2026-10-01_10-00-00" "$WORK/ts/snapshots/2026-10-08_10-00-00"
   out=$(in_app "timeshift_snapshot_dirs() { echo '$WORK/ts/snapshots'; }; hidden_space_rows" | grep '^timeshift')
   assert_contains "$out" $'\t'"$WORK/ts/snapshots"$'\t2\t'"delete old ones in Timeshift"

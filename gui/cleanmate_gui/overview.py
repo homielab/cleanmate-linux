@@ -587,9 +587,23 @@ class OverviewPage(Gtk.Box):
             description=_("In use, but in none of your folders. Shown for information: each is a choice, "
                           "not junk."))
         items = d.get("outside", [])
-        if not items:
+        beyond = d.get("top_dirs", {}).get("outside_home")
+        if not items and beyond is None:
             outside.set_description(_("No Timeshift snapshots, swap file or reserved space found."))
-        biggest = max([e["bytes"] or 0 for e in items], default=0)
+        biggest = max([e["bytes"] or 0 for e in items] + [beyond or 0], default=0)
+        if beyond is not None:  # all of the system disk's use that isn't your home: /usr, /var, snap, Docker…
+            row = Adw.ActionRow(title=_("Outside your home folder"), use_markup=False, css_classes=["item-row"],
+                                subtitle=_("Apps, system files, logs, snaps and Docker on the system disk (/)"))
+            row.add_prefix(Gtk.Image(icon_name="drive-harddisk-system-symbolic", pixel_size=24))
+            for widget in size_widgets(beyond, biggest):
+                row.add_suffix(widget)
+            view = Gtk.Button(label=_("View in Space Lens"), valign=Gtk.Align.CENTER,
+                              tooltip_text=_("See what takes the space, folder by folder"))
+            view.connect("clicked", lambda _b: self.window.open_lens("/"))
+            row.add_suffix(view)
+            row.set_activatable_widget(view)
+            self.rows["outside_home"] = row
+            outside.add(row)
         for e in items:
             title, subtitle = outside_text(e)
             row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False, css_classes=["item-row"])

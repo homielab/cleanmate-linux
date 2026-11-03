@@ -269,7 +269,8 @@ class Window(Adw.ApplicationWindow):
                             ("<Control>comma", _("Settings")),
                             ("<Control>question", _("Keyboard Shortcuts")),
                             ("<Control>q", _("Quit"))]),
-            (_("Space Lens"), [("<Alt>Up BackSpace", _("Up one folder"))]),
+            (_("Space Lens"), [("<Alt>Up BackSpace", _("Up one folder")),
+                               ("<Control><Shift>period <Control>h", _("Show or hide hidden files"))]),
         ]
         for title, rows in groups:
             group = Gtk.ShortcutsGroup(title=title)
@@ -322,7 +323,7 @@ class Window(Adw.ApplicationWindow):
             self.sidebar_list.select_row(row)
 
     def open_lens(self, path):
-        """Space Lens at one folder (System Overview's largest folders)."""
+        """Space Lens at one folder (System Overview's largest folders, and / for the space outside your home)."""
         self.show_page("lens")
         self.select_sidebar("lens")
         self.split.set_show_content(True)

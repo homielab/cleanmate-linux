@@ -355,9 +355,12 @@ def large_files_test(win, report, wait, finish):
 
 def space_lens_test(win, report, wait, finish):
     """List a throwaway home by size, go three folders deep and back, check that a folder outside
-    home is view only, then move a folder to the Trash and undo it; on a fake writable drive move a file
-    into the drive's Trash and undo it, and check that a read-only drive is view only."""
+    home is view only (a lock, no box), hide and show hidden files, then move a folder to the Trash and undo it;
+    on a fake writable drive move a file into the drive's Trash and undo it, check that a read-only drive is
+    view only, and open /var/log from the system disk: the path bar starts at the disk, each row says why it
+    stays and links to Logs."""
     from .engine import Engine
+    from .spacelens import mount_of, reason_text
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home = os.path.join(sandbox, "home")
     projects, videos = os.path.join(home, "Projects"), os.path.join(home, "Videos")
@@ -365,7 +368,8 @@ def space_lens_test(win, report, wait, finish):
     os.makedirs(build)
     os.makedirs(videos)
     for path, size in ((os.path.join(build, "out.bin"), 90 << 20), (os.path.join(projects, "notes.txt"), 1024),
-                       (os.path.join(videos, "film.mkv"), 40 << 20), (os.path.join(home, "todo.txt"), 10)):
+                       (os.path.join(videos, "film.mkv"), 40 << 20), (os.path.join(home, "todo.txt"), 10),
+                       (os.path.join(sandbox, ".hidden.bin"), 1 << 20)):
         with open(path, "wb") as f:  # sparse: no real disk use
             f.truncate(size)
     env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
@@ -423,10 +427,30 @@ def space_lens_test(win, report, wait, finish):
         page.set_root(sandbox)
         wait(lambda: idle() and page.folder == sandbox, outside, 60, "outside home")
 
+    def has_button(widget, tip):
+        stack = [widget.get_first_child()] if widget and widget.get_first_child() else []
+        while stack:
+            w = stack.pop()
+            if isinstance(w, Gtk.Button) and w.get_tooltip_text() == tip:
+                return True
+            stack += [c for c in (w.get_next_sibling(), w.get_first_child()) if c]
+        return False
+
     def outside():
-        check = page.checks.get(home)
-        report(check is not None and not check.get_sensitive() and not page.trash_button.get_sensitive(),
-               "outside the home folder: view only")
+        why = _("View only: {reason}").format(reason=reason_text("home")[0])
+        report(page.locks.get(home) is not None and home not in page.checks and not page.trash_button.get_sensitive()
+               and page.locks[home].get_tooltip_text() == why,
+               "outside the home folder: view only, a lock that says why")
+        report(has_button(page.rows.get(home), _("Open")) and has_button(page.rows.get(home), _("Show in Files")),
+               "each row has Open and Show in Files")
+        shown = [os.path.basename(e["path"]) for e in page.shown]
+        page.hidden_button.set_active(False)
+        hidden = [os.path.basename(e["path"]) for e in page.shown]
+        report(".hidden.bin" in shown and ".hidden.bin" not in hidden and "hidden" in page.rows,
+               f"hiding hidden files leaves dot names out, one row sums them up: {hidden}")
+        page.hidden_button.set_active(True)
+        report(".hidden.bin" in [os.path.basename(e["path"]) for e in page.shown] and "hidden" not in page.rows,
+               "showing them again lists them")
         page.set_root(home)
         wait(lambda: idle() and page.folder == home, select, 60, "home again")
 
@@ -516,9 +540,27 @@ def space_lens_test(win, report, wait, finish):
         wait(lambda: idle() and page.folder == ro, ro_listed, 60, "a read-only drive")
 
     def ro_listed():
-        check = page.checks.get(ro_file)
-        report(check is not None and not check.get_sensitive() and not page.trash_button.get_sensitive(),
-               "a read-only drive: view only")
+        report(page.locks.get(ro_file) is not None and ro_file not in page.checks
+               and not page.trash_button.get_sensitive(), "a read-only drive: view only")
+        kinds = [p["kind"] for p in page.places]
+        report(kinds[:2] == ["home", "system"] and page.places_menu.get_n_items() >= 2,
+               f"Locations: your home folder, the system disk, then other disks ({kinds})")
+        if not os.path.isdir("/var/log"):
+            report(True, "whole disk skipped: no /var/log here")
+            return done()
+        page.engine = real_engine
+        page.open_folder("/var/log")
+        wait(lambda: idle() and page.folder == "/var/log", system_disk, 120, "/var/log")
+
+    def system_disk():
+        labels = [b.get_child().get_label() for b in page.crumb_buttons]
+        disk = mount_of("/var/log")
+        first = _("System disk") if disk == "/" else os.path.basename(disk)
+        report(page.root == disk and labels[0] == first and labels[-1] == "log",
+               f"a system folder: the path bar starts at its disk: {labels}")
+        report(not page.checks and all(e["path"] in page.locks for e in page.shown)
+               and all(pid == "logs" for pid in page.links.values()) and not page.trash_button.get_sensitive(),
+               f"system logs: view only, each with a lock and a link to Logs ({len(page.links)} links)")
         done()
 
     wait(idle, first, 120, "first Space Lens list")
@@ -2068,6 +2110,7 @@ OVERVIEW_DF = """#!/bin/sh
 case "$*" in
   *target*) printf 'Mounted on Size Used Avail Type Filesystem\\n/ 100000000000 95000000000 5000000000 ext4 /dev/sda2\\n/boot/efi 1000000000 100000000 900000000 vfat /dev/sda1\\n' ;;
   *fstype*) printf 'Size Used Avail Type\\n100000000000 90000000000 5000000000 ext4\\n' ;;
+  *used,source*) printf 'Used Filesystem\\n95000000000 /dev/sda2\\n95000000000 /dev/sda2\\n' ;;
   *) printf 'Size Avail\\n100000000000 5000000000\\n' ;;
 esac
 """
@@ -2138,6 +2181,20 @@ def overview_test(win, report, wait, finish):
         report(page.chart is None and "history" in page.groups, "one day of free-space history: a note, no chart yet")
         report("outside:reserved:/" in page.rows and "outside:swapfile:/swap.img" in page.rows,
                "space outside your folders: ext4 reserved space and the swap file")
+        beyond, opened_at = page.rows.get("outside_home"), []
+        widgets = [beyond.get_first_child()] if beyond is not None else []
+        while widgets:
+            w = widgets.pop()
+            if isinstance(w, Gtk.Button) and w.get_label() == _("View in Space Lens"):
+                real_open = win.open_lens
+                win.open_lens = opened_at.append  # not a whole-disk measurement of this computer
+                w.emit("clicked")
+                win.open_lens = real_open
+            widgets += [c for c in (w.get_next_sibling(), w.get_first_child()) if c]
+        home_bytes = page.data.get("top_dirs", {}).get("home_bytes") or 0
+        report(beyond is not None and beyond.get_title() == _("Outside your home folder") and opened_at == ["/"]
+               and page.data["top_dirs"].get("outside_home") == 95000000000 - home_bytes,
+               f"outside your home folder: the system disk's use minus home, View in Space Lens opens / ({opened_at})")
         tops = [k[len("top:"):] for k in page.rows if k.startswith("top:")]
         report(tops[:2] == [videos, projects], f"largest folders, biggest first: {[os.path.basename(t) for t in tops]}")
         protect = {k[len("protect:"):]: r for k, r in page.rows.items() if k.startswith("protect:")}

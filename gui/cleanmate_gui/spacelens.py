@@ -1,19 +1,60 @@
 """Space Lens: what takes up the space in a folder, biggest first; open folders to dig deeper,
-move what you don't need to the Trash, undo.
+move what you don't need to the Trash, undo. It starts in your home folder; the Locations menu opens the
+whole system disk (/) or any other disk instead.
 
-The engine measures (`--json lens`), moves (`--json trash --home-only`: your home folder, or a
-writable drive mounted for you, into its own Trash) and puts things back (`--json restore`); this page
-only shows the list and keeps the choice.
+The engine measures (`--json lens`, never with sudo: a folder you can't read shows as such), says why
+something is view only (`reason`), moves (`--json trash --home-only`: your home folder, or a writable
+drive mounted for you, into its own Trash) and puts things back (`--json restore`); this page only shows
+the list, keeps the choice and links a view-only row to the page that cleans that kind of thing.
 """
 import os
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .a11y import named
-from .engine import human
+from .engine import IN_FLATPAK, human
 from .i18n import _, ngettext
 from .largefiles import short_path
+from .preview import open_file, row_buttons, show_in_files
 from .scanpage import size_widgets
+
+
+def reason_text(reason):
+    """Why a row is view only (the engine's `reason`), and the page that cleans that kind of thing, if any."""
+    return {
+        "excluded": (_("You never clean it, or a folder in it (Settings › Never clean)"), None),
+        "home": (_("Your home folder is inside: open it to choose what to move"), None),
+        "protected": (_("Your system or apps need it (settings, or a link to a system folder)"), None),
+        "drive_top": (_("The drive itself: open it to choose what to move"), None),
+        "drive_ro": (_("This drive is read-only or a network drive"), None),
+        "drive": (_("The drive's Trash, or reached through a link to elsewhere"), None),
+        "backup": (_("A Timeshift backup: delete old snapshots in Timeshift, never by hand"), None),
+        "mount": (_("Another disk mounted here: open it to explore"), None),
+        "user": (_("Another user's files: only they (or an administrator) can clean them"), None),
+        "snap": (_("Snap packages and their data. Old revisions are cleaned in System Junk, apps removed in "
+                   "Uninstaller"), "system"),
+        "flatpak": (_("Flatpak apps and runtimes. Unused runtimes are removed in Maintenance, apps in Uninstaller"),
+                    "maintenance"),
+        "docker": (_("Docker images, containers and volumes: clean them in Developer Junk"), "dev"),
+        "journal": (_("The systemd journal: old logs are cleaned in Logs"), "logs"),
+        "logs": (_("System logs and crash reports: old ones are cleaned in Logs"), "logs"),
+        "apt": (_("apt's package cache and lists: the cache is cleaned in System Junk"), "system"),
+        "kernels": (_("Kernels and boot files: extra old kernels are removed in System Junk"), "system"),
+        "packages": (_("Installed programs and system files: remove apps in Uninstaller"), "uninstall"),
+        "temp": (_("Temporary files of the system: old ones are cleaned in System Junk"), "system"),
+        "swap": (_("The swap file: extra memory on disk"), None),
+    }.get(reason, (_("Part of the system: only an administrator can change it"), None))
+
+
+def mount_of(path):
+    """The folder the disk holding PATH is mounted on."""
+    while path != "/" and not os.path.ismount(path):
+        path = os.path.dirname(path)
+    return path
+
+
+def is_hidden(e):
+    return os.path.basename(e["path"]).startswith(".")
 
 
 def entry_icon(e):
@@ -45,6 +86,11 @@ class SpaceLensPage(Gtk.Box):
         self.selected = set()  # paths, in the folder shown
         self.checks = {}  # path → Gtk.CheckButton
         self.rows = {}  # path → Adw.ActionRow
+        self.locks = {}  # path → the lock icon of a view-only row (its tooltip says why)
+        self.links = {}  # path → the page id a view-only row's link opens
+        self.shown = []  # the entries listed: all, or without hidden ones
+        self.show_hidden = True  # names starting with a dot
+        self.places = []  # "place" events: home, the system disk, other disks
         self.crumb_buttons = []  # path bar buttons, root first
         self.all_check = None
         self.syncing = False
@@ -61,13 +107,28 @@ class SpaceLensPage(Gtk.Box):
         crumbs_scroll = Gtk.ScrolledWindow(child=self.crumbs, hexpand=True, vscrollbar_policy=Gtk.PolicyType.NEVER,
                                            hscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
         crumbs_scroll.set_propagate_natural_height(True)
-        folder_button = named(Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER,
-                                         tooltip_text=_("Explore another folder (also a drive)")))
-        folder_button.connect("clicked", lambda *_a: self.choose_folder())
+        actions = Gio.SimpleActionGroup()
+        place = Gio.SimpleAction.new("place", GLib.VariantType.new("s"))
+        place.connect("activate", lambda _a, v: self.set_root(v.get_string()))
+        actions.add_action(place)
+        choose = Gio.SimpleAction.new("choose", None)
+        choose.connect("activate", lambda *_a: self.choose_folder())
+        actions.add_action(choose)
+        self.insert_action_group("lens", actions)
+        self.places_menu = Gio.Menu()
+        self.places_button = named(Gtk.MenuButton(icon_name="drive-harddisk-symbolic", valign=Gtk.Align.CENTER,
+                                                  menu_model=self.places_menu,
+                                                  tooltip_text=_("Locations: your home folder, the whole system "
+                                                                 "disk, other disks or any folder")))
+        self.places_button.connect("notify::active", lambda b, _p: b.get_active() and self.load_places())
+        self.hidden_button = named(Gtk.ToggleButton(icon_name="view-reveal-symbolic", valign=Gtk.Align.CENTER,
+                                                    active=True, tooltip_text=_("Show hidden files (Ctrl+Shift+.)")))
+        self.hidden_button.connect("toggled", lambda b: self.set_show_hidden(b.get_active()))
         top = Gtk.Box(spacing=6, margin_top=8, margin_bottom=8, margin_start=12, margin_end=12)
         top.append(self.up_button)
         top.append(crumbs_scroll)
-        top.append(folder_button)
+        top.append(self.hidden_button)
+        top.append(self.places_button)
         self.append(top)
         self.append(Gtk.Separator())
 
@@ -99,8 +160,13 @@ class SpaceLensPage(Gtk.Box):
         for accel in ("<Alt>Up", "<Alt>Left", "BackSpace"):
             keys.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string(accel),
                                            action=Gtk.CallbackAction.new(lambda *_a: self.up() or True)))
+        for accel in ("<Control><Shift>period", "<Control><Shift>greater", "<Control>h"):
+            keys.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string(accel), action=Gtk.CallbackAction.new(
+                lambda *_a: self.hidden_button.set_active(not self.hidden_button.get_active()) or True)))
         self.add_controller(keys)
 
+        self.fill_places_menu()
+        self.load_places()
         self.load(self.folder)
 
     # ── where we are ──
@@ -113,11 +179,17 @@ class SpaceLensPage(Gtk.Box):
         self.load(path)
 
     def open_folder(self, path):
-        """Show one folder; inside home the path bar still starts at home, so Up goes back there."""
+        """Show one folder with the whole trail in the path bar: from home for a folder in it, else from
+        the folder the disk is mounted on (/ for the system disk), so Up goes all the way back."""
         if self.moving:
             return
         home = os.path.expanduser("~")
-        root = home if path == home or path.startswith(home + "/") else path
+        if path == home or path.startswith(home + "/"):
+            root = home
+        elif path == self.root or path.startswith(self.root.rstrip("/") + "/"):
+            root = self.root
+        else:
+            root = mount_of(path)
         if root != self.root:
             self.root = root
             self.cache.clear()
@@ -132,9 +204,62 @@ class SpaceLensPage(Gtk.Box):
             except GLib.Error:
                 return  # cancelled
             if folder and folder.get_path():
-                self.set_root(folder.get_path())
+                self.cache.clear()
+                self.open_folder(folder.get_path())
 
         dialog.select_folder(self.window, None, chosen)
+
+    def load_places(self):
+        """Ask the engine for the disks again (each time the Locations menu opens: one may have been plugged in)."""
+        places = []
+
+        def on_event(e):
+            if e["event"] == "place":
+                places.append(e)
+
+        def on_done(ok, status):
+            if places:
+                self.places = places
+                self.fill_places_menu()
+
+        self.engine.places(on_event, on_done)
+
+    def fill_places_menu(self):
+        self.places_menu.remove_all()
+        found = {p["kind"]: p for p in self.places if p["kind"] != "drive"}
+        home = found.get("home", {"path": os.path.expanduser("~"), "avail": None})
+
+        def item(label, path):
+            entry = Gio.MenuItem.new(label, None)
+            entry.set_action_and_target_value("lens.place", GLib.Variant.new_string(path))
+            return entry
+
+        spots = Gio.Menu()
+        spots.append_item(item(_("Home folder"), home["path"]))
+        if not IN_FLATPAK:  # the sandbox sees its own / only
+            spots.append_item(item(_("System disk (/)"), "/"))
+        self.places_menu.append_section(None, spots)
+        disks = Gio.Menu()
+        for p in self.places:
+            if p["kind"] == "drive":
+                disks.append_item(item(_("{disk} · {free} free of {size}").format(
+                    disk=os.path.basename(p["path"]) or p["path"], free=human(p["avail"]), size=human(p["size"])),
+                    p["path"]))
+        if disks.get_n_items():
+            self.places_menu.append_section(_("Disks"), disks)
+        other = Gio.Menu()
+        other.append(_("Choose a Folder…"), "lens.choose")
+        self.places_menu.append_section(None, other)
+
+    def place_label(self, path):
+        """The first button of the path bar."""
+        if path == os.path.expanduser("~"):
+            return _("Home")
+        if path == "/":
+            return _("System disk")
+        if path == self.info.get("drive") or any(p["path"] == path and p["kind"] == "drive" for p in self.places):
+            return os.path.basename(path) or path
+        return short_path(path)
 
     def up(self):
         if self.folder != self.root:
@@ -146,16 +271,9 @@ class SpaceLensPage(Gtk.Box):
             self.crumbs.remove(child)
             child = self.crumbs.get_first_child()
         self.crumb_buttons = []
-        home = os.path.expanduser("~")
-        if self.root == home:
-            first = _("Home")
-        elif self.root == self.info.get("drive"):
-            first = os.path.basename(self.root)
-        else:
-            first = short_path(self.root)
-        parts = [(first, self.root)]
+        parts = [(self.place_label(self.root), self.root)]
         rel = os.path.relpath(self.folder, self.root)
-        if rel != ".":
+        if rel != "." and not rel.startswith(".."):
             path = self.root
             for name in rel.split(os.sep):
                 path = os.path.join(path, name)
@@ -226,6 +344,19 @@ class SpaceLensPage(Gtk.Box):
         self.running = self.engine.lens(path, on_event, on_done)
 
     # ── results ──
+    def set_show_hidden(self, show):
+        """Ctrl+Shift+. or the eye button: list names starting with a dot, or leave them out (the folder's total
+        stays; one row sums them up). What gets hidden is unticked."""
+        if show == self.show_hidden:
+            return
+        self.show_hidden = show
+        if self.hidden_button.get_active() != show:
+            self.hidden_button.set_active(show)
+        if not show:
+            self.selected -= {e["path"] for e in self.entries if is_hidden(e)}
+        if self.stack.get_visible_child_name() != "measuring":
+            self.show_results()
+
     def show_results(self):
         child = self.results.get_first_child()
         while child:
@@ -233,14 +364,24 @@ class SpaceLensPage(Gtk.Box):
             child = self.results.get_first_child()
         self.checks.clear()
         self.rows.clear()
+        self.locks.clear()
+        self.links.clear()
         self.all_check = None
+        self.shown = [e for e in self.entries if self.show_hidden or not is_hidden(e)]
+        hidden = [] if self.show_hidden else [e for e in self.entries if is_hidden(e)]
         if not self.entries:
-            self.empty.set_description(short_path(self.folder))
+            if self.info.get("denied"):
+                self.empty.set_title(_("No permission to read this folder"))
+                self.empty.set_description(_("{folder} · only an administrator can see inside").format(
+                    folder=short_path(self.folder)))
+            else:
+                self.empty.set_title(_("This folder is empty"))
+                self.empty.set_description(short_path(self.folder))
             self.stack.set_visible_child_name("empty")
             self.bar.set_revealed(False)
             return
 
-        total = self.info.get("bytes") or sum(e["bytes"] for e in self.entries)
+        total = self.info.get("bytes") or sum(e["bytes"] for e in self.entries if e["kind"] != "mount")
         name = os.path.basename(self.folder.rstrip("/")) or self.folder
         title = Gtk.Label(label=_("{folder} · {size}").format(folder=name, size=human(total)), xalign=0, wrap=True,
                           css_classes=["title-1"])
@@ -251,69 +392,125 @@ class SpaceLensPage(Gtk.Box):
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         header.append(title)
         header.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
-        if self.info.get("excluded"):
-            header.append(Gtk.Label(label=_("View only: you never clean this folder (Settings › Never clean)."),
-                                    xalign=0, wrap=True, css_classes=["dim-label"]))
-        elif not any(e["movable"] for e in self.entries):
-            if self.info.get("drive") and not self.info.get("drive_trash"):
-                text = _("View only: this drive is read-only or a network drive.")
-            elif self.info.get("drive_trash"):
-                text = _("View only: nothing here can be moved to the Trash (the drive itself, its Trash or a backup).")
-            else:
-                text = _("View only: things outside your home folder and your drives can't be moved to the Trash here.")
+        for text in self.header_notes(total):
             header.append(Gtk.Label(label=text, xalign=0, wrap=True, css_classes=["dim-label"]))
         self.results.append(header)
 
         group = Adw.PreferencesGroup()
-        if sum(e["movable"] for e in self.entries) > 1:
+        if sum(e["movable"] for e in self.shown) > 1:
             self.all_check = Gtk.CheckButton(label=_("All"), valign=Gtk.Align.CENTER, css_classes=["big-check"],
                                              tooltip_text=_("Select or deselect every item"))
             self.all_check.connect("toggled", self.on_all_toggled)
             group.set_header_suffix(self.all_check)
-        biggest = self.entries[0]["bytes"]
-        for e in self.entries:
+        # the bars compare with the biggest entry of this folder; another disk mounted here can be much bigger
+        biggest = max([e["bytes"] for e in self.entries if e["kind"] != "mount"] or [e["bytes"] for e in self.entries])
+        for e in self.shown:
             group.add(self.entry_row(e, biggest, total))
+        if hidden:
+            row = Adw.ActionRow(title=ngettext("{n} hidden item", "{n} hidden items", len(hidden)),
+                                subtitle=_("Names starting with a dot · Ctrl+Shift+. shows them"), use_markup=False,
+                                css_classes=["item-row"])
+            row.add_prefix(Gtk.Image(icon_name="view-conceal-symbolic"))
+            for widget in size_widgets(sum(e["bytes"] for e in hidden), biggest):
+                row.add_suffix(widget)
+            self.rows["hidden"] = row
+            group.add(row)
         self.results.append(group)
         self.stack.set_visible_child_name("results")
         self.scroll.get_vadjustment().set_value(0)
         self.bar.set_revealed(True)
         self.update_summary()
 
+    def header_notes(self, total):
+        """The lines under the title: view only and why, how the folder adds up to the disk, what couldn't be read."""
+        notes = []
+        if self.info.get("excluded"):
+            notes.append(_("View only: you never clean this folder (Settings › Never clean)."))
+        elif not any(e["movable"] for e in self.entries):
+            if self.info.get("drive") and not self.info.get("drive_trash"):
+                notes.append(_("View only: this drive is read-only or a network drive."))
+            elif self.info.get("drive_trash"):
+                notes.append(_("View only: nothing here can be moved to the Trash (the drive itself, its Trash or "
+                               "a backup)."))
+            else:
+                notes.append(_("View only: things outside your home folder and your drives can't be moved to the "
+                               "Trash here. Each row's lock says why, and the arrow opens the page that cleans it."))
+        used = self.info.get("disk_used")
+        if used:
+            notes.append(_("{used} in use on this disk; the list adds up to {listed}.").format(
+                used=human(used), listed=human(total)))
+            if used - total > used // 100:
+                notes.append(_("{size} not counted: folders only an administrator can read, and files deleted "
+                               "while a program still has them open.").format(size=human(used - total)))
+        unread = self.info.get("unreadable", 0)
+        if unread:
+            notes.append(ngettext("{n} folder couldn't be read without administrator rights; the sizes leave it out.",
+                                  "{n} folders couldn't be read without administrator rights; the sizes leave them "
+                                  "out.", unread))
+        return notes
+
+    def page_title(self, pid):
+        """The sidebar title of a page, or None when this app has no such page (the Flatpak hides some)."""
+        from .window import PAGES  # the window imports this module
+        return next((s[1] for s in PAGES if s and s[0] == pid), None)
+
     def entry_row(self, e, biggest, total):
         path = e["path"]
         share = percent(e["bytes"], total)
-        if e["kind"] == "dir":
+        if e.get("denied"):
+            subtitle = _("No permission to read · only an administrator can see inside")
+        elif e["kind"] == "mount":
+            subtitle = _("Another disk · {used} in use").format(used=human(e["bytes"]))
+        elif e["kind"] == "dir":
             subtitle = ngettext("{n} item · {percent}", "{n} items · {percent}", e["count"], percent=share)
         else:
             subtitle = share
+        if e.get("unreadable") and not e.get("denied"):
+            subtitle += " · " + ngettext("{n} folder inside couldn't be read", "{n} folders inside couldn't be read",
+                                         e["unreadable"])
         row = Adw.ActionRow(title=os.path.basename(path), subtitle=subtitle, use_markup=False, subtitle_lines=1,
                             css_classes=["item-row"], tooltip_text=path)
-        check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"],
-                                sensitive=e["movable"])
-        if e.get("excluded"):
-            check.set_tooltip_text(_("Can't be moved to the Trash: you never clean it, or a folder in it "
-                                     "(Settings › Never clean)"))
-        elif not e["movable"]:
-            check.set_tooltip_text(_("Can't be moved to the Trash here: it's outside your home folder and your "
-                                     "writable drives, or your system or a backup needs it"))
-        check.connect("toggled", self.on_toggled, path)
-        self.checks[path] = check
-        self.rows[path] = row
         row.add_prefix(Gtk.Image(gicon=entry_icon(e)))
-        row.add_prefix(check)  # prefixes stack leftwards: the box comes first
-        for widget in size_widgets(e["bytes"], biggest):
-            row.add_suffix(widget)
-        show = named(Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                                tooltip_text=_("Show in Files")))
-        show.connect("clicked", lambda *_a: Gtk.FileLauncher.new(Gio.File.new_for_path(path))
-                     .open_containing_folder(self.window, None, None))
-        row.add_suffix(show)
-        if e["kind"] == "dir":  # a click opens the folder; the box ticks it
+        if e["movable"]:
+            check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"])
+            check.connect("toggled", self.on_toggled, path)
+            self.checks[path] = check
+            row.add_prefix(check)  # prefixes stack leftwards: the box comes first
+        else:  # view only: a lock that says why, no box
+            text, pid = reason_text(e.get("reason") or ("excluded" if e.get("excluded") else ""))
+            lock = named(Gtk.Image(icon_name="changes-prevent-symbolic", css_classes=["dim-label"],
+                                   tooltip_text=_("View only: {reason}").format(reason=text)))
+            self.locks[path] = lock
+            row.add_prefix(lock)
+            title = self.page_title(pid) if pid else None
+            if title:
+                link = named(Gtk.Button(icon_name="go-jump-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                                        tooltip_text=_("Clean it in {page}").format(page=title)))
+                link.connect("clicked", lambda *_a, p=pid: self.window.go_to(p))
+                self.links[path] = pid
+                row.add_suffix(link)
+        self.rows[path] = row
+        if e.get("denied"):
+            row.add_suffix(Gtk.Label(label=_("no permission"), width_chars=9, xalign=1,
+                                     css_classes=["numeric", "dim-label"]))
+        else:
+            for widget in size_widgets(e["bytes"], biggest):
+                row.add_suffix(widget)
+        if e["kind"] == "file":
+            row_buttons(row, self.window, path)  # Open, Show in Files; Enter opens it
+        else:
+            for icon, tip, action in (("document-open-symbolic", _("Open"), open_file),
+                                      ("folder-open-symbolic", _("Show in Files"), show_in_files)):
+                button = named(Gtk.Button(icon_name=icon, valign=Gtk.Align.CENTER, css_classes=["flat"],
+                                          tooltip_text=tip))
+                button.connect("clicked", lambda *_a, act=action: act(self.window, path))
+                row.add_suffix(button)
+        if e["kind"] in ("dir", "mount") and not e.get("denied"):  # a click opens the folder; the box ticks it
             row.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
             row.set_activatable(True)
             row.connect("activated", lambda *_a: self.load(path))
         elif e["movable"]:
-            row.set_activatable_widget(check)
+            row.set_activatable_widget(self.checks[path])
         return row
 
     def on_toggled(self, check, path):
@@ -332,12 +529,12 @@ class SpaceLensPage(Gtk.Box):
                 check.set_active(target)
 
     def update_summary(self):
-        chosen = [e for e in self.entries if e["path"] in self.selected]
+        chosen = [e for e in self.shown if e["path"] in self.selected]
         self.summary.set_markup(ngettext("Selected <b>{size}</b> in {n} item", "Selected <b>{size}</b> in {n} items",
                                          len(chosen), size=human(sum(e["bytes"] for e in chosen))))
         self.trash_button.set_sensitive(bool(chosen) and not self.running)
         if self.all_check:
-            movable = sum(e["movable"] for e in self.entries)
+            movable = sum(e["movable"] for e in self.shown)
             self.syncing = True  # none / some (inconsistent) / all
             self.all_check.set_inconsistent(0 < len(chosen) < movable)
             self.all_check.set_active(len(chosen) == movable)
@@ -345,7 +542,7 @@ class SpaceLensPage(Gtk.Box):
 
     # ── Trash and undo ──
     def confirm_trash(self):
-        chosen = [e for e in self.entries if e["path"] in self.selected]
+        chosen = [e for e in self.shown if e["path"] in self.selected]
         if not chosen:
             return
         lines = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)

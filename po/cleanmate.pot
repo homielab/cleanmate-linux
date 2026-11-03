@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-03 18:22+0000\n"
+"POT-Creation-Date: 2026-11-03 19:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -46,7 +46,7 @@ msgstr ""
 #: gui/cleanmate_gui/bugreport.py:84 gui/cleanmate_gui/duplicates.py:576
 #: gui/cleanmate_gui/largefiles.py:329 gui/cleanmate_gui/maintenance.py:238
 #: gui/cleanmate_gui/scanpage.py:835 gui/cleanmate_gui/settings.py:467
-#: gui/cleanmate_gui/spacelens.py:365 gui/cleanmate_gui/startup.py:248
+#: gui/cleanmate_gui/spacelens.py:562 gui/cleanmate_gui/startup.py:248
 #: gui/cleanmate_gui/uninstaller.py:577 gui/cleanmate_gui/uninstaller.py:777
 msgid "Cancel"
 msgstr ""
@@ -115,7 +115,7 @@ msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:169 gui/cleanmate_gui/duplicates.py:577
 #: gui/cleanmate_gui/largefiles.py:128 gui/cleanmate_gui/largefiles.py:330
-#: gui/cleanmate_gui/spacelens.py:90 gui/cleanmate_gui/spacelens.py:366
+#: gui/cleanmate_gui/spacelens.py:151 gui/cleanmate_gui/spacelens.py:563
 #: gui/cleanmate_gui/uninstaller.py:304 gui/cleanmate_gui/uninstaller.py:340
 msgid "Move to Trash"
 msgstr ""
@@ -189,7 +189,7 @@ msgid "{size} can be freed by keeping one copy of each, in {folder}"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:385 gui/cleanmate_gui/largefiles.py:223
-#: gui/cleanmate_gui/spacelens.py:250
+#: gui/cleanmate_gui/spacelens.py:391
 #, python-brace-format
 msgid "the {n} biggest of {found}"
 msgstr ""
@@ -283,7 +283,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: gui/cleanmate_gui/duplicates.py:570 gui/cleanmate_gui/largefiles.py:323
-#: gui/cleanmate_gui/spacelens.py:359 gui/cleanmate_gui/uninstaller.py:556
+#: gui/cleanmate_gui/spacelens.py:556 gui/cleanmate_gui/uninstaller.py:556
 #, python-brace-format
 msgid "… and {n} more"
 msgstr ""
@@ -296,7 +296,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: gui/cleanmate_gui/duplicates.py:573 gui/cleanmate_gui/largefiles.py:326
-#: gui/cleanmate_gui/spacelens.py:362
+#: gui/cleanmate_gui/spacelens.py:559
 #, python-brace-format
 msgid ""
 "{size}. You can undo this right away, or restore the files from the Trash "
@@ -318,12 +318,12 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: gui/cleanmate_gui/duplicates.py:622 gui/cleanmate_gui/largefiles.py:374
-#: gui/cleanmate_gui/spacelens.py:412
+#: gui/cleanmate_gui/spacelens.py:609
 msgid "Nothing was moved"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:624 gui/cleanmate_gui/largefiles.py:376
-#: gui/cleanmate_gui/spacelens.py:414
+#: gui/cleanmate_gui/spacelens.py:611
 #, python-brace-format
 msgid "{n} could not be moved: {reason}"
 msgid_plural "{n} could not be moved: {reason}"
@@ -333,13 +333,13 @@ msgstr[1] ""
 #: gui/cleanmate_gui/duplicates.py:628 gui/cleanmate_gui/largefiles.py:380
 #: gui/cleanmate_gui/scanpage.py:538 gui/cleanmate_gui/scanpage.py:643
 #: gui/cleanmate_gui/scanpage.py:946 gui/cleanmate_gui/scanpage.py:988
-#: gui/cleanmate_gui/spacelens.py:418 gui/cleanmate_gui/startup.py:267
+#: gui/cleanmate_gui/spacelens.py:615 gui/cleanmate_gui/startup.py:267
 #: gui/cleanmate_gui/uninstaller.py:373
 msgid "Undo"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:666 gui/cleanmate_gui/largefiles.py:416
-#: gui/cleanmate_gui/scanpage.py:1023 gui/cleanmate_gui/spacelens.py:451
+#: gui/cleanmate_gui/scanpage.py:1023 gui/cleanmate_gui/spacelens.py:648
 #: gui/cleanmate_gui/uninstaller.py:845
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
@@ -993,7 +993,7 @@ msgid "Choose another kind to see the other files."
 msgstr ""
 
 #: gui/cleanmate_gui/largefiles.py:246 gui/cleanmate_gui/scanpage.py:338
-#: gui/cleanmate_gui/spacelens.py:269
+#: gui/cleanmate_gui/spacelens.py:401
 msgid "All"
 msgstr ""
 
@@ -1571,7 +1571,7 @@ msgstr ""
 msgid "No cleanups in the last 30 days."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:558 gui/cleanmate_gui/overview.py:607
+#: gui/cleanmate_gui/overview.py:558 gui/cleanmate_gui/overview.py:621
 msgid "Largest folders in your home"
 msgstr ""
 
@@ -1579,7 +1579,7 @@ msgstr ""
 msgid "Space outside your folders"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:562 gui/cleanmate_gui/spacelens.py:77
+#: gui/cleanmate_gui/overview.py:562 gui/cleanmate_gui/spacelens.py:138
 msgid "Measuring…"
 msgstr ""
 
@@ -1603,35 +1603,51 @@ msgid ""
 "choice, not junk."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:591
+#: gui/cleanmate_gui/overview.py:592
 msgid "No Timeshift snapshots, swap file or reserved space found."
 msgstr ""
 
+#: gui/cleanmate_gui/overview.py:595
+msgid "Outside your home folder"
+msgstr ""
+
+#: gui/cleanmate_gui/overview.py:596
+msgid "Apps, system files, logs, snaps and Docker on the system disk (/)"
+msgstr ""
+
 #: gui/cleanmate_gui/overview.py:600
-msgid "Measuring its size needs administrator rights"
+msgid "View in Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:610
-msgid "Couldn't measure your home folder."
-msgstr ""
-
-#: gui/cleanmate_gui/overview.py:612
-msgid "Your home folder is empty."
+#: gui/cleanmate_gui/overview.py:601
+msgid "See what takes the space, folder by folder"
 msgstr ""
 
 #: gui/cleanmate_gui/overview.py:614
+msgid "Measuring its size needs administrator rights"
+msgstr ""
+
+#: gui/cleanmate_gui/overview.py:624
+msgid "Couldn't measure your home folder."
+msgstr ""
+
+#: gui/cleanmate_gui/overview.py:626
+msgid "Your home folder is empty."
+msgstr ""
+
+#: gui/cleanmate_gui/overview.py:628
 msgid "Click a folder to explore it in Space Lens."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:620
+#: gui/cleanmate_gui/overview.py:634
 msgid "Open in Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:646 gui/cleanmate_gui/overview.py:647
+#: gui/cleanmate_gui/overview.py:660 gui/cleanmate_gui/overview.py:661
 msgid "Copy the command"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:656
+#: gui/cleanmate_gui/overview.py:670
 msgid "Command copied. Paste it in a terminal to run it."
 msgstr ""
 
@@ -1641,12 +1657,12 @@ msgid "Could not open {name}: {reason}"
 msgstr ""
 
 #: gui/cleanmate_gui/preview.py:251 gui/cleanmate_gui/preview.py:303
-#: gui/cleanmate_gui/welcome.py:144
+#: gui/cleanmate_gui/spacelens.py:502 gui/cleanmate_gui/welcome.py:144
 msgid "Open"
 msgstr ""
 
 #: gui/cleanmate_gui/preview.py:252 gui/cleanmate_gui/preview.py:305
-#: gui/cleanmate_gui/spacelens.py:307
+#: gui/cleanmate_gui/spacelens.py:503
 msgid "Show in Files"
 msgstr ""
 
@@ -1920,7 +1936,7 @@ msgid_plural "{n} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:751 gui/cleanmate_gui/spacelens.py:336
+#: gui/cleanmate_gui/scanpage.py:751 gui/cleanmate_gui/spacelens.py:533
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
@@ -2086,7 +2102,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: gui/cleanmate_gui/scanpage.py:980 gui/cleanmate_gui/scanpage.py:1026
-#: gui/cleanmate_gui/spacelens.py:454 gui/cleanmate_gui/uninstaller.py:848
+#: gui/cleanmate_gui/spacelens.py:651 gui/cleanmate_gui/uninstaller.py:848
 #, python-brace-format
 msgid "Put back {n} item from the Trash"
 msgid_plural "Put back {n} items from the Trash"
@@ -2219,7 +2235,7 @@ msgid "Folders reached through a symbolic link can't be excluded"
 msgstr ""
 
 #: gui/cleanmate_gui/settings.py:81 gui/cleanmate_gui/window.py:131
-#: gui/cleanmate_gui/window.py:269 gui/cleanmate_gui/window.py:369
+#: gui/cleanmate_gui/window.py:269 gui/cleanmate_gui/window.py:370
 msgid "Settings"
 msgstr ""
 
@@ -2460,105 +2476,281 @@ msgstr ""
 msgid "Open the log folder"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:57 gui/cleanmate_gui/window.py:272
+#: gui/cleanmate_gui/spacelens.py:25
+msgid "You never clean it, or a folder in it (Settings › Never clean)"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:26
+msgid "Your home folder is inside: open it to choose what to move"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:27
+msgid "Your system or apps need it (settings, or a link to a system folder)"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:28
+msgid "The drive itself: open it to choose what to move"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:29
+msgid "This drive is read-only or a network drive"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:30
+msgid "The drive's Trash, or reached through a link to elsewhere"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:31
+msgid "A Timeshift backup: delete old snapshots in Timeshift, never by hand"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:32
+msgid "Another disk mounted here: open it to explore"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:33
+msgid "Another user's files: only they (or an administrator) can clean them"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:34
+msgid ""
+"Snap packages and their data. Old revisions are cleaned in System Junk, apps "
+"removed in Uninstaller"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:36
+msgid ""
+"Flatpak apps and runtimes. Unused runtimes are removed in Maintenance, apps "
+"in Uninstaller"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:38
+msgid "Docker images, containers and volumes: clean them in Developer Junk"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:39
+msgid "The systemd journal: old logs are cleaned in Logs"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:40
+msgid "System logs and crash reports: old ones are cleaned in Logs"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:41
+msgid "apt's package cache and lists: the cache is cleaned in System Junk"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:42
+msgid "Kernels and boot files: extra old kernels are removed in System Junk"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:43
+msgid "Installed programs and system files: remove apps in Uninstaller"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:44
+msgid "Temporary files of the system: old ones are cleaned in System Junk"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:45
+msgid "The swap file: extra memory on disk"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:46
+msgid "Part of the system: only an administrator can change it"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:103 gui/cleanmate_gui/window.py:272
 msgid "Up one folder"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:65
-msgid "Explore another folder (also a drive)"
+#: gui/cleanmate_gui/spacelens.py:121
+msgid ""
+"Locations: your home folder, the whole system disk, other disks or any folder"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:79
+#: gui/cleanmate_gui/spacelens.py:125
+msgid "Show hidden files (Ctrl+Shift+.)"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:140 gui/cleanmate_gui/spacelens.py:378
 msgid "This folder is empty"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:93
+#: gui/cleanmate_gui/spacelens.py:154
 msgid "Measure again"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:127
+#: gui/cleanmate_gui/spacelens.py:199
 msgid "Folder to explore"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:151
-msgid "Home"
+#: gui/cleanmate_gui/spacelens.py:238
+msgid "Home folder"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:199
-#, python-brace-format
-msgid "Adding up {folder}"
+#: gui/cleanmate_gui/spacelens.py:240
+msgid "System disk (/)"
 msgstr ""
 
 #: gui/cleanmate_gui/spacelens.py:245
 #, python-brace-format
+msgid "{disk} · {free} free of {size}"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:249
+msgid "Disks"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:251
+msgid "Choose a Folder…"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:257
+msgid "Home"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:259
+msgid "System disk"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:317
+#, python-brace-format
+msgid "Adding up {folder}"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:374
+msgid "No permission to read this folder"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:375
+#, python-brace-format
+msgid "{folder} · only an administrator can see inside"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:386
+#, python-brace-format
 msgid "{folder} · {size}"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:248
+#: gui/cleanmate_gui/spacelens.py:389
 #, python-brace-format
 msgid "{n} item, biggest first"
 msgid_plural "{n} items, biggest first"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:255
+#: gui/cleanmate_gui/spacelens.py:402
+msgid "Select or deselect every item"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:410
+#, python-brace-format
+msgid "{n} hidden item"
+msgid_plural "{n} hidden items"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/spacelens.py:411
+msgid "Names starting with a dot · Ctrl+Shift+. shows them"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:428
 msgid "View only: you never clean this folder (Settings › Never clean)."
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:259
+#: gui/cleanmate_gui/spacelens.py:431
 msgid "View only: this drive is read-only or a network drive."
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:261
+#: gui/cleanmate_gui/spacelens.py:433
 msgid ""
 "View only: nothing here can be moved to the Trash (the drive itself, its "
 "Trash or a backup)."
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:263
+#: gui/cleanmate_gui/spacelens.py:436
 msgid ""
 "View only: things outside your home folder and your drives can't be moved to "
-"the Trash here."
+"the Trash here. Each row's lock says why, and the arrow opens the page that "
+"cleans it."
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:270
-msgid "Select or deselect every item"
+#: gui/cleanmate_gui/spacelens.py:440
+#, python-brace-format
+msgid "{used} in use on this disk; the list adds up to {listed}."
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:286
+#: gui/cleanmate_gui/spacelens.py:443
+#, python-brace-format
+msgid ""
+"{size} not counted: folders only an administrator can read, and files "
+"deleted while a program still has them open."
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:447
+#, python-brace-format
+msgid ""
+"{n} folder couldn't be read without administrator rights; the sizes leave it "
+"out."
+msgid_plural ""
+"{n} folders couldn't be read without administrator rights; the sizes leave "
+"them out."
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/spacelens.py:461
+msgid "No permission to read · only an administrator can see inside"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:463
+#, python-brace-format
+msgid "Another disk · {used} in use"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:465
 #, python-brace-format
 msgid "{n} item · {percent}"
 msgid_plural "{n} items · {percent}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:294
-msgid ""
-"Can't be moved to the Trash: you never clean it, or a folder in it (Settings "
-"› Never clean)"
+#: gui/cleanmate_gui/spacelens.py:469
+#, python-brace-format
+msgid "{n} folder inside couldn't be read"
+msgid_plural "{n} folders inside couldn't be read"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/spacelens.py:482
+#, python-brace-format
+msgid "View only: {reason}"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:297
-msgid ""
-"Can't be moved to the Trash here: it's outside your home folder and your "
-"writable drives, or your system or a backup needs it"
+#: gui/cleanmate_gui/spacelens.py:488
+#, python-brace-format
+msgid "Clean it in {page}"
 msgstr ""
 
-#: gui/cleanmate_gui/spacelens.py:361
+#: gui/cleanmate_gui/spacelens.py:494
+msgid "no permission"
+msgstr ""
+
+#: gui/cleanmate_gui/spacelens.py:558
 #, python-brace-format
 msgid "Move {n} item to the Trash?"
 msgid_plural "Move {n} items to the Trash?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:406
+#: gui/cleanmate_gui/spacelens.py:603
 #, python-brace-format
 msgid "Dry run: {n} item ({size}) would be moved to the Trash"
 msgid_plural "Dry run: {n} items ({size}) would be moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/spacelens.py:411
+#: gui/cleanmate_gui/spacelens.py:608
 #, python-brace-format
 msgid "Moved {n} item ({size}) to the Trash"
 msgid_plural "Moved {n} items ({size}) to the Trash"
@@ -3424,7 +3616,7 @@ msgstr ""
 msgid "Share CleanMate"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:141 gui/cleanmate_gui/window.py:392
+#: gui/cleanmate_gui/window.py:141 gui/cleanmate_gui/window.py:393
 msgid "Source code"
 msgstr ""
 
@@ -3460,24 +3652,28 @@ msgstr ""
 msgid "Quit"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:313
+#: gui/cleanmate_gui/window.py:273
+msgid "Show or hide hidden files"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:314
 msgid "Cleanup complete"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:350
+#: gui/cleanmate_gui/window.py:351
 #, python-brace-format
 msgid "{free} free of {total}"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:361
+#: gui/cleanmate_gui/window.py:362
 msgid "No terminal app found — run cm in a terminal."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:389
+#: gui/cleanmate_gui/window.py:390
 msgid "translator-credits"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:390
+#: gui/cleanmate_gui/window.py:391
 msgid ""
 "A friendly system cleaner for Ubuntu, inspired by CleanMyMac. Not affiliated "
 "with MacPaw."

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-03 18:22+0000\n"
+"POT-Creation-Date: 2026-11-03 19:23+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -46,7 +46,7 @@ msgstr ""
 #: gui/cleanmate_gui/bugreport.py:84 gui/cleanmate_gui/duplicates.py:576
 #: gui/cleanmate_gui/largefiles.py:329 gui/cleanmate_gui/maintenance.py:238
 #: gui/cleanmate_gui/scanpage.py:835 gui/cleanmate_gui/settings.py:467
-#: gui/cleanmate_gui/spacelens.py:365 gui/cleanmate_gui/startup.py:248
+#: gui/cleanmate_gui/spacelens.py:562 gui/cleanmate_gui/startup.py:248
 #: gui/cleanmate_gui/uninstaller.py:577 gui/cleanmate_gui/uninstaller.py:777
 msgid "Cancel"
 msgstr "Huỷ"
@@ -117,7 +117,7 @@ msgstr "Hãy thử kích thước nhỏ hơn hoặc thư mục khác."
 
 #: gui/cleanmate_gui/duplicates.py:169 gui/cleanmate_gui/duplicates.py:577
 #: gui/cleanmate_gui/largefiles.py:128 gui/cleanmate_gui/largefiles.py:330
-#: gui/cleanmate_gui/spacelens.py:90 gui/cleanmate_gui/spacelens.py:366
+#: gui/cleanmate_gui/spacelens.py:151 gui/cleanmate_gui/spacelens.py:563
 #: gui/cleanmate_gui/uninstaller.py:304 gui/cleanmate_gui/uninstaller.py:340
 msgid "Move to Trash"
 msgstr "Chuyển vào Thùng rác"
@@ -192,7 +192,7 @@ msgid "{size} can be freed by keeping one copy of each, in {folder}"
 msgstr "Có thể giải phóng {size} nếu giữ một bản mỗi tệp, trong {folder}"
 
 #: gui/cleanmate_gui/duplicates.py:385 gui/cleanmate_gui/largefiles.py:223
-#: gui/cleanmate_gui/spacelens.py:250
+#: gui/cleanmate_gui/spacelens.py:391
 #, python-brace-format
 msgid "the {n} biggest of {found}"
 msgstr "{n} tệp lớn nhất trong {found}"
@@ -281,7 +281,7 @@ msgid_plural ""
 msgstr[0] "Đã chọn mọi bản của {n} tệp: sẽ không giữ lại bản nào của chúng."
 
 #: gui/cleanmate_gui/duplicates.py:570 gui/cleanmate_gui/largefiles.py:323
-#: gui/cleanmate_gui/spacelens.py:359 gui/cleanmate_gui/uninstaller.py:556
+#: gui/cleanmate_gui/spacelens.py:556 gui/cleanmate_gui/uninstaller.py:556
 #, python-brace-format
 msgid "… and {n} more"
 msgstr "… và {n} mục khác"
@@ -293,7 +293,7 @@ msgid_plural "Move {n} files to the Trash?"
 msgstr[0] "Chuyển {n} tệp vào Thùng rác?"
 
 #: gui/cleanmate_gui/duplicates.py:573 gui/cleanmate_gui/largefiles.py:326
-#: gui/cleanmate_gui/spacelens.py:362
+#: gui/cleanmate_gui/spacelens.py:559
 #, python-brace-format
 msgid ""
 "{size}. You can undo this right away, or restore the files from the Trash "
@@ -314,12 +314,12 @@ msgid_plural "Moved {n} files ({size}) to the Trash"
 msgstr[0] "Đã chuyển {n} tệp ({size}) vào Thùng rác"
 
 #: gui/cleanmate_gui/duplicates.py:622 gui/cleanmate_gui/largefiles.py:374
-#: gui/cleanmate_gui/spacelens.py:412
+#: gui/cleanmate_gui/spacelens.py:609
 msgid "Nothing was moved"
 msgstr "Không có gì được chuyển"
 
 #: gui/cleanmate_gui/duplicates.py:624 gui/cleanmate_gui/largefiles.py:376
-#: gui/cleanmate_gui/spacelens.py:414
+#: gui/cleanmate_gui/spacelens.py:611
 #, python-brace-format
 msgid "{n} could not be moved: {reason}"
 msgid_plural "{n} could not be moved: {reason}"
@@ -328,13 +328,13 @@ msgstr[0] "{n} tệp không chuyển được: {reason}"
 #: gui/cleanmate_gui/duplicates.py:628 gui/cleanmate_gui/largefiles.py:380
 #: gui/cleanmate_gui/scanpage.py:538 gui/cleanmate_gui/scanpage.py:643
 #: gui/cleanmate_gui/scanpage.py:946 gui/cleanmate_gui/scanpage.py:988
-#: gui/cleanmate_gui/spacelens.py:418 gui/cleanmate_gui/startup.py:267
+#: gui/cleanmate_gui/spacelens.py:615 gui/cleanmate_gui/startup.py:267
 #: gui/cleanmate_gui/uninstaller.py:373
 msgid "Undo"
 msgstr "Hoàn tác"
 
 #: gui/cleanmate_gui/duplicates.py:666 gui/cleanmate_gui/largefiles.py:416
-#: gui/cleanmate_gui/scanpage.py:1023 gui/cleanmate_gui/spacelens.py:451
+#: gui/cleanmate_gui/scanpage.py:1023 gui/cleanmate_gui/spacelens.py:648
 #: gui/cleanmate_gui/uninstaller.py:845
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
@@ -962,7 +962,7 @@ msgid "Choose another kind to see the other files."
 msgstr "Chọn loại khác để xem các tệp còn lại."
 
 #: gui/cleanmate_gui/largefiles.py:246 gui/cleanmate_gui/scanpage.py:338
-#: gui/cleanmate_gui/spacelens.py:269
+#: gui/cleanmate_gui/spacelens.py:401
 msgid "All"
 msgstr "Tất cả"
 
@@ -1547,7 +1547,7 @@ msgstr "Hiện ở đây sau lần dọn dẹp đầu tiên."
 msgid "No cleanups in the last 30 days."
 msgstr "Không có lần dọn nào trong 30 ngày qua."
 
-#: gui/cleanmate_gui/overview.py:558 gui/cleanmate_gui/overview.py:607
+#: gui/cleanmate_gui/overview.py:558 gui/cleanmate_gui/overview.py:621
 msgid "Largest folders in your home"
 msgstr "Thư mục lớn nhất trong thư mục riêng"
 
@@ -1555,7 +1555,7 @@ msgstr "Thư mục lớn nhất trong thư mục riêng"
 msgid "Space outside your folders"
 msgstr "Ngoài thư mục của bạn"
 
-#: gui/cleanmate_gui/overview.py:562 gui/cleanmate_gui/spacelens.py:77
+#: gui/cleanmate_gui/overview.py:562 gui/cleanmate_gui/spacelens.py:138
 msgid "Measuring…"
 msgstr "Đang đo…"
 
@@ -1583,35 +1583,51 @@ msgstr ""
 "Đang dùng nhưng không nằm trong thư mục nào của bạn. Chỉ để xem: mỗi mục là "
 "một lựa chọn, không phải rác."
 
-#: gui/cleanmate_gui/overview.py:591
+#: gui/cleanmate_gui/overview.py:592
 msgid "No Timeshift snapshots, swap file or reserved space found."
 msgstr "Không có bản chụp Timeshift, tệp swap hay dung lượng dành riêng."
 
+#: gui/cleanmate_gui/overview.py:595
+msgid "Outside your home folder"
+msgstr "Ngoài thư mục riêng"
+
+#: gui/cleanmate_gui/overview.py:596
+msgid "Apps, system files, logs, snaps and Docker on the system disk (/)"
+msgstr "Ứng dụng, tệp hệ thống, nhật ký, snap và Docker trên ổ hệ thống (/)"
+
 #: gui/cleanmate_gui/overview.py:600
+msgid "View in Space Lens"
+msgstr "Xem trong Space Lens"
+
+#: gui/cleanmate_gui/overview.py:601
+msgid "See what takes the space, folder by folder"
+msgstr "Xem thứ gì chiếm chỗ, từng thư mục một"
+
+#: gui/cleanmate_gui/overview.py:614
 msgid "Measuring its size needs administrator rights"
 msgstr "Cần quyền quản trị để đo dung lượng"
 
-#: gui/cleanmate_gui/overview.py:610
+#: gui/cleanmate_gui/overview.py:624
 msgid "Couldn't measure your home folder."
 msgstr "Không đo được thư mục riêng."
 
-#: gui/cleanmate_gui/overview.py:612
+#: gui/cleanmate_gui/overview.py:626
 msgid "Your home folder is empty."
 msgstr "Thư mục riêng của bạn trống."
 
-#: gui/cleanmate_gui/overview.py:614
+#: gui/cleanmate_gui/overview.py:628
 msgid "Click a folder to explore it in Space Lens."
 msgstr "Bấm vào một thư mục để xem nó trong Space Lens."
 
-#: gui/cleanmate_gui/overview.py:620
+#: gui/cleanmate_gui/overview.py:634
 msgid "Open in Space Lens"
 msgstr "Mở trong Space Lens"
 
-#: gui/cleanmate_gui/overview.py:646 gui/cleanmate_gui/overview.py:647
+#: gui/cleanmate_gui/overview.py:660 gui/cleanmate_gui/overview.py:661
 msgid "Copy the command"
 msgstr "Sao chép lệnh"
 
-#: gui/cleanmate_gui/overview.py:656
+#: gui/cleanmate_gui/overview.py:670
 msgid "Command copied. Paste it in a terminal to run it."
 msgstr "Đã sao chép lệnh. Dán vào terminal để chạy."
 
@@ -1621,12 +1637,12 @@ msgid "Could not open {name}: {reason}"
 msgstr "Không mở được {name}: {reason}"
 
 #: gui/cleanmate_gui/preview.py:251 gui/cleanmate_gui/preview.py:303
-#: gui/cleanmate_gui/welcome.py:144
+#: gui/cleanmate_gui/spacelens.py:502 gui/cleanmate_gui/welcome.py:144
 msgid "Open"
 msgstr "Mở"
 
 #: gui/cleanmate_gui/preview.py:252 gui/cleanmate_gui/preview.py:305
-#: gui/cleanmate_gui/spacelens.py:307
+#: gui/cleanmate_gui/spacelens.py:503
 msgid "Show in Files"
 msgstr "Hiện trong Tệp"
 
@@ -1896,7 +1912,7 @@ msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] "Đã chọn {n}"
 
-#: gui/cleanmate_gui/scanpage.py:751 gui/cleanmate_gui/spacelens.py:336
+#: gui/cleanmate_gui/scanpage.py:751 gui/cleanmate_gui/spacelens.py:533
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} item"
 msgid_plural "Selected <b>{size}</b> in {n} items"
@@ -2051,7 +2067,7 @@ msgid_plural "{n} failed"
 msgstr[0] "{n} mục thất bại"
 
 #: gui/cleanmate_gui/scanpage.py:980 gui/cleanmate_gui/scanpage.py:1026
-#: gui/cleanmate_gui/spacelens.py:454 gui/cleanmate_gui/uninstaller.py:848
+#: gui/cleanmate_gui/spacelens.py:651 gui/cleanmate_gui/uninstaller.py:848
 #, python-brace-format
 msgid "Put back {n} item from the Trash"
 msgid_plural "Put back {n} items from the Trash"
@@ -2187,7 +2203,7 @@ msgid "Folders reached through a symbolic link can't be excluded"
 msgstr "Không loại trừ được thư mục đi qua liên kết tượng trưng (symlink)"
 
 #: gui/cleanmate_gui/settings.py:81 gui/cleanmate_gui/window.py:131
-#: gui/cleanmate_gui/window.py:269 gui/cleanmate_gui/window.py:369
+#: gui/cleanmate_gui/window.py:269 gui/cleanmate_gui/window.py:370
 msgid "Settings"
 msgstr "Cài đặt"
 
@@ -2439,57 +2455,194 @@ msgstr "Chưa dọn gì cả."
 msgid "Open the log folder"
 msgstr "Mở thư mục nhật ký"
 
-#: gui/cleanmate_gui/spacelens.py:57 gui/cleanmate_gui/window.py:272
+#: gui/cleanmate_gui/spacelens.py:25
+msgid "You never clean it, or a folder in it (Settings › Never clean)"
+msgstr "Bạn không bao giờ dọn nó, hoặc một thư mục bên trong (Cài đặt › Không bao giờ dọn)"
+
+#: gui/cleanmate_gui/spacelens.py:26
+msgid "Your home folder is inside: open it to choose what to move"
+msgstr "Thư mục riêng nằm bên trong: mở ra để chọn thứ cần chuyển"
+
+#: gui/cleanmate_gui/spacelens.py:27
+msgid "Your system or apps need it (settings, or a link to a system folder)"
+msgstr "Hệ thống hoặc ứng dụng cần nó (cài đặt, hoặc liên kết tới thư mục hệ thống)"
+
+#: gui/cleanmate_gui/spacelens.py:28
+msgid "The drive itself: open it to choose what to move"
+msgstr "Chính ổ đĩa: mở nó ra để chọn thứ cần chuyển"
+
+#: gui/cleanmate_gui/spacelens.py:29
+msgid "This drive is read-only or a network drive"
+msgstr "Ổ này chỉ đọc hoặc là ổ mạng"
+
+#: gui/cleanmate_gui/spacelens.py:30
+msgid "The drive's Trash, or reached through a link to elsewhere"
+msgstr "Thùng rác của ổ, hoặc nằm sau một liên kết trỏ đi nơi khác"
+
+#: gui/cleanmate_gui/spacelens.py:31
+msgid "A Timeshift backup: delete old snapshots in Timeshift, never by hand"
+msgstr "Bản sao lưu Timeshift: xoá bản cũ trong Timeshift, đừng bao giờ xoá tay"
+
+#: gui/cleanmate_gui/spacelens.py:32
+msgid "Another disk mounted here: open it to explore"
+msgstr "Một ổ đĩa khác gắn ở đây: mở ra để xem"
+
+#: gui/cleanmate_gui/spacelens.py:33
+msgid "Another user's files: only they (or an administrator) can clean them"
+msgstr "Tệp của người dùng khác: chỉ họ (hoặc quản trị viên) dọn được"
+
+#: gui/cleanmate_gui/spacelens.py:34
+msgid ""
+"Snap packages and their data. Old revisions are cleaned in System Junk, apps "
+"removed in Uninstaller"
+msgstr "Gói Snap và dữ liệu của chúng. Bản cũ được dọn trong Rác hệ thống, ứng dụng gỡ trong Gỡ ứng dụng"
+
+#: gui/cleanmate_gui/spacelens.py:36
+msgid ""
+"Flatpak apps and runtimes. Unused runtimes are removed in Maintenance, apps "
+"in Uninstaller"
+msgstr "Ứng dụng và runtime Flatpak. Runtime không dùng được gỡ trong Bảo trì, ứng dụng trong Gỡ ứng dụng"
+
+#: gui/cleanmate_gui/spacelens.py:38
+msgid "Docker images, containers and volumes: clean them in Developer Junk"
+msgstr "Image, container và volume Docker: dọn trong Rác developer"
+
+#: gui/cleanmate_gui/spacelens.py:39
+msgid "The systemd journal: old logs are cleaned in Logs"
+msgstr "Journal của systemd: nhật ký cũ được dọn trong Nhật ký"
+
+#: gui/cleanmate_gui/spacelens.py:40
+msgid "System logs and crash reports: old ones are cleaned in Logs"
+msgstr "Nhật ký hệ thống và báo cáo lỗi: bản cũ được dọn trong Nhật ký"
+
+#: gui/cleanmate_gui/spacelens.py:41
+msgid "apt's package cache and lists: the cache is cleaned in System Junk"
+msgstr "Bộ nhớ đệm và danh sách gói của apt: bộ nhớ đệm được dọn trong Rác hệ thống"
+
+#: gui/cleanmate_gui/spacelens.py:42
+msgid "Kernels and boot files: extra old kernels are removed in System Junk"
+msgstr "Kernel và tệp khởi động: kernel cũ thừa được gỡ trong Rác hệ thống"
+
+#: gui/cleanmate_gui/spacelens.py:43
+msgid "Installed programs and system files: remove apps in Uninstaller"
+msgstr "Chương trình đã cài và tệp hệ thống: gỡ ứng dụng trong Gỡ ứng dụng"
+
+#: gui/cleanmate_gui/spacelens.py:44
+msgid "Temporary files of the system: old ones are cleaned in System Junk"
+msgstr "Tệp tạm của hệ thống: tệp cũ được dọn trong Rác hệ thống"
+
+#: gui/cleanmate_gui/spacelens.py:45
+msgid "The swap file: extra memory on disk"
+msgstr "Tệp swap: bộ nhớ phụ trên ổ đĩa"
+
+#: gui/cleanmate_gui/spacelens.py:46
+msgid "Part of the system: only an administrator can change it"
+msgstr "Một phần của hệ thống: chỉ quản trị viên thay đổi được"
+
+#: gui/cleanmate_gui/spacelens.py:103 gui/cleanmate_gui/window.py:272
 msgid "Up one folder"
 msgstr "Lên một thư mục"
 
-#: gui/cleanmate_gui/spacelens.py:65
-msgid "Explore another folder (also a drive)"
-msgstr "Xem thư mục khác (hoặc một ổ đĩa)"
+#: gui/cleanmate_gui/spacelens.py:121
+msgid ""
+"Locations: your home folder, the whole system disk, other disks or any folder"
+msgstr "Vị trí: thư mục riêng, toàn bộ ổ hệ thống, các ổ khác hoặc thư mục bất kỳ"
 
-#: gui/cleanmate_gui/spacelens.py:79
+#: gui/cleanmate_gui/spacelens.py:125
+msgid "Show hidden files (Ctrl+Shift+.)"
+msgstr "Hiện tệp ẩn (Ctrl+Shift+.)"
+
+#: gui/cleanmate_gui/spacelens.py:140 gui/cleanmate_gui/spacelens.py:378
 msgid "This folder is empty"
 msgstr "Thư mục này trống"
 
-#: gui/cleanmate_gui/spacelens.py:93
+#: gui/cleanmate_gui/spacelens.py:154
 msgid "Measure again"
 msgstr "Đo lại"
 
-#: gui/cleanmate_gui/spacelens.py:127
+#: gui/cleanmate_gui/spacelens.py:199
 msgid "Folder to explore"
 msgstr "Thư mục cần xem"
 
-#: gui/cleanmate_gui/spacelens.py:151
+#: gui/cleanmate_gui/spacelens.py:238
+msgid "Home folder"
+msgstr "Thư mục riêng"
+
+#: gui/cleanmate_gui/spacelens.py:240
+msgid "System disk (/)"
+msgstr "Ổ hệ thống (/)"
+
+#: gui/cleanmate_gui/spacelens.py:245
+#, python-brace-format
+msgid "{disk} · {free} free of {size}"
+msgstr "{disk} · còn trống {free} / {size}"
+
+#: gui/cleanmate_gui/spacelens.py:249
+msgid "Disks"
+msgstr "Ổ đĩa"
+
+#: gui/cleanmate_gui/spacelens.py:251
+msgid "Choose a Folder…"
+msgstr "Chọn thư mục…"
+
+#: gui/cleanmate_gui/spacelens.py:257
 msgid "Home"
 msgstr "Thư mục riêng"
 
-#: gui/cleanmate_gui/spacelens.py:199
+#: gui/cleanmate_gui/spacelens.py:259
+msgid "System disk"
+msgstr "Ổ hệ thống"
+
+#: gui/cleanmate_gui/spacelens.py:317
 #, python-brace-format
 msgid "Adding up {folder}"
 msgstr "Đang tính dung lượng {folder}"
 
-#: gui/cleanmate_gui/spacelens.py:245
+#: gui/cleanmate_gui/spacelens.py:374
+msgid "No permission to read this folder"
+msgstr "Không có quyền đọc thư mục này"
+
+#: gui/cleanmate_gui/spacelens.py:375
+#, python-brace-format
+msgid "{folder} · only an administrator can see inside"
+msgstr "{folder} · chỉ quản trị viên xem được bên trong"
+
+#: gui/cleanmate_gui/spacelens.py:386
 #, python-brace-format
 msgid "{folder} · {size}"
 msgstr "{folder} · {size}"
 
-#: gui/cleanmate_gui/spacelens.py:248
+#: gui/cleanmate_gui/spacelens.py:389
 #, python-brace-format
 msgid "{n} item, biggest first"
 msgid_plural "{n} items, biggest first"
 msgstr[0] "{n} mục, lớn nhất trước"
 
-#: gui/cleanmate_gui/spacelens.py:255
+#: gui/cleanmate_gui/spacelens.py:402
+msgid "Select or deselect every item"
+msgstr "Chọn hoặc bỏ chọn mọi mục"
+
+#: gui/cleanmate_gui/spacelens.py:410
+#, python-brace-format
+msgid "{n} hidden item"
+msgid_plural "{n} hidden items"
+msgstr[0] "{n} mục ẩn"
+
+#: gui/cleanmate_gui/spacelens.py:411
+msgid "Names starting with a dot · Ctrl+Shift+. shows them"
+msgstr "Tên bắt đầu bằng dấu chấm · Ctrl+Shift+. để hiện"
+
+#: gui/cleanmate_gui/spacelens.py:428
 msgid "View only: you never clean this folder (Settings › Never clean)."
 msgstr ""
 "Chỉ xem: thư mục này nằm trong danh sách Không bao giờ dọn (Cài đặt › Không "
 "bao giờ dọn)."
 
-#: gui/cleanmate_gui/spacelens.py:259
+#: gui/cleanmate_gui/spacelens.py:431
 msgid "View only: this drive is read-only or a network drive."
 msgstr "Chỉ xem: ổ này chỉ đọc hoặc là ổ mạng."
 
-#: gui/cleanmate_gui/spacelens.py:261
+#: gui/cleanmate_gui/spacelens.py:433
 msgid ""
 "View only: nothing here can be moved to the Trash (the drive itself, its "
 "Trash or a backup)."
@@ -2497,53 +2650,83 @@ msgstr ""
 "Chỉ xem: không có gì ở đây chuyển được vào Thùng rác (chính ổ đĩa, Thùng rác "
 "của ổ hoặc bản sao lưu)."
 
-#: gui/cleanmate_gui/spacelens.py:263
+#: gui/cleanmate_gui/spacelens.py:436
 msgid ""
 "View only: things outside your home folder and your drives can't be moved to "
-"the Trash here."
-msgstr ""
-"Chỉ xem: không thể chuyển những gì nằm ngoài thư mục riêng và các ổ của bạn "
-"vào Thùng rác ở đây."
+"the Trash here. Each row's lock says why, and the arrow opens the page that "
+"cleans it."
+msgstr "Chỉ xem: không thể chuyển những gì nằm ngoài thư mục riêng và các ổ của bạn vào Thùng rác ở đây. Ổ khoá ở mỗi hàng cho biết lý do, mũi tên mở trang dọn nó."
 
-#: gui/cleanmate_gui/spacelens.py:270
-msgid "Select or deselect every item"
-msgstr "Chọn hoặc bỏ chọn mọi mục"
+#: gui/cleanmate_gui/spacelens.py:440
+#, python-brace-format
+msgid "{used} in use on this disk; the list adds up to {listed}."
+msgstr "Ổ này đang dùng {used}; danh sách cộng lại được {listed}."
 
-#: gui/cleanmate_gui/spacelens.py:286
+#: gui/cleanmate_gui/spacelens.py:443
+#, python-brace-format
+msgid ""
+"{size} not counted: folders only an administrator can read, and files "
+"deleted while a program still has them open."
+msgstr "{size} chưa tính: thư mục chỉ quản trị viên đọc được, và tệp đã xoá nhưng chương trình vẫn đang mở."
+
+#: gui/cleanmate_gui/spacelens.py:447
+#, python-brace-format
+msgid ""
+"{n} folder couldn't be read without administrator rights; the sizes leave it "
+"out."
+msgid_plural ""
+"{n} folders couldn't be read without administrator rights; the sizes leave "
+"them out."
+msgstr[0] "{n} thư mục không đọc được nếu không có quyền quản trị; dung lượng không tính chúng."
+
+#: gui/cleanmate_gui/spacelens.py:461
+msgid "No permission to read · only an administrator can see inside"
+msgstr "Không có quyền đọc · chỉ quản trị viên xem được bên trong"
+
+#: gui/cleanmate_gui/spacelens.py:463
+#, python-brace-format
+msgid "Another disk · {used} in use"
+msgstr "Ổ đĩa khác · đang dùng {used}"
+
+#: gui/cleanmate_gui/spacelens.py:465
 #, python-brace-format
 msgid "{n} item · {percent}"
 msgid_plural "{n} items · {percent}"
 msgstr[0] "{n} mục · {percent}"
 
-#: gui/cleanmate_gui/spacelens.py:294
-msgid ""
-"Can't be moved to the Trash: you never clean it, or a folder in it (Settings "
-"› Never clean)"
-msgstr ""
-"Không chuyển vào Thùng rác được: mục này hoặc một thư mục bên trong nằm "
-"trong danh sách Không bao giờ dọn (Cài đặt)"
+#: gui/cleanmate_gui/spacelens.py:469
+#, python-brace-format
+msgid "{n} folder inside couldn't be read"
+msgid_plural "{n} folders inside couldn't be read"
+msgstr[0] "{n} thư mục bên trong không đọc được"
 
-#: gui/cleanmate_gui/spacelens.py:297
-msgid ""
-"Can't be moved to the Trash here: it's outside your home folder and your "
-"writable drives, or your system or a backup needs it"
-msgstr ""
-"Không thể chuyển vào Thùng rác ở đây: nằm ngoài thư mục riêng và các ổ ghi "
-"được của bạn, hoặc hệ thống hay bản sao lưu cần nó"
+#: gui/cleanmate_gui/spacelens.py:482
+#, python-brace-format
+msgid "View only: {reason}"
+msgstr "Chỉ xem: {reason}"
 
-#: gui/cleanmate_gui/spacelens.py:361
+#: gui/cleanmate_gui/spacelens.py:488
+#, python-brace-format
+msgid "Clean it in {page}"
+msgstr "Dọn trong {page}"
+
+#: gui/cleanmate_gui/spacelens.py:494
+msgid "no permission"
+msgstr "không có quyền"
+
+#: gui/cleanmate_gui/spacelens.py:558
 #, python-brace-format
 msgid "Move {n} item to the Trash?"
 msgid_plural "Move {n} items to the Trash?"
 msgstr[0] "Chuyển {n} mục vào Thùng rác?"
 
-#: gui/cleanmate_gui/spacelens.py:406
+#: gui/cleanmate_gui/spacelens.py:603
 #, python-brace-format
 msgid "Dry run: {n} item ({size}) would be moved to the Trash"
 msgid_plural "Dry run: {n} items ({size}) would be moved to the Trash"
 msgstr[0] "Chạy thử: {n} mục ({size}) sẽ được chuyển vào Thùng rác"
 
-#: gui/cleanmate_gui/spacelens.py:411
+#: gui/cleanmate_gui/spacelens.py:608
 #, python-brace-format
 msgid "Moved {n} item ({size}) to the Trash"
 msgid_plural "Moved {n} items ({size}) to the Trash"
@@ -3467,7 +3650,7 @@ msgstr "Góp ý tính năng…"
 msgid "Share CleanMate"
 msgstr "Chia sẻ CleanMate"
 
-#: gui/cleanmate_gui/window.py:141 gui/cleanmate_gui/window.py:392
+#: gui/cleanmate_gui/window.py:141 gui/cleanmate_gui/window.py:393
 msgid "Source code"
 msgstr "Mã nguồn"
 
@@ -3504,24 +3687,28 @@ msgstr "Quét, tìm hoặc liệt kê lại"
 msgid "Quit"
 msgstr "Thoát"
 
-#: gui/cleanmate_gui/window.py:313
+#: gui/cleanmate_gui/window.py:273
+msgid "Show or hide hidden files"
+msgstr "Hiện hoặc ẩn tệp ẩn"
+
+#: gui/cleanmate_gui/window.py:314
 msgid "Cleanup complete"
 msgstr "Đã dọn xong"
 
-#: gui/cleanmate_gui/window.py:350
+#: gui/cleanmate_gui/window.py:351
 #, python-brace-format
 msgid "{free} free of {total}"
 msgstr "Còn trống {free} / {total}"
 
-#: gui/cleanmate_gui/window.py:361
+#: gui/cleanmate_gui/window.py:362
 msgid "No terminal app found — run cm in a terminal."
 msgstr "Không tìm thấy app terminal — hãy chạy cm trong terminal."
 
-#: gui/cleanmate_gui/window.py:389
+#: gui/cleanmate_gui/window.py:390
 msgid "translator-credits"
 msgstr "HomieLab https://homielab.com"
 
-#: gui/cleanmate_gui/window.py:390
+#: gui/cleanmate_gui/window.py:391
 msgid ""
 "A friendly system cleaner for Ubuntu, inspired by CleanMyMac. Not affiliated "
 "with MacPaw."
@@ -5520,6 +5707,16 @@ msgstr ""
 #. ai_model_caches why
 msgid "A model a program has open"
 msgstr "Model một chương trình đang mở"
+
+#~ msgid "Explore another folder (also a drive)"
+#~ msgstr "Xem thư mục khác (hoặc một ổ đĩa)"
+
+#~ msgid ""
+#~ "Can't be moved to the Trash here: it's outside your home folder and your "
+#~ "writable drives, or your system or a backup needs it"
+#~ msgstr ""
+#~ "Không thể chuyển vào Thùng rác ở đây: nằm ngoài thư mục riêng và các ổ "
+#~ "ghi được của bạn, hoặc hệ thống hay bản sao lưu cần nó"
 
 #, python-brace-format
 #~ msgid ""

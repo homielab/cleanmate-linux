@@ -16,7 +16,15 @@ takes up the space in your home folder (or any folder or drive), biggest first: 
 dig deeper, tick what you don't need and move it to the Trash, **Undo** puts it back. On a writable
 drive mounted under `/media`, `/run/media` or `/mnt` things go to that drive's own Trash, so the space
 comes back on that drive; read-only and network drives, Timeshift backups and other places outside your
-home folder it only shows. **Duplicates** groups identical files (from 1 MB, in a folder or drive you
+home folder it only shows. The Locations button opens your home folder, the whole system disk (`/`), each
+other disk (with its free space) or any folder, and the path bar starts at the disk. Outside your home
+folder every row has a lock whose tooltip says why it stays (system packages, Docker, the journal, logs,
+snaps, another user's files, another disk mounted there) and an arrow to the page that cleans that kind of
+thing (System Junk, Logs, Developer Junk, Uninstaller, Maintenance). A folder you can't read says *no
+permission* instead of a size, and the header counts folders that couldn't be read, so `/` adds up to the
+disk's use minus what only an administrator can see; CleanMate never reads as root here. **Ctrl+Shift+.**
+(or the eye button) shows or hides names starting with a dot (one row sums up the hidden ones), and every
+row has **Open** (its default app) and **Show in Files**. **Duplicates** groups identical files (from 1 MB, in a folder or drive you
 pick); nothing is ticked until you choose, and **Select automatically** ticks every copy except the oldest
 (usually the original); you're warned if every copy of a file is ticked. Its **Similar Photos** mode
 groups photos that look alike (resized or re-saved copies, edits, shots taken one after another) in
@@ -46,8 +54,8 @@ password once per task, and switches the snap-versions and journal-size limits o
 isn't installed is locked. The app opens on **System Overview**: your system and package counts, each disk
 with a usage bar (in the warning colour over 90 % full), a chart of free space over the last 30 days, memory
 and swap, what CleanMate freed (the last 30 days, in total and the last cleanup, with a bar per day over the
-last 30 days), space in use outside your folders (Timeshift snapshots, the swap file, ext4's reserved space),
-your largest folders, which open in Space Lens, and **System
+last 30 days), space in use outside your folders (everything on the system disk outside your home folder,
+with **View in Space Lens**; Timeshift snapshots, the swap file, ext4's reserved space), your largest folders, which open in Space Lens, and **System
 protection**: whether the firewall (ufw), AppArmor, automatic security updates and Secure Boot are on. It
 only reads them; one that is off shows the command that turns it on, with a button to copy it. One it
 can't read shows *Unknown*.

@@ -9289,6 +9289,11 @@ overview_lines() {
 
   printf '\n  %sLargest folders in your home%s\n' "$BOLD" "$NC"
   while IFS=$'\t' read -r -d '' b p; do
+    if [[ $p == "$HOME" ]]; then
+      outside_home_bytes p "$b" && printf '  %sOutside your home on /: %s — see Space Lens › Whole disk%s\n' \
+        "$DIM" "$(human "$p")" "$NC"
+      continue
+    fi
     ((max == 0)) && max=$b
     size_bar barv "$b" "$max" 24
     printf '  %s %9s  %s\n' "$barv" "$(human "$b")" "${p/#$HOME/\~}"
@@ -9299,9 +9304,20 @@ overview_lines() {
 
 TOP_DIRS=12 # the largest folders System Overview lists
 
-top_home_dirs() { # → bytes<TAB>path, NUL-terminated, of the largest folders right in $HOME (du -x), biggest first
-  du -0 -xb --max-depth=1 -- "$HOME" 2>/dev/null | sort -z -t$'\t' -k1,1rn |
-    while IFS=$'\t' read -r -d '' b p; do [[ $p == "$HOME" ]] || printf '%s\t%s\0' "$b" "$p"; done | head -z -n "$TOP_DIRS"
+top_home_dirs() { # → bytes<TAB>path, NUL-terminated: $HOME itself, then its largest folders (du -x), biggest first
+  du -0 -xb --max-depth=1 -- "$HOME" 2>/dev/null | sort -z -t$'\t' -k1,1rn | head -z -n "$((TOP_DIRS + 1))"
+}
+
+outside_home_bytes() { # VAR HOME_BYTES → VAR = bytes in use on the system disk (/) outside your home folder
+  local -n __oh=$1
+  local __u __s __hs
+  __oh=""
+  ((FLATPAK)) && return 1 # the sandbox's / is not your disk
+  { read -r _; read -r __u __s; read -r _ __hs; } < <(df -B1 --output=used,source / "$HOME" 2>/dev/null)
+  [[ $__u =~ ^[0-9]+$ ]] || return 1
+  [[ $__s == "$__hs" ]] && __u=$((__u - $2)) # home on the same disk: its part is not outside
+  ((__u >= 0)) || __u=0
+  __oh=$__u
 }
 
 timeshift_snapshot_dirs() { # rsync-mode Timeshift keeps snapshots in /timeshift on the backup disk
@@ -9532,8 +9548,8 @@ overview() {
 SL_TMP=""
 SL_DIR=""
 SL_TOTAL=0
-declare -A SL_CACHE=() SL_SEL=()
-declare -a SL_SIZE=() SL_PATH=() SL_HUMAN=()
+declare -A SL_CACHE=() SL_SEL=() SL_UNREAD=()
+declare -a SL_SIZE=() SL_PATH=() SL_HUMAN=() SL_REASON=()
 
 human_lines() { # bytes per line on stdin → human sizes, one awk process for all
   awk '{b = $1; split("B KB MB GB TB PB", u, " "); i = 1
@@ -9542,20 +9558,30 @@ human_lines() { # bytes per line on stdin → human sizes, one awk process for a
 }
 
 sl_load() { # DIR — load DIR's entries into SL_*; returns 1 if cancelled
-  local dir=$1 f b p
+  local dir=$1 f b p r src
   [[ -n $SL_TMP ]] || SL_TMP=$(mktemp -d -p "$SESSION_TMP") || return 1
   f=${SL_CACHE[$dir]:-}
   if [[ -z $f || ! -s $f ]]; then
     f=$(mktemp -p "$SL_TMP") || return 1
-    (try_root du -xab --max-depth=1 -- "$dir" 2>/dev/null | sort -t$'\t' -k1,1rn >"$f") &
+    # the same rules as the desktop app (json_lens): never sudo, what you can't read is counted apart,
+    # disks mounted inside are listed with their use (in $f.mnt) but not added to the folder's total
+    (src=$(df --output=source -- "$dir" 2>/dev/null | tail -n1)
+     lens_mounts "$dir" "$src" | tr '\0' '\n' >"$f.mnt"
+     { LC_ALL=C.UTF-8 du -xab --max-depth=1 -- "$dir" 2>"$f.err"; cat "$f.mnt"; } | sort -t$'\t' -k1,1rn >"$f") &
     UI_BUSY_TITLE="Space Lens"
-    ui_busy "Measuring ${dir/#$HOME/\~}…" $! || { rm -f "$f"; return 1; }
+    ui_busy "Measuring ${dir/#$HOME/\~}…" $! || { rm -f "$f" "$f.mnt" "$f.err"; return 1; }
     SL_CACHE[$dir]=$f
   fi
-  SL_SIZE=() SL_PATH=() SL_SEL=() SL_TOTAL=0
+  LENS_MOUNTS=() SL_UNREAD=()
+  while IFS=$'\t' read -r b p; do LENS_MOUNTS[${p#?}]=1; done <"$f.mnt"
+  lens_unreadable SL_UNREAD "$dir" "$f.err"
+  SL_SIZE=() SL_PATH=() SL_SEL=() SL_REASON=() SL_TOTAL=0
   while IFS=$'\t' read -r b p; do
     if [[ $p == "$dir" ]]; then SL_TOTAL=$b; continue; fi
-    SL_SIZE+=("$b") SL_PATH+=("$p")
+    if [[ $p == $'\x01'* ]]; then p=${p#?} r=mount
+    elif [[ -n ${LENS_MOUNTS[$p]:-} ]]; then continue # du's line of a mount: listed once, as a mount
+    else lens_reason r "$p"; fi
+    SL_SIZE+=("$b") SL_PATH+=("$p") SL_REASON+=("$r")
     ((${#SL_PATH[@]} >= 500)) && break
   done <"$f"
   mapfile -t SL_HUMAN < <(((${#SL_SIZE[@]})) && printf '%s\n' "${SL_SIZE[@]}" | human_lines)
@@ -9565,7 +9591,9 @@ sl_load() { # DIR — load DIR's entries into SL_*; returns 1 if cancelled
 sl_row() {
   local i=$1 mark="  " box name barv sz pct clr nw
   (($2)) && mark="${ACCENT}▸${NC} "
-  if [[ -n ${SL_SEL[$i]} ]]; then box="${GREEN}●${NC}"; else box="${DIM}○${NC}"; fi
+  if [[ -n ${SL_SEL[$i]} ]]; then box="${GREEN}●${NC}"
+  elif [[ -n ${SL_REASON[i]} ]]; then box="${DIM}×${NC}" # view only: sl_bottom says why
+  else box="${DIM}○${NC}"; fi
   size_bar barv "${SL_SIZE[i]}" "${SL_SIZE[0]}" 20
   size_colorv clr "${SL_SIZE[i]}"
   printf -v sz '%9s' "${SL_HUMAN[i]}"
@@ -9582,13 +9610,17 @@ sl_row() {
 
 sl_text() { TEXT=${SL_PATH[$1]##*/}; }
 sl_top() {
-  local crumb=${SL_DIR/#$HOME/\~}
+  local crumb=${SL_DIR/#$HOME/\~} nu=${SL_UNREAD[.]:-0}
   fl ""
   fitv crumb "$crumb" $((UI_W - 30))
   local tt ni; humanv tt "$SL_TOTAL"; pluralv ni ${#SL_PATH[@]} item
   fl "  ${BOLD}📁 ${crumb%%+( )}${NC}   ${DIM}$tt · $ni${NC}"
+  ((nu)) && fl "  ${DIM}$(plural "$nu" folder) couldn't be read without administrator rights: not counted.${NC}"
   fl ""
-  ((${#SL_PATH[@]})) || fl "  ${DIM}This folder is empty — press ← to go up.${NC}"
+  if ((${#SL_PATH[@]} == 0)); then
+    if [[ -r $SL_DIR && -x $SL_DIR ]]; then fl "  ${DIM}This folder is empty — press ← to go up.${NC}"
+    else fl "  ${DIM}No permission to read this folder — press ← to go up.${NC}"; fi
+  fi
   return 0
 }
 
@@ -9599,9 +9631,16 @@ sl_bottom() {
   local sn st; pluralv sn "$n" item; humanv st "$tot"
   fl "  ${BOLD}Selected${NC} $sn · ${BOLD}$st${NC}"
   if [[ -n $p ]]; then
-    if [[ -L $p ]]; then kind="link"; elif [[ -d $p ]]; then kind="folder — press → to open"; else kind="file"; fi
+    if [[ -L $p ]]; then kind="link"
+    elif [[ -d $p && ! (-r $p && -x $p) ]]; then kind="folder — no permission to read it"
+    elif [[ -d $p ]]; then kind="folder — press → to open"; else kind="file"; fi
+    ((${SL_UNREAD[$p]:-0})) && kind+=", $(plural "${SL_UNREAD[$p]}" folder) inside couldn't be read"
     fitv info "${p/#$HOME/\~}  ($kind)" $((UI_W - 6))
     fl "  ${ACCENT}ℹ${NC} ${DIM}$info${NC}"
+    if [[ -n ${SL_REASON[$L_CUR]:-} ]]; then
+      fitv info "View only: ${LENS_REASON_TEXT[${SL_REASON[$L_CUR]}]:-part of the system}" $((UI_W - 6))
+      fl "  ${DIM}×${NC} ${DIM}$info${NC}"
+    fi
   fi
 }
 
@@ -9610,15 +9649,15 @@ sl_trash() { # CURSOR
   ((${#SL_SEL[@]})) || SL_SEL[$1]=1
   for i in "${!SL_SEL[@]}"; do
     p=${SL_PATH[i]}
-    if [[ $p != "$HOME"/* ]] || is_protected "$p" || touches_exclusion "$p"; then ((++bad)); continue; fi
+    if [[ -n ${SL_REASON[i]} ]] || ! lens_movable "$p"; then ((++bad)); continue; fi
     paths+=("$p"); tot=$((tot + SL_SIZE[i])); ((++n))
   done
   if ((n == 0)); then
     SL_SEL=()
-    toast "${YELLOW}!${NC} Only items inside your home folder and not excluded in Settings can be moved to Trash here."
+    toast "${YELLOW}!${NC} View only: items marked × belong to the system, another disk or Settings › Never clean."
     return
   fi
-  ui_confirm "Move $(plural "$n" item) to Trash?" "$(human "$tot")$( ((bad)) && echo " · $bad item(s) outside home or excluded skipped") — press z to undo." y || return
+  ui_confirm "Move $(plural "$n" item) to Trash?" "$(human "$tot")$( ((bad)) && echo " · $bad view-only item(s) skipped") — press z to undo." y || return
   UNDO_BATCH=()
   for p in "${paths[@]}"; do move_to_trash "$p" >/dev/null 2>&1 || ((++fail)); done
   if ((DRY_RUN)); then
@@ -9683,7 +9722,7 @@ space_lens_menu() {
   while :; do
     M_KEY=(1 2 3)
     M_LABEL=("Home folder" "Whole disk" "Choose a folder…")
-    M_DESC=("Explore ${HOME}" "Explore / — use sudo for exact sizes of system folders" "Any folder you like")
+    M_DESC=("Explore ${HOME}" "Explore / — system folders are view only, each says why" "Any folder you like")
     ui_menu "Space Lens" || return
     case $MENU_IDX in
       0) space_lens "$HOME" ;;
@@ -11071,6 +11110,7 @@ json_main() { # SUBCOMMAND ARGS…
     clean) json_clean "$@" ;;
     large) json_large "$@" ;;
     lens) json_lens "$@" ;;
+    places) json_places "$@" ;;
     dupes) json_dupes "$@" ;;
     trash) json_trash "$@" ;;
     restore) json_restore "$@" ;;
@@ -11293,9 +11333,107 @@ lens_drive() { # VAR PATH (normalised) → VAR = the top folder of the drive PAT
   done
 }
 
+# Why something in Space Lens is view only, by path alone (no reading the disk beyond what lens_movable did):
+# one word the apps turn into a sentence and, where CleanMate cleans that kind of thing, a link to that page.
+lens_reason() { # VAR PATH (normalised) → VAR = "" (movable) or excluded|home|protected|drive_top|drive_ro|drive|
+  # backup|mount|user|snap|flatpak|docker|journal|logs|apt|kernels|packages|temp|swap|system
+  local -n __lr=$1
+  local __p=$2 __top
+  __lr=""
+  lens_movable "$__p" && return 0
+  if touches_exclusion "$__p"; then __lr=excluded
+  elif [[ $__p == "$HOME" || $HOME == "$__p"/* || $__p == / ]]; then __lr=home
+  elif [[ $__p == "$HOME"/* ]]; then __lr=protected
+  else
+    lens_drive __top "$__p"
+    if [[ -n $__top ]]; then
+      case ${__p#"$__top"} in
+        "") __lr=drive_top ;;
+        /timeshift | /timeshift/* | /timeshift-btrfs | /timeshift-btrfs/*) __lr=backup ;;
+        *) if drive_mount_ok "$__top"; then __lr=drive; else __lr=drive_ro; fi ;;
+      esac
+      return 0
+    fi
+    [[ -n ${LENS_MOUNTS[$__p]:-} ]] && { __lr=mount; return 0; }
+    case $__p in
+      /home/* | /root | /root/*) __lr=user ;;
+      /snap | /snap/* | /var/lib/snapd | /var/lib/snapd/* | /var/snap | /var/snap/*) __lr=snap ;;
+      /var/lib/flatpak | /var/lib/flatpak/*) __lr=flatpak ;;
+      /var/lib/docker | /var/lib/docker/* | /var/lib/containerd | /var/lib/containerd/* | /var/lib/containers | \
+        /var/lib/containers/*) __lr=docker ;;
+      /var/log/journal | /var/log/journal/*) __lr=journal ;;
+      /var/log | /var/log/* | /var/crash | /var/crash/* | /var/lib/systemd/coredump | /var/lib/systemd/coredump/*) __lr=logs ;;
+      /var/cache/apt | /var/cache/apt/* | /var/lib/apt | /var/lib/apt/* | /var/lib/dpkg | /var/lib/dpkg/*) __lr=apt ;;
+      /boot | /boot/* | /usr/lib/modules | /usr/lib/modules/* | /lib/modules | /lib/modules/*) __lr=kernels ;;
+      /usr | /usr/* | /opt | /opt/* | /bin | /sbin | /lib | /lib/* | /lib32 | /lib64 | /libx32 | /etc | /etc/*) __lr=packages ;;
+      /tmp | /tmp/* | /var/tmp | /var/tmp/*) __lr=temp ;;
+      /timeshift | /timeshift/* | /timeshift-btrfs | /timeshift-btrfs/*) __lr=backup ;;
+      /swapfile | /swap.img | /swap/*) __lr=swap ;;
+      *) __lr=system ;;
+    esac
+  fi
+}
+
+# The same sentences for the terminal app (the desktop app has its own, translated, with a link)
+declare -A LENS_REASON_TEXT=(
+  [excluded]="you never clean it, or a folder in it (Settings › Never clean)"
+  [home]="your home folder is inside: open it to choose what to move"
+  [protected]="your system or apps need it (settings, or a link to a system folder)"
+  [drive_top]="the drive itself"
+  [drive_ro]="this drive is read-only or a network drive"
+  [drive]="the drive's Trash, or reached through a link to elsewhere"
+  [backup]="a Timeshift backup: delete old snapshots in Timeshift, never by hand"
+  [mount]="another disk mounted here: open it to explore"
+  [user]="another user's files: only they (or an administrator) can clean them"
+  [snap]="Snap packages and their data: old revisions are in System Junk, apps in Uninstaller"
+  [flatpak]="Flatpak apps and runtimes: unused runtimes are in Maintenance, apps in Uninstaller"
+  [docker]="Docker images, containers and volumes: clean them in Developer Junk"
+  [journal]="the systemd journal: old logs are in Logs"
+  [logs]="system logs and crash reports: old ones are in Logs"
+  [apt]="apt's package cache and lists: the cache is in System Junk"
+  [kernels]="kernels and boot files: extra old kernels are in System Junk"
+  [packages]="installed programs and system files: remove apps in Uninstaller"
+  [temp]="temporary files of the system: old ones are in System Junk"
+  [swap]="the swap file: extra memory on disk"
+  [system]="part of the system: only an administrator can change it"
+)
+
+declare -A LENS_MOUNTS=() # disks mounted right inside the folder Space Lens measures (lens_mounts)
+lens_mounts() { # DIR DEVICE — VAR LENS_MOUNTS and NUL lines bytes<TAB>\x01path of the disks mounted right inside DIR
+  # (du -x leaves them out, but not a bind mount of DIR's own disk: \x01 tells the two lines apart);
+  # DEVICE = DIR's: a mount of the same device (a btrfs subvolume, a bind mount) is measured with du
+  local pre=${1%/}/ t s u a fs src
+  LENS_MOUNTS=()
+  while IFS=$'\t' read -r t s u a fs src; do
+    [[ $t == "$pre"?* && ${t#"$pre"} != */* && -d $t ]] || continue
+    [[ $src == "$2" ]] && u=$(du -sxb -- "$t" 2>/dev/null) && u=${u%%$'\t'*}
+    [[ $u =~ ^[0-9]+$ ]] || u=0
+    LENS_MOUNTS[$t]=1
+    printf '%s\t\001%s\0' "$u" "$t"
+  done < <(disk_rows)
+  return 0
+}
+
+lens_unreadable() { # VAR DIR ERRORS — du's errors (LC_ALL=C.UTF-8) → VAR[entry path] = folders in it du couldn't
+  # read, VAR[.] = all of them; a name du quotes oddly only counts in the total
+  local -n __lu=$1
+  local __pre=${2%/}/ __l __rest __name
+  while IFS= read -r __l; do
+    [[ $__l == *"cannot read directory"* || $__l == *"cannot access"* ]] || continue
+    __lu[.]=$((${__lu[.]:-0} + 1))
+    __rest=${__l#*"$__pre"}
+    [[ $__rest == "$__l" || -z $__rest ]] && continue
+    __name=${__rest%%/*}
+    [[ $__name == "$__rest" ]] && __name=${__rest%[\'\"]: *}
+    __lu[$__pre$__name]=$((${__lu[$__pre$__name]:-0} + 1))
+  done <"$3"
+  return 0
+}
+
 json_lens() { # [--path DIR] [--limit N] — DIR's files and folders with their size (du -x), biggest first
-  local dir=$HOME limit=$LENS_LIMIT tmp b p n kind jp movable excluded listed=0 found=0 total=0 items=0 drive drive_trash=false
-  local -A count=()
+  local dir=$HOME limit=$LENS_LIMIT tmp err b p n kind jp movable excluded listed=0 found=0 total=0 items=0 drive drive_trash=false
+  local reason denied dsize dused dsrc mnt jm disk="" dir_denied=false
+  local -A count=() unread=()
   while (($#)); do
     case $1 in
       --path) (($# >= 2)) || { json_error "$1 needs a value."; return 2; }; dir=$2 ;;
@@ -11309,32 +11447,73 @@ json_lens() { # [--path DIR] [--limit N] — DIR's files and folders with their 
   [[ -d $dir ]] || { json_error "Not a folder: $dir"; return 2; }
   # tidy the path but keep symlinks (a linked home folder stays under $HOME); -D measures the target
   dir=$(realpath -m -s -- "$dir")
+  [[ -r $dir && -x $dir ]] || dir_denied=true
+  # the disk DIR is on: its size and use when DIR is where it is mounted (the list then adds up to about df's used)
+  read -r dsize dused dsrc mnt < <(df -B1 --output=size,used,source,target -- "$dir" 2>/dev/null | tail -n1)
+  [[ $mnt == "$dir" && $dsize =~ ^[0-9]+$ && $dused =~ ^[0-9]+$ ]] && disk=",\"disk_size\":$dsize,\"disk_used\":$dused"
   tmp=$(mktemp -p "$SESSION_TMP") || return 1
+  err=$(mktemp -p "$SESSION_TMP") || { rm -f "$tmp"; return 1; }
   while IFS=$'\t' read -r -d '' n p; do count[$p]=$n; done < <(du -0 -x -a -D --inodes --max-depth=1 -- "$dir" 2>/dev/null)
-  du -0 -x -a -D -b --max-depth=1 -- "$dir" 2>/dev/null >"$tmp"
+  # never sudo: what you can't read is counted apart (English errors, so they can be read back)
+  LC_ALL=C.UTF-8 du -0 -x -a -D -b --max-depth=1 -- "$dir" 2>"$err" >"$tmp"
+  lens_unreadable unread "$dir" "$err"
   found=$(($(tr -cd '\0' <"$tmp" | wc -c) - 1)) # every entry; du's last line is the folder itself
   ((found >= 0)) || found=0
+  lens_mounts "$dir" "$dsrc" >>"$tmp" # disks mounted inside: listed, not in the folder's total
+  found=$((found + ${#LENS_MOUNTS[@]}))
   # only names that are valid UTF-8 without control characters can round-trip through JSON
   while IFS=$'\t' read -r -d '' b p; do
     if [[ $p == "$dir" ]]; then total=$b items=$((${count[$p]:-1} - 1)); continue; fi
+    if [[ $p == $'\x01'* ]]; then p=${p#?} kind=mount n=0
+    elif [[ -n ${LENS_MOUNTS[$p]:-} ]]; then found=$((found - 1)); continue # du's line of a mount: listed once, as a mount
+    else kind=""; fi
     ((listed < limit)) || continue
     [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
-    if [[ -d $p && ! -L $p ]]; then kind=dir n=$((${count[$p]:-1} - 1)); else kind=file n=1; fi
-    if lens_movable "$p"; then movable=true; else movable=false; fi
+    denied=false
+    if [[ $kind == mount ]]; then :
+    elif [[ -d $p && ! -L $p ]]; then
+      kind=dir n=$((${count[$p]:-1} - 1))
+      [[ -r $p && -x $p ]] || denied=true
+    else kind=file n=1; fi
+    if [[ $kind == mount ]]; then reason=mount; else lens_reason reason "$p"; fi # a mount is never moved
+    if [[ -z $reason ]]; then movable=true; else movable=false; fi
     if touches_exclusion "$p"; then excluded=true; else excluded=false; fi
     json_str jp "$p"
-    printf '{"event":"entry","path":%s,"bytes":%d,"kind":"%s","count":%d,"movable":%s,"excluded":%s}\n' \
-      "$jp" "$b" "$kind" "$n" "$movable" "$excluded"
+    printf '{"event":"entry","path":%s,"bytes":%d,"kind":"%s","count":%d,"movable":%s,"excluded":%s,"reason":"%s","denied":%s,"unreadable":%d}\n' \
+      "$jp" "$b" "$kind" "$n" "$movable" "$excluded" "$reason" "$denied" "${unread[$p]:-0}"
     listed=$((listed + 1))
   done < <(LC_ALL=C.UTF-8 grep -zax '.*' "$tmp" | sort -z -t$'\t' -k1,1rn)
-  rm -f "$tmp"
+  rm -f "$tmp" "$err"
   json_str jp "$dir"
   if in_exclusion "$dir"; then excluded=true; else excluded=false; fi
   lens_drive drive "$dir"
   [[ -n $drive ]] && drive_mount_ok "$drive" && drive_trash=true
   json_str drive "$drive"
-  printf '{"event":"done","path":%s,"bytes":%d,"items":%d,"count":%d,"found":%d,"excluded":%s,"drive":%s,"drive_trash":%s}\n' \
-    "$jp" "$total" "$items" "$listed" "$found" "$excluded" "$drive" "$drive_trash"
+  json_str jm "${mnt:-}"
+  printf '{"event":"done","path":%s,"bytes":%d,"items":%d,"count":%d,"found":%d,"excluded":%s,"drive":%s,"drive_trash":%s,"mount":%s,"denied":%s,"unreadable":%d%s}\n' \
+    "$jp" "$total" "$items" "$listed" "$found" "$excluded" "$drive" "$drive_trash" "$jm" "$dir_denied" "${unread[.]:-0}" "$disk"
+}
+
+place_event() { # PATH KIND SIZE USED AVAIL FSTYPE
+  local jt jf
+  json_str jt "$1"; json_str jf "$6"
+  printf '{"event":"place","path":%s,"kind":"%s","size":%d,"used":%d,"avail":%d,"fstype":%s}\n' "$jt" "$2" "$3" "$4" "$5" "$jf"
+}
+json_places() { # where Space Lens can start: your home folder, the system disk and each disk mounted
+  local t s u a fs src
+  read -r s u a fs < <(df -B1 --output=size,used,avail,fstype -- "$HOME" 2>/dev/null | tail -n1)
+  [[ $s =~ ^[0-9]+$ && $u =~ ^[0-9]+$ && $a =~ ^[0-9]+$ ]] || s=0 u=0 a=0
+  place_event "$HOME" home "$s" "$u" "$a" "$fs"
+  if ((!FLATPAK)); then # the sandbox's own / and mounts are not your disks
+    # / always: a container's or live session's root is overlay, which disk_rows leaves out
+    read -r s u a fs < <(df -B1 --output=size,used,avail,fstype / 2>/dev/null | tail -n1)
+    [[ $s =~ ^[0-9]+$ && $u =~ ^[0-9]+$ && $a =~ ^[0-9]+$ ]] && place_event / system "$s" "$u" "$a" "$fs"
+    while IFS=$'\t' read -r t s u a fs src; do
+      [[ $t != / && $s =~ ^[0-9]+$ && $u =~ ^[0-9]+$ && $a =~ ^[0-9]+$ && -d $t ]] || continue
+      place_event "$t" drive "$s" "$u" "$a" "$fs"
+    done < <(disk_rows)
+  fi
+  printf '{"event":"done"}\n'
 }
 
 DUPES_LIMIT=500 # the biggest groups listed by `--json dupes`
@@ -12094,7 +12273,7 @@ json_maintain() { # ID [on|off] [--user-steps]
 # as numbers. "freed" comes only once a cleanup was recorded.
 
 json_overview() {
-  local t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 e b cut kind path n note top="" d by_day="" days=()
+  local home_b="" outside t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 e b cut kind path n note top="" d by_day="" days=()
   local -A day_b=() day_n=()
   sys_facts; pkg_counts; mem_facts
   json_str j1 "$OV_OS"; json_str j2 "$OV_KERNEL"; json_str j3 "$OV_CPU"
@@ -12141,12 +12320,14 @@ json_overview() {
     printf '{"event":"outside","kind":"%s","bytes":%s,"path":%s,"count":%d,"note":%s}\n' "$kind" "$b" "$jt" "$n" "$jd"
   done < <(hidden_space_rows)
   while IFS=$'\t' read -r -d '' b path; do
+    [[ $path == "$HOME" ]] && { home_b=$b; continue; }
     [[ $path == *[$'\x01'-$'\x1f\x7f']* ]] && continue # only names that round-trip through JSON
     json_str jt "$path"
     top+="${top:+,}{\"path\":$jt,\"bytes\":$b}"
   done < <(top_home_dirs | LC_ALL=C.UTF-8 grep -zax '.*')
   json_str jt "$HOME"
-  printf '{"event":"top_dirs","home":%s,"dirs":[%s]}\n' "$jt" "$top"
+  outside_home_bytes outside "${home_b:-0}" && [[ -n $home_b ]] || outside=null
+  printf '{"event":"top_dirs","home":%s,"home_bytes":%s,"outside_home":%s,"dirs":[%s]}\n' "$jt" "${home_b:-null}" "$outside" "$top"
   printf '{"event":"done"}\n'
 }
 
@@ -12254,7 +12435,7 @@ Install & update
 For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
                     large [--min BYTES] [--days N] [--path DIR] [--limit N],
-                    lens [--path DIR] [--limit N],
+                    lens [--path DIR] [--limit N], places,
                     dupes [--min BYTES] [--path DIR] [--limit N], startup, startup-set ID enable|disable|remove,
                     trash [--home-only] [--source NAME] PATH…, restore KEY…,
                     restore --list [--limit N], apps, uninstall [--check] KIND:ID…,
