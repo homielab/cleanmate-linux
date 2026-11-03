@@ -1266,6 +1266,39 @@ test_json_large_files() {
   out=$(cm --json large --days 2>&1); assert_contains "$out" "--days needs a value"
 }
 
+test_json_large_file_kinds() { # the desktop app's kind filter goes by these
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out f d=$HOME_DIR/Mixed
+  mkdir -p "$d"
+  for f in clip.M2TS dvd.vob talk.ogv shot.HEIF pic.avif raw.cr3 x.jxl logs.tbz2 db.lz4 setup.cab \
+    vm.ova win.wim mac.hdd old.qcow notes.rtf book.djvu readme.md song.flac app.AppImage blob.bin noext; do
+    truncate -s 1K "$d/$f"
+  done
+  out=$(cm --json large --min 0 --path "$d" | large_names | grep -v '^done' | LC_ALL=C sort -k3)
+  assert_eq "$out" $'package 1024 app.AppImage
+other 1024 blob.bin
+document 1024 book.djvu
+video 1024 clip.M2TS
+archive 1024 db.lz4
+video 1024 dvd.vob
+archive 1024 logs.tbz2
+disk 1024 mac.hdd
+other 1024 noext
+document 1024 notes.rtf
+disk 1024 old.qcow
+image 1024 pic.avif
+image 1024 raw.cr3
+document 1024 readme.md
+archive 1024 setup.cab
+image 1024 shot.HEIF
+audio 1024 song.flac
+video 1024 talk.ogv
+disk 1024 vm.ova
+disk 1024 win.wim
+image 1024 x.jxl' "file kinds by extension, any case"
+}
+
 test_json_trash_and_restore() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -3399,7 +3432,13 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     assert_contains "$out" "nothing is ticked after a photo search"
     assert_contains "$out" "Select automatically keeps the suggested photo"
     assert_contains "$out" "Stop ends a photo search at once"
-    assert_contains "$out" "the window stays responsive while reading 1,000 photos"
+    assert_contains "$out" "the window stays responsive while reading 2,000 photos"
+    assert_contains "$out" "the window stays responsive while listing 2,000 photos with their thumbnails and scrolling"
+    assert_contains "$out" "the kind filter lists only videos"
+    assert_contains "$out" "sort by name, date, kind and size"
+    assert_contains "$out" "Open and Enter on a row open the file, without ticking it"
+    assert_contains "$out" "the preview shows the suggested photo, marked"
+    assert_contains "$out" "a photo row shows its thumbnail; the preview the photo itself"
     ((EUID == 0)) || assert_contains "$out" "Undo puts the photos back in their group"
     ((EUID == 0)) || assert_contains "$out" "switching an app off writes Hidden=true"
     ((EUID == 0)) || assert_contains "$out" "Undo from the toast puts the startup entry back"
@@ -3495,6 +3534,25 @@ test_similar_photos_hashes_and_groups() {
     ((VERBOSE)) && printf '%s\n' "$out" | sed 's/^/      | /'
   else
     fail "similar photos unit tests failed"
+    printf '%s\n' "$out" | sed 's/^/      | /'
+  fi
+  return 0
+}
+
+test_file_previews() {
+  local py="" c out
+  for c in python3 /usr/bin/python3; do # a Python with GTK 4 bindings (a virtualenv may come first)
+    "$c" -c 'import gi; gi.require_version("Gtk", "4.0"); gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf, Gtk' 2>/dev/null && { py=$c; break; }
+  done
+  [[ -n $py ]] || { SKIPPED="python3-gi with GTK 4 not available"; return; }
+  fresh_home
+  if out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$WORK" \
+    "$py" "$ROOT/tests/preview_test.py" 2>&1); then
+    ok_ "file previews: $(tail -n 3 <<<"$out" | grep -m1 '^Ran')$(grep -q 'skipped' <<<"$out" && echo ' (some skipped: no GStreamer?)')"
+    ((VERBOSE)) && printf '%s\n' "$out" | sed 's/^/      | /'
+  else
+    fail "file preview unit tests failed"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
   return 0

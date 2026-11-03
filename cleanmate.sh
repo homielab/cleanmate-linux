@@ -10918,13 +10918,13 @@ file_kind() { # VAR PATH → video|audio|image|archive|package|disk|document|oth
   local n=${2##*/} e=""
   [[ $n == ?*.* ]] && e=${n##*.}
   case ${e,,} in
-    mp4 | mkv | avi | mov | wmv | flv | webm | m4v | mpg | mpeg | ts | 3gp) __fk=video ;;
+    mp4 | mkv | avi | mov | wmv | flv | webm | m4v | mpg | mpeg | ts | m2ts | mts | vob | ogv | 3gp) __fk=video ;;
     mp3 | flac | wav | ogg | oga | m4a | aac | opus | wma) __fk=audio ;;
-    jpg | jpeg | png | gif | bmp | tif | tiff | heic | webp | raw | cr2 | nef | arw | dng | psd | xcf) __fk=image ;;
-    zip | tar | gz | tgz | bz2 | xz | zst | 7z | rar) __fk=archive ;;
+    jpg | jpeg | png | gif | bmp | tif | tiff | heic | heif | avif | jxl | webp | raw | cr2 | cr3 | nef | arw | dng | orf | rw2 | psd | xcf) __fk=image ;;
+    zip | tar | gz | tgz | bz2 | tbz2 | xz | txz | zst | lz4 | lzma | 7z | rar | cab) __fk=archive ;;
     deb | rpm | snap | flatpak | appimage) __fk=package ;;
-    iso | img | vdi | vmdk | qcow2 | vhd | vhdx | dmg) __fk=disk ;;
-    pdf | doc | docx | odt | xls | xlsx | ods | ppt | pptx | odp | epub | txt | csv) __fk=document ;;
+    iso | img | vdi | vmdk | qcow | qcow2 | vhd | vhdx | hdd | ova | wim | dmg) __fk=disk ;;
+    pdf | doc | docx | odt | rtf | xls | xlsx | ods | ppt | pptx | odp | epub | djvu | txt | md | csv) __fk=document ;;
     *) __fk=other ;;
   esac
 }

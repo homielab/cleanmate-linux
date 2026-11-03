@@ -17,7 +17,7 @@ jobs:
       - name: ShellCheck (warnings and errors)
         run: shellcheck --version && shellcheck -S warning cleanmate.sh tests/run.sh packaging/build-deb.sh packaging/build-source.sh packaging/make-screenshots.sh packaging/flathub/build.sh
       - name: Python syntax (desktop app)
-        run: python3 -m py_compile gui/cleanmate-gui gui/cleanmate_gui/*.py tests/tui_smoke.py tests/similar_test.py
+        run: python3 -m py_compile gui/cleanmate-gui gui/cleanmate_gui/*.py tests/tui_smoke.py tests/similar_test.py tests/preview_test.py
       - name: Store metadata (AppStream, launcher)
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq appstream desktop-file-utils
@@ -40,9 +40,9 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install pyte (terminal emulator for the TUI smoke test)
         run: python3 -m pip install --user pyte || python3 -m pip install --user --break-system-packages pyte
-      - name: Install GTK 4 + libadwaita (desktop app self-test; skipped on 22.04)
+      - name: Install GTK 4 + libadwaita (desktop app self-test; skipped on 22.04) and GStreamer (video thumbnails)
         if: matrix.os == 'ubuntu-24.04'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 libgtk-4-bin
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 libgtk-4-bin gir1.2-gstreamer-1.0 gstreamer1.0-plugins-base
       - name: Install gettext (translations are compiled into the .deb) and sqlite3 (browser privacy test)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gettext sqlite3
       - name: Add a language with a decimal comma (sizes must read the same in every language)

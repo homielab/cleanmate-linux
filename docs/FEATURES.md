@@ -23,10 +23,17 @@ groups photos that look alike (resized or re-saved copies, edits, shots taken on
 Pictures or a folder you pick, read on your computer only; it suggests keeping the one with the most
 pixels, then the biggest file, ticks nothing until you choose, and moves the others to the Trash, with
 Undo. JPEG and PNG always, WebP, HEIC and AVIF when your system can open them; hidden folders, Never
-clean folders and Shotwell or digiKam libraries are skipped.
+clean folders and Shotwell or digiKam libraries are skipped. Every photo row has a thumbnail, and the
+photo you point at or move to with the keyboard shows large beside the list, the suggested one marked.
 **Large & Old Files** lists
-your biggest files (by minimum size, how long unused, and folder or drive); what you move to the
-Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash). **Startup Items** switches the apps and your systemd user services
+your biggest files (by minimum size, how long unused, and folder or drive); sort them by size, date
+modified, name or kind, and show only one kind (videos, images, disk images and virtual machines,
+archives, documents, other). What you move to the
+Trash comes back with **Undo**, also from a USB or other drive (it goes to that drive's own Trash).
+On all three pages images and videos show a thumbnail (the one your file manager made when there is one;
+a video's frame needs GStreamer for Python, `gir1.2-gstreamer-1.0`, else it gets an icon), and **Open**
+(or Enter on a row) opens the file in its default app before you decide; reading a file for its
+thumbnail leaves its last-opened date alone. **Startup Items** switches the apps and your systemd user services
 that start at login on or off (a service or timer also starts or stops right away; the system's own services are only shown); removing one of yours
 moves its file to the Trash, with **Undo**; entries and services whose program is gone (left behind by an app you removed) are
 listed first as broken, ready to remove. **Uninstaller** removes apt, Snap, Flatpak and AppImage apps — tick several (say,

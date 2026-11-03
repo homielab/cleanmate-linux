@@ -23,6 +23,8 @@ levelbar block.filled { background-color: @accent_bg_color; }
 levelbar.almost-full block.filled { background-color: @warning_bg_color; }
 checkbutton.big-check check { min-width: 24px; min-height: 24px; }
 row.item-row { min-height: 48px; }
+.keep-badge { background-color: alpha(@accent_bg_color, 0.18); color: @accent_color; border-radius: 99px;
+              padding: 2px 10px; font-weight: bold; font-size: smaller; }
 """
 
 

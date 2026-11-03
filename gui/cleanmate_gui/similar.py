@@ -132,13 +132,19 @@ def _open(path):
     return os.fdopen(fd, "rb")
 
 
-def load_small(path, width, height, fit=False):
+def load_small(path, width, height, fit=False, max_pixels=None):
     """(pixbuf of the photo at width × height — fit: its shape kept inside that box —, full width, full height),
-    turned upright by its EXIF orientation; None when it can't be read."""
-    loader, full = GdkPixbuf.PixbufLoader(), []
+    turned upright by its EXIF orientation; None when it can't be read. max_pixels: give up on a bigger picture,
+    unless it is a JPEG (only JPEG decodes straight at the small size; other formats decode at full size first)."""
+    loader, full, too_big = GdkPixbuf.PixbufLoader(), [], []
 
     def prepared(ld, w, h):
         full[:] = [w, h]
+        fmt = ld.get_format()
+        if max_pixels and w * h > max_pixels and (fmt.get_name() if fmt else "") != "jpeg":
+            too_big.append(True)
+            ld.set_size(1, 1)  # never allocate the full picture
+            return
         if fit:
             scale = min(width / w, height / h, 1)
             ld.set_size(max(1, round(w * scale)), max(1, round(h * scale)))
@@ -150,7 +156,11 @@ def load_small(path, width, height, fit=False):
         with _open(path) as f:
             for chunk in iter(lambda: f.read(1 << 20), b""):
                 loader.write(chunk)
-        loader.close()
+                if too_big:
+                    raise ValueError("too big")
+        loader.close()  # a small file is only read here
+        if too_big:
+            return None
         pixbuf = loader.get_pixbuf()
     except Exception:  # GLib.Error, OSError, or a loader that gives up half way
         try:

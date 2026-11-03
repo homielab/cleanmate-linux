@@ -13,9 +13,10 @@ import sys
 import tempfile
 import time
 
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, Gdk, GLib, Gtk
 
 from . import i18n
+from . import preview
 from . import uninstaller as U
 from .i18n import _, ngettext
 
@@ -243,7 +244,42 @@ def large_files_test(win, report, wait, finish):
     def aged():
         report(names() == ["old backup.iso"], "age filter keeps only the old file")
         page.age_drop.set_selected(0)
-        wait(idle, selection, 60, "search again")
+        wait(idle, views, 60, "search again")
+
+    def views():
+        def shown():
+            return [os.path.basename(e["path"]) for e in page.shown]
+        page.checks[backup].set_active(True)
+        page.kind_drop.set_selected(1)  # Video: no new search
+        report(page.running is None and shown() == ["film.mkv"] and list(page.checks) == [film],
+               f"the kind filter lists only videos: {shown()}")
+        report(not page.chosen() and not page.trash_button.get_sensitive(),
+               "a ticked file the kind filter hides is not moved")
+        page.kind_drop.set_selected(3)  # Disk images & VMs
+        report(shown() == ["old backup.iso"], f"the kind filter lists only disk images: {shown()}")
+        page.kind_drop.set_selected(0)
+        page.checks[backup].set_active(False)
+        orders = []
+        for i in (2, 1, 3, 0):  # name, date modified (oldest first), kind, size
+            page.sort_drop.set_selected(i)
+            orders.append(shown())
+        report(orders == [["film.mkv", "old backup.iso"], ["old backup.iso", "film.mkv"],
+                          ["film.mkv", "old backup.iso"], ["film.mkv", "old backup.iso"]],
+               f"sort by name, date, kind and size: {orders}")
+        real_open, opened = preview.open_file, []
+        preview.open_file = lambda _w, path: opened.append(path)
+        try:
+            row = page.checks[film].get_ancestor(Adw.ActionRow)
+            buttons = [w for w in walk(row) if isinstance(w, Gtk.Button) and w.get_tooltip_text() == _("Open")]
+            buttons and buttons[0].emit("clicked")
+            keys = [c for c in row.observe_controllers() if isinstance(c, Gtk.EventControllerKey)
+                    and c.get_propagation_phase() == Gtk.PropagationPhase.CAPTURE]
+            handled = keys and keys[0].emit("key-pressed", Gdk.KEY_Return, 0, 0)
+            report(opened == [film, film] and handled and not page.selected,
+                   "Open and Enter on a row open the file, without ticking it")
+        finally:
+            preview.open_file = real_open
+        selection()
 
     def selection():
         before = page.summary.get_text()
@@ -543,8 +579,9 @@ def duplicates_test(win, report, wait, finish):
 
 def similar_photos_test(win, report, wait, finish):
     """Duplicates › Similar Photos in a throwaway home: a photo, a smaller copy and a re-saved one group, a different
-    photo, a hidden folder and a Never clean folder stay out; nothing ticked, the full-size photo suggested; Stop
-    returns at once; 1,000 photos keep the window responsive; dry run, then Trash and Undo."""
+    photo, a hidden folder and a Never clean folder stay out; nothing ticked, the full-size photo suggested and
+    previewed; thumbnails; Stop returns at once; 2,000 photos keep the window responsive while read, listed and
+    scrolled; dry run, then Trash and Undo."""
     from gi.repository import GdkPixbuf
     from .duplicates import FILES, PHOTOS
     from .engine import Engine
@@ -570,7 +607,7 @@ def similar_photos_test(win, report, wait, finish):
     other.savev(os.path.join(pictures, "other.jpg"), "jpeg", ["quality"], ["90"])
     for d in (private, hidden):
         shutil.copy(resaved, d)
-    for i in range(1000):
+    for i in range(2000):
         shutil.copy(resaved if i % 2 else smaller, os.path.join(many, f"{i:04d}.jpg"))
     env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
            "XDG_CONFIG_HOME": os.path.join(home, ".config")}
@@ -604,6 +641,23 @@ def similar_photos_test(win, report, wait, finish):
                "nothing is ticked after a photo search")
         g = page.shown_groups()[0] if page.shown_groups() else {"files": [{"path": ""}]}
         report(g["files"][0]["path"] == photo, "the full-size photo is suggested and listed first")
+        report(page.preview.path == photo and page.preview.badge.get_visible(),
+               "the preview shows the suggested photo, marked")
+        row = page.checks[smaller].get_ancestor(Adw.ActionRow)
+        focus = [c for c in row.observe_controllers() if isinstance(c, Gtk.EventControllerFocus)]
+        focus and focus[0].emit("enter")
+        report(page.preview.path == smaller and not page.preview.badge.get_visible(),
+               "moving to a photo's row shows it in the preview")
+        thumbs = [w for w in walk(row) if isinstance(w, Gtk.Image) and w.has_css_class("file-thumb")]
+
+        def pictures():
+            big = page.preview.picture.get_paintable()
+            return thumbs and thumbs[0].get_paintable() and big and big.get_width() == 320
+
+        wait(pictures, previewed, 30, "thumbnail and preview")
+
+    def previewed():
+        report(True, "a photo row shows its thumbnail; the preview the photo itself")
         page.select_automatically()
         report(page.selected == set(others), "Select automatically keeps the suggested photo")
         page.search()
@@ -611,22 +665,33 @@ def similar_photos_test(win, report, wait, finish):
         report(page.running is None and page.stack.get_visible_child_name() == "results",
                "Stop ends a photo search at once")
         page.set_folder(many)
-        gaps, last = [0], [GLib.get_monotonic_time()]
+        gaps, last, listed = {"reading": 0, "listing": 0}, [GLib.get_monotonic_time()], [0]
 
-        def tick():
+        def tick():  # through the search, then 3 s of listing, reading thumbnails and scrolling
             now = GLib.get_monotonic_time()
-            gaps[0] = max(gaps[0], now - last[0])
+            phase = "listing" if listed[0] else "reading"
+            gaps[phase] = max(gaps[phase], now - last[0])
             last[0] = now
-            return page.stack.get_visible_child_name() == "searching"
+            if page.stack.get_visible_child_name() == "searching":
+                return True
+            listed[0] = listed[0] or now
+            adj = page.scroller.get_vadjustment()
+            adj.set_value((adj.get_value() + 120) % max(1, adj.get_upper() - adj.get_page_size()))
+            return now - listed[0] < 3_000_000
 
         page.search()
         GLib.timeout_add(20, tick)
-        wait(idle, lambda: many_read(gaps[0] // 1000), 90, "1,000 photo search")
+        wait(lambda: idle() and listed[0] and GLib.get_monotonic_time() - listed[0] > 3_100_000,
+             lambda: many_read(gaps["reading"] // 1000, gaps["listing"] // 1000), 120, "2,000 photo search")
 
-    def many_read(gap_ms):
-        report(len(page.shown_groups()) == 1 and len(page.shown_groups()[0]["files"]) == 1000,
-               "1,000 photos read: one group")
-        report(gap_ms < 500, f"the window stays responsive while reading 1,000 photos (longest pause {gap_ms} ms)")
+    def many_read(reading_ms, listing_ms):
+        report(len(page.shown_groups()) == 1 and len(page.shown_groups()[0]["files"]) == 2000,
+               "2,000 photos read: one group")
+        report(reading_ms < 500,
+               f"the window stays responsive while reading 2,000 photos (longest pause {reading_ms} ms)")
+        report(listing_ms < 500 and len(page.checks) > 300,
+               f"the window stays responsive while listing 2,000 photos with their thumbnails and scrolling "
+               f"(longest pause {listing_ms} ms, {len(page.checks)} rows in 3 s)")
         page.set_folder(pictures)
         page.search()
         wait(idle, again, 60, "photo search")

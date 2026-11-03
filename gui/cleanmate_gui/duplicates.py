@@ -9,13 +9,12 @@ the suggested one (most pixels, then biggest file).
 """
 import collections
 import os
-import queue
 import threading
 import time
 
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
+from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
-from . import similar
+from . import preview, similar
 from .engine import human
 from .i18n import _, ngettext
 from .largefiles import short_path
@@ -24,7 +23,8 @@ from .scanpage import size_widgets
 MIN_SIZES = [("100 KB", 100 << 10), ("1 MB", 1 << 20), ("10 MB", 10 << 20), ("100 MB", 100 << 20)]
 FILES, PHOTOS = "files", "photos"  # the two modes: identical files, similar photos
 THUMB = 48  # px, the photo next to each similar photo
-ROWS_AT_ONCE = 100  # file rows added per main-loop turn, so a group of 1,000 photos never freezes the window
+WIDE = 760  # sp: a narrower page hides the photo preview
+ROWS_AT_ONCE = 50  # file rows added per frame, so a group of 2,000 photos never freezes the window
 
 
 def group_key(g):
@@ -80,7 +80,6 @@ class DuplicatesPage(Gtk.Box):
         self.folder = os.path.expanduser("~")
         self.folders = {FILES: self.folder, PHOTOS: pictures_folder()}  # each mode keeps its own folder
         self.intro = (icon, title, description)
-        self.thumbs = None  # queue of thumbnails to read, served by two daemon threads
         self.groups = []  # "group" events of the last search, biggest first; files newest first
         self.found = 0  # how many groups exist (only the biggest are listed)
         self.selected = set()  # paths
@@ -147,8 +146,21 @@ class DuplicatesPage(Gtk.Box):
         self.stack.add_named(self.empty, "empty")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
-        self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
-                                                vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER), "results")
+        self.scroller = Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
+                                           vexpand=True, hexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
+        # Similar Photos: the photo you point at, big, beside the list (when the page is wide enough)
+        self.preview = preview.PreviewPane(window)
+        self.preview_slot = Gtk.Box(visible=False)  # shown in the photos mode
+        self.preview_slot.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+        self.preview_slot.append(self.preview)
+        side = Gtk.Box()
+        side.append(self.scroller)
+        side.append(self.preview_slot)
+        wide = Adw.BreakpointBin(child=side, width_request=300, height_request=200)
+        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse(f"max-width: {WIDE}sp"))
+        narrow.add_setter(self.preview, "visible", False)
+        wide.add_breakpoint(narrow)
+        self.stack.add_named(wide, "results")
 
         self.bar = Gtk.ActionBar(revealed=False)
         self.summary = Gtk.Label(xalign=0)
@@ -173,6 +185,8 @@ class DuplicatesPage(Gtk.Box):
         self.folders[self.mode] = self.folder
         self.mode = mode
         self.mode_buttons[mode].set_active(True)
+        self.preview_slot.set_visible(mode == PHOTOS)
+        self.preview.clear()
         self.set_folder(self.folders[mode])
         self.size_filter.set_visible(mode == FILES)
         icon, title, description = self.intro
@@ -387,6 +401,10 @@ class DuplicatesPage(Gtk.Box):
             group.add(self.group_row(g, biggest, expand))
         self.results.append(group)
         self.add_rows(self.pending_rows)
+        if photos and self.preview.path not in {f["path"] for g in groups for f in g["files"]}:
+            g = groups[0]
+            keep = keeper(g)
+            self.preview.show(keep, self.photo_facts(next(f for f in g["files"] if f["path"] == keep)), True)
         self.stack.set_visible_child_name("results")
         self.bar.set_revealed(True)
         self.update_summary()
@@ -403,83 +421,90 @@ class DuplicatesPage(Gtk.Box):
         row.add_suffix(warning)
         for widget in size_widgets(freeable(g), biggest):
             row.add_suffix(widget)
-        row.add_prefix(self.thumbnail(keep) if self.mode == PHOTOS else Gtk.Image(gicon=file_icon(keep)))
+        kept = next(f for f in g["files"] if f["path"] == keep)
+        row.add_prefix(self.thumbnail(keep, file_bytes(g, kept), kept["mtime"]))
         self.group_rows[group_key(g)] = (row, warning)
         self.pending_rows.extend((g, row, f, f["path"] == keep) for f in g["files"])
         self.update_group(g)
         return row
 
     def add_rows(self, pending):
-        """Add the next file rows; the rest on the next main-loop turns (pending is dropped by a new result)."""
+        """Add the next file rows; the rest on the next frames (pending is dropped by a new result)."""
         if pending is not self.pending_rows:
             return False
         for _n in range(min(ROWS_AT_ONCE, len(pending))):
             g, row, f, keep = pending.popleft()
             row.add_row(self.file_row(g, f, keep))
-        if pending:
-            GLib.idle_add(self.add_rows, pending)
-        return False
+        if not pending:
+            return False
+        # one batch a frame, so each is laid out before the next is built; the timer as well, for a page that isn't
+        # shown or a display that draws only now and then
+        done = [False]
 
-    def thumbnail(self, path):
-        """A small picture of the photo, read on a thread the first time it shows."""
-        image = Gtk.Image(icon_name="image-x-generic-symbolic", pixel_size=THUMB, css_classes=["photo-thumb"])
-
-        def load(*_a):
-            if image.started:
-                return
-            image.started = True
-            if self.thumbs is None:
-                self.thumbs = queue.Queue()
-                for _n in range(2):
-                    threading.Thread(target=self.read_thumbnails, daemon=True).start()
-            self.thumbs.put((path, self.generation, show))
-
-        def show(loaded, gen):
-            if loaded and gen == self.generation:
-                pb = loaded[0]
-                fmt = Gdk.MemoryFormat.R8G8B8A8 if pb.get_has_alpha() else Gdk.MemoryFormat.R8G8B8
-                image.set_from_paintable(Gdk.MemoryTexture.new(pb.get_width(), pb.get_height(), fmt,
-                                                               pb.read_pixel_bytes(), pb.get_rowstride()))
+        def next_batch(*_a):
+            if not done[0]:
+                done[0] = True
+                self.add_rows(pending)
             return False
 
-        image.started = False
-        image.connect("map", load)
-        return image
+        if self.results.get_mapped():
+            self.results.add_tick_callback(next_batch)
+        GLib.timeout_add(250, next_batch)
+        return False
 
-    def read_thumbnails(self):
-        while True:
-            path, gen, show = self.thumbs.get()
-            if gen == self.generation:  # still shown
-                GLib.idle_add(show, similar.load_small(path, THUMB * 2, THUMB * 2, fit=True), gen)
+    def thumbnail(self, path, size_bytes, mtime):
+        """A small picture of the photo, image or video (read on a thread the first time it shows), else its icon."""
+        gen = self.generation
+        alive = lambda: gen == self.generation  # noqa: E731
+        if self.mode == PHOTOS:
+            return preview.THUMBNAILS.image(path, "image", stamp=(size_bytes, mtime), size=THUMB,
+                                            icon_name="image-x-generic-symbolic", alive=alive)
+        return preview.THUMBNAILS.image(path, preview.media_kind(path), stamp=(size_bytes, mtime),
+                                        gicon=file_icon(path), alive=alive)
+
+    @staticmethod
+    def photo_facts(f):
+        return _("{width} × {height} · {size} · {folder}").format(
+            width=f["width"], height=f["height"], size=human(f["bytes"]), folder=short_path(os.path.dirname(f["path"])))
+
+    def point_at(self, row, f, keep):
+        """The photo of a row shows in the preview while the pointer rests on it, or when the row has the focus."""
+        motion = Gtk.EventControllerMotion()
+        motion.connect("enter", lambda *_a: self.preview.show_later(f["path"], self.photo_facts(f), keep))
+        row.add_controller(motion)
+        focus = Gtk.EventControllerFocus()
+        focus.connect("enter", lambda *_a: self.preview.show(f["path"], self.photo_facts(f), keep))
+        row.add_controller(focus)
 
     def file_row(self, g, f, keep):
         path = f["path"]
         date = time.strftime("%-d %b %Y %H:%M", time.localtime(f["mtime"]))
         if self.mode == PHOTOS:
             title = os.path.basename(path)
-            facts = _("{width} × {height} · {size} · {folder}").format(
-                width=f["width"], height=f["height"], size=human(f["bytes"]),
-                folder=short_path(os.path.dirname(path)))
-            subtitle = _("Suggested · {facts}").format(facts=facts) if keep else facts
+            subtitle = self.photo_facts(f)
             tip = _("Move this photo to the Trash")
         else:
             title = short_path(os.path.dirname(path))
             subtitle = (_("Oldest · modified {date}") if keep else _("Modified {date}")).format(date=date)
             tip = _("Move this copy to the Trash")
+        # one line each (the path is in the tooltip): wrapped labels made laying out 2,000 rows take seconds
         row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False,
-                            title_lines=1, css_classes=["item-row"], tooltip_text=path)
+                            title_lines=1, subtitle_lines=1, css_classes=["item-row"], tooltip_text=path)
         check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"],
                                 tooltip_text=tip)
         check.connect("toggled", self.on_toggled, g, path)
         self.checks[path] = check
-        row.add_prefix(self.thumbnail(path) if self.mode == PHOTOS else Gtk.Image(icon_name="folder-symbolic"))
+        if self.mode == PHOTOS:
+            row.add_prefix(self.thumbnail(path, f["bytes"], f["mtime"]))
+            if keep:  # the suggested photo, marked so it can't be missed
+                row.add_suffix(Gtk.Label(label=_("Suggested"), valign=Gtk.Align.CENTER, css_classes=["keep-badge"],
+                                         tooltip_text=_("Suggested to keep: the most pixels, then the biggest file")))
+            self.point_at(row, f, keep)
+        else:
+            row.add_prefix(Gtk.Image(icon_name="folder-symbolic"))
         row.add_prefix(check)  # prefixes stack leftwards: the box comes first
         row.set_activatable_widget(check)
-        show = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                          tooltip_text=_("Show in Files"))
-        show.connect("clicked", lambda *_a: Gtk.FileLauncher.new(Gio.File.new_for_path(path))
-                     .open_containing_folder(self.window, None, None))
-        row.add_suffix(show)
+        preview.row_buttons(row, self.window, path)
         return row
 
     def all_ticked(self, g):

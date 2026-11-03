@@ -8,6 +8,7 @@ import time
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
+from . import preview
 from .engine import human
 from .i18n import _, ngettext
 from .scanpage import size_widgets
@@ -24,6 +25,23 @@ KIND_ICONS = {
     "disk": "drive-harddisk-symbolic",
     "document": "x-office-document-symbolic",
 }
+# The kind filter: its label and the engine's kinds it shows (None: every kind)
+KIND_FILTERS = [(_("All kinds"), None), (_("Video"), {"video"}), (_("Images"), {"image"}),
+                (_("Disk images & VMs"), {"disk"}), (_("Archives"), {"archive", "package"}),
+                (_("Documents"), {"document"}), (_("Other"), {"audio", "other"})]
+# Sort orders: label, the line under the title, the key (Python sorts it ascending)
+SORTS = [(_("Size"), _("Biggest first"), lambda e: (-e["bytes"], e["path"])),
+         (_("Date modified"), _("Oldest first"), lambda e: (e["mtime"], -e["bytes"])),
+         (_("Name"), _("By name"), lambda e: (os.path.basename(e["path"]).casefold(), e["path"])),
+         (_("Kind"), _("By kind, biggest first"),
+          lambda e: (next((i for i, (_l, kinds) in enumerate(KIND_FILTERS) if kinds and e["kind"] in kinds),
+                          len(KIND_FILTERS)), -e["bytes"]))]
+
+
+def shown_files(files, kind_filter, sort):
+    """The files the kind filter lets through (an index into KIND_FILTERS), in the sort order (into SORTS)."""
+    kinds = KIND_FILTERS[kind_filter][1]
+    return sorted((e for e in files if kinds is None or e["kind"] in kinds), key=SORTS[sort][2])
 
 
 def short_path(path):
@@ -50,6 +68,7 @@ class LargeFilesPage(Gtk.Box):
         self.moving = False  # a Trash or undo run: never cancelled, nothing else starts meanwhile
         self.generation = 0  # a newer search makes an older one's results stale
         self.undo_toast = None
+        self.shown = []  # the files listed now: through the kind filter, in the sort order
 
         # filters
         self.size_drop = Gtk.DropDown.new_from_strings([label for label, _ in MIN_SIZES])
@@ -92,6 +111,13 @@ class LargeFilesPage(Gtk.Box):
         self.stack.add_named(self.empty, "empty")
         self.results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
                                margin_top=24, margin_bottom=24, margin_start=12, margin_end=12)
+        # sort and kind: they only change what is listed, no new search
+        self.sort_drop = Gtk.DropDown.new_from_strings([label for label, _s, _k in SORTS])
+        self.sort_drop.set_tooltip_text(_("Sort by"))
+        self.kind_drop = Gtk.DropDown.new_from_strings([label for label, _k in KIND_FILTERS])
+        self.kind_drop.set_tooltip_text(_("Show only files of this kind"))
+        for drop in (self.sort_drop, self.kind_drop):
+            drop.connect("notify::selected", lambda *_: self.files and self.show_results())
         self.stack.add_named(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
                                                 vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER), "results")
 
@@ -174,35 +200,56 @@ class LargeFilesPage(Gtk.Box):
         while child:
             self.results.remove(child)
             child = self.results.get_first_child()
+        for drop in (self.sort_drop, self.kind_drop):
+            if drop.get_parent():
+                drop.get_parent().remove(drop)
         self.checks.clear()
         self.all_check = None
+        self.shown = []
         if not self.files:
             self.stack.set_visible_child_name("empty")
             self.bar.set_revealed(False)
             return
 
-        total = sum(e["bytes"] for e in self.files)
-        title = Gtk.Label(label=ngettext("{n} file · {size}", "{n} files · {size}", len(self.files), size=human(total)),
+        self.shown = shown_files(self.files, self.kind_drop.get_selected(), self.sort_drop.get_selected())
+        total = sum(e["bytes"] for e in self.shown)
+        title = Gtk.Label(label=ngettext("{n} file · {size}", "{n} files · {size}", len(self.shown), size=human(total)),
                           xalign=0, wrap=True,
                           css_classes=["title-1"])
-        sub = _("Biggest first, in {folder}").format(folder=short_path(self.folder))
+        sub = _("{order}, in {folder}").format(order=SORTS[self.sort_drop.get_selected()][1],
+                                                folder=short_path(self.folder))
         if self.found > len(self.files):
             sub += " — " + _("the {n} biggest of {found}").format(n=len(self.files), found=self.found)
-        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        header.append(title)
-        header.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
+        text.append(title)
+        text.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
+        views = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
+        views.append(self.kind_drop)
+        views.append(self.sort_drop)
+        header = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=2, min_children_per_line=1,
+                             column_spacing=12, row_spacing=12)
+        header.append(text)
+        header.append(views)
+        views.get_parent().set_halign(Gtk.Align.END)
+        for child in (text, views):
+            child.get_parent().set_focusable(False)
         self.results.append(header)
 
-        group = Adw.PreferencesGroup()
-        if len(self.files) > 1:
-            self.all_check = Gtk.CheckButton(label=_("All"), valign=Gtk.Align.CENTER, css_classes=["big-check"],
-                                             tooltip_text=_("Select or deselect every file"))
-            self.all_check.connect("toggled", self.on_all_toggled)
-            group.set_header_suffix(self.all_check)
-        biggest = self.files[0]["bytes"]
-        for e in self.files:
-            group.add(self.file_row(e, biggest))
-        self.results.append(group)
+        if not self.shown:
+            self.results.append(Adw.StatusPage(icon_name="edit-find-symbolic", title=_("No files of this kind"),
+                                               description=_("Choose another kind to see the other files."),
+                                               css_classes=["compact"]))
+        else:
+            group = Adw.PreferencesGroup()
+            if len(self.shown) > 1:
+                self.all_check = Gtk.CheckButton(label=_("All"), valign=Gtk.Align.CENTER, css_classes=["big-check"],
+                                                 tooltip_text=_("Select or deselect every file listed"))
+                self.all_check.connect("toggled", self.on_all_toggled)
+                group.set_header_suffix(self.all_check)
+            biggest = max(e["bytes"] for e in self.shown)
+            for e in self.shown:
+                group.add(self.file_row(e, biggest))
+            self.results.append(group)
         self.stack.set_visible_child_name("results")
         self.bar.set_revealed(True)
         self.update_summary()
@@ -219,16 +266,15 @@ class LargeFilesPage(Gtk.Box):
         check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"])
         check.connect("toggled", self.on_toggled, path)
         self.checks[path] = check
-        row.add_prefix(Gtk.Image(icon_name=KIND_ICONS.get(e["kind"], "text-x-generic-symbolic")))
+        gen = self.generation
+        row.add_prefix(preview.THUMBNAILS.image(path, e["kind"], stamp=(e["bytes"], e["mtime"]),
+                                                icon_name=KIND_ICONS.get(e["kind"], "text-x-generic-symbolic"),
+                                                alive=lambda: gen == self.generation))
         row.add_prefix(check)  # prefixes stack leftwards: the box comes first
         row.set_activatable_widget(check)
         for widget in size_widgets(e["bytes"], biggest):
             row.add_suffix(widget)
-        show = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                          tooltip_text=_("Show in Files"))
-        show.connect("clicked", lambda *_: Gtk.FileLauncher.new(Gio.File.new_for_path(path))
-                     .open_containing_folder(self.window, None, None))
-        row.add_suffix(show)
+        preview.row_buttons(row, self.window, path)
         return row
 
     def on_toggled(self, check, path):
@@ -245,20 +291,24 @@ class LargeFilesPage(Gtk.Box):
         for check in self.checks.values():
             check.set_active(target)
 
+    def chosen(self):
+        """The ticked files that are listed: a file the kind filter hides is never moved."""
+        return [e for e in self.shown if e["path"] in self.selected]
+
     def update_summary(self):
-        chosen = [e for e in self.files if e["path"] in self.selected]
+        chosen = self.chosen()
         self.summary.set_markup(ngettext("Selected <b>{size}</b> in {n} file", "Selected <b>{size}</b> in {n} files",
                                          len(chosen), size=human(sum(e["bytes"] for e in chosen))))
         self.trash_button.set_sensitive(bool(chosen) and not self.running)
         if self.all_check:
             self.syncing = True  # none / some (inconsistent) / all
-            self.all_check.set_inconsistent(0 < len(chosen) < len(self.files))
-            self.all_check.set_active(len(chosen) == len(self.files))
+            self.all_check.set_inconsistent(0 < len(chosen) < len(self.shown))
+            self.all_check.set_active(len(chosen) == len(self.shown))
             self.syncing = False
 
     # ── Trash and undo ──
     def confirm_trash(self):
-        chosen = [e for e in self.files if e["path"] in self.selected]
+        chosen = self.chosen()
         if not chosen:
             return
         lines = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)

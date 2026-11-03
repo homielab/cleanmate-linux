@@ -79,6 +79,7 @@ Rules of thumb:
 tests/run.sh               # all tests, ~45 s — safe on your own machine
 tests/run.sh -v docker     # only tests with "docker" in the name, with details
 python3 tests/similar_test.py   # Similar Photos: hashes and grouping on generated photos (needs python3-gi)
+python3 tests/preview_test.py   # thumbnails and video frames of the file pages (python3-gi; videos also gir1.2-gstreamer-1.0)
 LC_ALL=vi_VN.UTF-8 tests/run.sh   # same, in a language with a decimal comma (also de_DE.UTF-8; needs `sudo locale-gen vi_VN.UTF-8`). CI runs both
 shellcheck -S warning cleanmate.sh tests/run.sh packaging/build-deb.sh
 bash cleanmate.sh --dry-run   # try it for real without deleting anything
