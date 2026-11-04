@@ -43,7 +43,8 @@ package*. Clean them with `sudo cm`, or install from the PPA or the `.deb`.
   [Releases](https://github.com/homielab/cleanmate-linux/releases), double-click it (App Center)
   or `sudo apt install ./cleanmate_*_all.deb`.
 - **Just try it:** `bash cleanmate.sh --dry-run` — everything works, nothing is deleted.
-- **Flatpak:** coming to Flathub; build it now with `packaging/flathub/build.sh`. It cleans your home
+- **Flatpak:** not on Flathub yet (it will be submitted after a release); build it now with
+  `packaging/flathub/build.sh`. It cleans your home
   folder only: apt, the journal, old kernels, Docker and the Uninstaller need the PPA or the `.deb`
   ([what the Flatpak can't do](packaging/flathub/README.md#what-the-flatpak-cant-do)).
 
@@ -61,7 +62,7 @@ with a terminal version first, because that's where most Linux users live.
 
 **Desktop app** — press **Scan**, untick anything you want to keep, press **Clean**. Items with a 🔒 need
 your password; everything else runs as you. Files moved to the Trash come back with **Undo**. Besides Smart
-Scan: System Overview, Space Lens, Large & Old Files, Duplicates, Startup Items, Uninstaller (with
+Scan: System Overview, Space Lens, Large & Old Files, Duplicates (identical files and Similar Photos), Startup Items, Uninstaller (with
 leftovers and Reset…), Maintenance and Settings — each described in [docs/FEATURES.md](docs/FEATURES.md#desktop-app).
 
 | Large & Old Files | Uninstaller |

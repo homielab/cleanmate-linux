@@ -3,26 +3,20 @@
 Where CleanMate is going, and the decisions behind it. Ideas and votes are welcome in
 [issues](https://github.com/homielab/cleanmate-linux/issues).
 
-## Done in 1.0
+## Available now
 
-- [x] **Engine + terminal app** — Smart Scan over 50+ locations, cleanup sections, Space Lens,
-      Large & Old Files, Duplicates, Uninstaller, Startup Items, Maintenance, System Overview,
-      Settings, undo, automatic cleaning, updates.
-- [x] **Engine protocol** — `cleanmate.sh --json items|scan|details|clean`, one JSON event per line.
-- [x] **Desktop app core** — Smart Scan and the six cleanup sections, details, confirm dialog,
-      live progress; system items through the standard password dialog (pkexec + polkit policy).
-- [x] **Distribution** — app icon, *Show Apps* launcher, one-line install, `.deb` built by CI on
-      every release, AppStream metainfo.
+- **Engine + terminal app** — Smart Scan over 50+ locations, cleanup sections, Space Lens,
+  Large & Old Files, Duplicates, Uninstaller, Startup Items, Maintenance, System Overview,
+  Settings, undo, automatic cleaning, updates; `cm --json` for scripts and the desktop app.
+- **Desktop app** — System Overview, Smart Scan and the six cleanup sections, Space Lens,
+  Large & Old Files, Duplicates with Similar Photos, Uninstaller, Startup Items, Maintenance,
+  Moved to the Trash and Settings; system items through the standard password dialog.
+- **Distribution** — the PPA (`ppa:homielab/cleanmate`) and a `.deb` on every release, a man page
+  (`man cm`), AppStream metainfo, a Flatpak build (`packaging/flathub/`).
 
 ## Next
 
-- [x] **Desktop app: file tools** — Space Lens (drill-down list), Large & Old Files, Duplicates,
-      each with an *Undo* toast that uses the engine's Trash code.
-- [x] **Desktop app: apps & system** — Uninstaller, Startup Items, Settings (automatic cleaning, updates,
-      retention, recent files, activity log), Maintenance, System Overview (the app opens on it).
-- [x] **Desktop app: System Overview extras** — the free-space history chart, space outside your folders
-      (Timeshift, swap file, reserved space) and your largest folders (a click opens Space Lens there).
-- [x] **Launchpad PPA** — `ppa:homielab/cleanmate`, uploaded by CI on every release, one build per Ubuntu release Launchpad supports.
+- [ ] **Flathub** — submit the Flatpak after a release that includes it.
 - [ ] **Snap Store** — classic confinement was declined for now (project too new); ask again once
       the project has a track record.
 - [ ] **Translations** — the desktop app is in English and Vietnamese (`po/`), cleanup item names and
@@ -40,7 +34,7 @@ The desktop app's *All tools (terminal)* entry is a shortcut to `cm`.
 | GUI ↔ engine | JSON lines over a pipe | The GUI never decides what to delete; the engine can be rewritten later without touching the GUI |
 | Privileges | GUI runs as you; system items via `pkexec`, only for the root-owned package engine | Standard password dialog naming the task (clean, uninstall, Maintenance); a copy in your home asks for no password; as root the engine refuses anything in a home folder |
 | Older Ubuntu | 22.04 gets the terminal app only | It ships libadwaita 1.1 (no split view, dialogs, toasts) |
-| Packaging | `.deb` first, then a PPA | Flathub doesn't accept host system utilities; Snap needs classic confinement |
+| Packaging | `.deb` and a PPA first, then a Flatpak | The PPA gets updates through Software Updater; the Flatpak sees only your home folder, so it leaves out system items; Snap needs classic confinement |
 
 ## Engine protocol
 

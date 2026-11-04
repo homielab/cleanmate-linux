@@ -36,6 +36,12 @@ f() { install -D -m "$1" "$2" "$PKG/$3"; } # MODE SOURCE TARGET
 # the command (+ cm shorthand)
 f 755 "$ROOT/cleanmate.sh" usr/bin/cleanmate
 ln -s cleanmate "$PKG/usr/bin/cm"
+# its man page, written from --help (man cm and man cleanmate)
+d usr/share/man/man1
+bash "$ROOT/packaging/make-man.sh" "$PKG/usr/share/man/man1/cleanmate.1"
+gzip -9n -f "$PKG/usr/share/man/man1/cleanmate.1"
+chmod 644 "$PKG/usr/share/man/man1/cleanmate.1.gz"
+ln -s cleanmate.1.gz "$PKG/usr/share/man/man1/cm.1.gz"
 
 # the desktop app
 d usr/share/cleanmate/gui/cleanmate_gui

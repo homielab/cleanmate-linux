@@ -17,6 +17,11 @@ description: |
   developer and AI tool caches, and more. Nothing is deleted until you have
   seen the list and confirmed.
 
+  It also shows what fills each disk (Space Lens), finds large and old files,
+  duplicate files and, in the desktop app, similar photos. Files you remove
+  yourself are moved to the Trash, and you can put them back. Every cleanup
+  item says why it is safe to clean.
+
   It comes as a desktop app and a terminal app (cm) that share one engine.
   System items use the standard password dialog; everything else runs as you.
 license: MIT
@@ -45,6 +50,8 @@ parts:
     override-build: |
       d=$CRAFT_PART_INSTALL
       install -D -m 755 cleanmate.sh "$d/usr/bin/cleanmate"
+      install -d "$d/usr/share/man/man1"
+      bash packaging/make-man.sh "$d/usr/share/man/man1/cleanmate.1"
       install -d "$d/usr/share/cleanmate/gui/cleanmate_gui"
       install -m 755 gui/cleanmate-gui "$d/usr/share/cleanmate/gui/"
       install -m 644 gui/cleanmate_gui/*.py "$d/usr/share/cleanmate/gui/cleanmate_gui/"

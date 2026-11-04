@@ -13027,13 +13027,18 @@ Exit codes (--scan, --clean, --auto): 0 done, 1 a task failed, 2 wrong option,
 3 partly done (system items left out without sudo, or a scan timed out)
 
 For the desktop app
-      --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
+      --json CMD    Machine-readable engine, one JSON event per line. CMD is one of:
+                    items, scan, details ID, clean ID… [--entries E1,E2…],
                     large [--min BYTES] [--days N] [--path DIR] [--limit N] [--all-drives],
                     lens [--path DIR] [--limit N], places,
-                    dupes [--min BYTES] [--path DIR] [--limit N], startup, startup-set ID enable|disable|remove,
+                    dupes [--min BYTES] [--path DIR] [--limit N],
                     trash [--home-only] [--source NAME] PATH…, restore KEY…,
-                    restore --list [--limit N] [--gone DAYS], apps, uninstall [--check] KIND:ID…,
-                    reset [--check] KIND:ID [FOLDER…]
+                    restore --list [--limit N] [--gone DAYS],
+                    apps, uninstall [--check] KIND:ID…, reset [--check] KIND:ID [FOLDER…],
+                    startup, startup-set ID enable|disable|remove,
+                    maintenance, maintain ID [on|off] [--user-steps],
+                    overview, settings, settings-set KEY VALUE, activity [--limit N],
+                    sysreport, check [low_disk|remind]…
 
 Keys: ↑↓ or j/k move · space select · enter/→ open · / find · z undo · q back · ? help
 

@@ -27,6 +27,10 @@
       <li>AI tools: caches and old chat sessions of Claude, Codex, Gemini, Zed and others</li>
       <li>Developer junk: npm, pip, Go, Cargo and Docker leftovers, idle node_modules</li>
       <li>Privacy: browser history and cookies, terminal history, recent files and other histories</li>
+      <li>Space Lens shows what fills your home folder or a whole disk, folder by folder</li>
+      <li>Large and old files, duplicate files and similar photos</li>
+      <li>Files you remove are moved to the Trash: Moved to the Trash lists them and puts them back</li>
+      <li>Every item explains why it is safe to clean</li>
     </ul>
     <p>
       It uses the system's own tools wherever possible (apt, journalctl, snap, docker), keeps a
@@ -79,7 +83,7 @@
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-4-done.png</image>
     </screenshot>
     <screenshot>
-      <caption>Check what is inside every item</caption>
+      <caption>Check what is inside every item and why it is safe to clean</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-2-details.png</image>
     </screenshot>
     <screenshot>
@@ -87,7 +91,7 @@
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-5-ai.png</image>
     </screenshot>
     <screenshot>
-      <caption>Find large and old files and move them to the Trash, with undo</caption>
+      <caption>Find large and old files and move them to the Trash; Moved to the Trash puts them back</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-7-large.png</image>
     </screenshot>
     <!-- not in the Flatpak: the packaging leaves this screenshot out, the page is hidden there -->
@@ -96,11 +100,11 @@
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-8-uninstall.png</image>
     </screenshot>
     <screenshot>
-      <caption>See what takes up space, folder by folder, and move what you don't need to the Trash</caption>
+      <caption>See what takes up space on your home folder or a whole disk, and move what you don't need to the Trash</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-9-lens.png</image>
     </screenshot>
     <screenshot>
-      <caption>Find duplicate files and keep the oldest copy of each</caption>
+      <caption>Find duplicate files and similar photos, and keep the best copy of each</caption>
       <image>https://raw.githubusercontent.com/homielab/cleanmate-linux/main/docs/screenshots/desktop-10-duplicates.png</image>
     </screenshot>
     <!-- not in the Flatpak: the packaging leaves this screenshot out, the page is hidden there -->

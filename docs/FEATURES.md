@@ -36,7 +36,7 @@ row has **Open** (its default app) and **Show in Files**. **Duplicates** groups 
 pick); nothing is ticked until you choose, and **Select automatically** ticks every copy except the oldest
 (usually the original); you're warned if every copy of a file is ticked. Under the title it says what it
 left out: hidden files and folders, `node_modules`, Never clean folders, files it can't read or whose
-names it can't show, and other drives mounted inside the folder. Its **Similar Photos** mode
+names it can't show, and other drives mounted inside the folder. Its **Similar Photos** mode (desktop app only; the terminal app and `cm --json dupes` find identical files)
 groups photos that look alike (resized or re-saved copies, edits, shots taken one after another) in
 Pictures or a folder you pick, read on your computer only; it suggests keeping the one with the most
 pixels, then the biggest file, ticks nothing until you choose, and moves the others to the Trash, with

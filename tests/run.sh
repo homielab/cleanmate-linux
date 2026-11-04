@@ -419,6 +419,32 @@ test_agent_skill_matches_cli() {
   out=$(bash "$SCRIPT" --json scan --only nonsense 2>&1); assert_contains "$out" "Unknown category"
 }
 
+test_help_lists_every_json_command() {
+  local help cmd page cmds
+  help=$(bash "$SCRIPT" --help)
+  page=$(sed -n '/^      --json CMD/,/^$/p' <<<"$help")
+  # every subcommand of json_main's case (the Flatpak guard line and the fallback aside)
+  cmds=$(sed -n '/^json_main() {/,/^}/p' "$SCRIPT" | grep -o '^    [a-z][a-z-]*\( | [a-z-]*\)*)' | tr -d ')' | tr '|' '\n' | tr -d ' ' | sort -u)
+  [[ $(wc -l <<<"$cmds") -ge 20 ]] || { FAILED=1; echo "json_main's commands not found"; }
+  for cmd in $cmds; do
+    grep -qE "(^|[ ,])$cmd([ ,]|$)" <<<"$page" || { FAILED=1; echo "--json $cmd is not in --help"; }
+  done
+}
+
+test_man_page_is_written_from_help() {
+  local out=$WORK/cleanmate.1 text
+  bash "$ROOT/packaging/make-man.sh" "$out"
+  assert_contains "$(head -n 1 "$out")" ".TH CLEANMATE 1"
+  assert_contains "$(cat "$out")" '.SH "SCAN & CLEAN WITHOUT THE APP"'
+  assert_contains "$(cat "$out")" 'sysreport'
+  assert_contains "$(cat "$out")" '~/'
+  if command -v groff >/dev/null; then
+    text=$(groff -K utf8 -man -Tutf8 -rLL=100n "$out" 2>&1)
+    assert_contains "$text" "--dry-run"
+    assert_contains "$text" "settings-set KEY VALUE"
+  fi
+}
+
 test_app_cache_keeps_app_data() {
   fresh_home
   new "$HOME_DIR/.config/Slack/Cache/c"

@@ -65,6 +65,7 @@ cm --json dupes --limit 50              # groups of identical files, newest copy
 Start with `lens`; drill into the biggest sounding folder with `--path` until you can name what
 fills the disk. `large --days N` lists files neither changed nor opened for N days. In `dupes`
 every group is identical copies, newest first — the last file in a group is usually the original.
+Photos that only look alike (resized or edited copies) need the desktop app's Duplicates › Similar Photos; the CLI has no command for them.
 `done` tells you the totals, so shorter lists know how much is left out; for `large` also `hidden`
 (names JSON can't carry), `skipped` (inside caches, `.git`, Trash folders) and `other_drives` (disks mounted
 inside the folder, searched only with `--all-drives`).

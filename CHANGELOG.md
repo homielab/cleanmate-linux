@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows
 
 ### Added
 
+- `man cm` opens a manual page, and `cm --help` lists every `--json` command.
 - Desktop app: **Run Smart Scan** on System Overview (with when you last scanned) and as the welcome's last step; **Ctrl+F** searches Large & Old Files, Duplicates, Space Lens, Startup Items, Maintenance and Uninstaller too; **Stop** in Large & Old Files and Space Lens; **Never Clean This Folder** from a row's menu in Large & Old Files, Duplicates and Space Lens.
 - Desktop app: closing the window while something is cleaning asks first instead of leaving the engine running; opening CleanMate again brings up the window already open.
 - Desktop app, **Moved to the Trash** (Ctrl+Shift+5, *Settings › Moved to the Trash*, **View Moved Items** after a clean): everything CleanMate moved to the Trash, also in earlier sessions and from the terminal app, newest first — search, filter by the tool that moved it, **Put Back** one item, the ticked ones or all, **Show in Files**; items emptied from the Trash since are greyed out as *No longer in the Trash*.
