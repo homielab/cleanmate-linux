@@ -49,6 +49,24 @@ def shown_files(files, kind_filter, sort):
     return sorted((e for e in files if kinds is None or e["kind"] in kinds), key=SORTS[sort][2])
 
 
+def skipped_notes(info):
+    """What a search left out (the engine's `done` counts), one line each."""
+    notes = []
+    if info.get("hidden"):
+        notes.append(ngettext("{n} file skipped: its name has characters that can't be shown",
+                              "{n} files skipped: their names have characters that can't be shown",
+                              info["hidden"]))
+    if info.get("skipped"):
+        notes.append(ngettext("{n} file skipped: it is in a cache, a Git folder or a Trash",
+                              "{n} files skipped: they are in caches, Git folders or a Trash",
+                              info["skipped"]))
+    if info.get("other_drives"):
+        notes.append(ngettext("{n} other drive in this folder was not searched",
+                              "{n} other drives in this folder were not searched",
+                              info["other_drives"]))
+    return notes
+
+
 def short_path(path):
     home = os.path.expanduser("~")
     return "~" + path[len(home):] if path == home or path.startswith(home + "/") else path
@@ -64,6 +82,9 @@ class LargeFilesPage(Gtk.Box):
         self.folder = os.path.expanduser("~")
         self.files = []  # "file" events of the last search, biggest first
         self.found = 0  # how many matched (only the biggest are listed)
+        self.info = {}  # the last search's `done` event: what it left out
+        self.all_drives = False  # search the drives mounted inside the folder too
+        self.notes = []  # the labels saying what the search left out
         self.selected = set()  # paths
         self.checks = {}  # path → Gtk.CheckButton
         self.all_check = None
@@ -118,7 +139,7 @@ class LargeFilesPage(Gtk.Box):
         self.searching = Adw.StatusPage(icon_name="system-search-symbolic", title=_("Searching…"), child=searching)
         self.stack.add_named(self.searching, "searching")
         self.empty = Adw.StatusPage(icon_name="emblem-ok-symbolic", title=_("No files match"),
-                                    description=_("Try a smaller size, any age, or another folder."))
+                                    child=self.drives_button("pill"))
         self.stack.add_named(self.empty, "empty")
         self.failed = ErrorPage(window, lambda: self.search(), title=_("The search failed"))
         self.stack.add_named(self.failed, "failed")
@@ -166,8 +187,25 @@ class LargeFilesPage(Gtk.Box):
 
         dialog.select_folder(self.window, None, chosen)
 
+    def drives_button(self, style):
+        """Search Other Drives Too: shown when the last search left drives mounted inside the folder out."""
+        button = Gtk.Button(label=_("Search Other Drives Too"), halign=Gtk.Align.CENTER, css_classes=[style],
+                            visible=False)
+        button.connect("clicked", lambda *_: self.search_all_drives())
+        return button
+
+    def search_all_drives(self):
+        self.all_drives = True
+        self.search()
+
+    def set_files(self, files):
+        """Rows moved, put back or excluded: the count found follows."""
+        self.found = max(len(files), self.found + len(files) - len(self.files))
+        self.files = files
+
     def set_folder(self, path):
         self.folder = path
+        self.all_drives = False
         self.folder_label.set_text(short_path(path))
 
     def reload(self):
@@ -226,7 +264,7 @@ class LargeFilesPage(Gtk.Box):
             self.running = None
             self.window.set_busy(False)
             if failure.failed and "found" not in info:  # no answer: an error, never "no files match"
-                self.files, self.found = [], 0
+                self.files, self.found, self.info = [], 0, {}
                 self.selected.clear()
                 self.failed.show(failure)
                 self.stack.set_visible_child_name("failed")
@@ -235,10 +273,11 @@ class LargeFilesPage(Gtk.Box):
                 self.window.toast(messages.text(info))
             self.files = files
             self.found = info.get("found", len(files))
+            self.info = info
             self.selected.clear()
             self.show_results()
 
-        self.running = self.engine.large(min_bytes, days, self.folder, on_event, on_done)
+        self.running = self.engine.large(min_bytes, days, self.folder, on_event, on_done, all_drives=self.all_drives)
 
     # ── results ──
     def show_results(self):
@@ -253,7 +292,10 @@ class LargeFilesPage(Gtk.Box):
         self.rows.clear()
         self.all_check = None
         self.shown = []
+        notes = skipped_notes(self.info)
         if not self.files:
+            self.empty.set_description("\n".join([_("Try a smaller size, any age, or another folder."), *notes]))
+            self.empty.get_child().set_visible(bool(self.info.get("other_drives")))
             self.stack.set_visible_child_name("empty")
             self.bar.set_revealed(False)
             return
@@ -270,6 +312,14 @@ class LargeFilesPage(Gtk.Box):
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
         text.append(title)
         text.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
+        self.notes = [Gtk.Label(label=note, xalign=0, wrap=True, css_classes=["dim-label", "caption"]) for note in notes]
+        for label in self.notes:
+            text.append(label)
+        if self.info.get("other_drives"):
+            button = self.drives_button("flat")
+            button.set_visible(True)
+            button.set_halign(Gtk.Align.START)
+            text.append(button)
         views = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
         views.append(self.kind_drop)
         views.append(self.sort_drop)
@@ -376,7 +426,7 @@ class LargeFilesPage(Gtk.Box):
 
         def saved():
             gone = {e["path"] for e in self.files if findbar.inside(e["path"], folder)}
-            self.files = [e for e in self.files if e["path"] not in gone]
+            self.set_files([e for e in self.files if e["path"] not in gone])
             self.selected -= gone
             self.show_results()
 
@@ -444,7 +494,7 @@ class LargeFilesPage(Gtk.Box):
             self.running, self.moving = None, False
             self.window.set_busy(False)
             if gen == self.generation:
-                self.files = [e for e in self.files if e["path"] not in gone]
+                self.set_files([e for e in self.files if e["path"] not in gone])
                 self.selected -= gone
                 self.show_results()
             if self.engine.dry_run:
@@ -491,8 +541,8 @@ class LargeFilesPage(Gtk.Box):
             self.window.set_busy(False)
             if gen == self.generation:  # the same search is still shown: put the rows back too
                 known = {e["path"] for e in self.files}
-                self.files = sorted(self.files + [e for e in back if e["path"] not in known],
-                                    key=lambda e: -e["bytes"])
+                self.set_files(sorted(self.files + [e for e in back if e["path"] not in known],
+                                      key=lambda e: -e["bytes"]))
                 self.show_results()
             if failed:
                 self.window.toast(_("Put back {back}, {failed} could not be restored: {reason}").format(

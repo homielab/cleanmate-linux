@@ -288,9 +288,10 @@ class Engine:
         extra = ["--entries", ",".join(entries)] if entries else []
         return self.run(["clean", *ids, *extra], on_event, on_done, as_root=as_root)
 
-    def large(self, min_bytes, days, folder, on_event, on_done):
-        return self.run(["large", "--min", str(min_bytes), "--days", str(days), "--path", folder],
-                        on_event, on_done)
+    def large(self, min_bytes, days, folder, on_event, on_done, all_drives=False):
+        """The biggest files in folder; all_drives: the drives mounted inside it too."""
+        return self.run(["large", "--min", str(min_bytes), "--days", str(days), "--path", folder,
+                         *(["--all-drives"] if all_drives else [])], on_event, on_done)
 
     def dupes(self, min_bytes, folder, on_event, on_done):
         return self.run(["dupes", "--min", str(min_bytes), "--path", folder], on_event, on_done)

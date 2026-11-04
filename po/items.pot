@@ -213,6 +213,10 @@ msgstr ""
 msgid "Logs written in the last {0} days"
 msgstr ""
 
+#. app_logs why, tmp why, app_cache why
+msgid "Files in a folder in Settings › Never clean"
+msgstr ""
+
 #. crash label
 msgid "Crash reports"
 msgstr ""

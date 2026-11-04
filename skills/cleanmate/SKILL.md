@@ -49,9 +49,9 @@ cm --clean --yes --only logs,user    # whole groups, plain text output
 
 `cm --clean --yes` cleans what is ticked in the user's saved choices but always skips `data_loss` items, printing `… skipped: may hold data — run cm --json clean ID`.
 
-`--json clean` streams `{"event":"task","id","state","info","freed"}` with state `run`, `ok`, `skip` (app running) or `fail`, then `{"event":"done","freed","to_trash","avail_before","avail_after","disks":[{"mount","before","after"}],"trash":{ID:[keys]}}`: `freed` includes `to_trash`, which only frees space once the Trash is emptied; `disks` gives the free space of `/` and, when it is another filesystem, of the home folder. Items in `trash` can be restored with `cm --json restore KEY…`.
+`--json clean` streams `{"event":"task","id","state","info","freed"}` with state `run`, `ok`, `skip` (app running, or `code` `needs_root`: a system item without `sudo`) or `fail`, then `{"event":"done","status","freed","to_trash","avail_before","avail_after","disks":[{"mount","before","after"}],"trash":{ID:[keys]}}`: `status` is `ok`, `partial` (a system item skipped for want of `sudo`) or `failed` (a task failed); `freed` includes `to_trash`, which only frees space once the Trash is emptied; `disks` gives the free space of `/` and, when it is another filesystem, of the home folder. Items in `trash` can be restored with `cm --json restore KEY…`.
 
-Exit code: 0 ok, 1 error, 2 bad arguments (a JSON `error` event says why).
+Exit code: 0 ok, 1 error, 2 bad arguments (a JSON `error` event says why). `cm --scan`, `--clean` and `--auto` exit 1 when a task failed and 3 when only part was done (system items without `sudo`, or a scan that timed out).
 
 ## What is taking up space
 
@@ -65,7 +65,9 @@ cm --json dupes --limit 50              # groups of identical files, newest copy
 Start with `lens`; drill into the biggest sounding folder with `--path` until you can name what
 fills the disk. `large --days N` lists files neither changed nor opened for N days. In `dupes`
 every group is identical copies, newest first — the last file in a group is usually the original.
-`done` tells you the totals, so shorter lists know how much is left out.
+`done` tells you the totals, so shorter lists know how much is left out; for `large` also `hidden`
+(names JSON can't carry), `skipped` (inside caches, `.git`, Trash folders) and `other_drives` (disks mounted
+inside the folder, searched only with `--all-drives`).
 
 Trash only paths the user named or confirmed after seeing the list — never pick them yourself
 (not even a duplicate set's "extra" copies). Space Lens paths go with `--home-only`:

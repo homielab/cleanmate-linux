@@ -130,8 +130,9 @@ Checked against BleachBit's own website and documentation (November 2026). More 
   This* on a folder in the desktop app's scan results, or with *Never Clean* in an item's ⓘ *Why is this
   safe?* popover. Large & Old Files, Duplicates, Space Lens, stale `node_modules` and project build folders,
   old installers and old downloads skip them, and nothing in them is moved to the Trash. A Smart Scan item
-  whose own folders are all on the list is left out; a folder inside a cache doesn't stop its cache from
-  being cleaned (the app rebuilds it). Only folders inside your home folder, not the home folder itself.
+  whose own folders are all on the list is left out. In app caches, app logs and temporary files (`/tmp`,
+  `/var/tmp`) a listed folder is kept and the rest is cleaned; a tool's own cache (npm, pip, Gradle, …) is
+  cleaned as a whole by that tool. Only folders inside your home folder, not the home folder itself.
 - **Everything is logged** to `~/.local/state/cleanmate/clean.log` (*Settings → Activity log* in both apps).
 
 ## Automatic cleaning
@@ -181,16 +182,28 @@ cm --json --dry-run clean ID…    # preview
 cm --json clean ID…              # task events, then freed bytes and Trash restore keys
 ```
 
+**Exit codes**, for scripts and timers:
+
+| Code | `--scan`, `--clean`, `--auto` | `--json clean` `done` event |
+| --- | --- | --- |
+| 0 | everything asked was done | `"status":"ok"` |
+| 1 | a task failed | `"status":"failed"` |
+| 2 | wrong option or argument | — |
+| 3 | partly done: system items were left out for want of `sudo`, or a scan timed out | `"status":"partial"` |
+
+`--json` commands exit 0 when they could answer; read `status` and each `task`'s `state`. The automatic
+cleaning timer treats 3 as success.
+
 **Drive these headlessly too** — what takes up space, without going through the app:
 
 ```bash
 cm --json lens [--path DIR] [--limit N]                            # one folder, biggest first; movable:false = look only, reason says why
 cm --json places                                                   # where Space Lens can start: home, the system disk, other disks
-cm --json large [--min BYTES] [--days N] [--path DIR] [--limit N]   # big files: path, bytes, kind, mtime/atime
+cm --json large [--min BYTES] [--days N] [--path DIR] [--limit N] [--all-drives]   # big files: path, bytes, kind, mtime/atime
 cm --json dupes [--min BYTES] [--path DIR] [--limit N]              # groups of identical files, newest copy first
 ```
 
-`trash [--home-only] PATH…` moves the paths the user confirmed into the Trash (one `task` line per path with a `trash` restore key, or `fail` with the reason — it refuses anything touched by *Never clean* or outside your home folder) and `restore KEY…` puts Trash items back. Nothing is ever deleted for good by hand.
+`trash [--home-only] PATH…` moves the paths the user confirmed into the Trash (one `task` line per path with a `trash` restore key, or `fail` with the reason — it refuses anything touched by *Never clean* or outside your home folder; outside it, a drive without its own Trash needs `gio` from `libglib2.0-bin`) and `restore KEY…` puts Trash items back. Nothing is ever deleted for good by hand.
 
 `restore --list [--limit N] [--gone DAYS]` lists what CleanMate moved to the Trash (from any session, app or command)
 and is still there, newest first, at most 200 — one object:

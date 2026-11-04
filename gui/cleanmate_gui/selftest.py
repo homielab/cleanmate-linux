@@ -247,9 +247,9 @@ def large_files_test(win, report, wait, finish):
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home = os.path.join(sandbox, "home")
     videos = os.path.join(home, "Videos")
-    os.makedirs(videos)
-    film, backup, note = (os.path.join(videos, n) for n in ("film.mkv", "old backup.iso", "note.txt"))
-    for path, size in ((film, 120 << 20), (backup, 60 << 20), (note, 1024)):  # sparse: no real disk use
+    os.makedirs(os.path.join(videos, ".git"))
+    film, backup, note, pack = (os.path.join(videos, n) for n in ("film.mkv", "old backup.iso", "note.txt", ".git/pack"))
+    for path, size in ((film, 120 << 20), (backup, 60 << 20), (note, 1024), (pack, 80 << 20)):  # sparse: no real disk use
         with open(path, "wb") as f:
             f.truncate(size)
     then = time.time() - 200 * 86400
@@ -276,6 +276,10 @@ def large_files_test(win, report, wait, finish):
 
     def searched():
         report(names() == ["film.mkv", "old backup.iso"], f"large files biggest first, small one left out: {names()}")
+        notes = [label.get_label() for label in page.notes]
+        report(notes == [ngettext("{n} file skipped: it is in a cache, a Git folder or a Trash",
+                                  "{n} files skipped: they are in caches, Git folders or a Trash", 1)],
+               f"the file in a Git folder is counted as skipped: {notes}")
         page.age_drop.set_selected(2)  # 90 days: changing a filter searches again
         wait(idle, aged, 60, "search by age")
 
@@ -2303,9 +2307,10 @@ def overview_test(win, report, wait, finish):
         state = os.path.join(home, ".local", "state", "cleanmate")
         os.makedirs(state, exist_ok=True)
         with open(os.path.join(state, "cleanups.tsv"), "w") as f:
-            f.write(f"{int(time.time()) - 86400}\t2147483648\n")
+            f.write(f"{int(time.time()) - 86400}\t2147483648\t1073741824\n")  # freed, moved to the Trash
         with open(os.path.join(state, "stats"), "w") as f:
-            f.write(f"lifetime=2147483648\nruns=1\nlast_time={int(time.time()) - 86400}\nlast_freed=2147483648\n")
+            f.write(f"lifetime=2147483648\nlifetime_trash=1073741824\nruns=1\nlast_time={int(time.time()) - 86400}\n"
+                    "last_freed=2147483648\nlast_trash=1073741824\n")
         days = [time.strftime("%Y-%m-%d", time.localtime(time.time() - n * 86400)) for n in (14, 7)]
         with open(os.path.join(state, "disk-history.tsv"), "w") as f:
             f.write(f"{days[0]}\t9000000000\t100000000000\n{days[1]}\t7000000000\t100000000000\n")
@@ -2330,6 +2335,10 @@ def overview_test(win, report, wait, finish):
         numbers = {k: label.get_label() for k, (label, _v) in freed.numbers.items()}
         report(numbers == {"freed30": human(2147483648), "lifetime": human(2147483648), "last": human(2147483648)},
                f"Refresh shows what was freed: 30 days, in total, the last cleanup ({numbers})")
+        trash = {k: label.get_label() for k, label in freed.trash_lines.items()}
+        in_trash = _("{size} in the Trash").format(size=human(1073741824))
+        report(trash == {"freed30": in_trash, "lifetime": in_trash, "last": in_trash},
+               f"what the cleanups moved to the Trash is shown apart under each number ({trash})")
         days = freed.chart.days if freed.chart else []
         report(len(days) == 30 and [i for i, d in enumerate(days) if d["cleanups"]] == [28]
                and human(2147483648) in freed.chart.day_text(28) and freed.chart.day_text(0) != freed.chart.day_text(28)

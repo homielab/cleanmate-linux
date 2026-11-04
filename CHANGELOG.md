@@ -22,6 +22,9 @@ All notable changes are listed here. The format follows
 - Desktop app, Smart Scan and the cleanup pages: **Stop** ends a scan and lists what it checked so far; **Ctrl+F** searches the results by name or path; **Never Clean This** on a listed folder (old downloads, stale build folders) adds it to *Settings › Never clean*. The confirmation lists every item with *To the Trash* or *Deleted permanently* and the total of each, and after a clean a summary (space freed, Trash vs deleted, Undo, Open Trash) stays until the next scan. The results show how long the scan took.
 - `cm --scan` ends with how long the scan took and its three slowest items; `cm --json scan` gives `durationMs` for each item and for the whole scan (the same field as the macOS app).
 
+- Desktop app, **Large & Old Files**: says how many files it skipped and why, and **Search Other Drives Too** also searches the disks mounted inside the folder you picked (`cm --json large --all-drives`).
+- `cm --scan`, `--clean` and automatic cleaning exit with 1 when a task failed and 3 when only part was done (no `sudo`), so scripts can tell; `cm --json clean` reports `status`.
+
 ### Changed
 
 - Desktop app in Vietnamese: errors, task results and the low disk, scan reminder and automatic cleaning notifications are translated too (the engine sends codes the app translates); `cm` in the terminal stays in English. Opening the terminal app also works with Konsole and Xfce Terminal.
@@ -39,6 +42,10 @@ All notable changes are listed here. The format follows
 - Desktop app: the clean summary separates the space freed from what went to the Trash, and **Empty Trash…** frees it. Free space is shown for both `/` and the home partition when they differ, and System Overview measures again after a clean. `cm --json clean` adds `to_trash` and `disks` to its `done` event.
 - Desktop app, **Uninstaller**: an app that can't be removed keeps its row with the reason, and the summary says how many could not be uninstalled. A dismissed or missing password dialog says so.
 - A scan that hits its time limit no longer reports an item as clean when its check was cut short.
+- *Never clean* folders inside app caches, app logs and temporary files are kept when those are cleaned.
+- Caches stay untouched while Gradle, Android Studio or another tool using them runs, also from a snap or Flatpak.
+- System Overview: **Freed** counts only space really freed; what went to the Trash shows below it.
+- The `.deb` brings video thumbnails along, and moving to the Trash outside your home folder says when `gio` is missing.
 
 ## [2.3.0] — 2026-11-02
 

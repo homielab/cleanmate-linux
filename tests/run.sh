@@ -75,6 +75,7 @@ cm() { # run the app non-interactively inside the fake home (in English unless T
     ${CLEANMATE_MOUNTS:+CLEANMATE_MOUNTS=$CLEANMATE_MOUNTS} \
     ${CLEANMATE_SYSROOT:+CLEANMATE_SYSROOT=$CLEANMATE_SYSROOT} \
     ${CLEANMATE_PROC:+CLEANMATE_PROC=$CLEANMATE_PROC} \
+    ${CLEANMATE_TMP_DIRS:+CLEANMATE_TMP_DIRS=$CLEANMATE_TMP_DIRS} \
     ${TEST_SNAP:+SNAP=$TEST_SNAP} \
     ${container:+container=$container} bash "$SCRIPT" "$@"
 }
@@ -195,6 +196,83 @@ test_stale_app_cache_keeps_excluded_caches() {
   assert_exists "$c/google-chrome/Default/Cache/old"
 }
 
+# Never clean also holds inside the items that sweep a whole tree: a folder in ~/.cache, in an app's
+# log folder (or the app's folder itself) and in a temp folder stays as it is; the rest is cleaned.
+test_never_clean_in_app_caches_logs_and_tmp() {
+  fresh_home
+  local c=$HOME_DIR/.cache s=$HOME_DIR/.local/share t=$HOME_DIR/faketmp k keep
+  old "$c/someapp/old.bin"; old "$s/someapp/logs/old.log"; old "$t/old.tmp"
+  keep=("$c/kept/inner/old.bin" "$s/someapp/logs/kept/old.log" "$s/keptapp/logs/old.log" "$t/kept/old.tmp")
+  for k in "${keep[@]}"; do old "$k"; done
+  mkdir -p "$s/someapp/logs/kept/empty" # an empty session folder in it isn't dropped either
+  printf '%s\n' "$c/kept" "$s/someapp/logs/kept" "$s/keptapp" "$t/kept" >"$HOME_DIR/.config/cleanmate/exclude"
+  select_only app_cache app_logs tmp
+  CLEANMATE_TMP_DIRS=$t cm --clean --yes --only system,logs,user >/dev/null 2>&1 </dev/null
+  assert_missing "$c/someapp/old.bin"; assert_missing "$s/someapp/logs/old.log"; assert_missing "$t/old.tmp"
+  for k in "${keep[@]}" "$s/someapp/logs/kept/empty"; do assert_exists "$k"; done
+}
+
+# Exit codes scripts can trust: 1 when a task failed, 3 when system items were left out for want
+# of sudo, 0 when all went well; `--json clean` says the same in the "status" of its done event.
+test_exit_codes() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/exitbin r=$WORK/exitroot rc out pk
+  local st='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "task" and e["state"] != "run": print(e["state"], e.get("code", ""))
+    if e["event"] == "done": print(e["status"])'
+  mkdir -p "$bin"
+  printf '#!/bin/sh\nexit 1\n' >"$bin/npm"; chmod 755 "$bin/npm" # npm cache clean fails
+  sized "$HOME_DIR/.npm/_cacache/content-v2/x" 5000
+  select_only npm
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null; rc=$?
+  assert_eq "$rc" 1 "a failed task: exit 1"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean npm | python3 -c "$st" | tr '\n' ' ')
+  assert_eq "$out" "fail clean_failed failed " "--json: status failed"
+  rm "$bin/npm"
+  printf '#!/bin/sh\nrm -r "$HOME/.npm/_cacache"\n' >"$bin/npm"; chmod 755 "$bin/npm" # and now it works
+  sized "$HOME_DIR/.npm/_cacache/content-v2/x" 5000
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean npm | python3 -c "$st" | tr '\n' ' ')
+  assert_eq "$out" "ok freed ok " "--json: status ok"
+  sized "$HOME_DIR/.npm/_cacache/content-v2/x" 5000
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null; rc=$?
+  assert_eq "$rc" 0 "all done: exit 0"
+  assert_missing "$HOME_DIR/.npm/_cacache"
+  # a system item without sudo (the stub always says no): left alone, exit 3
+  pk=$r/var/cache/PackageKit
+  sized "$pk/downloads/a.deb" 4000
+  local CLEANMATE_SYSROOT=$r
+  select_only packagekit_cache
+  user_cm --clean --yes --only system >/dev/null 2>&1 </dev/null; rc=$?
+  assert_eq "$rc" 3 "system items skipped without sudo: exit 3"
+  assert_exists "$pk/downloads/a.deb"
+  out=$(user_cm --json clean packagekit_cache | python3 -c "$st" | tr '\n' ' ')
+  assert_eq "$out" "skip needs_root partial " "--json: status partial"
+  rm -r "$bin" "$r"
+}
+
+# Gradle runs as java: a java process whose command line is Gradle's daemon (or the wrapper) keeps
+# its caches; any other java doesn't.
+test_gradle_running_by_command_line() {
+  fresh_home
+  local proc=$WORK/gradleproc out g=$HOME_DIR/.gradle/caches
+  sized "$g/modules-2/files-2.1/x.jar" 5000
+  select_only gradle
+  proc_stub "$proc" 4242 java -Xmx2g -cp /opt/gradle/lib/gradle-launcher.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.10
+  out=$(CLEANMATE_PROC=$proc cm --clean --yes --only dev 2>&1 </dev/null)
+  assert_contains "$out" "Skipping Gradle caches: close Gradle first."
+  assert_exists "$g/modules-2/files-2.1/x.jar"
+  out=$(CLEANMATE_PROC=$proc cm --json scan --only dev | grep '"id":"gradle"')
+  assert_contains "$out" '"locked":"Gradle"'
+  proc_stub "$proc" 4242 java -Xmx2g -jar /opt/tools/app.jar # any other java
+  out=$(CLEANMATE_PROC=$proc cm --clean --yes --only dev 2>&1 </dev/null)
+  [[ $out == *"Skipping Gradle"* ]] && fail "a plain java locked Gradle: $out" || ok_ "a plain java does not lock"
+  assert_missing "$g/modules-2/files-2.1/x.jar"
+  rm -r "$proc"
+}
+
 test_trash_is_emptied_in_place() {
   fresh_home
   local t=$HOME_DIR/.local/share/Trash
@@ -227,6 +305,12 @@ running_stub() { # DIR NAME… — a pgrep that reports these programs as runnin
     echo '  done'
     echo 'done; exit 1'; } >"$d/pgrep"
   chmod 755 "$d/pgrep"
+}
+
+proc_stub() { # DIR PID ARG… — a process in a fake /proc (CLEANMATE_PROC=DIR) running this command line
+  mkdir -p "$1/$2"
+  printf '%s\0' "${@:3}" >"$1/$2/cmdline"
+  printf '%s\n' "${3##*/}" >"$1/$2/comm"
 }
 
 # A program that is running locks its items: the scan says which one, and an
@@ -1261,6 +1345,23 @@ test_json_large_files() {
   assert_eq "$out" $'video 3145728 film one.mkv\nvideo 1572864 watched.mp4\ndocument 10240 small.txt\ndone 3' "--path"
   out=$(cm --json large --min 1048576 --limit 1 | large_names)
   assert_eq "$out" $'video 3145728 film one.mkv\ndone 1' "--limit lists fewer"
+  # what was left out is counted: names JSON can't carry, files in caches/.git/Trash, disks mounted inside
+  truncate -s 2M "$v/bad"$'\x01'"name.bin" "$v/"$'\xff'".bin"
+  local d=$HOME_DIR/Disk CLEANMATE_MOUNTS=$WORK/large-mounts
+  mkdir -p "$d/films" "$HOME_DIR/Share"; truncate -s 4M "$d/films/big.mkv"
+  printf '/dev/sdb1 %s ext4 rw 0 0\nserver:/x %s nfs4 rw 0 0\n' "${d// /\\040}" "$HOME_DIR/Share" >"$CLEANMATE_MOUNTS"
+  local fields='import sys, json
+for e in map(json.loads, sys.stdin):
+    if e["event"] == "file": print(e["path"].rsplit("/", 1)[1])
+    elif e["event"] == "done": print(*(e[k] for k in ("count", "found", "hidden", "skipped", "other_drives")))'
+  out=$(cm --json large --min 1048576 | python3 -c "$fields")
+  assert_eq "$out" $'film one.mkv\nbackup.iso\nwatched.mp4\n3 3 2 3 1' \
+    "found = the files listed; 2 hidden names, 3 in caches/.git/Trash, 1 disk inside not searched"
+  out=$(cm --json large --min 1048576 --all-drives --limit 2 | python3 -c "$fields")
+  assert_eq "$out" $'big.mkv\nfilm one.mkv\n2 4 2 3 0' "--all-drives searches the disk mounted inside too"
+  out=$(cm --json large --min 0 --path "$d" | python3 -c "$fields")
+  assert_eq "$out" $'big.mkv\n1 1 0 0 0' "a disk picked itself is searched"
+  rm -r "$d" "$CLEANMATE_MOUNTS"
   out=$(cm --json large --limit 0 2>&1); assert_contains "$out" "Invalid limit: 0"
   out=$(cm --json large --min 5M 2>&1); assert_contains "$out" "Invalid size: 5M"
   out=$(cm --json large --path "$HOME_DIR/nope" 2>&1); assert_contains "$out" "Not a folder"
@@ -1399,6 +1500,17 @@ print(json.dumps(done["disks"]))'
   assert_eq "$out" $'True True 3000 3000\n[{"mount": "/", "before": 1000, "after": 1000}, {"mount": "/mnt/my home", "before": 2000, "after": 2000}]' \
     "done splits what went to the Trash from what was deleted, and lists / and /home apart"
   assert_missing "$dl/a.deb"; assert_missing "$dl/report.pdf"; assert_missing "$thumb"
+  # the history keeps the two apart: freed is what left the disk (the thumbnails), the rest is in the Trash
+  assert_eq "$(tail -n 1 "$HOME_DIR/.local/state/cleanmate/cleanups.tsv" | cut -f2-)" $'500\t3000' "history: freed, to the Trash"
+  out=$(user_cm --json overview | python3 -c 'import sys, json
+for e in map(json.loads, sys.stdin):
+    if e["event"] == "freed": print(e["bytes"], e["trash_bytes"], e["lifetime"], e["lifetime_trash"], e["last_bytes"], e["last_trash"])')
+  assert_eq "$out" "500 3000 500 3000 500 3000" "overview: freed apart from what is in the Trash"
+  sized "$dl/b.deb" 1000; touch -d "40 days ago" "$dl/b.deb"; sized "$thumb" 500 # the same from the command line
+  select_only old_installers thumbs
+  user_cm --clean --yes --only system,user >/dev/null 2>&1 </dev/null
+  assert_missing "$dl/b.deb"
+  assert_eq "$(tail -n 1 "$HOME_DIR/.local/state/cleanmate/cleanups.tsv" | cut -f2-)" $'500\t1000' "cm --clean: freed, to the Trash"
   # one filesystem: one line
   printf '#!/bin/sh\necho "     Avail Mounted on"\nfor a; do case $a in -*) ;; *) echo " 1000 /" ;; esac; done\n' \
     >"$HOME_DIR/.local/bin/df"
@@ -2823,6 +2935,7 @@ done true false" "every setting with its range and default; bad values fall back
   assert_contains "$out" "schedule weekly"
   assert_contains "$(cat "$u/cleanmate.timer")" "OnCalendar=weekly"
   assert_contains "$(cat "$u/cleanmate.service")" "--auto"
+  assert_contains "$(cat "$u/cleanmate.service")" "SuccessExitStatus=3" # partly done (no sudo) isn't a failed unit
   assert_contains "$(cat "$HOME_DIR/systemctl.log")" $'--user daemon-reload\n--user enable --now cleanmate.timer'
   assert_contains "$(user_cm --json settings | settings_list)" "schedule weekly"
   out=$(user_cm --json settings-set schedule off | settings_list)
@@ -2878,6 +2991,9 @@ test_timer_runs_a_stable_path() {
   TEST_SNAP=/snap/cleanmate/x7 as_copy "$self" --json check >/dev/null
   assert_eq "$(unit cleanmate.service)" 'ExecStart="/snap/bin/cleanmate" --auto' "an old revision's timer is repointed"
   assert_contains "$(cat "$u/cleanmate.timer")" "OnCalendar=daily"
+  sed -i '/^SuccessExitStatus=/d' "$u/cleanmate.service" # written by an older version
+  TEST_SNAP=/snap/cleanmate/x7 as_copy "$self" --json check >/dev/null
+  assert_contains "$(cat "$u/cleanmate.service")" "SuccessExitStatus=3"
   assert_eq "$(unit cleanmate-check.service)" 'ExecStart="/snap/bin/cleanmate" --check' "the daily check too"
   # a clone in your home, not installed: the timer runs it, and you're told to install the launcher
   out=$(as_copy "$clone/cleanmate.sh" --json settings-set schedule weekly)
@@ -4370,11 +4486,13 @@ test_build_tool_caches() {
     assert_contains "$out" "$n"
   done
   # deno and a Bazel server (a java process) run; a file open in a folder keeps that folder
-  running_stub "$bin" deno "_bazel_$(id -un)"
+  running_stub "$bin" deno
+  proc_stub "$WORK/bazelproc" 4243 java -jar "$c/bazel/_bazel_$(id -un)/install/A-server.jar" "--output_base=$c/bazel/_bazel_$(id -un)/abc123"
   sleep 60 3>>"$c/zig/o/x" & holder=$!
   sleep 60 3>>"$c/pre-commit/repoabc/hook" & holder2=$!
   select_only deno_cache zig_cache bazel_cache ccache_cache sccache_cache nuget_cache poetry_cache precommit_cache pipx_cache
-  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  CLEANMATE_PROC=$WORK/bazelproc BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  rm -r "$WORK/bazelproc"
   assert_exists "$c/deno/remote/https/a"; assert_exists "$c/bazel/_bazel_$(id -un)/cache/repos/r"
   assert_exists "$c/zig/o/x"; assert_exists "$c/pre-commit/repoabc/hook"; assert_missing "$c/zig/z/y"
   kill "$holder" "$holder2" 2>/dev/null; wait "$holder" "$holder2" 2>/dev/null
@@ -4795,9 +4913,19 @@ $ec22 $bc22 off CMake 3.22.1 · 0 days old" "one entry per old version, the pinn
   user_cm --auto >/dev/null 2>&1 </dev/null
   assert_exists "$s/ndk/27.1/libc.so"
   # Android Studio, Gradle or the emulator running: locked and skipped
-  running_stub "$bin" "org.gradle.launcher.daemon.bootstrap.GradleDaemon"
-  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan --only dev | grep '"id":"android_sdk_old"' | python3 -c "$list")
+  proc_stub "$WORK/sdkproc" 4242 java -Xmx2g org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.10
+  out=$(CLEANMATE_PROC=$WORK/sdkproc cm --json scan --only dev | grep '"id":"android_sdk_old"' | python3 -c "$list")
   assert_contains "$out" "'Gradle'"
+  proc_stub "$WORK/sdkproc" 4242 java -Xmx2g com.intellij.idea.Main # the Snap: by its program file
+  ln -s /snap/android-studio/161/jbr/bin/java "$WORK/sdkproc/4242/exe"
+  out=$(CLEANMATE_PROC=$WORK/sdkproc cm --json scan --only dev | grep '"id":"android_sdk_old"' | python3 -c "$list")
+  assert_contains "$out" "'Android Studio'"
+  rm "$WORK/sdkproc/4242/exe"
+  proc_stub "$WORK/sdkproc" 4242 /app/extra/android-studio/jbr/bin/java -Xmx2g com.intellij.idea.Main # the Flatpak: by its cgroup
+  printf '0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-flatpak-com.google.AndroidStudio-4240.scope\n' >"$WORK/sdkproc/4242/cgroup"
+  out=$(CLEANMATE_PROC=$WORK/sdkproc cm --json scan --only dev | grep '"id":"android_sdk_old"' | python3 -c "$list")
+  assert_contains "$out" "'Android Studio'"
+  rm -r "$WORK/sdkproc"
   running_stub "$bin" emulator
   out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean android_sdk_old --entries "$e27" 2>&1)
   assert_contains "$out" '"id":"android_sdk_old","state":"skip"'
@@ -5900,10 +6028,14 @@ for e in map(json.loads, sys.stdin):
   assert_eq "$out" "freed 1000 1 6000 2 1000 True" "freed in 30 days counts only the recent cleanup"
   out=$(cm --json overview | python3 -c "$ev" | grep last_scan)
   assert_eq "$out" "last_scan $(sed -n 's/^last_time=//p' "$state/stats")" "last_scan: the last cleanup, for System Overview's Smart Scan row"
-  out=$(in_app 'load_kv "$STATS_FILE" STATS "^[0-9]+$"; record_cleanup 2048; tail -n 1 "$CLEANUP_HISTORY"')
-  assert_contains "$out" $'\t2048'
+  out=$(in_app 'load_kv "$STATS_FILE" STATS "^[0-9]+$"; record_cleanup 2048 500; tail -n 1 "$CLEANUP_HISTORY"')
+  assert_contains "$out" $'\t2048\t500'
   out=$(cm --json overview | python3 -c "$ev" | grep freed)
-  assert_eq "$out" "freed 3048 2 8048 3 2048 True" "a cleanup is added to the history"
+  assert_eq "$out" "freed 3048 2 8048 3 2048 True" "a cleanup is added to the history; old rows count as freed"
+  out=$(cm --json overview | python3 -c 'import sys, json
+for e in map(json.loads, sys.stdin):
+    if e["event"] == "freed": print(e["trash_bytes"], e["lifetime_trash"], e["last_trash"])')
+  assert_eq "$out" "500 500 500" "what went to the Trash is counted apart"
   # freed per calendar day for the chart: 30 days up to today, 0 on a day without a cleanup
   local by_day='import sys, json
 for l in sys.stdin:

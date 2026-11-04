@@ -102,7 +102,7 @@ Architecture: all
 Maintainer: $MAINTAINER
 Installed-Size: $installed_kb
 Depends: bash (>= 5), coreutils, findutils, gawk | mawk, python3, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1 (>= 1.5), pkexec | policykit-1
-Recommends: curl | wget, libglib2.0-bin, libnotify-bin, desktop-file-utils, sqlite3
+Recommends: curl | wget, libglib2.0-bin, libnotify-bin, desktop-file-utils, sqlite3, gir1.2-gstreamer-1.0
 Section: admin
 Priority: optional
 Homepage: https://github.com/homielab/cleanmate-linux

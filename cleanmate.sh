@@ -965,8 +965,10 @@ volume_trash_put() { # PATH (normalised) TOP → moved to the drive's Trash; 1 i
   trash_into "$p" "$dir" "$dir/files/" "${p#"$top"/}"
 }
 
+TRASH_CODE="" # why move_to_trash failed, for --json: needs_gio, or empty
 move_to_trash() { # PATH — never deletes permanently
   local p=$1 np top
+  TRASH_CODE=""
   [[ $p == /* ]] || p=$PWD/$p
   if is_protected "$p"; then err "Refusing to touch protected path: $p"; return 1; fi
   if ((${#EXCLUDES[@]})) && touches_exclusion "$(realpath -m -s -- "$p")"; then
@@ -976,7 +978,7 @@ move_to_trash() { # PATH — never deletes permanently
   np=$(realpath -m -s -- "$p")
   if volume_top top "$np" && volume_trash_put "$np" "$top"; then return 0; fi
   if have gio; then run gio trash -- "$p" && sizes_forget "$np"
-  else err "Can't move $p to the Trash (it's outside your home folder and gio is missing)"; return 1; fi
+  else TRASH_CODE=needs_gio; err "Can't move $p to the Trash (it's outside your home folder and gio is missing)"; return 1; fi
 }
 
 undo_trash() { # put the last batch back → UNDO_OK, UNDO_FAILED
@@ -1132,20 +1134,22 @@ why old_logs          delete      "/var/log" "Logs still being written: only rot
 why big_logs          delete      "/var/log" "Logs under %LOG_MAX_MB% MB"
 ITEM_AFTER[big_logs]="Emptied in place: the service keeps writing to the same file"
 why app_logs          delete      "The log folders of apps in ~/.config, ~/.local/share, ~/snap and ~/.var/app" \
-  "Logs written in the last %APPLOG_DAYS% days"
+  "Logs written in the last %APPLOG_DAYS% days" "Files in a folder in Settings › Never clean"
 why crash             delete      "/var/crash"
 why coredump          delete      "/var/lib/systemd/coredump"
 why snap_old          delete      "/var/lib/snapd/snaps" "The version of each snap that runs now"
 ITEM_AFTER[snap_old]="The snap can no longer go back to these versions"
 why old_kernels       delete      "/boot" "The kernel that runs now and your two newest kernels"
 why tmp               delete      "/tmp
-/var/tmp" "Files used in the last %TMP_DAYS% days" "Files of other users"
+/var/tmp" "Files used in the last %TMP_DAYS% days" "Files of other users" \
+  "Files in a folder in Settings › Never clean"
 why thumbs            regenerated "~/.cache/thumbnails"
 why trash             delete      "@TRASH_DIR"
 ITEM_AFTER[trash]="Emptying the Trash can't be undone"
 why trash_drives      delete      "The Trash folder of each USB stick or other drive you plugged in"
 ITEM_AFTER[trash_drives]="Emptying a Trash can't be undone"
-why app_cache         regenerated "~/.cache" "Files changed or read in the last %CACHE_DAYS% days"
+why app_cache         regenerated "~/.cache" "Files changed or read in the last %CACHE_DAYS% days" \
+  "Files in a folder in Settings › Never clean"
 why node_modules      regenerated "node_modules folders of your projects" "Projects changed in the last %NM_DAYS% days" \
   "Projects in a folder in Settings › Never clean"
 why stale_build_dirs  trash       "Build folders next to the project file that makes them" \
@@ -1384,24 +1388,27 @@ clean_big_logs() {
 }
 details_big_logs() { big_logs_find -printf '%s\t%p\n' | detail_files 30; }
 
-app_log_dirs() { # per-app log folders
+app_log_dirs() { # per-app log folders, not in a Never clean folder
   local d
   for d in "${XDG_CONFIG_HOME:-$HOME/.config}"/*/{logs,log} "${XDG_DATA_HOME:-$HOME/.local/share}"/*/{logs,log} \
     "$HOME"/snap/*/*/.config/*/logs "$HOME"/.var/app/*/config/*/logs; do
-    [[ -d $d && ! -L $d ]] && printf '%s\n' "$d"
+    [[ -d $d && ! -L $d ]] || continue
+    ((${#EXCLUDES[@]})) && in_exclusion "$(realpath -m -s -- "$d")" && continue
+    printf '%s\n' "$d"
   done
 }
-app_logs_find() { # log files not written for APPLOG_DAYS (current logs stay)
+app_logs_find() { # log files not written for APPLOG_DAYS (current logs stay), outside Never clean folders
   local dirs
   mapfile -t dirs < <(app_log_dirs)
   ((${#dirs[@]})) || return 0
-  find "${dirs[@]}" -type f -mtime +"$APPLOG_DAYS" "$@" 2>/dev/null
+  exclusion_not
+  find "${dirs[@]}" -type f "${XNOT[@]}" -mtime +"$APPLOG_DAYS" "$@" 2>/dev/null
 }
 scan_app_logs() {
   local n dirs
   mapfile -t dirs < <(app_log_dirs)
   ((${#dirs[@]})) || return 1
-  read -r n SCAN_BYTES < <(find "${dirs[@]}" -type f -mtime +"$APPLOG_DAYS" -printf '%s\n' 2>/dev/null | count_sum)
+  read -r n SCAN_BYTES < <(app_logs_find -printf '%s\n' | count_sum)
   SCAN_NOTE="$(plural "$n" file) in $(plural ${#dirs[@]} app)"
   ((n > 0)) || return 2
 }
@@ -1411,7 +1418,8 @@ clean_app_logs() {
   log "app_logs_find -delete"
   app_logs_find -delete
   mapfile -t dirs < <(app_log_dirs) # drop the session folders that are now empty
-  ((${#dirs[@]})) && find "${dirs[@]}" -mindepth 1 -type d -empty -delete 2>/dev/null
+  exclusion_not
+  ((${#dirs[@]})) && find "${dirs[@]}" -mindepth 1 -type d "${XNOT[@]}" -empty -delete 2>/dev/null
   return 0
 }
 details_app_logs() { # grouped per app
@@ -1505,8 +1513,13 @@ details_old_kernels() {
   return 0
 }
 
-# Untouched (neither modified nor read) for 10+ days and owned by you.
-tmp_find() { find /tmp /var/tmp -xdev -mindepth 1 -user "$EUID" -type f -mtime +"$TMP_DAYS" -atime +"$TMP_DAYS" "$@" 2>/dev/null; }
+# Untouched (neither modified nor read) for 10+ days and owned by you; never in a Never clean folder
+# (a home folder under /tmp).
+IFS=: read -ra TMP_DIRS <<<"${CLEANMATE_TMP_DIRS:-/tmp:/var/tmp}" # tests: fake temp folders
+tmp_find() {
+  exclusion_not
+  find "${TMP_DIRS[@]}" -xdev -mindepth 1 -user "$EUID" -type f "${XNOT[@]}" -mtime +"$TMP_DAYS" -atime +"$TMP_DAYS" "$@" 2>/dev/null
+}
 scan_tmp() {
   local n
   read -r n SCAN_BYTES < <(tmp_find -printf '%s\n' | count_sum)
@@ -1514,7 +1527,7 @@ scan_tmp() {
   ((n > 0)) || return 2
 }
 clean_tmp() {
-  if ((DRY_RUN)); then run find /tmp /var/tmp -xdev -mindepth 1 -user "$EUID" -type f -mtime +"$TMP_DAYS" -atime +"$TMP_DAYS" -delete
+  if ((DRY_RUN)); then run find "${TMP_DIRS[@]}" -xdev -mindepth 1 -user "$EUID" -type f -mtime +"$TMP_DAYS" -atime +"$TMP_DAYS" -delete
   else log "tmp_find -delete"; tmp_find -delete || true; fi # other users' folders in /tmp are unreadable: expected
 }
 details_tmp() { tmp_find -printf '%s\t%p\n' | detail_files 30; }
@@ -2369,6 +2382,21 @@ running_proc() { # PGREP_ARGS… PATTERN → name of the first matching process;
   printf '%s\n' "${name:-${!#}}"
 }
 
+# Programs that run as java (Gradle, the IDEs, sdkmanager, Bazel) or from a snap or a Flatpak all
+# look alike by name: their command line, program file or cgroup says which they are.
+proc_match() { # ERE → name of the first process with one argument of its command line, its program
+  # (/proc/PID/exe) or its cgroup (snap.NAME.…, app-flatpak-APP-…) matching ERE; fails when none runs.
+  # grep reads the pattern from a file, so its own command line never matches.
+  local f n
+  f=$({
+    grep -lszE -f <(printf '%s\n' "$1") -- "$PROC_DIR"/[0-9]*/cmdline "$PROC_DIR"/[0-9]*/cgroup
+    find "$PROC_DIR"/[0-9]*/exe -maxdepth 0 -printf '%l\t%p\n' | grep -E -f <(printf '%s\n' "$1") | cut -f2
+  } 2>/dev/null | head -n 1)
+  [[ -n $f ]] || return 1
+  n=$(head -c 64 "${f%/*}/comm" 2>/dev/null)
+  printf '%s\n' "${n:-java}"
+}
+
 # lockedby_ID (made by the generators below) prints the running program that
 # makes the item skip when cleaning unattended (--yes, the desktop app); a scan
 # reports it as the item's lock.
@@ -2382,7 +2410,7 @@ cache_item_precheck() { # ask (or skip when unattended) if the program is runnin
 
 lockedby_cache_item() {
   running_proc -xi "${ITEM_PROCS[$1]}" ||
-    { [[ -n ${ITEM_ARGS[$1]:-} ]] && running_proc -f "${ITEM_ARGS[$1]}"; }
+    { [[ -n ${ITEM_ARGS[$1]:-} ]] && proc_match "${ITEM_ARGS[$1]}"; }
 }
 
 reg_cache_item() { # ID CATEGORY LABEL DEFAULT DESCRIPTION PATHS [PROCESS_REGEX]
@@ -3256,7 +3284,8 @@ app_cache_find() {
     winetricks wine lutris/banners lutris/coverart lutris/installer lutris/installers lutris/tmp) skip=() e # AI models, old IDE versions, Unity's and Spotify's caches are items of their own
   for e in "${ex[@]}"; do skip+=(-path "$HOME/.cache/$e/*" -o); done
   unset 'skip[-1]'
-  find "$HOME/.cache" -type f -not \( "${skip[@]}" \) -mtime +"$CACHE_DAYS" -atime +"$CACHE_DAYS" "$@" 2>/dev/null
+  exclusion_not # a Never clean folder inside ~/.cache stays as it is
+  find "$HOME/.cache" -type f -not \( "${skip[@]}" \) "${XNOT[@]}" -mtime +"$CACHE_DAYS" -atime +"$CACHE_DAYS" "$@" 2>/dev/null
 }
 scan_app_cache() {
   [[ -d $HOME/.cache ]] || return 1
@@ -3700,6 +3729,21 @@ clean_cargo() { local p; for p in "${CARGO_PATHS[@]}"; do empty_dir "$p"; done; 
 details_cargo() { detail_paths "${CARGO_PATHS[@]}"; }
 
 GRADLE_PATHS=("$HOME/.gradle/caches")
+ITEM_RUNNING[gradle]="Gradle"
+# Gradle runs as java (its daemon, the wrapper, the gradle command): its main class tells it apart
+gradle_running() { # → "Gradle" while a build or a daemon runs; fails when none
+  running_proc -x 'gradle|gradlew|GradleDaemon' >/dev/null ||
+    proc_match 'org\.gradle\.launcher\.daemon\.bootstrap\.GradleDaemon|org\.gradle\.wrapper\.GradleWrapperMain|org\.gradle\.launcher\.GradleMain' >/dev/null ||
+    return 1
+  echo "Gradle"
+}
+lockedby_gradle() { gradle_running; }
+precheck_gradle() { # a daemon holds its caches open: emptying them breaks the next build
+  local p
+  p=$(lockedby_gradle) || return 0
+  warn "Skipping ${ITEM_LABEL[gradle]}: close $p first."
+  return 1
+}
 scan_gradle() { dev_scan "~/.gradle/caches" "${GRADLE_PATHS[@]}"; }
 clean_gradle() { empty_dir "${GRADLE_PATHS[0]}"; }
 details_gradle() { detail_paths "${GRADLE_PATHS[@]}"; }
@@ -5271,11 +5315,14 @@ android_images() { # → AI_DIR / AI_BYTES / AI_LABEL of images no AVD uses, big
   done < <(printf '%s\n' "${lines[@]}" | sort -t $'\t' -k1,1nr)
 }
 
+# Android Studio as java: started by studio.sh, the Snap's program (/snap/android-studio/…) or its
+# cgroup, the Flatpak's cgroup (app-flatpak-com.google.AndroidStudio-…)
+ANDROID_STUDIO_RE='idea\.platform\.prefix=AndroidStudio|^/snap/android-studio/|snap\.android-studio\.|com\.google\.AndroidStudio'
 lockedby_android_images() { # Android Studio, the emulator, sdkmanager or avdmanager
   running_proc -x 'studio|android-studio|studio\.sh|emulator|emulator64-.*|qemu-system-.*|sdkmanager|avdmanager' && return
   # started by studio.sh, sdkmanager and avdmanager they run as java
-  if running_proc -f 'idea\.platform\.prefix=AndroidStudio' >/dev/null; then echo "Android Studio"
-  elif running_proc -f 'com\.android\.sdklib\.tool\.(sdkmanager\.SdkManagerCli|AvdManagerCli)' >/dev/null; then echo "sdkmanager"
+  if proc_match "$ANDROID_STUDIO_RE" >/dev/null; then echo "Android Studio"
+  elif proc_match 'com\.android\.sdklib\.tool\.(sdkmanager\.SdkManagerCli|AvdManagerCli)' >/dev/null; then echo "sdkmanager"
   else return 1; fi
 }
 precheck_android_images() { # deleting an image the SDK Manager or the emulator works on would break it
@@ -5460,12 +5507,9 @@ android_sdk_old() { # → SO_DIR / SO_BYTES / SO_LABEL of the old versions, bigg
 
 lockedby_android_sdk_old() { # Android Studio, Gradle or the emulator
   running_proc -x 'studio|android-studio|studio\.sh|gradle|gradlew|GradleDaemon|emulator|emulator64-.*|qemu-system-.*' && return
-  # Android Studio and Gradle run as java; the Snap and Flatpak builds carry their name in the command line
-  if running_proc -f 'idea\.platform\.prefix=AndroidStudio|/snap/android-studio/|com\.google\.AndroidStudio' >/dev/null; then
-    echo "Android Studio"
-  elif running_proc -f 'org\.gradle\.launcher\.daemon\.bootstrap\.GradleDaemon|org\.gradle\.wrapper\.GradleWrapperMain|org\.gradle\.launcher\.GradleMain' >/dev/null; then
-    echo "Gradle"
-  else return 1; fi
+  # Android Studio and Gradle run as java
+  if proc_match "$ANDROID_STUDIO_RE" >/dev/null; then echo "Android Studio"
+  else gradle_running; fi
 }
 precheck_android_sdk_old() { # a build or the SDK Manager may be using the version
   local p
@@ -5863,7 +5907,7 @@ ide_roots() { # → lines "where<TAB>config<TAB>data<TAB>cache" (where: - for yo
 
 ide_running() { # PRODUCT → the running program of that IDE (its launcher, or java started by <ide>.sh); fails when none
   running_proc -x "(${IDE_PROCS[$1]:-${1,,}})(\.sh)?" && return
-  running_proc -f "idea\.paths\.selector=$1[0-9]" >/dev/null && printf '%s\n' "${IDE_NAMES[$1]:-$1}"
+  proc_match "idea\.paths\.selector=$1[0-9]" >/dev/null && printf '%s\n' "${IDE_NAMES[$1]:-$1}"
 }
 
 version_newer() { [[ $1 != "$2" && $(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1) == "$1" ]]; } # A B → A is newer
@@ -6677,7 +6721,10 @@ FLATPAK_BLIND_NOTE="close it first: the Flatpak can't see if it's open"
 
 PREF_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/cleanmate/selection"
 STATS_FILE="$LOG_DIR/stats"
-CLEANUP_HISTORY="$LOG_DIR/cleanups.tsv" # epoch<TAB>bytes freed, one row per cleanup (last 1000)
+# epoch<TAB>bytes freed<TAB>bytes moved to the Trash, one row per cleanup (last 1000). Freed is off the disk:
+# what went to the Trash is still on it until the Trash is emptied. Rows without the third column (older
+# versions) count as freed.
+CLEANUP_HISTORY="$LOG_DIR/cleanups.tsv"
 declare -A PREF=() STATS=()
 
 load_kv() { # FILE ASSOC_NAME VALUE_REGEX
@@ -6695,16 +6742,18 @@ save_prefs() {
   for k in "${!PREF[@]}"; do printf '%s=%s\n' "$k" "${PREF[$k]}"; done | sort >"$PREF_FILE"
 }
 
-record_cleanup() { # BYTES_FREED
+record_cleanup() { # BYTES_FREED [BYTES_TO_TRASH] — freed: off the disk; to the Trash: still on it
   ((DRY_RUN)) && return
+  local trashed=${2:-0}
   STATS[lifetime]=$((${STATS[lifetime]:-0} + $1))
+  STATS[lifetime_trash]=$((${STATS[lifetime_trash]:-0} + trashed))
   STATS[runs]=$((${STATS[runs]:-0} + 1))
   STATS[last_time]=$EPOCHSECONDS
-  STATS[last_freed]=$1
+  STATS[last_freed]=$1 STATS[last_trash]=$trashed
   mkdir -p "$LOG_DIR" || return
   local k
-  for k in lifetime runs last_time last_freed; do printf '%s=%s\n' "$k" "${STATS[$k]}"; done >"$STATS_FILE"
-  { [[ -f $CLEANUP_HISTORY ]] && tail -n 999 "$CLEANUP_HISTORY"; printf '%s\t%s\n' "$EPOCHSECONDS" "$1"; } \
+  for k in lifetime lifetime_trash runs last_time last_freed last_trash; do printf '%s=%s\n' "$k" "${STATS[$k]}"; done >"$STATS_FILE"
+  { [[ -f $CLEANUP_HISTORY ]] && tail -n 999 "$CLEANUP_HISTORY"; printf '%s\t%s\t%s\n' "$EPOCHSECONDS" "$1" "$trashed"; } \
     >"$CLEANUP_HISTORY.tmp" 2>/dev/null && mv -f "$CLEANUP_HISTORY.tmp" "$CLEANUP_HISTORY"
   if [[ -f $LOG_FILE ]] && (($(wc -l <"$LOG_FILE") > 2000)); then # keep our own log small
     tail -n 1000 "$LOG_FILE" >"$LOG_FILE.tmp" && mv -f "$LOG_FILE.tmp" "$LOG_FILE"
@@ -7361,9 +7410,9 @@ show_details() { # ID
 # with its output captured, then <fn>_post ARG RC IDX OUTFILE may set T_INFO.
 
 declare -a T_LABEL=() T_FN=() T_ARG=() T_STATE=() T_INFO=() T_CODE=() T_CARGS=()
-RUN_KIND=other RUN_FREED=0 T_CUR=-1
+RUN_KIND=other RUN_FREED=0 RUN_TRASHED=0 T_CUR=-1 # RUN_TRASHED: the part of RUN_FREED moved to the Trash
 
-new_tasks() { T_LABEL=() T_FN=() T_ARG=() RUN_FREED=0 RUN_KIND=${1:-other}; }
+new_tasks() { T_LABEL=() T_FN=() T_ARG=() RUN_FREED=0 RUN_TRASHED=0 RUN_KIND=${1:-other}; }
 add_task() { T_LABEL+=("$1") T_FN+=("$2") T_ARG+=("${3:-}"); }
 
 draw_runner() { # TITLE OUTFILE
@@ -7527,8 +7576,8 @@ task_clean() { # clean, then re-measure so the parent can compute what was freed
 }
 
 task_clean_post() { # ID RC IDX OUTFILE
-  local id=$1 i=$3 before=${RES_BYTES[$1]} freed src bytes note line
-  while IFS= read -r line; do CLEAN_UNDO+=("${line#@@undo$'\t'}"); done < <(grep '^@@undo' "$4") # what went to the Trash
+  local id=$1 i=$3 before=${RES_BYTES[$1]} freed src bytes note line trashed=0
+  while IFS= read -r line; do CLEAN_UNDO+=("${line#@@undo$'\t'}"); trashed=1; done < <(grep '^@@undo' "$4") # what went to the Trash
   (($2 == 0)) || return 0
   if [[ ${ITEM_CAT[$id]} == privacy ]]; then
     T_INFO[i]=$( ((DRY_RUN)) && echo "would be cleared" || echo "cleared")
@@ -7549,6 +7598,7 @@ task_clean_post() { # ID RC IDX OUTFILE
     ((freed == 0 && before == 0)) && T_INFO[i]="cleaned"
   fi
   RUN_FREED=$((RUN_FREED + freed))
+  if ((trashed)) || { ((DRY_RUN)) && [[ -n ${ITEM_TRASH[$id]:-} ]]; }; then RUN_TRASHED=$((RUN_TRASHED + freed)); fi
 }
 
 start_cleanup() { # cleans the selected SCANNED items; returns 1 if nothing ran
@@ -7580,6 +7630,7 @@ start_cleanup() { # cleans the selected SCANNED items; returns 1 if nothing ran
     for id in "${ids[@]}"; do [[ -n ${ITEM_ROOT[$id]} ]] || keep+=("$id"); done
     ids=("${keep[@]}")
     toast "${YELLOW}!${NC} No sudo — system items were skipped."
+    RUN_NO_SUDO=1
     ((${#ids[@]})) || return 1
   fi
 
@@ -7588,15 +7639,25 @@ start_cleanup() { # cleans the selected SCANNED items; returns 1 if nothing ran
   RUN_AVAIL0=$(fs_avail)
   CLEAN_UNDO=()
   run_tasks "Cleaning"
+  run_counts; ((RC_FAIL)) && RUN_FAILED=1
   ((${#CLEAN_UNDO[@]})) && UNDO_BATCH=("${CLEAN_UNDO[@]}") # z on the home screen puts them back
   RUN_AVAIL1=$(fs_avail)
   save_scan_cache
   record_disk_usage
-  ((DRY_RUN)) || record_cleanup "$RUN_FREED"
+  ((DRY_RUN)) || record_cleanup "$((RUN_FREED - RUN_TRASHED))" "$RUN_TRASHED"
   log "Cleanup finished — $(human "$RUN_FREED") freed (dry-run=$DRY_RUN)"
   refresh_sysinfo
   show_run_results "Cleanup complete"
   return 0
+}
+
+RUN_FAILED=0 RUN_NO_SUDO=0 # this run: a task failed; system items were left out for want of sudo
+run_exit() { # exit with the code scripts read: 1 a task failed, 3 partly done (no sudo, or a scan timed out), 0 all done
+  local c=0 id
+  for id in "${SCANNED[@]}"; do ((RES_RC[$id] == 3)) && c=3; done
+  ((RUN_NO_SUDO)) && c=3
+  ((RUN_FAILED)) && c=1
+  exit "$c"
 }
 
 scan_report() { # --scan
@@ -10192,14 +10253,29 @@ touches_exclusion() { # PATH (absolute, tidied) — in an excluded folder, or ho
   return 1
 }
 
+find_glob() { # VAR PATH → VAR = PATH as a find -path pattern that matches only that path
+  local -n __fg=$1
+  __fg=${2//\\/\\\\} __fg=${__fg//\*/\\*} __fg=${__fg//\?/\\?} __fg=${__fg//\[/\\[}
+}
+
 exclusion_prune() { # → XPRUNE: find tests that skip your excluded folders, "( -path A -o … ) -prune -o"; empty without any
   local e g
   XPRUNE=()
   for e in "${EXCLUDES[@]}"; do
-    g=${e//\\/\\\\} g=${g//\*/\\*} g=${g//\?/\\?} g=${g//\[/\\[} # the path itself, not a pattern
+    find_glob g "$e" # the path itself, not a pattern
     XPRUNE+=(-o -path "$g")
   done
   ((${#XPRUNE[@]} == 0)) || XPRUNE=(\( "${XPRUNE[@]:1}" \) -prune -o)
+}
+
+exclusion_not() { # → XNOT: find tests that leave out your excluded folders and all in them; for a find that
+  # deletes (-delete implies -depth, which disables -prune); empty without any
+  local e g
+  XNOT=()
+  for e in "${EXCLUDES[@]}"; do
+    g=${e//\\/\\\\} g=${g//\*/\\*} g=${g//\?/\\?} g=${g//\[/\\[} # the path itself, not a pattern
+    XNOT+=(-not -path "$g" -not -path "$g/*")
+  done
 }
 
 outside_exclusions() { # VAR START… → VAR = the starting folders (tidied) that aren't in an excluded folder
@@ -10260,6 +10336,7 @@ Description=CleanMate — automatic Smart Clean
 [Service]
 Type=oneshot
 ExecStart="$2" --auto
+SuccessExitStatus=3
 Nice=19
 IOSchedulingClass=idle
 EOF
@@ -10277,11 +10354,12 @@ WantedBy=timers.target
 EOF
 }
 
-schedule_repoint() { # a packaged copy's cleaning timer that runs another path (an old snap revision): point it here
+schedule_repoint() { # a packaged copy's cleaning timer that runs another path (an old snap revision), or a service
+  # written before exit code 3 (partly done) counted as success: write it again
   local exe sched s=$SYSTEMD_USER_DIR/cleanmate.service
   [[ -f $s ]] && packaged && user_timers && ((!DRY_RUN && EUID != 0)) || return 0
   timer_exev exe
-  grep -qxF "ExecStart=\"$exe\" --auto" "$s" 2>/dev/null && return 0
+  grep -qxF "ExecStart=\"$exe\" --auto" "$s" 2>/dev/null && grep -qxF SuccessExitStatus=3 "$s" && return 0
   sched=$(schedule_get); [[ $sched != off ]] || return 0
   schedule_units "$sched" "$exe" && systemctl --user daemon-reload 2>/dev/null
   return 0
@@ -11221,7 +11299,7 @@ json_allowed() { # ID UID
 
 json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or these entries of one), streaming "task" events
   local id ids=() out rc before freed total=0 avail0 avail1 src bytes note info code entries="" e key keys trashed=""
-  local to_trash=0 disks0 disks1 disks="" mount free was
+  local to_trash=0 disks0 disks1 disks="" mount free was status=ok
   local -a ENTRY_PICK=()
   while (($#)); do
     case $1 in
@@ -11250,6 +11328,11 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
     if declare -F "precheck_$id" >/dev/null && ! "precheck_$id" >/dev/null 2>&1; then
       json_task "$id" skip app_running "Skipped: the app is running — close it and try again"; continue
     fi
+    if [[ -n ${ITEM_ROOT[$id]:-} ]] && ((EUID != 0 && !DRY_RUN)) && ! sudo -n true 2>/dev/null; then
+      json_task "$id" skip needs_root "Skipped: needs administrator rights"
+      [[ $status == ok ]] && status=partial
+      continue
+    fi
     out=$(mktemp -p "$SESSION_TMP")
     if ((${#ENTRY_PICK[@]})); then
       json_clean_entries "$id" >"$out" 2>&1 </dev/null; rc=$?
@@ -11267,6 +11350,7 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
       info=$(grep -v '^@@' "$out" | grep -v '^\s*$' | tail -n 1)
       json_task "$id" fail clean_failed "${info:-failed (exit $rc)}" 0 detail "${info:-exit $rc}"
       log "json clean $id failed: $info"
+      status=failed
       continue
     fi
     if [[ ${ITEM_CAT[$id]} == privacy ]]; then
@@ -11292,10 +11376,11 @@ json_clean() { # ID… | ID --entries E1,E2… — clean exactly these items (or
     json_str mount "$mount"
     disks+=${disks:+,}$(printf '{"mount":%s,"before":%d,"after":%d}' "$mount" "${was:-$free}" "$free")
   done <<<"$disks1"
-  ((DRY_RUN)) || record_cleanup "$total"
+  ((DRY_RUN)) || record_cleanup "$((total - to_trash))" "$to_trash"
   log "GUI cleanup finished — $(human "$total") freed, $(human "$to_trash") of it in the Trash (dry-run=$DRY_RUN)"
-  printf '{"event":"done","freed":%d,"to_trash":%d,"avail_before":%d,"avail_after":%d,"disks":[%s],"trash":{%s}}\n' \
-    "$total" "$to_trash" "$avail0" "$avail1" "$disks" "$trashed"
+  # status: ok, partial (system items skipped without sudo) or failed (a task failed), like the exit code of --clean
+  printf '{"event":"done","status":"%s","freed":%d,"to_trash":%d,"avail_before":%d,"avail_after":%d,"disks":[%s],"trash":{%s}}\n' \
+    "$status" "$total" "$to_trash" "$avail0" "$avail1" "$disks" "$trashed"
 }
 
 json_clean_entries() { # ID — clean ENTRY_PICK of ID (only entries entries_ID lists now) → ENTRY_BYTES, @@scan line
@@ -11348,10 +11433,27 @@ urldecode_path() { # VAR TEXT — undoes urlencode_path (a Trash Path= value)
   __ud=$out$s
 }
 
-json_large() { # [--min BYTES] [--days N] [--path DIR] [--limit N] — the biggest files first
-  local min=$((100 * 1024 * 1024)) days=0 dir=$HOME limit=$LARGE_LIMIT tmp found b m a p kind jp listed=0 sum=0
+large_drives() { # DIR → NUL list of the disks and partitions mounted inside DIR (one find -xdev doesn't enter):
+  # real file systems only, never a network one, nor one in a Never clean folder
+  local dev mp type rest
+  [[ -r $MOUNTS_FILE ]] || return 0
+  while read -r dev mp type rest; do
+    printf -v mp '%b' "${mp//\\/\\0}" # \040 = space, as the kernel escapes it
+    [[ $mp == "${1%/}"/?* && -d $mp ]] || continue
+    case $type in
+      ext[234] | btrfs | xfs | f2fs | vfat | exfat | ntfs | ntfs3 | fuseblk | zfs | jfs | reiserfs | hfsplus | bcachefs) ;;
+      *) continue ;;
+    esac
+    in_exclusion "$mp" || printf '%s\0' "$mp"
+  done <"$MOUNTS_FILE" | sort -zu
+}
+
+json_large() { # [--min BYTES] [--days N] [--path DIR] [--limit N] [--all-drives] — the biggest files first
+  local min=$((100 * 1024 * 1024)) days=0 dir=$HOME limit=$LARGE_LIMIT drv=0 tmp found b m a p kind jp listed=0 sum=0
+  local total hidden=0 skipped=0 others=0 r g mp i
   while (($#)); do
     case $1 in
+      --all-drives) drv=1; shift; continue ;;
       --min | --days | --path | --limit) (($# >= 2)) || { json_error usage "$1 needs a value."; return 2; } ;;&
       --min) min=$2 ;;
       --days) days=$2 ;;
@@ -11367,28 +11469,48 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] [--limit N] — the bigge
   ((limit <= LARGE_LIMIT)) || limit=$LARGE_LIMIT
   [[ -d $dir ]] || { json_error not_folder "Not a folder: $dir" path "$dir"; return 2; }
   dir=$(realpath -- "$dir")
-  if in_exclusion "$dir"; then printf '{"event":"done","count":0,"found":0,"total_bytes":0}\n'; return 0; fi
+  if in_exclusion "$dir"; then
+    printf '{"event":"done","count":0,"found":0,"total_bytes":0,"hidden":0,"skipped":0,"other_drives":0}\n'
+    return 0
+  fi
   exclusion_prune
-  local filt=(-type f)
+  local filt=(-type f) drives=() roots=("$dir") stop
   ((min > 0)) && filt+=(-size +$((min - 1))c)
   # old = neither changed nor opened for that long
   ((days > 0)) && filt+=(-mmin +$((days * 1440)) -amin +$((days * 1440)))
+  mapfile -d '' drives < <(large_drives "$dir")
+  if ((drv)); then roots+=("${drives[@]}"); else others=${#drives[@]}; fi
   tmp=$(mktemp -p "$SESSION_TMP") || return 1
-  # skip caches (Smart Scan's job), Trash folders and git internals; stay on one file system
-  find "$dir" -xdev "${XPRUNE[@]}" \( -type d \( -name .cache -o -name .git -o -name Trash -o -name .Trash -o -name '.Trash-*' \) \
-    -not -path "$dir" -prune \) -o \( "${filt[@]}" -printf '%s\t%T@\t%A@\t%p\0' \) 2>/dev/null >"$tmp"
-  found=$(tr -cd '\0' <"$tmp" | wc -c)
-  # only names that are valid UTF-8 without control characters can round-trip through JSON
+  # one file system per search, each disk mounted inside on its own (--all-drives) or not at all; skip caches
+  # (Smart Scan's job), Trash folders and git internals: F records the files, P the folders skipped
+  for r in "${roots[@]}"; do
+    stop=()
+    for mp in "${drives[@]}"; do [[ $mp == "$r"/* ]] && find_glob g "$mp" && stop+=(-o -path "$g"); done
+    ((${#stop[@]})) && stop=(\( "${stop[@]:1}" \) -prune -o)
+    find "$r" -xdev "${XPRUNE[@]}" "${stop[@]}" \
+      \( -type d \( -name .cache -o -name .git -o -name Trash -o -name .Trash -o -name '.Trash-*' \) \
+      -not -path "$r" -printf 'P%p\0' -prune \) -o \( "${filt[@]}" -printf 'F%s\t%T@\t%A@\t%p\0' \) 2>/dev/null
+  done >"$tmp"
+  total=$(LC_ALL=C grep -zc '^F' "$tmp")
+  # only names that are valid UTF-8 without control characters can round-trip through JSON: the others are hidden
+  found=$(LC_ALL=C.UTF-8 grep -zax 'F.*' "$tmp" | LC_ALL=C grep -zcE $'^F([^\t]*\t){3}[^[:cntrl:]]*$')
+  hidden=$((total - found))
   while IFS=$'\t' read -r -d '' b m a p; do
-    [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
     file_kind kind "$p"
     json_str jp "$p"
     printf '{"event":"file","path":%s,"bytes":%d,"mtime":%d,"atime":%d,"kind":"%s"}\n' \
-      "$jp" "$b" "${m%.*}" "${a%.*}" "$kind"
-    listed=$((listed + 1)) sum=$((sum + b))
-  done < <(LC_ALL=C.UTF-8 grep -zax '.*' "$tmp" | sort -z -t$'\t' -k1,1rn | head -z -n "$limit")
+      "$jp" "${b#F}" "${m%.*}" "${a%.*}" "$kind"
+    listed=$((listed + 1)) sum=$((sum + ${b#F}))
+  done < <(LC_ALL=C.UTF-8 grep -zax 'F.*' "$tmp" | LC_ALL=C grep -zE $'^F([^\t]*\t){3}[^[:cntrl:]]*$' |
+    sort -z -t$'\t' -k1.2,1rn | head -z -n "$limit")
+  # the files that would have matched in the folders skipped, to say what was left out
+  mapfile -d '' -t roots < <(LC_ALL=C grep -za '^P' "$tmp" | LC_ALL=C sed -z 's/^P//')
+  for ((i = 0; i < ${#roots[@]}; i += 500)); do
+    skipped=$((skipped + $(find "${roots[@]:i:500}" -xdev "${XPRUNE[@]}" \( "${filt[@]}" -printf . \) 2>/dev/null | wc -c)))
+  done
   rm -f "$tmp"
-  printf '{"event":"done","count":%d,"found":%d,"total_bytes":%d}\n' "$listed" "$found" "$sum"
+  printf '{"event":"done","count":%d,"found":%d,"total_bytes":%d,"hidden":%d,"skipped":%d,"other_drives":%d}\n' \
+    "$listed" "$found" "$sum" "$hidden" "$skipped" "$others"
 }
 
 LENS_LIMIT=500 # the biggest entries listed by `--json lens`, like the terminal's Space Lens
@@ -11725,7 +11847,7 @@ json_trash() { # [--home-only] [--source NAME] PATH… — move these to the Tra
       moved=$((moved + 1)) freed=$((freed + ${b:-0}))
     else
       why=$(tail -n 1 "$errf"); why=${why//$'\e'\[*([0-9;])m/}; why=${why#*✘ }
-      json_file_task "$p" fail trash_failed "${why:-Could not move it to the Trash}" 0 "" detail "$why"
+      json_file_task "$p" fail "${TRASH_CODE:-trash_failed}" "${why:-Could not move it to the Trash}" 0 "" detail "$why"
       ((++failed))
     fi
   done
@@ -12406,7 +12528,7 @@ json_maintain() { # ID [on|off] [--user-steps]
 # as numbers. "freed" comes only once a cleanup was recorded.
 
 json_overview() {
-  local home_b="" outside t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 e b cut kind path n note top="" d by_day="" days=()
+  local home_b="" outside t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 t30=0 e b tb cut kind path n note top="" d by_day="" days=()
   local -A day_b=() day_n=()
   sys_facts; pkg_counts; mem_facts
   json_str j1 "$OV_OS"; json_str j2 "$OV_KERNEL"; json_str j3 "$OV_CPU"
@@ -12428,10 +12550,11 @@ json_overview() {
     t=$((EPOCHSECONDS - 10#$s * 3600 - 10#$u * 60 - 10#$a + 43200))
     for ((n = 29; n >= 0; n--)); do printf -v d '%(%F)T' $((t - n * 86400)); days+=("$d"); day_b[$d]=0 day_n[$d]=0; done
     if [[ -f $CLEANUP_HISTORY ]]; then
-      while IFS=$'\t' read -r e b; do
+      while IFS=$'\t' read -r e b tb; do
         [[ $e =~ ^[0-9]+$ && $b =~ ^[0-9]+$ ]] || continue
+        [[ $tb =~ ^[0-9]+$ ]] || tb=0 # a row of an older version: all freed
         ((since == 0)) && since=$e
-        ((e >= cut)) && { ((++n30)); b30=$((b30 + b)); }
+        ((e >= cut)) && { ((++n30)); b30=$((b30 + b)); t30=$((t30 + tb)); }
         printf -v d '%(%F)T' "$e"
         [[ -n ${day_b[$d]:-} ]] && { day_b[$d]=$((day_b[$d] + b)); day_n[$d]=$((day_n[$d] + 1)); }
       done <"$CLEANUP_HISTORY"
@@ -12439,8 +12562,10 @@ json_overview() {
     ((since)) && for d in "${days[@]}"; do
       by_day+="${by_day:+,}{\"date\":\"$d\",\"bytes\":${day_b[$d]},\"cleanups\":${day_n[$d]}}"
     done
-    printf '{"event":"freed","days":30,"bytes":%d,"cleanups":%d,"since":%d,"lifetime":%d,"runs":%d,"last_time":%d,"last_bytes":%d,"freed_by_day":[%s]}\n' \
-      "$b30" "$n30" "$since" "${STATS[lifetime]:-0}" "${STATS[runs]:-0}" "${STATS[last_time]:-0}" "${STATS[last_freed]:-0}" "$by_day"
+    # bytes, lifetime, last_bytes: off the disk; *trash*: moved to the Trash by the same cleanups, still on it
+    printf '{"event":"freed","days":30,"bytes":%d,"trash_bytes":%d,"cleanups":%d,"since":%d,"lifetime":%d,"lifetime_trash":%d,"runs":%d,"last_time":%d,"last_bytes":%d,"last_trash":%d,"freed_by_day":[%s]}\n' \
+      "$b30" "$t30" "$n30" "$since" "${STATS[lifetime]:-0}" "${STATS[lifetime_trash]:-0}" "${STATS[runs]:-0}" "${STATS[last_time]:-0}" \
+      "${STATS[last_freed]:-0}" "${STATS[last_trash]:-0}" "$by_day"
   fi
   while IFS=$'\t' read -r t s u a; do
     json_str jd "$a"
@@ -12568,9 +12693,12 @@ Install & update
       --uninstall   Remove everything --install added
   -v, --version     Print the version and the system details a bug report needs
 
+Exit codes (--scan, --clean, --auto): 0 done, 1 a task failed, 2 wrong option,
+3 partly done (system items left out without sudo, or a scan timed out)
+
 For the desktop app
       --json CMD    Machine-readable engine: items, scan, details ID, clean ID…,
-                    large [--min BYTES] [--days N] [--path DIR] [--limit N],
+                    large [--min BYTES] [--days N] [--path DIR] [--limit N] [--all-drives],
                     lens [--path DIR] [--limit N], places,
                     dupes [--min BYTES] [--path DIR] [--limit N], startup, startup-set ID enable|disable|remove,
                     trash [--home-only] [--source NAME] PATH…, restore KEY…,
@@ -12739,9 +12867,9 @@ load_scan_cache
 
 case $MODE in
   version) version_report; exit 0 ;;
-  scan) INTERACTIVE=0; scan_report; exit 0 ;;
-  clean) INTERACTIVE=0; smart_clean; exit 0 ;;
-  auto) auto_mode; exit 0 ;;
+  scan) INTERACTIVE=0; scan_report; run_exit ;;
+  clean) INTERACTIVE=0; smart_clean; run_exit ;;
+  auto) auto_mode; run_exit ;;
   check)
     ((EUID != 0)) || { err "Settings are per user: run --check as yourself, not as root."; exit 2; }
     check_timer_sync; run_checks; exit ;;

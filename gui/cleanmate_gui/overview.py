@@ -253,7 +253,9 @@ def animations_on(widget):
 
 class FreedPanel(Gtk.Box):
     """What CleanMate freed: three cards with a big number (last 30 days, in total, the last cleanup) and the
-    bar chart of the last 30 days. With animate, the numbers count up and the bars grow once it shows."""
+    bar chart of the last 30 days. The numbers are what left the disk; what the same cleanups moved to the
+    Trash is still on it, and its line under the number says how much. With animate, the numbers count up
+    and the bars grow once it shows."""
 
     def __init__(self, f, animate):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -262,20 +264,29 @@ class FreedPanel(Gtk.Box):
         self.timer = None
         self.map_handler = None
         cards = Gtk.Box(spacing=12, homogeneous=True)
-        items = [("freed30", f["bytes"], ngettext("Last 30 days · {n} cleanup", "Last 30 days · {n} cleanups",
-                                                   f["cleanups"])),
-                 ("lifetime", f["lifetime"], ngettext("In total · {n} cleanup", "In total · {n} cleanups",
-                                                      f["runs"]))]
+        items = [("freed30", f["bytes"], f.get("trash_bytes", 0),
+                  ngettext("Last 30 days · {n} cleanup", "Last 30 days · {n} cleanups", f["cleanups"])),
+                 ("lifetime", f["lifetime"], f.get("lifetime_trash", 0),
+                  ngettext("In total · {n} cleanup", "In total · {n} cleanups", f["runs"]))]
         if f["last_time"]:
             when = GLib.DateTime.new_from_unix_local(f["last_time"]).format("%x %H:%M")
-            items.append(("last", f["last_bytes"], _("Last cleanup · {date}").format(date=when)))
-        for key, value, caption in items:
+            items.append(("last", f["last_bytes"], f.get("last_trash", 0),
+                          _("Last cleanup · {date}").format(date=when)))
+        self.trash_lines = {}  # key → the "… in the Trash" label of that card, when it has one
+        for key, value, trash, caption in items:
             card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, css_classes=["card"])
             number = Gtk.Label(label=human(value), css_classes=["title-1", "numeric"], margin_top=18,
                                margin_start=12, margin_end=12)
             card.append(number)
-            card.append(Gtk.Label(label=caption, wrap=True, justify=Gtk.Justification.CENTER, margin_bottom=18,
-                                  margin_start=12, margin_end=12, css_classes=["dim-label"]))
+            card.append(Gtk.Label(label=caption, wrap=True, justify=Gtk.Justification.CENTER,
+                                  margin_bottom=6 if trash else 18, margin_start=12, margin_end=12,
+                                  css_classes=["dim-label"]))
+            if trash:
+                line = Gtk.Label(label=_("{size} in the Trash").format(size=human(trash)), wrap=True,
+                                 justify=Gtk.Justification.CENTER, margin_bottom=18, margin_start=12,
+                                 margin_end=12, css_classes=["dim-label", "caption"])
+                card.append(line)
+                self.trash_lines[key] = line
             self.numbers[key] = (number, value)
             cards.append(card)
         self.append(cards)
