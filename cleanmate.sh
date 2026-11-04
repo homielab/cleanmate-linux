@@ -621,11 +621,15 @@ ui_input() { # PROMPT [DEFAULT] → REPLY_TEXT; returns 1 when left empty
   [[ -n $REPLY_TEXT ]]
 }
 
-ui_busy() { # MESSAGE PID [COUNT_FILE NOUN] — spinner until PID exits; q/esc cancels (returns 130)
+ui_busy() { # MESSAGE PID [COUNT_FILE NOUN [nul]] — spinner until PID exits; q/esc cancels (returns 130).
+  # COUNT_FILE: a line per NOUN found so far (nul: NUL lines, those starting with F)
   local n="" k
   while kill -0 "$2" 2>/dev/null; do
     if ((UI_ACTIVE)); then
-      [[ -n ${3:-} ]] && n="   ${DIM}$(plural "$(wc -l <"$3" 2>/dev/null || echo 0)" "$4") found so far${NC}"
+      if [[ ${5:-} == nul ]]; then
+        k=$(LC_ALL=C grep -zc '^F' "$3" 2>/dev/null) || k=${k:-0}
+        n="   ${DIM}$(plural "$k" "$4") found so far${NC}"
+      elif [[ -n ${3:-} ]]; then n="   ${DIM}$(plural "$(wc -l <"$3" 2>/dev/null || echo 0)" "$4") found so far${NC}"; fi
       frame_begin; draw_header "$UI_BUSY_TITLE"; fl ""
       fl "  ${ACCENT}${SPINNER[SPIN_I++ % 10]}${NC} $1$n"
       [[ -n ${UI_BUSY_STATUS:-} && -s $UI_BUSY_STATUS ]] && fl "    ${DIM}$(<"$UI_BUSY_STATUS")${NC}"
@@ -3829,6 +3833,21 @@ clean_gradle() { empty_dir "${GRADLE_PATHS[0]}"; }
 details_gradle() { detail_paths "${GRADLE_PATHS[@]}"; }
 
 MAVEN_PATHS=("$HOME/.m2/repository")
+ITEM_RUNNING[maven]="Maven|mvn"
+# Maven runs as java too (mvn, the wrapper, the mvnd daemon): its launcher class tells it apart
+maven_running() { # → "Maven" while a build or the mvnd daemon runs; fails when none
+  running_proc -x 'mvn|mvnw|mvnd' >/dev/null ||
+    proc_match 'org\.codehaus\.plexus\.classworlds\.launcher\.Launcher|org\.apache\.maven\.wrapper\.MavenWrapperMain|org\.mvndaemon\.mvnd\.' >/dev/null ||
+    return 1
+  echo "Maven"
+}
+lockedby_maven() { maven_running; }
+precheck_maven() { # a build downloading into the repository breaks when its files go
+  local p
+  p=$(lockedby_maven) || return 0
+  warn "Skipping ${ITEM_LABEL[maven]}: close $p first."
+  return 1
+}
 scan_maven() { dev_scan "~/.m2/repository" "${MAVEN_PATHS[@]}"; }
 clean_maven() { empty_dir "${MAVEN_PATHS[0]}"; }
 details_maven() { detail_paths "${MAVEN_PATHS[@]}"; }
@@ -7833,13 +7852,23 @@ files_bottom() {
 }
 
 file_text() { TEXT=${FOUND[$1]##*$'\t'}; }
-files_top() { fl ""; fl "  ${BOLD}$(plural ${#FOUND[@]} "$PICK_NOUN")${NC} ${DIM}— biggest first${NC}"; fl ""; }
-PICK_NOUN="file" # what pick_files lists
+files_top() {
+  local n
+  fl ""; fl "  ${BOLD}$(plural ${#FOUND[@]} "$PICK_NOUN")${NC} ${DIM}— biggest first${NC}"
+  for n in "${PICK_NOTES[@]}"; do fl "  ${DIM}ℹ $n${NC}"; done
+  fl ""
+}
+PICK_NOUN="file" PICK_NOTES=() # what pick_files lists; what the search left out
 
 pick_files() { # TITLE — FOUND holds "bytes<TAB>date<TAB>path"
   local title=$1 i b d p keep=() n tot cur=0 scroll=0
   F_SEL=()
-  if ((${#FOUND[@]} == 0)); then toast "${GREEN}✔${NC} No matching ${PICK_NOUN}s found."; return; fi
+  if ((${#FOUND[@]} == 0)); then
+    local notes=""
+    ((${#PICK_NOTES[@]})) && printf -v notes ' · %s' "${PICK_NOTES[@]}"
+    toast "${GREEN}✔${NC} No matching ${PICK_NOUN}s found.${notes:+ ${DIM}${notes# · }${NC}}"
+    return
+  fi
   while :; do
     ((${#FOUND[@]} || ${#UNDO_BATCH[@]})) || return # stay while there's something to undo
     L_TITLE=$title L_TOP=files_top L_BOTTOM=files_bottom L_ROW=file_row L_FOCUSABLE="" L_TEXT=file_text
@@ -7901,9 +7930,22 @@ find_files_bg() { # MESSAGE START... FIND-ARGS... — run find in the background
   rm -f "$tmp"
 }
 
-find_large() { # DIR MB
-  find_files_bg "Looking for files over $2 MB in ${1/#$HOME/\~}…" "$1" -xdev -type f -size +"$2"M \
-    -not -path '*/.cache/*' -not -path '*/Trash/*' -not -path '*/.git/*' || return
+find_large() { # DIR MB — the desktop app's search (large_search): the same files in the same order, the same left out
+  local tmp dir b m a p d nbig=0 PICK_NOTES=()
+  dir=$(realpath -- "$1") || return
+  tmp=$(mktemp -p "$SESSION_TMP") || return
+  (large_search "$tmp" $(($2 * 1048576)) 0 "$dir" "$LARGE_LIMIT" 0; { echo "$LARGE_FOUND"; large_notes; } >"$tmp.notes") &
+  UI_BUSY_TITLE="Large & Old Files"
+  ui_busy "Looking for files over $2 MB in ${1/#$HOME/\~}…" $! "$tmp.walk" file nul ||
+    { rm -f "$tmp" "$tmp.walk" "$tmp.all" "$tmp.notes"; return; }
+  FOUND=()
+  while IFS=$'\t' read -r -d '' b m a p; do
+    printf -v d '%(%Y-%m-%d)T' "${m%.*}"
+    FOUND+=("$b"$'\t'"$d"$'\t'"$p")
+  done <"$tmp"
+  [[ -f $tmp.notes ]] && { read -r nbig; mapfile -t PICK_NOTES; } <"$tmp.notes"
+  ((nbig > ${#FOUND[@]})) && PICK_NOTES=("The ${#FOUND[@]} biggest of $nbig files" "${PICK_NOTES[@]}")
+  rm -f "$tmp" "$tmp.notes"
   pick_files "Files over $2 MB"
 }
 
@@ -9912,40 +9954,172 @@ space_lens_menu() {
 
 # ───────────────────────────── duplicate finder ─────────────────────────────
 #
-# Same size → same hash of the first 64 KB → same full MD5. Hidden folders
-# and node_modules are skipped. The oldest copy of each group is kept.
+# One search for the terminal app (find_duplicates) and the desktop app (`--json dupes`): same size → same MD5
+# of the first 64 KB → same full MD5, nproc files at a time. Files in hidden folders, node_modules and Never
+# clean folders are left out and counted as the walk goes, like files that can't be read; hard links count
+# once. The oldest copy of each group is the one to keep.
 
-dedupe_on() { # FIELDS — keep only lines whose key (first N tab fields) occurs more than once
-  awk -F'\t' -v k="$1" '{key = $1; for (j = 2; j <= k; j++) key = key FS $j
-                          n[key]++; line[NR] = $0; kk[NR] = key}
-                        END {for (i = 1; i <= NR; i++) if (n[kk[i]] > 1) print line[i]}'
+DUPES_WHOLE=262144 # files up to this size are read whole: cheaper than starting two programs to read 64 KB
+declare -a DUP_S=() DUP_M=() DUP_P=() DUP_KEYS=()
+declare -A DUP_MD5=() DUP_GROUP=()
+DUP_HIDDEN=0 DUP_SKIP_DOT=0 DUP_SKIP_NM=0 DUP_SKIP_X=0 DUP_UNREADABLE=0 DUP_OTHERS=0
+DUPES_PROGRESS=: # STAGE DONE TOTAL; stages: list, compare (first 64 KB, small files whole), verify (whole)
+
+dupes_hash() { # ITEM… → INDEX<TAB>MD5 of each, INDEX<TAB>- when it can't be read. ITEM = hINDEX<TAB>PATH (the
+  # first 64 KB) or wINDEX<TAB>PATH (the whole file; one md5sum for all). Runs in a bash of its own under xargs,
+  # one short line per write: the lines of the runs side by side never mix.
+  local a i p r ws=()
+  local -A at=() got=()
+  set -o pipefail
+  for a; do
+    i=${a%%$'\t'*} p=${a#*$'\t'}
+    if [[ $i == w* ]]; then at[$p]=${i#w} ws+=("$p"); continue; fi
+    if r=$(head -c 65536 -- "$p" 2>/dev/null | md5sum); then printf '%s\t%s\n' "${i#h}" "${r%% *}"
+    else printf '%s\t-\n' "${i#h}"; fi
+  done
+  ((${#ws[@]})) || return 0
+  while IFS= read -r -d '' r; do # -z: "MD5  PATH", the name as it is
+    i=${at[${r:34}]:-}
+    [[ -n $i ]] || continue
+    printf '%s\t%s\n' "$i" "${r:0:32}"
+    got[$i]=1
+  done < <(md5sum -z -- "${ws[@]}" 2>/dev/null)
+  for p in "${ws[@]}"; do [[ -n ${got[${at[$p]}]:-} ]] || printf '%s\t-\n' "${at[$p]}"; done
 }
 
-dup_scan() { # MIN_KB OUT STATUS DIR... — background worker; skips excluded folders
-  local min=$1 out=$2 st=$3 size mt p h i=0 n dirs=()
-  shift 3
-  echo "Listing files…" >"$st"
-  outside_exclusions dirs "$@"
-  exclusion_prune
-  ((${#dirs[@]})) || { : >"$out"; return 0; }
-  find "${dirs[@]}" -xdev -mindepth 1 "${XPRUNE[@]}" \( -name '.*' -o -name node_modules \) -prune -o \
-    -type f -size +"${min}"k -printf '%s\t%T@\t%p\n' 2>/dev/null | dedupe_on 1 >"$out.cand"
-  n=$(wc -l <"$out.cand")
-  while IFS=$'\t' read -r size mt p; do
-    ((++i % 25 == 0)) && echo "Comparing $i of $n files with matching sizes…" >"$st"
-    h=$(head -c 65536 -- "$p" 2>/dev/null | md5sum) || continue
-    printf '%s\t%s\t%s\t%s\n' "$size" "${h%% *}" "$mt" "$p"
-  done <"$out.cand" | dedupe_on 2 >"$out.part"
-  n=$(wc -l <"$out.part") i=0
-  while IFS=$'\t' read -r size h mt p; do
-    ((++i % 5 == 0)) && echo "Verifying $i of $n likely duplicates…" >"$st"
-    if ((size > 65536)); then
-      h=$(md5sum -- "$p" 2>/dev/null) || continue
-      h=${h%% *}; h=${h#\\}
+dupes_run() { # STAGE BATCH ITEM… — dupes_hash on nproc batches of up to BATCH files at a time → DUP_MD5[INDEX],
+  # or one more DUP_UNREADABLE; STAGE progress every 2% or half a second
+  local stage=$1 batch=$2 n k=0 i h step next now last jobs
+  shift 2
+  n=$#
+  ((n)) || return 0
+  jobs=$(nproc 2>/dev/null) && ((jobs > 0)) || jobs=2
+  ((batch * jobs * 4 <= n)) || batch=$((n / (jobs * 4))) # small lists: still every CPU, and all busy to the end
+  ((batch > 0)) || batch=1
+  step=$(((n + 49) / 50)) next=$step
+  "$DUPES_PROGRESS" "$stage" 0 "$n"
+  last=${EPOCHREALTIME/[.,]/}
+  while IFS=$'\t' read -r i h; do
+    if [[ $h == - ]]; then DUP_UNREADABLE=$((DUP_UNREADABLE + 1)); else DUP_MD5[$i]=$h; fi
+    ((++k < n)) || continue
+    now=${EPOCHREALTIME/[.,]/}
+    if ((k >= next || now - last >= 500000)); then
+      "$DUPES_PROGRESS" "$stage" "$k" "$n"
+      next=$((k + step)) last=$now
     fi
-    printf '%s\t%s\t%s\t%s\n' "$size" "$h" "$mt" "$p"
-  done <"$out.part" | dedupe_on 2 | sort -t$'\t' -k1,1rn -k2,2 -k3,3n >"$out"
-  rm -f "$out.cand" "$out.part"
+  done < <(printf '%s\0' "$@" | xargs -0 -r -P "$jobs" -n "$batch" "$BASH" -c \
+    "$(declare -f dupes_hash)"$'\n''dupes_hash "$@"' dupes_hash)
+  "$DUPES_PROGRESS" "$stage" "$n" "$n"
+}
+
+dupes_search() { # MIN_BYTES DIR… (tidied, none in a Never clean folder) → DUP_GROUP[BYTES:MD5] = " INDEX…" into
+  # DUP_S, DUP_M, DUP_P (bytes, mtime, path), DUP_KEYS in the order found; what was left out: DUP_HIDDEN (names
+  # that can't be shown), DUP_SKIP_DOT, _NM, _X (hidden, in node_modules, in a Never clean folder),
+  # DUP_UNREADABLE, DUP_OTHERS (disks mounted inside, not searched)
+  local min=$1 tmp total d e g s id m p i key todo=() drives=() stop=() tag=() hs=() ns=() xs=()
+  local -A seen=() nsize=() nhead=() hh=()
+  shift
+  DUP_S=() DUP_M=() DUP_P=() DUP_KEYS=() DUP_MD5=() DUP_GROUP=()
+  DUP_HIDDEN=0 DUP_SKIP_DOT=0 DUP_SKIP_NM=0 DUP_SKIP_X=0 DUP_UNREADABLE=0 DUP_OTHERS=0
+  ((min > 0)) || min=1 # empty files are all alike, never duplicates
+  "$DUPES_PROGRESS" list 0 0
+  (($#)) || return 0
+  for e in "${EXCLUDES[@]}"; do find_glob g "$e"; xs+=(-o -path "$g/*"); done
+  for d; do
+    find_glob g "${d%/}"
+    hs+=(-o -path "$g/.*" -o -path "$g/*/.*")
+    ns+=(-o -path "$g/node_modules/*" -o -path "$g/*/node_modules/*")
+    mapfile -d '' -t -O "${#drives[@]}" drives < <(large_drives "$d")
+  done
+  DUP_OTHERS=${#drives[@]}
+  for d in "${drives[@]}"; do find_glob g "$d"; stop+=(-o -path "$g"); done
+  ((${#stop[@]})) && stop=(\( "${stop[@]:1}" \) -prune -o)
+  ((${#xs[@]})) && tag+=(\( "${xs[@]:1}" \) -printf 'X\0' -o)
+  tag+=(\( "${hs[@]:1}" \) -printf 'H\0' -o \( "${ns[@]:1}" \) -printf 'N\0' -o)
+  tmp=$(mktemp -p "$SESSION_TMP") || return 1
+  # one walk, the files left out counted as it goes (X, H, N)
+  find "$@" -xdev -mindepth 1 "${stop[@]}" -type f -size +$((min - 1))c \( "${tag[@]}" -printf 'F%s\t%D:%i\t%T@\t%p\0' \) \
+    2>/dev/null >"$tmp"
+  total=$(LC_ALL=C grep -zc '^F' "$tmp")
+  # only names that are valid UTF-8 without control characters can round-trip through JSON: the others are hidden
+  while IFS=$'\t' read -r -d '' s id m p; do
+    case $s in
+      X) DUP_SKIP_X=$((DUP_SKIP_X + 1)); continue ;;
+      H) DUP_SKIP_DOT=$((DUP_SKIP_DOT + 1)); continue ;;
+      N) DUP_SKIP_NM=$((DUP_SKIP_NM + 1)); continue ;;
+    esac
+    total=$((total - 1))
+    [[ -n ${seen[$id]:-} ]] && continue # another name of a file already listed
+    seen[$id]=1
+    s=${s#F}
+    DUP_S+=("$s") DUP_M+=("$m") DUP_P+=("$p")
+    nsize[$s]=$((${nsize[$s]:-0} + 1))
+  done < <(LC_ALL=C.UTF-8 grep -zax '.*' "$tmp" | LC_ALL=C grep -zE $'^([XHN]|F([^\t]*\t){3}[^[:cntrl:]]*)$')
+  DUP_HIDDEN=$total
+  rm -f "$tmp"
+  for i in "${!DUP_P[@]}"; do
+    ((${nsize[${DUP_S[i]}]} > 1)) || continue
+    if ((DUP_S[i] <= DUPES_WHOLE)); then todo+=("w$i"$'\t'"${DUP_P[i]}"); else todo+=("h$i"$'\t'"${DUP_P[i]}"); fi
+  done
+  dupes_run compare 64 "${todo[@]}"
+  todo=()
+  for i in "${!DUP_MD5[@]}"; do
+    key=${DUP_S[i]}:${DUP_MD5[$i]}
+    if ((DUP_S[i] > DUPES_WHOLE)); then hh[$i]=$key nhead[$key]=$((${nhead[$key]:-0} + 1)); continue; fi
+    [[ -n ${DUP_GROUP[$key]:-} ]] || DUP_KEYS+=("$key")
+    DUP_GROUP[$key]+=" $i"
+  done
+  DUP_MD5=()
+  for i in "${!hh[@]}"; do ((${nhead[${hh[$i]}]} > 1)) && todo+=("w$i"$'\t'"${DUP_P[i]}"); done
+  dupes_run verify 16 "${todo[@]}"
+  for i in "${!DUP_MD5[@]}"; do
+    key=${DUP_S[i]}:${DUP_MD5[$i]}
+    [[ -n ${DUP_GROUP[$key]:-} ]] || DUP_KEYS+=("$key")
+    DUP_GROUP[$key]+=" $i"
+  done
+  return 0
+}
+
+skipped_note() { # N WHY → "3 files skipped: WHY" (nothing for 0)
+  local n
+  (($1)) || return 0
+  pluralv n "$1" file
+  printf '%s skipped: %s\n' "$n" "$2"
+}
+drives_note() { # N → "2 other drives in this folder were not searched" (nothing for 0)
+  (($1)) || return 0
+  if (($1 == 1)); then echo "1 other drive in this folder was not searched"
+  else echo "$1 other drives in this folder were not searched"; fi
+}
+
+dupes_notes() { # → what the last dupes_search left out, one line each, for the terminal app
+  skipped_note "$DUP_HIDDEN" "names with characters that can't be shown"
+  skipped_note "$DUP_SKIP_DOT" "hidden, or in hidden folders"
+  skipped_note "$DUP_SKIP_NM" "in node_modules folders"
+  skipped_note "$DUP_SKIP_X" "in folders you never clean"
+  skipped_note "$DUP_UNREADABLE" "can't be read"
+  drives_note "$DUP_OTHERS"
+}
+
+dup_status() { # STAGE DONE TOTAL → the terminal app's line under the spinner (DUPES_STATUS)
+  case $1 in
+    list) echo "Listing files…" ;;
+    compare) echo "Comparing $2 of $3 files with matching sizes…" ;;
+    verify) echo "Verifying $2 of $3 likely duplicates…" ;;
+  esac >"$DUPES_STATUS"
+}
+
+dup_scan() { # MIN_BYTES OUT STATUS DIR... — background worker: OUT = BYTES<TAB>MD5<TAB>MTIME<TAB>PATH of each copy,
+  # biggest first, the oldest copy of each group first; OUT.notes = what was left out
+  local out=$2 DUPES_STATUS=$3 DUPES_PROGRESS=dup_status dirs=() key i ids=()
+  outside_exclusions dirs "${@:4}"
+  dupes_search "$1" "${dirs[@]}" || return
+  for key in "${DUP_KEYS[@]}"; do
+    read -ra ids <<<"${DUP_GROUP[$key]}"
+    ((${#ids[@]} > 1)) || continue
+    for i in "${ids[@]}"; do printf '%s\t%s\t%s\t%s\n' "${DUP_S[i]}" "${key#*:}" "${DUP_M[i]}" "${DUP_P[i]}"; done
+  done | LC_ALL=C sort -t$'\t' -k1,1rn -k2,2 -k3,3n >"$out"
+  dupes_notes >"$out.notes"
 }
 
 declare -a D_SIZE=() D_HASH=() D_MT=() D_PATH=() DR_KIND=() DR_REF=()
@@ -10008,6 +10182,7 @@ dup_top() {
   fl ""
   fl_card "${YELLOW}${BOLD}$(human "$tot")${NC} ${BOLD}can be freed by removing duplicates${NC}" \
     "${DIM}$(plural "$groups" group) · $(plural ${#D_PATH[@]} file) · ${GREEN}○${NC}${DIM} keep  ${RED}●${NC}${DIM} remove${NC}"
+  for i in "${DUP_NOTES[@]}"; do fl "   ${DIM}ℹ $i${NC}"; done
 }
 
 dup_bottom() {
@@ -10069,11 +10244,11 @@ dup_undo() { # put the last batch back and show those files in their groups agai
 }
 
 find_duplicates() { # MIN_MB DIR...
-  local tmp out st cur=0 scroll=0 r min=$1 where
+  local tmp out st cur=0 scroll=0 r min=$1 where DUP_NOTES=()
   shift
   tmp=$(mktemp -d -p "$SESSION_TMP") || return
   out=$tmp/dups st=$tmp/status
-  (dup_scan $((min * 1024)) "$out" "$st" "$@") &
+  (dup_scan $((min * 1048576)) "$out" "$st" "$@") &
   UI_BUSY_TITLE="Duplicates"
   UI_BUSY_STATUS=$st
   where=$(printf '%s, ' "${@/#$HOME/\~}"); where=${where%, }
@@ -10083,8 +10258,14 @@ find_duplicates() { # MIN_MB DIR...
   ((r == 0)) || { rm -rf "$tmp"; return; }
   D_SIZE=() D_HASH=() D_MT=() D_PATH=()
   while IFS=$'\t' read -r a b c d; do D_SIZE+=("$a") D_HASH+=("$b") D_MT+=("$c") D_PATH+=("$d"); done <"$out"
+  [[ -f $out.notes ]] && mapfile -t DUP_NOTES <"$out.notes"
   rm -rf "$tmp"
-  if ((${#D_PATH[@]} == 0)); then toast "${GREEN}✔${NC} No duplicate files found."; return; fi
+  if ((${#D_PATH[@]} == 0)); then
+    where=""
+    ((${#DUP_NOTES[@]})) && printf -v where ' · %s' "${DUP_NOTES[@]}"
+    toast "${GREEN}✔${NC} No duplicate files found.${where:+ ${DIM}${where# · }${NC}}"
+    return
+  fi
   dup_rows
   dup_autoselect
   while :; do
@@ -11564,7 +11745,7 @@ json_clean_entries() { # ID — clean ENTRY_PICK of ID (only entries entries_ID 
 
 # ── Large & Old Files, Trash and undo for the desktop app ──
 
-LARGE_LIMIT=500 # the biggest files listed by `--json large`
+LARGE_LIMIT=500 # the biggest files Large & Old Files lists, in both apps
 
 file_kind() { # VAR PATH → video|audio|image|archive|package|disk|document|other
   local -n __fk=$1
@@ -11609,9 +11790,52 @@ large_drives() { # DIR → NUL list of the disks and partitions mounted inside D
   done <"$MOUNTS_FILE" | sort -zu
 }
 
+LARGE_FOUND=0 LARGE_HIDDEN=0 LARGE_SKIPPED=0 LARGE_OTHERS=0
+large_search() { # OUT MIN_BYTES DAYS DIR LIMIT ALL_DRIVES(0|1) — Large & Old Files for both apps, in one walk:
+  # OUT = the LIMIT biggest files, NUL lines BYTES<TAB>MTIME<TAB>ATIME<TAB>PATH, biggest first (OUT.walk while it
+  # runs: an F line per file found so far); LARGE_FOUND, and what was left out: LARGE_HIDDEN (names that can't be
+  # shown), LARGE_SKIPPED (in caches, Git folders and Trash folders), LARGE_OTHERS (disks inside, not searched)
+  local out=$1 min=$2 days=$3 dir=$4 limit=$5 drv=$6 walk=$1.walk total found r g mp n filt=(-type f) drives=() roots=("$4")
+  local stop skip
+  LARGE_FOUND=0 LARGE_HIDDEN=0 LARGE_SKIPPED=0 LARGE_OTHERS=0
+  : >"$out"
+  in_exclusion "$dir" && return 0
+  exclusion_prune
+  ((min > 0)) && filt+=(-size +$((min - 1))c)
+  # old = neither changed nor opened for that long
+  ((days > 0)) && filt+=(-mmin +$((days * 1440)) -amin +$((days * 1440)))
+  mapfile -d '' drives < <(large_drives "$dir")
+  if ((drv)); then roots+=("${drives[@]}"); else LARGE_OTHERS=${#drives[@]}; fi
+  # one file system per walk, each disk mounted inside on its own (ALL_DRIVES) or not at all; files in caches
+  # (Smart Scan's job), Trash folders and git internals are only counted (S), in the same walk
+  for r in "${roots[@]}"; do
+    stop=() skip=()
+    for mp in "${drives[@]}"; do [[ $mp == "$r"/* ]] && find_glob g "$mp" && stop+=(-o -path "$g"); done
+    ((${#stop[@]})) && stop=(\( "${stop[@]:1}" \) -prune -o)
+    find_glob g "${r%/}"
+    for n in .cache .git Trash .Trash '.Trash-*'; do skip+=(-o -path "$g/$n/*" -o -path "$g/*/$n/*"); done
+    find "$r" -xdev "${XPRUNE[@]}" "${stop[@]}" \( "${filt[@]}" \( \( "${skip[@]:1}" \) -printf 'S\0' -o \
+      -printf 'F%s\t%T@\t%A@\t%p\0' \) \) 2>/dev/null
+  done >"$walk"
+  total=$(LC_ALL=C grep -zc '^F' "$walk")
+  LARGE_SKIPPED=$(LC_ALL=C grep -zc '^S' "$walk")
+  # only names that are valid UTF-8 without control characters can round-trip through JSON: the others are hidden
+  LC_ALL=C.UTF-8 grep -zax 'F.*' "$walk" | LC_ALL=C grep -zE $'^F([^\t]*\t){3}[^[:cntrl:]]*$' |
+    LC_ALL=C sed -z 's/^F//' >"$out.all"
+  found=$(tr -cd '\0' <"$out.all" | wc -c)
+  LARGE_FOUND=$found LARGE_HIDDEN=$((total - found))
+  sort -z -t$'\t' -k1,1rn "$out.all" | head -z -n "$limit" >"$out"
+  rm -f "$walk" "$out.all"
+}
+
+large_notes() { # → what the last large_search left out, one line each, for the terminal app
+  skipped_note "$LARGE_HIDDEN" "names with characters that can't be shown"
+  skipped_note "$LARGE_SKIPPED" "in caches, Git folders or a Trash"
+  drives_note "$LARGE_OTHERS"
+}
+
 json_large() { # [--min BYTES] [--days N] [--path DIR] [--limit N] [--all-drives] — the biggest files first
-  local min=$((100 * 1024 * 1024)) days=0 dir=$HOME limit=$LARGE_LIMIT drv=0 tmp found b m a p kind jp listed=0 sum=0
-  local total hidden=0 skipped=0 others=0 r g mp i
+  local min=$((100 * 1024 * 1024)) days=0 dir=$HOME limit=$LARGE_LIMIT drv=0 tmp b m a p kind jp listed=0 sum=0
   while (($#)); do
     case $1 in
       --all-drives) drv=1; shift; continue ;;
@@ -11630,48 +11854,18 @@ json_large() { # [--min BYTES] [--days N] [--path DIR] [--limit N] [--all-drives
   ((limit <= LARGE_LIMIT)) || limit=$LARGE_LIMIT
   [[ -d $dir ]] || { json_error not_folder "Not a folder: $dir" path "$dir"; return 2; }
   dir=$(realpath -- "$dir")
-  if in_exclusion "$dir"; then
-    printf '{"event":"done","count":0,"found":0,"total_bytes":0,"hidden":0,"skipped":0,"other_drives":0}\n'
-    return 0
-  fi
-  exclusion_prune
-  local filt=(-type f) drives=() roots=("$dir") stop
-  ((min > 0)) && filt+=(-size +$((min - 1))c)
-  # old = neither changed nor opened for that long
-  ((days > 0)) && filt+=(-mmin +$((days * 1440)) -amin +$((days * 1440)))
-  mapfile -d '' drives < <(large_drives "$dir")
-  if ((drv)); then roots+=("${drives[@]}"); else others=${#drives[@]}; fi
   tmp=$(mktemp -p "$SESSION_TMP") || return 1
-  # one file system per search, each disk mounted inside on its own (--all-drives) or not at all; skip caches
-  # (Smart Scan's job), Trash folders and git internals: F records the files, P the folders skipped
-  for r in "${roots[@]}"; do
-    stop=()
-    for mp in "${drives[@]}"; do [[ $mp == "$r"/* ]] && find_glob g "$mp" && stop+=(-o -path "$g"); done
-    ((${#stop[@]})) && stop=(\( "${stop[@]:1}" \) -prune -o)
-    find "$r" -xdev "${XPRUNE[@]}" "${stop[@]}" \
-      \( -type d \( -name .cache -o -name .git -o -name Trash -o -name .Trash -o -name '.Trash-*' \) \
-      -not -path "$r" -printf 'P%p\0' -prune \) -o \( "${filt[@]}" -printf 'F%s\t%T@\t%A@\t%p\0' \) 2>/dev/null
-  done >"$tmp"
-  total=$(LC_ALL=C grep -zc '^F' "$tmp")
-  # only names that are valid UTF-8 without control characters can round-trip through JSON: the others are hidden
-  found=$(LC_ALL=C.UTF-8 grep -zax 'F.*' "$tmp" | LC_ALL=C grep -zcE $'^F([^\t]*\t){3}[^[:cntrl:]]*$')
-  hidden=$((total - found))
+  large_search "$tmp" "$min" "$days" "$dir" "$limit" "$drv"
   while IFS=$'\t' read -r -d '' b m a p; do
     file_kind kind "$p"
     json_str jp "$p"
     printf '{"event":"file","path":%s,"bytes":%d,"mtime":%d,"atime":%d,"kind":"%s"}\n' \
-      "$jp" "${b#F}" "${m%.*}" "${a%.*}" "$kind"
-    listed=$((listed + 1)) sum=$((sum + ${b#F}))
-  done < <(LC_ALL=C.UTF-8 grep -zax 'F.*' "$tmp" | LC_ALL=C grep -zE $'^F([^\t]*\t){3}[^[:cntrl:]]*$' |
-    sort -z -t$'\t' -k1.2,1rn | head -z -n "$limit")
-  # the files that would have matched in the folders skipped, to say what was left out
-  mapfile -d '' -t roots < <(LC_ALL=C grep -za '^P' "$tmp" | LC_ALL=C sed -z 's/^P//')
-  for ((i = 0; i < ${#roots[@]}; i += 500)); do
-    skipped=$((skipped + $(find "${roots[@]:i:500}" -xdev "${XPRUNE[@]}" \( "${filt[@]}" -printf . \) 2>/dev/null | wc -c)))
-  done
+      "$jp" "$b" "${m%.*}" "${a%.*}" "$kind"
+    listed=$((listed + 1)) sum=$((sum + b))
+  done <"$tmp"
   rm -f "$tmp"
   printf '{"event":"done","count":%d,"found":%d,"total_bytes":%d,"hidden":%d,"skipped":%d,"other_drives":%d}\n' \
-    "$listed" "$found" "$sum" "$hidden" "$skipped" "$others"
+    "$listed" "$LARGE_FOUND" "$sum" "$LARGE_HIDDEN" "$LARGE_SKIPPED" "$LARGE_OTHERS"
 }
 
 LENS_LIMIT=500 # the biggest entries listed by `--json lens`, like the terminal's Space Lens
@@ -11897,10 +12091,10 @@ json_dupes_progress() { # STAGE DONE TOTAL
   printf '{"event":"progress","stage":"%s","done":%d,"total":%d}\n' "$1" "$2" "$3"
 }
 
-# Duplicates like the terminal app (dup_scan): same size → same MD5 of the first 64 KB →
-# same full MD5; hidden folders and node_modules skipped. Hard links count once.
+# Duplicates: the terminal app's search (dupes_search), groups and what it left out as JSON
 json_dupes() { # [--min BYTES] [--path DIR] [--limit N] — groups of identical files, biggest first
-  local min=$((1024 * 1024)) dir=$HOME limit=$DUPES_LIMIT s id m p h i n k key jp files first listed=0 found=0 wasted=0 nfiles=0
+  local min=$((1024 * 1024)) dir=$HOME limit=$DUPES_LIMIT m i key jp files first listed=0 found=0 wasted=0 nfiles=0 cand=()
+  local DUPES_PROGRESS=json_dupes_progress skipped
   while (($#)); do
     case $1 in
       --min | --path | --limit) (($# >= 2)) || { json_error usage "$1 needs a value."; return 2; } ;;&
@@ -11915,58 +12109,31 @@ json_dupes() { # [--min BYTES] [--path DIR] [--limit N] — groups of identical 
   [[ $limit =~ ^[0-9]+$ && $limit -gt 0 ]] || { json_error usage "Invalid limit: $limit"; return 2; }
   ((limit <= DUPES_LIMIT)) || limit=$DUPES_LIMIT
   [[ -d $dir ]] || { json_error not_folder "Not a folder: $dir" path "$dir"; return 2; }
-  ((min > 0)) || min=1 # empty files are all alike, never duplicates
   dir=$(realpath -m -s -- "$dir")
-  if in_exclusion "$dir"; then printf '{"event":"done","groups":0,"found":0,"files":0,"total_bytes":0}\n'; return 0; fi
-  exclusion_prune
-  local -a S=() M=() P=() cand=() keys=()
-  local -A seen=() nsize=() nhead=() hh=() group=()
-  json_dupes_progress list 0 0
-  while IFS=$'\t' read -r -d '' s id m p; do
-    [[ -n ${seen[$id]:-} ]] && continue # another name of a file already listed
-    seen[$id]=1
-    [[ $p == *[$'\x01'-$'\x1f\x7f']* ]] && continue
-    S+=("$s") M+=("${m%.*}") P+=("$p")
-    nsize[$s]=$((${nsize[$s]:-0} + 1))
-  done < <(find "$dir" -xdev -mindepth 1 "${XPRUNE[@]}" \( -name '.*' -o -name node_modules \) -prune -o \
-    -type f -size +$((min - 1))c -printf '%s\t%D:%i\t%T@\t%p\0' 2>/dev/null | LC_ALL=C.UTF-8 grep -zax '.*')
-  for i in "${!P[@]}"; do ((${nsize[${S[i]}]} > 1)) && cand+=("$i"); done
-  n=${#cand[@]} k=0
-  for i in "${cand[@]}"; do
-    ((++k % 25 == 0)) && json_dupes_progress compare "$k" "$n"
-    h=$(head -c 65536 -- "${P[i]}" 2>/dev/null | md5sum) || continue
-    hh[$i]=${S[i]}:${h%% *}
-    nhead[${hh[$i]}]=$((${nhead[${hh[$i]}]:-0} + 1))
-  done
-  cand=()
-  for i in "${!hh[@]}"; do ((${nhead[${hh[$i]}]} > 1)) && cand+=("$i"); done
-  n=${#cand[@]} k=0
-  for i in "${cand[@]}"; do
-    ((++k % 5 == 0)) && json_dupes_progress verify "$k" "$n"
-    key=${hh[$i]}
-    if ((S[i] > 65536)); then
-      h=$(md5sum -- "${P[i]}" 2>/dev/null) || continue
-      h=${h%% *}; key=${S[i]}:${h#\\}
-    fi
-    [[ -n ${group[$key]:-} ]] || keys+=("$key")
-    group[$key]+=" $i"
-  done
+  if in_exclusion "$dir"; then
+    printf '{"event":"done","groups":0,"found":0,"files":0,"total_bytes":0,"hidden":0,"skipped":0,"reasons":{"hidden_folders":0,"node_modules":0,"never_clean":0,"unreadable":0},"other_drives":0}\n'
+    return 0
+  fi
+  dupes_search "$min" "$dir" || return 1
   # biggest files first; in a group the newest copy first
   while IFS= read -r key; do
-    read -ra cand <<<"${group[$key]}"
+    read -ra cand <<<"${DUP_GROUP[$key]}"
     ((${#cand[@]} > 1)) || continue
     found=$((found + 1))
     ((listed < limit)) || continue
     files="" first=1
     while IFS=$'\t' read -r m i; do
-      json_str jp "${P[i]}"
+      json_str jp "${DUP_P[i]}"
       ((first)) || files+=","
       files+="{\"path\":$jp,\"mtime\":$m}" first=0
-    done < <(for i in "${cand[@]}"; do printf '%s\t%s\n' "${M[i]}" "$i"; done | sort -t$'\t' -k1,1rn -k2,2n)
+    done < <(for i in "${cand[@]}"; do printf '%s\t%s\n' "${DUP_M[i]%.*}" "$i"; done | sort -t$'\t' -k1,1rn -k2,2n)
     printf '{"event":"group","hash":"%s","bytes":%d,"files":[%s]}\n' "${key#*:}" "${key%%:*}" "$files"
     listed=$((listed + 1)) nfiles=$((nfiles + ${#cand[@]})) wasted=$((wasted + ${key%%:*} * (${#cand[@]} - 1)))
-  done < <(((${#keys[@]})) && printf '%s\n' "${keys[@]}" | sort -t: -k1,1rn -k2,2)
-  printf '{"event":"done","groups":%d,"found":%d,"files":%d,"total_bytes":%d}\n' "$listed" "$found" "$nfiles" "$wasted"
+  done < <(((${#DUP_KEYS[@]})) && printf '%s\n' "${DUP_KEYS[@]}" | sort -t: -k1,1rn -k2,2)
+  skipped=$((DUP_SKIP_DOT + DUP_SKIP_NM + DUP_SKIP_X + DUP_UNREADABLE))
+  printf '{"event":"done","groups":%d,"found":%d,"files":%d,"total_bytes":%d,"hidden":%d,"skipped":%d,"reasons":{"hidden_folders":%d,"node_modules":%d,"never_clean":%d,"unreadable":%d},"other_drives":%d}\n' \
+    "$listed" "$found" "$nfiles" "$wasted" "$DUP_HIDDEN" "$skipped" "$DUP_SKIP_DOT" "$DUP_SKIP_NM" "$DUP_SKIP_X" \
+    "$DUP_UNREADABLE" "$DUP_OTHERS"
 }
 
 json_file_task() { # PATH STATE CODE INFO BYTES [TRASH-NAME [KEY VALUE]…] → one "task" event about a file

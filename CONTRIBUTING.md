@@ -120,6 +120,10 @@ another copy. A whole scan waits for its slowest item, so compare medians.
 home, the real system): the first scan with nothing cached and a repeat scan, then the slowest items
 on their own, and checks the unused packages against `apt-get -s autoremove`. Run it as an ordinary
 user on a machine with many packages; `CLEANMATE_SCRIPT=old.sh` times another copy.
+`tests/bench-dupes.sh [COUNT [ROUNDS [SIZE_BYTES]]]` times Duplicates on a throwaway folder of 20,000
+files of one size (300 KB; sparse, so little disk), every one read: a tenth are copies, the rest differ
+at the start or only at the end. It prints the median and a checksum of the groups found, which must
+be the same for both copies you compare (`CLEANMATE_SCRIPT=old.sh`, CPUs limited as above).
 CI runs everything on Ubuntu 22.04 and 24.04 for every pull request.
 
 The PPA gets one source package per Ubuntu release, listed in `SERIES` at the top of

@@ -274,6 +274,32 @@ test_gradle_running_by_command_line() {
   rm -r "$proc"
 }
 
+test_maven_running_locks_its_repository() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local proc=$WORK/mavenproc out m=$HOME_DIR/.m2/repository
+  sized "$m/org/x/x/1.0/x-1.0.jar" 5000
+  select_only maven
+  proc_stub "$proc" 4343 java -classpath /usr/share/maven/boot/plexus-classworlds.jar \
+    -Dclassworlds.conf=/usr/share/maven/bin/m2.conf org.codehaus.plexus.classworlds.launcher.Launcher package
+  out=$(CLEANMATE_PROC=$proc cm --clean --yes --only dev 2>&1 </dev/null)
+  assert_contains "$out" "Skipping Maven repository: close Maven first."
+  assert_exists "$m/org/x/x/1.0/x-1.0.jar"
+  out=$(CLEANMATE_PROC=$proc cm --json scan --only dev | grep '"id":"maven"')
+  assert_contains "$out" '"locked":"Maven"'
+  out=$(user_cm --json items | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] == "maven":
+        print(",".join(e["why"]["running"]))')
+  assert_eq "$out" "Maven,mvn" "why names Maven"
+  proc_stub "$proc" 4343 java -jar /opt/tools/app.jar # any other java
+  out=$(CLEANMATE_PROC=$proc cm --clean --yes --only dev 2>&1 </dev/null)
+  [[ $out == *"Skipping Maven"* ]] && fail "a plain java locked Maven: $out" || ok_ "a plain java does not lock"
+  assert_missing "$m/org/x/x/1.0/x-1.0.jar"
+  rm -r "$proc"
+}
+
 test_trash_is_emptied_in_place() {
   fresh_home
   local t=$HOME_DIR/.local/share/Trash
@@ -1510,6 +1536,36 @@ for e in map(json.loads, sys.stdin):
   out=$(cm --json large --min 5M 2>&1); assert_contains "$out" "Invalid size: 5M"
   out=$(cm --json large --path "$HOME_DIR/nope" 2>&1); assert_contains "$out" "Not a folder"
   out=$(cm --json large --days 2>&1); assert_contains "$out" "--days needs a value"
+}
+
+test_terminal_large_files_match_the_app() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out app v=$HOME_DIR/Videos tmp=$WORK/large-tui
+  mkdir -p "$v/deep/er" "$HOME_DIR/.cache/app" "$HOME_DIR/code/.git" "$HOME_DIR/.local/share/Trash/files" "$tmp"
+  truncate -s 3M "$v/film one.mkv"; truncate -s 5M "$v/deep/er/big.iso"; truncate -s 2M "$v/locked.bin"
+  chmod 000 "$v/locked.bin" # can't be read, still listed: its size is known
+  truncate -s 4M "$HOME_DIR/.cache/app/blob" "$HOME_DIR/code/.git/pack" "$HOME_DIR/.local/share/Trash/files/gone.bin"
+  truncate -s 2M "$v/"$'\xff'".bin"
+  app=$(cm --json large --min 1048576 | python3 -c 'import sys, json
+for e in map(json.loads, sys.stdin):
+    if e["event"] == "file": print(e["bytes"], e["path"])
+    elif e["event"] == "done": print("skipped", e["hidden"], e["skipped"], e["other_drives"])')
+  # the terminal app's Large Files, its list and notes printed instead of shown
+  out=$(in_app "SESSION_TMP=${tmp@Q}"' UI_ACTIVE=0; ui_busy() { wait "$2"; }
+    pick_files() { printf "%s\n" "${FOUND[@]}"; printf "note %s\n" "${PICK_NOTES[@]}"; }
+    find_large "$HOME" 1')
+  assert_eq "$(grep -v '^note' <<<"$out" | cut -f1,3 | tr '\t' ' ')" "$(grep -v '^skipped' <<<"$app")" \
+    "the same files in the same order as the app"
+  assert_eq "$app" $'5242880 '"$v"$'/deep/er/big.iso\n3145728 '"$v"$'/film one.mkv\n2097152 '"$v"$'/locked.bin\nskipped 1 3 0' \
+    "the app's list"
+  assert_eq "$(grep '^note' <<<"$out")" $'note 1 file skipped: names with characters that can\'t be shown
+note 3 files skipped: in caches, Git folders or a Trash' "the same files left out, and why"
+  out=$(in_app "SESSION_TMP=${tmp@Q}"' UI_ACTIVE=0 LARGE_LIMIT=2; ui_busy() { wait "$2"; }
+    pick_files() { printf "%s\n" "${#FOUND[@]}" "${PICK_NOTES[0]}"; }; find_large "$HOME" 1')
+  assert_eq "$out" $'2\nThe 2 biggest of 3 files' "the same limit as the app, and it says so"
+  assert_eq "$(find "$tmp" -mindepth 1 | wc -l)" 0 "no temporary file left"
+  chmod 644 "$v/locked.bin"; rm -r "$tmp"
 }
 
 test_json_large_file_kinds() { # the desktop app's kind filter goes by these
@@ -2808,6 +2864,29 @@ done 2 2 5 5200000' "groups biggest first, newest copy first; hard links, hidden
   assert_eq "$out" $'2000000 Downloads/beach (1).jpg,Backup/beach.jpg,Photos/beach.jpg\ndone 1 2 3 4000000' \
     "--limit keeps the biggest groups only"
   out=$(cm --json dupes --limit 0 2>&1); assert_contains "$out" "Invalid limit: 0"
+  # what was left out is counted, with the same names as `--json large`
+  local left='import sys, json
+for e in map(json.loads, sys.stdin):
+    if e["event"] == "done":
+        print(*(e[k] for k in ("hidden", "skipped", "other_drives")), *(e["reasons"][k] for k in
+              ("hidden_folders", "node_modules", "never_clean", "unreadable")))'
+  out=$(cm --json dupes | python3 -c "$left")
+  assert_eq "$out" "0 2 0 1 1 0 0" "a hidden folder and node_modules skipped"
+  mkdir -p "$d/Keep" "$d/Disk"; cp "$d/Photos/clip.mp4" "$d/Keep/clip.mp4"; cp "$d/Photos/clip.mp4" "$d/Disk/clip.mp4"
+  printf '%s\n' "$d/Keep" >"$HOME_DIR/.config/cleanmate/exclude"
+  cp "$d/Photos/clip.mp4" "$d/Photos/locked.mp4"; chmod 000 "$d/Photos/locked.mp4"
+  truncate -s 1100000 "$d/Photos/"$'\x01'"bad.bin" "$d/Photos/"$'\x01'"bad2.bin"
+  local CLEANMATE_MOUNTS=$WORK/dupes-mounts
+  printf '/dev/sdb1 %s ext4 rw 0 0\n' "$d/Disk" >"$CLEANMATE_MOUNTS"
+  out=$(cm --json dupes | python3 -c "$left")
+  if ((EUID == 0)); then
+    assert_eq "$out" "2 3 1 1 1 1 0" "names that can't be shown, a folder never cleaned; a disk inside not searched"
+  else
+    assert_eq "$out" "2 4 1 1 1 1 1" "names that can't be shown, a folder never cleaned, a file that can't be read; a disk inside not searched"
+  fi
+  chmod 644 "$d/Photos/locked.mp4"; rm -r "$CLEANMATE_MOUNTS"
+  out=$(cm --json dupes --path "$d/Keep" | python3 -c "$left")
+  assert_eq "$out" "0 0 0 0 0 0 0" "a folder never cleaned is not searched"
 }
 
 startup_list() { # reads `--json startup` / `startup-set` → one line per event

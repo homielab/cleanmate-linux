@@ -22,7 +22,7 @@ All notable changes are listed here. The format follows
 - Desktop app, Smart Scan and the cleanup pages: **Stop** ends a scan and lists what it checked so far; **Ctrl+F** searches the results by name or path; **Never Clean This** on a listed folder (old downloads, stale build folders) adds it to *Settings › Never clean*. The confirmation lists every item with *To the Trash* or *Deleted permanently* and the total of each, and after a clean a summary (space freed, Trash vs deleted, Undo, Open Trash) stays until the next scan. The results show how long the scan took.
 - `cm --scan` ends with how long the scan took and its three slowest items; `cm --json scan` gives `durationMs` for each item and for the whole scan (the same field as the macOS app).
 
-- Desktop app, **Large & Old Files**: says how many files it skipped and why, and **Search Other Drives Too** also searches the disks mounted inside the folder you picked (`cm --json large --all-drives`).
+- **Large & Old Files** and **Duplicates** say how many files they skipped and why, in both apps; the terminal app's Large Files now lists the same files as the desktop app. **Search Other Drives Too** also searches the disks mounted inside the folder you picked (`cm --json large --all-drives`).
 - `cm --scan`, `--clean` and automatic cleaning exit with 1 when a task failed and 3 when only part was done (no `sudo`), so scripts can tell; `cm --json clean` reports `status`.
 - **System Junk** shows unused Flatpak runtimes with their size, and Maintenance says how much removing them frees.
 
@@ -30,6 +30,7 @@ All notable changes are listed here. The format follows
 
 - Automatic cleaning also clears the caches AI tools rebuild (never chat history or models), and on a laptop waits until it's plugged in — **Run even on battery** in Settings if you'd rather not wait.
 - Desktop app in Vietnamese: errors, task results and the low disk, scan reminder and automatic cleaning notifications are translated too (the engine sends codes the app translates); `cm` in the terminal stays in English. Opening the terminal app also works with Konsole and Xfce Terminal.
+- **Duplicates** is about six times faster on folders full of same-size files: 20,000 of them take 19 seconds instead of 112 on four cores.
 - Repeat scans of a home with many idle projects are faster: the stale `node_modules` item reads its folders in parallel (about 80 → 60 ms for 50 projects).
 - The README starts with what CleanMate does, a screenshot and the install commands, and compares it with BleachBit; the full list of what it cleans moved to `docs/FEATURES.md`.
 - Minecraft caches are skipped only while Minecraft itself runs, not while any Java program (an IDE, a Gradle daemon) is open.
@@ -45,7 +46,7 @@ All notable changes are listed here. The format follows
 - Desktop app, **Uninstaller**: an app that can't be removed keeps its row with the reason, and the summary says how many could not be uninstalled. A dismissed or missing password dialog says so.
 - A scan that hits its time limit no longer reports an item as clean when its check was cut short.
 - *Never clean* folders inside app caches, app logs and temporary files are kept when those are cleaned.
-- Caches stay untouched while Gradle, Android Studio or another tool using them runs, also from a snap or Flatpak.
+- Caches stay untouched while Gradle, Maven, Android Studio or another tool using them runs, also from a snap or Flatpak.
 - Desktop app: names with “&” or sizes like “<1%” show up everywhere, and **Why is this safe?** names every program that blocks an item, ghcup included.
 - System Overview: **Freed** counts only space really freed; what went to the Trash shows below it.
 - The `.deb` brings video thumbnails along, and moving to the Trash outside your home folder says when `gio` is missing.

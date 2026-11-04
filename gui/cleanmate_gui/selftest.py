@@ -595,6 +595,9 @@ def duplicates_test(win, report, wait, finish):
         os.utime(path, (then, then))
     with open(os.path.join(home, "Photos", "other.jpg"), "wb") as f:  # same size, other content
         f.write(os.urandom(1536 << 10))
+    os.makedirs(os.path.join(home, ".backup"))
+    with open(os.path.join(home, ".backup", "beach.jpg"), "wb") as f:  # a copy in a hidden folder: left out, counted
+        f.write(data)
     env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share")}
     oldest, newer, newest = copies[0], copies[1:], copies[2]
 
@@ -617,6 +620,9 @@ def duplicates_test(win, report, wait, finish):
 
     def searched():
         report(files() == [copies[::-1]], f"one group of three copies, newest first: {files()}")
+        note = ngettext("{n} file skipped: it is hidden, or in a hidden folder",
+                        "{n} files skipped: they are hidden, or in hidden folders", 1)
+        report(note in labels(page.results), f"says a file in a hidden folder was skipped: {labels(page.results)[:4]}")
         report(not page.selected and not any(c.get_active() for c in page.checks.values()),
                "nothing is ticked after a search")
         report(auto_selection([{"files": [{"path": "c", "mtime": 3}, {"path": "b", "mtime": 1}, {"path": "a", "mtime": 2}]}])

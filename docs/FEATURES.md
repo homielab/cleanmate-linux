@@ -34,7 +34,9 @@ disk's use minus what only an administrator can see; CleanMate never reads as ro
 (or the eye button) shows or hides names starting with a dot (one row sums up the hidden ones), and every
 row has **Open** (its default app) and **Show in Files**. **Duplicates** groups identical files (from 1 MB, in a folder or drive you
 pick); nothing is ticked until you choose, and **Select automatically** ticks every copy except the oldest
-(usually the original); you're warned if every copy of a file is ticked. Its **Similar Photos** mode
+(usually the original); you're warned if every copy of a file is ticked. Under the title it says what it
+left out: hidden files and folders, `node_modules`, Never clean folders, files it can't read or whose
+names it can't show, and other drives mounted inside the folder. Its **Similar Photos** mode
 groups photos that look alike (resized or re-saved copies, edits, shots taken one after another) in
 Pictures or a folder you pick, read on your computer only; it suggests keeping the one with the most
 pixels, then the biggest file, ticks nothing until you choose, and moves the others to the Trash, with
@@ -122,5 +124,6 @@ the browser runs; Firefox needs `sqlite3` (it clears the records, so bookmarks i
 - **System Overview** — storage, free-space history, space outside your folders (Timeshift
   snapshots, the swap file, ext4's reserved space), your largest folders, and whether the firewall,
   AppArmor, automatic security updates and Secure Boot are on (read only, with the command to fix one).
-- Space Lens (browse folders by size), Large & Old Files (here with virtual machine disks),
-  Duplicates, Startup Items (login apps; **t** moves a broken one to the Trash) and Settings.
+- Space Lens (browse folders by size), Large & Old Files (the same files and order as the desktop
+  app, with what it left out), Duplicates (also with what it left out), Startup Items (login apps;
+  **t** moves a broken one to the Trash) and Settings.

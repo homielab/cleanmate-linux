@@ -21,7 +21,7 @@ from .errorview import ErrorPage, Failure
 from . import findbar
 from .findbar import FindBar
 from .i18n import _, ngettext
-from .largefiles import short_path
+from .largefiles import short_path, skipped_notes
 from .scanpage import size_widgets
 from . import messages
 from .rows import plain_row
@@ -31,6 +31,25 @@ FILES, PHOTOS = "files", "photos"  # the two modes: identical files, similar pho
 THUMB = 48  # px, the photo next to each similar photo
 WIDE = 760  # sp: a narrower page hides the photo preview
 ROWS_AT_ONCE = 50  # file rows added per frame, so a group of 2,000 photos never freezes the window
+
+
+def dupes_notes(info):
+    """What the duplicate search left out (the engine's `done` counts and reasons), one line each."""
+    why = info.get("reasons") or {}
+    notes = skipped_notes({"hidden": info.get("hidden")})
+    if why.get("hidden_folders"):
+        notes.append(ngettext("{n} file skipped: it is hidden, or in a hidden folder",
+                              "{n} files skipped: they are hidden, or in hidden folders", why["hidden_folders"]))
+    if why.get("node_modules"):
+        notes.append(ngettext("{n} file skipped: it is in a node_modules folder",
+                              "{n} files skipped: they are in node_modules folders", why["node_modules"]))
+    if why.get("never_clean"):
+        notes.append(ngettext("{n} file skipped: it is in a folder you never clean",
+                              "{n} files skipped: they are in folders you never clean", why["never_clean"]))
+    if why.get("unreadable"):
+        notes.append(ngettext("{n} file skipped: it can't be read",
+                              "{n} files skipped: they can't be read", why["unreadable"]))
+    return notes + skipped_notes({"other_drives": info.get("other_drives")})
 
 
 def group_key(g):
@@ -88,6 +107,7 @@ class DuplicatesPage(Gtk.Box):
         self.intro = (icon, title, description)
         self.groups = []  # "group" events of the last search, biggest first; files newest first
         self.found = 0  # how many groups exist (only the biggest are listed)
+        self.info = {}  # the search's `done` event: what it left out
         self.selected = set()  # paths
         self.checks = {}  # path → Gtk.CheckButton
         self.pending_rows = collections.deque()  # (group, its row, file, kept?) still to add
@@ -217,6 +237,7 @@ class DuplicatesPage(Gtk.Box):
         self.empty.set_description(_("Try another folder.") if mode == PHOTOS
                                    else _("Try a smaller size or another folder."))
         self.groups, self.found, self.selected, self.searched = [], 0, set(), False
+        self.info = {}
         self.stack.set_visible_child_name("start")
         self.bar.set_revealed(False)
 
@@ -310,6 +331,7 @@ class DuplicatesPage(Gtk.Box):
                 self.window.toast(messages.text(info))
             self.groups = groups
             self.found = info.get("found", len(groups))
+            self.info = info
             self.selected = set()
             self.show_results()
 
@@ -371,6 +393,7 @@ class DuplicatesPage(Gtk.Box):
             found = found or []
             self.groups = found[:similar.GROUPS_LIMIT]
             self.found = len(found)
+            self.info = {}
             self.selected = set()
             self.show_results()
             return False
@@ -405,7 +428,10 @@ class DuplicatesPage(Gtk.Box):
         self.group_rows.clear()
         self.pending_rows = collections.deque()
         groups = self.shown_groups()
+        notes = dupes_notes(self.info)
         if not groups:
+            hint = (_("Try another folder.") if self.mode == PHOTOS else _("Try a smaller size or another folder."))
+            self.empty.set_description(GLib.markup_escape_text("\n".join([hint, *notes])))
             self.stack.set_visible_child_name("empty")
             self.bar.set_revealed(False)
             return
@@ -423,6 +449,8 @@ class DuplicatesPage(Gtk.Box):
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
         text.append(title)
         text.append(Gtk.Label(label=sub, xalign=0, wrap=True, css_classes=["dim-label"]))
+        for note in notes:
+            text.append(Gtk.Label(label=note, xalign=0, wrap=True, css_classes=["dim-label", "caption"]))
         auto = Gtk.Button(label=_("Select automatically"), valign=Gtk.Align.CENTER,
                           tooltip_text=_("Tick every photo except the suggested one of each group") if photos
                           else _("Tick every copy except the oldest one of each group"))
