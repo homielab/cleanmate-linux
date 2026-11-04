@@ -1722,7 +1722,7 @@ test_json_scan_stop() { # the desktop app's Stop: SIGTERM ends a scan early with
 ev = [json.loads(l) for l in sys.stdin if l.strip()]
 ids = {e["id"]: e["status"] for e in ev if e["event"] == "item"}
 done = [e for e in ev if e["event"] == "done"]
-print(done[-1]["stopped"] if done else "no done", ids.get("old_downloads"), "snap_old" in ids)'
+print(done[-1]["stopped"] if done else "no done", ids.get("old_downloads"), ids.get("snap_old"))'
   env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" LANG=C.UTF-8 CLEANMATE_NO_UPDATE_CHECK=1 \
     bash "$SCRIPT" --json --only system scan >"$WORK/stop.json" 2>/dev/null &
   pid=$!
@@ -1738,14 +1738,16 @@ print(done[-1]["stopped"] if done else "no done", ids.get("old_downloads"), "sna
   kill "$watchdog" 2>/dev/null; wait "$watchdog" 2>/dev/null
   assert_eq "$rc" 0 "a stopped scan exits normally"
   out=$(python3 -c "$summary" <"$WORK/stop.json")
-  assert_eq "$out" "True found False" "a stopped scan lists what it checked, leaves out the item still running and says stopped"
+  assert_eq "$out" "True found None" "a stopped scan lists what it checked, leaves out the item still running and says stopped"
   ((ms < 3000)) && ok_ "stopped in ${ms} ms" || fail "Stop took ${ms} ms"
   for _ in {1..20}; do [[ -n $stub ]] && kill -0 "$stub" 2>/dev/null || break; sleep 0.1; done
   if [[ -n $stub ]] && kill -0 "$stub" 2>/dev/null; then fail "the stopped scan left its worker running"; kill -9 "$stub"; fi
-  rm "$bin/snap" "$HOME_DIR/snap.pid"
+  rm "$HOME_DIR/snap.pid"
+  # now snap answers at once (a stub, also where the machine has a real snap): its item is checked to the end
+  printf '#!/bin/sh\necho "Name  Version  Rev  Tracking  Publisher  Notes"\n' >"$bin/snap"
   out=$(env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" LANG=C.UTF-8 CLEANMATE_NO_UPDATE_CHECK=1 \
     bash "$SCRIPT" --json --only system scan 2>/dev/null | python3 -c "$summary")
-  assert_eq "$out" "False found False" "a scan right after Stop runs to the end"
+  assert_eq "$out" "False found clean" "a scan right after Stop runs to the end"
 }
 
 test_old_downloads() {
