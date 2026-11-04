@@ -10243,21 +10243,15 @@ schedule_get() { # → off | daily | weekly | monthly
   else echo off; fi
 }
 
-schedule_set() { # off | daily | weekly | monthly
-  local exe=$SELF
-  SCHED_CODE=no_systemd
-  user_timers || { toast "${RED}✘${NC} systemd is not available."; return 1; }
-  SCHED_CODE=would_set
-  if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would set automatic cleaning to: $1"; return 0; fi
-  if [[ $1 == off ]]; then
-    systemctl --user disable --now cleanmate.timer >/dev/null 2>&1
-    rm -f "$SYSTEMD_USER_DIR/cleanmate.timer" "$SYSTEMD_USER_DIR/cleanmate.service"
-    systemctl --user daemon-reload 2>/dev/null
-    toast "${GREEN}✔${NC} Automatic cleaning turned off."; SCHED_CODE=schedule_off
-    return 0
-  fi
-  [[ -x $BIN_PATH ]] && exe=$BIN_PATH
-  SCHED_CODE=timer_failed
+timer_exev() { # VAR → the command the systemd user timers run: a stable path, never a snap revision
+  # snap: /snap/bin/<name> (SELF is /snap/cleanmate/<revision>/…, gone after a few refreshes);
+  # .deb/PPA: this copy (/usr/bin/cleanmate); else the copy `cm --install` made, or this one
+  if [[ -n ${SNAP:-} ]]; then printf -v "$1" '%s' "/snap/bin/${SNAP_INSTANCE_NAME:-cleanmate}"
+  elif packaged || [[ ! -x $BIN_PATH ]]; then printf -v "$1" '%s' "$SELF"
+  else printf -v "$1" '%s' "$BIN_PATH"; fi
+}
+
+schedule_units() { # SCHEDULE EXE — write the cleaning timer and its service
   mkdir -p "$SYSTEMD_USER_DIR" || return 1
   cat >"$SYSTEMD_USER_DIR/cleanmate.service" <<EOF
 [Unit]
@@ -10265,7 +10259,7 @@ Description=CleanMate — automatic Smart Clean
 
 [Service]
 Type=oneshot
-ExecStart="$exe" --auto
+ExecStart="$2" --auto
 Nice=19
 IOSchedulingClass=idle
 EOF
@@ -10281,11 +10275,39 @@ RandomizedDelaySec=1h
 [Install]
 WantedBy=timers.target
 EOF
+}
+
+schedule_repoint() { # a packaged copy's cleaning timer that runs another path (an old snap revision): point it here
+  local exe sched s=$SYSTEMD_USER_DIR/cleanmate.service
+  [[ -f $s ]] && packaged && user_timers && ((!DRY_RUN && EUID != 0)) || return 0
+  timer_exev exe
+  grep -qxF "ExecStart=\"$exe\" --auto" "$s" 2>/dev/null && return 0
+  sched=$(schedule_get); [[ $sched != off ]] || return 0
+  schedule_units "$sched" "$exe" && systemctl --user daemon-reload 2>/dev/null
+  return 0
+}
+
+schedule_set() { # off | daily | weekly | monthly
+  local exe
+  SCHED_CODE=no_systemd
+  user_timers || { toast "${RED}✘${NC} systemd is not available."; return 1; }
+  SCHED_CODE=would_set
+  if ((DRY_RUN)); then toast "${MAGENTA}[dry-run]${NC} Would set automatic cleaning to: $1"; return 0; fi
+  if [[ $1 == off ]]; then
+    systemctl --user disable --now cleanmate.timer >/dev/null 2>&1
+    rm -f "$SYSTEMD_USER_DIR/cleanmate.timer" "$SYSTEMD_USER_DIR/cleanmate.service"
+    systemctl --user daemon-reload 2>/dev/null
+    toast "${GREEN}✔${NC} Automatic cleaning turned off."; SCHED_CODE=schedule_off
+    return 0
+  fi
+  timer_exev exe
+  SCHED_CODE=timer_failed
+  schedule_units "$1" "$exe" || return 1
   systemctl --user daemon-reload &&
     systemctl --user enable --now cleanmate.timer >/dev/null 2>&1 ||
     { toast "${RED}✘${NC} Could not enable the systemd timer."; SCHED_CODE=timer_failed; return 1; }
-  if [[ $exe == "$BIN_PATH" ]]; then toast "${GREEN}✔${NC} Automatic cleaning: $1."; SCHED_CODE=schedule_on
-  else
+  if [[ $exe == "$BIN_PATH" ]] || packaged; then toast "${GREEN}✔${NC} Automatic cleaning: $1."; SCHED_CODE=schedule_on
+  else # a copy in a clone or a download folder: moving or deleting it breaks the timer
     toast "${GREEN}✔${NC} Automatic cleaning: $1 — runs ${exe/#$HOME/\~}; install the launcher so moving it won't break this."
     SCHED_CODE=schedule_not_installed
   fi
@@ -10370,9 +10392,10 @@ check_remind() { # → CK_DUE, CK_SENT, CK_LAST (epoch of the last scan, 0 = nev
 }
 
 check_timer_sync() { # turn cleanmate-check.timer on while the low disk alert or the scan reminder is on, else off
-  local exe=$SELF t=$SYSTEMD_USER_DIR/cleanmate-check.timer s=$SYSTEMD_USER_DIR/cleanmate-check.service
+  local exe t=$SYSTEMD_USER_DIR/cleanmate-check.timer s=$SYSTEMD_USER_DIR/cleanmate-check.service
   user_timers && ((!DRY_RUN && EUID != 0)) || return 0
-  [[ -x $BIN_PATH ]] && exe=$BIN_PATH
+  timer_exev exe
+  schedule_repoint
   if ((LOW_DISK_PCT > 0)) || [[ $REMIND != off ]]; then
     if [[ -f $t ]] && grep -qxF "ExecStart=\"$exe\" --check" "$s" 2>/dev/null &&
       systemctl --user is-enabled -q cleanmate-check.timer 2>/dev/null; then

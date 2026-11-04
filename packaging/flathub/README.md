@@ -65,6 +65,11 @@ The app says so instead of failing, and the full `.deb` version (PPA or Releases
 - **No schedule and no reminders:** automatic cleaning and scan reminders use systemd user timers
   on the host.
 
+The welcome promises only what the Flatpak does: no password step, no Uninstaller, no terminal app
+and no automatic cleaning; its second step says what the Flatpak reaches, and its options are the
+language and the low disk alert. *Settings* greys out automatic cleaning and the scan reminder with
+*Not in the Flatpak*. Both have a **Limits of the Flatpak** row that opens this section.
+
 The manifest installs the metainfo without the screenshots marked `<!-- not in the Flatpak` in
 `data/com.homielab.CleanMate.metainfo.xml` (Uninstaller, Startup Items), so Flathub shows only pages
 the Flatpak has. Mark a new screenshot of a hidden page the same way.

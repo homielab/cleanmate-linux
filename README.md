@@ -1,6 +1,6 @@
 # CleanMate
 
-[![CI](https://github.com/homielab/cleanmate-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/homielab/cleanmate-linux/actions/workflows/ci.yml) [![Latest version](https://img.shields.io/github/v/release/homielab/cleanmate-linux?label=version&color=blue)](https://github.com/homielab/cleanmate-linux/releases/latest) [![PPA](https://img.shields.io/badge/PPA-homielab%2Fcleanmate-E95420?logo=ubuntu&logoColor=white)](https://launchpad.net/~homielab/+archive/ubuntu/cleanmate) ![Ubuntu 22.04 | 24.04](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![CI](https://github.com/homielab/cleanmate-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/homielab/cleanmate-linux/actions/workflows/ci.yml) [![Latest version](https://img.shields.io/github/v/release/homielab/cleanmate-linux?label=version&color=blue)](https://github.com/homielab/cleanmate-linux/releases/latest) [![PPA](https://img.shields.io/badge/PPA-homielab%2Fcleanmate-E95420?logo=ubuntu&logoColor=white)](https://launchpad.net/~homielab/+archive/ubuntu/cleanmate) ![Ubuntu 22.04 | 24.04 | 26.04 | 26.10](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04%20%7C%2026.04%20%7C%2026.10-E95420?logo=ubuntu&logoColor=white) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **Free up disk space and keep Ubuntu tidy — safely.** CleanMate is a free, open-source (MIT) cleaner
 for Ubuntu: caches, old logs and kernels, leftovers of removed apps, Docker, developer and AI-tool
@@ -14,7 +14,7 @@ share one engine. No account, no telemetry.
 
 ## Install
 
-**Ubuntu 24.04 LTS** — from the [PPA](https://launchpad.net/~homielab/+archive/ubuntu/cleanmate),
+**Ubuntu 24.04 LTS, 26.04 LTS and 26.10** — from the [PPA](https://launchpad.net/~homielab/+archive/ubuntu/cleanmate),
 with updates through Software Updater:
 
 ```bash
@@ -140,7 +140,10 @@ Checked against BleachBit's own website and documentation (November 2026). More 
 junk and notifies you: *"Freed 1.2 GB. Worth a look: Docker build cache 2.0 GB, Google Chrome
 1.8 GB."* It never empties the Trash, never touches browsers, apps, Docker volumes, stopped
 containers or project build folders and never needs your password. In the desktop app it's in *Settings* in the main
-menu (Ctrl+,); both apps share the same settings.
+menu (Ctrl+,); both apps share the same settings. The timer runs the installed `cleanmate`: `/usr/bin/cleanmate`
+from the PPA or the `.deb`, `/snap/bin/cleanmate` from the snap (so it keeps working after the snap updates), or the
+copy `cm --install` made. A git clone that isn't installed is run from where it is, and you're asked to install the
+launcher so the timer survives moving or deleting the clone.
 
 *Settings → Scan groups* turns a whole group off (say, Developer Junk on a machine you don't code on):
 Smart Scan, `--scan`, `--clean` and automatic cleaning leave it out.

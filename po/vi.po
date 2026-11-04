@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-04 12:33+0000\n"
+"POT-Creation-Date: 2026-11-04 14:30+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -46,7 +46,7 @@ msgstr ""
 #: gui/cleanmate_gui/bugreport.py:86 gui/cleanmate_gui/duplicates.py:643
 #: gui/cleanmate_gui/largefiles.py:411 gui/cleanmate_gui/maintenance.py:259
 #: gui/cleanmate_gui/scanpage.py:896 gui/cleanmate_gui/scanpage.py:1119
-#: gui/cleanmate_gui/settings.py:467 gui/cleanmate_gui/spacelens.py:650
+#: gui/cleanmate_gui/settings.py:486 gui/cleanmate_gui/spacelens.py:650
 #: gui/cleanmate_gui/startup.py:266 gui/cleanmate_gui/trashed.py:339
 #: gui/cleanmate_gui/uninstaller.py:597 gui/cleanmate_gui/uninstaller.py:823
 msgid "Cancel"
@@ -357,12 +357,12 @@ msgid "Put back {n} file from the Trash"
 msgid_plural "Put back {n} files from the Trash"
 msgstr[0] "Đã trả lại {n} tệp từ Thùng rác"
 
-#: gui/cleanmate_gui/engine.py:20 gui/cleanmate_gui/settings.py:57
+#: gui/cleanmate_gui/engine.py:20 gui/cleanmate_gui/settings.py:59
 #: gui/cleanmate_gui/window.py:71
 msgid "System Junk"
 msgstr "Rác hệ thống"
 
-#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/settings.py:57
+#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/settings.py:59
 #: gui/cleanmate_gui/window.py:73
 msgid "Logs"
 msgstr "Nhật ký"
@@ -379,7 +379,7 @@ msgstr "Trình duyệt"
 msgid "App Caches"
 msgstr "Bộ nhớ đệm ứng dụng"
 
-#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/settings.py:57
+#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/settings.py:59
 #: gui/cleanmate_gui/window.py:77
 msgid "AI Tools"
 msgstr "Công cụ AI"
@@ -388,13 +388,13 @@ msgstr "Công cụ AI"
 msgid "AI Models"
 msgstr "Mô hình AI"
 
-#: gui/cleanmate_gui/engine.py:27 gui/cleanmate_gui/settings.py:58
+#: gui/cleanmate_gui/engine.py:27 gui/cleanmate_gui/settings.py:60
 #: gui/cleanmate_gui/window.py:80
 msgid "Developer Junk"
 msgstr "Rác developer"
 
-#: gui/cleanmate_gui/engine.py:28 gui/cleanmate_gui/settings.py:58
-#: gui/cleanmate_gui/welcome.py:97 gui/cleanmate_gui/window.py:83
+#: gui/cleanmate_gui/engine.py:28 gui/cleanmate_gui/settings.py:60
+#: gui/cleanmate_gui/welcome.py:112 gui/cleanmate_gui/window.py:83
 msgid "Privacy"
 msgstr "Quyền riêng tư"
 
@@ -407,7 +407,10 @@ msgid ""
 "This copy of CleanMate is in a folder you can change, so it doesn't ask for "
 "your password. Install CleanMate from the PPA or the .deb package to do this "
 "here, or run “sudo cm” in a terminal."
-msgstr "Bản CleanMate này nằm trong thư mục bạn sửa được nên không hỏi mật khẩu. Cài CleanMate từ PPA hoặc gói .deb để làm việc này ở đây, hoặc chạy “sudo cm” trong terminal."
+msgstr ""
+"Bản CleanMate này nằm trong thư mục bạn sửa được nên không hỏi mật khẩu. Cài "
+"CleanMate từ PPA hoặc gói .deb để làm việc này ở đây, hoặc chạy “sudo cm” "
+"trong terminal."
 
 #: gui/cleanmate_gui/errorview.py:62
 msgid "The engine stopped unexpectedly."
@@ -478,24 +481,24 @@ msgstr "Thêm"
 
 #: gui/cleanmate_gui/findbar.py:93 gui/cleanmate_gui/scanpage.py:203
 #: gui/cleanmate_gui/scanpage.py:592 gui/cleanmate_gui/scanpage.py:693
-#: gui/cleanmate_gui/settings.py:434
+#: gui/cleanmate_gui/settings.py:453
 #, python-brace-format
 msgid "Could not change it: {reason}"
 msgstr "Không thay đổi được: {reason}"
 
 #: gui/cleanmate_gui/findbar.py:95 gui/cleanmate_gui/scanpage.py:594
-#: gui/cleanmate_gui/scanpage.py:697 gui/cleanmate_gui/settings.py:436
+#: gui/cleanmate_gui/scanpage.py:697 gui/cleanmate_gui/settings.py:455
 msgid "Dry run: nothing was saved"
 msgstr "Chạy thử: không có gì được lưu"
 
 #: gui/cleanmate_gui/findbar.py:98 gui/cleanmate_gui/scanpage.py:597
-#: gui/cleanmate_gui/settings.py:456
+#: gui/cleanmate_gui/settings.py:475
 #, python-brace-format
 msgid "{folder} is never cleaned now"
 msgstr "Từ nay không bao giờ dọn {folder}"
 
 #: gui/cleanmate_gui/findbar.py:112 gui/cleanmate_gui/scanpage.py:608
-#: gui/cleanmate_gui/settings.py:457
+#: gui/cleanmate_gui/settings.py:476
 #, python-brace-format
 msgid "{folder} can be cleaned again"
 msgstr "{folder} lại có thể được dọn"
@@ -1309,19 +1312,19 @@ msgid "This system doesn't use the systemd journal."
 msgstr "Hệ thống này không dùng systemd journal."
 
 #: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/overview.py:358
-#: gui/cleanmate_gui/settings.py:27 gui/cleanmate_gui/settings.py:33
+#: gui/cleanmate_gui/settings.py:29 gui/cleanmate_gui/settings.py:35
 msgid "Off"
 msgstr "Tắt"
 
-#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:27
+#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:29
 msgid "Daily"
 msgstr "Hằng ngày"
 
-#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:27
+#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:29
 msgid "Weekly"
 msgstr "Hằng tuần"
 
-#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:27
+#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:29
 msgid "Monthly"
 msgstr "Hằng tháng"
 
@@ -1501,7 +1504,7 @@ msgstr ""
 msgid "Not found"
 msgstr "Không tìm thấy"
 
-#: gui/cleanmate_gui/messages.py:93 gui/cleanmate_gui/settings.py:219
+#: gui/cleanmate_gui/messages.py:93 gui/cleanmate_gui/settings.py:237
 #: gui/cleanmate_gui/window.py:104
 msgid "Moved to the Trash"
 msgstr "Đã chuyển vào Thùng rác"
@@ -2023,12 +2026,12 @@ msgid "Refresh"
 msgstr "Làm mới"
 
 #: gui/cleanmate_gui/overview.py:502 gui/cleanmate_gui/trashed.py:26
-#: gui/cleanmate_gui/welcome.py:94 gui/cleanmate_gui/window.py:68
+#: gui/cleanmate_gui/welcome.py:111 gui/cleanmate_gui/window.py:68
 msgid "Smart Scan"
 msgstr "Quét thông minh"
 
 #: gui/cleanmate_gui/overview.py:505 gui/cleanmate_gui/overview.py:508
-#: gui/cleanmate_gui/welcome.py:166
+#: gui/cleanmate_gui/welcome.py:200
 msgid "Run Smart Scan"
 msgstr "Chạy Quét thông minh"
 
@@ -2245,7 +2248,7 @@ msgid "Could not open {name}: {reason}"
 msgstr "Không mở được {name}: {reason}"
 
 #: gui/cleanmate_gui/preview.py:251 gui/cleanmate_gui/preview.py:303
-#: gui/cleanmate_gui/spacelens.py:583 gui/cleanmate_gui/welcome.py:144
+#: gui/cleanmate_gui/spacelens.py:583 gui/cleanmate_gui/welcome.py:158
 msgid "Open"
 msgstr "Mở"
 
@@ -2737,68 +2740,68 @@ msgstr "Dọn Thùng rác"
 msgid "Could not empty the Trash: {reason}"
 msgstr "Không dọn được Thùng rác: {reason}"
 
-#: gui/cleanmate_gui/settings.py:24
+#: gui/cleanmate_gui/settings.py:26
 msgid "Same as system"
 msgstr "Theo hệ thống"
 
-#: gui/cleanmate_gui/settings.py:33
+#: gui/cleanmate_gui/settings.py:35
 #, python-brace-format
 msgid "Below {pct} free"
 msgstr "Dưới {pct} trống"
 
-#: gui/cleanmate_gui/settings.py:38
+#: gui/cleanmate_gui/settings.py:40
 msgid "Journal logs"
 msgstr "Nhật ký journal"
 
-#: gui/cleanmate_gui/settings.py:38
+#: gui/cleanmate_gui/settings.py:40
 msgid "Days of system logs to keep"
 msgstr "Số ngày giữ nhật ký hệ thống"
 
-#: gui/cleanmate_gui/settings.py:39
+#: gui/cleanmate_gui/settings.py:41
 msgid "Journal size limit"
 msgstr "Giới hạn dung lượng journal"
 
-#: gui/cleanmate_gui/settings.py:39
+#: gui/cleanmate_gui/settings.py:41
 msgid "Megabytes of system logs to keep at most"
 msgstr "Số MB nhật ký hệ thống giữ tối đa"
 
-#: gui/cleanmate_gui/settings.py:40
+#: gui/cleanmate_gui/settings.py:42
 msgid "Oversized logs"
 msgstr "Nhật ký quá lớn"
 
-#: gui/cleanmate_gui/settings.py:40
+#: gui/cleanmate_gui/settings.py:42
 msgid "Empty live logs larger than this many megabytes"
 msgstr "Làm rỗng nhật ký đang ghi lớn hơn số MB này"
 
-#: gui/cleanmate_gui/settings.py:41
+#: gui/cleanmate_gui/settings.py:43
 msgid "App logs"
 msgstr "Nhật ký ứng dụng"
 
-#: gui/cleanmate_gui/settings.py:41
+#: gui/cleanmate_gui/settings.py:43
 msgid "Clean when not written for this many days"
 msgstr "Dọn khi không được ghi trong số ngày này"
 
-#: gui/cleanmate_gui/settings.py:42
+#: gui/cleanmate_gui/settings.py:44
 msgid "Temporary files"
 msgstr "Tệp tạm"
 
-#: gui/cleanmate_gui/settings.py:42
+#: gui/cleanmate_gui/settings.py:44
 msgid "Clean when older than this many days"
 msgstr "Dọn khi cũ hơn số ngày này"
 
-#: gui/cleanmate_gui/settings.py:43
+#: gui/cleanmate_gui/settings.py:45
 msgid "App caches"
 msgstr "Bộ nhớ đệm ứng dụng"
 
-#: gui/cleanmate_gui/settings.py:43
+#: gui/cleanmate_gui/settings.py:45
 msgid "Clean when not used for this many days"
 msgstr "Dọn khi không được dùng trong số ngày này"
 
-#: gui/cleanmate_gui/settings.py:44
+#: gui/cleanmate_gui/settings.py:46
 msgid "Project build folders"
 msgstr "Thư mục build của dự án"
 
-#: gui/cleanmate_gui/settings.py:45
+#: gui/cleanmate_gui/settings.py:47
 msgid ""
 "node_modules, Cargo target/, Python .venv/ and Pods/ of projects idle for "
 "this many days"
@@ -2806,19 +2809,19 @@ msgstr ""
 "node_modules, target/ của Cargo, .venv/ của Python và Pods/ của dự án không "
 "được đụng tới trong số ngày này"
 
-#: gui/cleanmate_gui/settings.py:47
+#: gui/cleanmate_gui/settings.py:49
 msgid "Old installers"
 msgstr "Bộ cài cũ"
 
-#: gui/cleanmate_gui/settings.py:47
+#: gui/cleanmate_gui/settings.py:49
 msgid "Offer installers in Downloads older than this many days"
 msgstr "Gợi ý dọn bộ cài trong Tải về cũ hơn số ngày này"
 
-#: gui/cleanmate_gui/settings.py:48
+#: gui/cleanmate_gui/settings.py:50
 msgid "Old downloads"
 msgstr "Tải về cũ"
 
-#: gui/cleanmate_gui/settings.py:48
+#: gui/cleanmate_gui/settings.py:50
 msgid ""
 "Offer files and folders in Downloads, and screenshots, not opened or changed "
 "for this many days"
@@ -2826,82 +2829,94 @@ msgstr ""
 "Gợi ý dọn tệp và thư mục trong Tải về, cùng ảnh chụp màn hình, không mở hay "
 "sửa trong số ngày này"
 
-#: gui/cleanmate_gui/settings.py:50
+#: gui/cleanmate_gui/settings.py:52
 msgid "AI chat history"
 msgstr "Lịch sử chat AI"
 
-#: gui/cleanmate_gui/settings.py:50
+#: gui/cleanmate_gui/settings.py:52
 msgid "Clean AI sessions older than this many days"
 msgstr "Dọn phiên chat AI cũ hơn số ngày này"
 
-#: gui/cleanmate_gui/settings.py:57 gui/cleanmate_gui/window.py:75
+#: gui/cleanmate_gui/settings.py:59 gui/cleanmate_gui/window.py:75
 msgid "User & App Junk"
 msgstr "Rác người dùng & ứng dụng"
 
-#: gui/cleanmate_gui/settings.py:73 gui/cleanmate_gui/window.py:173
+#: gui/cleanmate_gui/settings.py:72
+msgid "Limits of the Flatpak"
+msgstr "Giới hạn của bản Flatpak"
+
+#: gui/cleanmate_gui/settings.py:73
+msgid ""
+"System files, Uninstaller, Startup Items, Maintenance and automatic cleaning "
+"are out of its reach. The PPA, the .deb and the snap have them."
+msgstr ""
+"Bản này không với tới tệp hệ thống, Gỡ ứng dụng, Mục khởi động, Bảo trì và "
+"Dọn tự động. Bản PPA, .deb và snap có đủ."
+
+#: gui/cleanmate_gui/settings.py:86 gui/cleanmate_gui/window.py:173
 #: gui/cleanmate_gui/window.py:316 gui/cleanmate_gui/window.py:473
 msgid "Settings"
 msgstr "Cài đặt"
 
-#: gui/cleanmate_gui/settings.py:138
+#: gui/cleanmate_gui/settings.py:152
 msgid "Can't read your settings"
 msgstr "Không đọc được cài đặt"
 
-#: gui/cleanmate_gui/settings.py:139
+#: gui/cleanmate_gui/settings.py:153
 msgid "The cleaning engine didn't answer."
 msgstr "Bộ dọn dẹp không trả lời."
 
-#: gui/cleanmate_gui/settings.py:152 gui/cleanmate_gui/window.py:314
+#: gui/cleanmate_gui/settings.py:166 gui/cleanmate_gui/window.py:314
 msgid "General"
 msgstr "Chung"
 
-#: gui/cleanmate_gui/settings.py:155 gui/cleanmate_gui/settings.py:257
-#: gui/cleanmate_gui/welcome.py:124
+#: gui/cleanmate_gui/settings.py:169 gui/cleanmate_gui/settings.py:275
+#: gui/cleanmate_gui/welcome.py:138
 msgid "Automatic cleaning"
 msgstr "Dọn tự động"
 
-#: gui/cleanmate_gui/settings.py:157
+#: gui/cleanmate_gui/settings.py:175
 msgid "Updates"
 msgstr "Cập nhật"
 
-#: gui/cleanmate_gui/settings.py:158
+#: gui/cleanmate_gui/settings.py:176
 msgid "Daily update check"
 msgstr "Kiểm tra cập nhật hằng ngày"
 
-#: gui/cleanmate_gui/settings.py:159
+#: gui/cleanmate_gui/settings.py:177
 msgid "A quiet check for a new version once a day"
 msgstr "Lặng lẽ kiểm tra phiên bản mới mỗi ngày một lần"
 
-#: gui/cleanmate_gui/settings.py:162
+#: gui/cleanmate_gui/settings.py:180
 msgid "Your package manager keeps CleanMate up to date"
 msgstr "Trình quản lý gói giữ CleanMate luôn mới"
 
-#: gui/cleanmate_gui/settings.py:167
+#: gui/cleanmate_gui/settings.py:185
 msgid "Scan groups"
 msgstr "Nhóm quét"
 
-#: gui/cleanmate_gui/settings.py:167
+#: gui/cleanmate_gui/settings.py:185
 msgid ""
 "A group that is off is left out of Smart Scan, here and in the terminal app."
 msgstr ""
 "Nhóm đang tắt không có trong Quét thông minh, ở đây lẫn trong app terminal."
 
-#: gui/cleanmate_gui/settings.py:178
+#: gui/cleanmate_gui/settings.py:196
 msgid "Keep for"
 msgstr "Thời gian giữ"
 
-#: gui/cleanmate_gui/settings.py:178
+#: gui/cleanmate_gui/settings.py:196
 msgid ""
 "What cleaning leaves alone. Smart Scan uses the new values on its next scan."
 msgstr ""
 "Những gì việc dọn dẹp chừa lại. Quét thông minh dùng giá trị mới ở lần quét "
 "sau."
 
-#: gui/cleanmate_gui/settings.py:183
+#: gui/cleanmate_gui/settings.py:201
 msgid "Never clean"
 msgstr "Không bao giờ dọn"
 
-#: gui/cleanmate_gui/settings.py:183
+#: gui/cleanmate_gui/settings.py:201
 msgid ""
 "Large & Old Files, Duplicates, Space Lens, project build folders, old "
 "installers and old downloads skip these folders, and nothing in them is "
@@ -2911,101 +2926,105 @@ msgstr ""
 "và tải về cũ bỏ qua các thư mục này; không gì trong đó bị chuyển vào Thùng "
 "rác."
 
-#: gui/cleanmate_gui/settings.py:186
+#: gui/cleanmate_gui/settings.py:204
 msgid "Add Folder…"
 msgstr "Thêm thư mục…"
 
-#: gui/cleanmate_gui/settings.py:194
+#: gui/cleanmate_gui/settings.py:212
 msgid "Your data"
 msgstr "Dữ liệu của bạn"
 
-#: gui/cleanmate_gui/settings.py:195
+#: gui/cleanmate_gui/settings.py:213
 msgid "Remembered selections"
 msgstr "Lựa chọn đã nhớ"
 
-#: gui/cleanmate_gui/settings.py:196 gui/cleanmate_gui/settings.py:468
+#: gui/cleanmate_gui/settings.py:214 gui/cleanmate_gui/settings.py:487
 #: gui/cleanmate_gui/uninstaller.py:824
 msgid "Reset"
 msgstr "Đặt lại"
 
 #
-#: gui/cleanmate_gui/settings.py:203
+#: gui/cleanmate_gui/settings.py:221
 msgid "Remember recent files"
 msgstr "Ghi nhớ tệp gần đây"
 
-#: gui/cleanmate_gui/settings.py:204
+#: gui/cleanmate_gui/settings.py:222
 msgid "Files and Open dialogs list the files you used lately"
 msgstr "Tệp và hộp thoại Mở liệt kê các tệp bạn mới dùng"
 
-#: gui/cleanmate_gui/settings.py:207
+#: gui/cleanmate_gui/settings.py:225
 msgid "Needs GNOME's gsettings, which isn't available here"
 msgstr "Cần gsettings của GNOME, máy này không có"
 
-#: gui/cleanmate_gui/settings.py:212 gui/cleanmate_gui/settings.py:504
+#: gui/cleanmate_gui/settings.py:230 gui/cleanmate_gui/settings.py:523
 msgid "Activity log"
 msgstr "Nhật ký hoạt động"
 
-#: gui/cleanmate_gui/settings.py:212
+#: gui/cleanmate_gui/settings.py:230
 msgid "What was cleaned and when"
 msgstr "Đã dọn gì và khi nào"
 
-#: gui/cleanmate_gui/settings.py:220
+#: gui/cleanmate_gui/settings.py:238
 msgid "Put back what CleanMate moved to the Trash, also in earlier sessions"
 msgstr ""
 "Trả lại những gì CleanMate đã chuyển vào Thùng rác, kể cả ở các lần trước"
 
-#: gui/cleanmate_gui/settings.py:233
+#: gui/cleanmate_gui/settings.py:251
 msgid "Language"
 msgstr "Ngôn ngữ"
 
-#: gui/cleanmate_gui/settings.py:235
+#: gui/cleanmate_gui/settings.py:253
 msgid "Restart"
 msgstr "Khởi động lại"
 
-#: gui/cleanmate_gui/settings.py:243
+#: gui/cleanmate_gui/settings.py:261
 msgid "Low disk alert"
 msgstr "Cảnh báo sắp đầy ổ đĩa"
 
-#: gui/cleanmate_gui/settings.py:244
+#: gui/cleanmate_gui/settings.py:262
 msgid ""
 "A notification when the system disk is almost full. Checked daily and when "
 "CleanMate opens."
 msgstr ""
 "Thông báo khi ổ hệ thống sắp đầy. Kiểm tra hằng ngày và khi mở CleanMate."
 
-#: gui/cleanmate_gui/settings.py:246
+#: gui/cleanmate_gui/settings.py:264
 msgid ""
 "A notification when the system disk is almost full. Checked when CleanMate "
 "opens."
 msgstr "Thông báo khi ổ hệ thống sắp đầy. Kiểm tra khi mở CleanMate."
 
-#: gui/cleanmate_gui/settings.py:251
+#: gui/cleanmate_gui/settings.py:269
 msgid "Scan reminder"
 msgstr "Nhắc quét"
 
-#: gui/cleanmate_gui/settings.py:252
+#: gui/cleanmate_gui/settings.py:270
 msgid ""
 "A notification when you haven't scanned for a while. Click it to open "
 "CleanMate."
 msgstr "Thông báo khi đã lâu bạn chưa quét. Bấm vào thông báo để mở CleanMate."
 
-#: gui/cleanmate_gui/settings.py:258
+#: gui/cleanmate_gui/settings.py:276
 msgid ""
 "Runs a Smart Clean of user and developer junk and tells you what it freed"
 msgstr ""
 "Chạy Dọn thông minh rác người dùng và rác developer, rồi báo cho bạn đã giải "
 "phóng bao nhiêu"
 
-#: gui/cleanmate_gui/settings.py:264
+#: gui/cleanmate_gui/settings.py:282
+msgid "Not in the Flatpak: it can't start CleanMate on a schedule"
+msgstr "Không có trong bản Flatpak: nó không thể tự chạy CleanMate theo lịch"
+
+#: gui/cleanmate_gui/settings.py:283
 msgid "Needs systemd, which isn't available here"
 msgstr "Cần systemd, nhưng ở đây không có"
 
-#: gui/cleanmate_gui/settings.py:280
+#: gui/cleanmate_gui/settings.py:299
 #, python-brace-format
 msgid "From {min} to {max}, default {default}"
 msgstr "Từ {min} đến {max}, mặc định {default}"
 
-#: gui/cleanmate_gui/settings.py:306
+#: gui/cleanmate_gui/settings.py:325
 msgid ""
 "Restart CleanMate to use the new language. The system's language does not "
 "change."
@@ -3013,86 +3032,86 @@ msgstr ""
 "Khởi động lại CleanMate để dùng ngôn ngữ mới. Ngôn ngữ của hệ thống không "
 "đổi."
 
-#: gui/cleanmate_gui/settings.py:314
+#: gui/cleanmate_gui/settings.py:333
 msgid "No folders yet"
 msgstr "Chưa có thư mục nào"
 
-#: gui/cleanmate_gui/settings.py:318
+#: gui/cleanmate_gui/settings.py:337
 #, python-brace-format
 msgid "{n} remembered choice for Smart Scan"
 msgid_plural "{n} remembered choices for Smart Scan"
 msgstr[0] "{n} lựa chọn đã nhớ cho Quét thông minh"
 
-#: gui/cleanmate_gui/settings.py:386
+#: gui/cleanmate_gui/settings.py:405
 msgid "Remove from the list"
 msgstr "Xoá khỏi danh sách"
 
-#: gui/cleanmate_gui/settings.py:393
+#: gui/cleanmate_gui/settings.py:412
 msgid "Folder to never clean"
 msgstr "Thư mục không bao giờ dọn"
 
-#: gui/cleanmate_gui/settings.py:438
+#: gui/cleanmate_gui/settings.py:457
 #, python-brace-format
 msgid "Automatic cleaning: {when}"
 msgstr "Dọn tự động: {when}"
 
-#: gui/cleanmate_gui/settings.py:439
+#: gui/cleanmate_gui/settings.py:458
 msgid "Automatic cleaning is off"
 msgstr "Đã tắt dọn tự động"
 
-#: gui/cleanmate_gui/settings.py:441
+#: gui/cleanmate_gui/settings.py:460
 #, python-brace-format
 msgid "Scan reminder: {when}"
 msgstr "Nhắc quét: {when}"
 
-#: gui/cleanmate_gui/settings.py:442
+#: gui/cleanmate_gui/settings.py:461
 msgid "Scan reminder is off"
 msgstr "Đã tắt nhắc quét"
 
-#: gui/cleanmate_gui/settings.py:444
+#: gui/cleanmate_gui/settings.py:463
 #, python-brace-format
 msgid "Low disk alert below {pct} free"
 msgstr "Cảnh báo sắp đầy ổ đĩa khi trống dưới {pct}"
 
-#: gui/cleanmate_gui/settings.py:445
+#: gui/cleanmate_gui/settings.py:464
 msgid "Low disk alert is off"
 msgstr "Đã tắt cảnh báo sắp đầy ổ đĩa"
 
-#: gui/cleanmate_gui/settings.py:448
+#: gui/cleanmate_gui/settings.py:467
 #, python-brace-format
 msgid "{group} is back in Smart Scan"
 msgstr "{group} đã trở lại Quét thông minh"
 
-#: gui/cleanmate_gui/settings.py:449
+#: gui/cleanmate_gui/settings.py:468
 #, python-brace-format
 msgid "{group} is left out of Smart Scan"
 msgstr "Quét thông minh bỏ qua {group}"
 
-#: gui/cleanmate_gui/settings.py:453
+#: gui/cleanmate_gui/settings.py:472
 msgid "Smart Scan is back to its default choices"
 msgstr "Quét thông minh đã về lựa chọn mặc định"
 
-#: gui/cleanmate_gui/settings.py:465
+#: gui/cleanmate_gui/settings.py:484
 msgid "Forget remembered selections?"
 msgstr "Quên các lựa chọn đã nhớ?"
 
-#: gui/cleanmate_gui/settings.py:466
+#: gui/cleanmate_gui/settings.py:485
 msgid "Smart Scan goes back to its default choices."
 msgstr "Quét thông minh quay về lựa chọn mặc định."
 
-#: gui/cleanmate_gui/settings.py:510
+#: gui/cleanmate_gui/settings.py:529
 msgid "Reading the log…"
 msgstr "Đang đọc nhật ký…"
 
-#: gui/cleanmate_gui/settings.py:513
+#: gui/cleanmate_gui/settings.py:532
 msgid "Nothing yet"
 msgstr "Chưa có gì"
 
-#: gui/cleanmate_gui/settings.py:514
+#: gui/cleanmate_gui/settings.py:533
 msgid "Nothing has been cleaned yet."
 msgstr "Chưa dọn gì cả."
 
-#: gui/cleanmate_gui/settings.py:520
+#: gui/cleanmate_gui/settings.py:539
 msgid "Open the log folder"
 msgstr "Mở thư mục nhật ký"
 
@@ -3556,12 +3575,12 @@ msgstr "Tệp lớn & cũ"
 msgid "Duplicates"
 msgstr "Tệp trùng lặp"
 
-#: gui/cleanmate_gui/trashed.py:30 gui/cleanmate_gui/welcome.py:101
+#: gui/cleanmate_gui/trashed.py:30 gui/cleanmate_gui/welcome.py:115
 #: gui/cleanmate_gui/window.py:86 gui/cleanmate_gui/window.py:319
 msgid "Space Lens"
 msgstr "Space Lens"
 
-#: gui/cleanmate_gui/trashed.py:31 gui/cleanmate_gui/welcome.py:99
+#: gui/cleanmate_gui/trashed.py:31 gui/cleanmate_gui/welcome.py:108
 #: gui/cleanmate_gui/window.py:94
 msgid "Uninstaller"
 msgstr "Gỡ ứng dụng"
@@ -4113,39 +4132,53 @@ msgid "Put back {n} folder from the Trash"
 msgid_plural "Put back {n} folders from the Trash"
 msgstr[0] "Đã trả lại {n} thư mục từ Thùng rác"
 
-#: gui/cleanmate_gui/welcome.py:52 gui/cleanmate_gui/welcome.py:91
+#: gui/cleanmate_gui/welcome.py:56 gui/cleanmate_gui/welcome.py:98
 msgid "Welcome to CleanMate"
 msgstr "Chào mừng đến với CleanMate"
 
-#: gui/cleanmate_gui/welcome.py:59
+#: gui/cleanmate_gui/welcome.py:66
 msgid "Your options"
 msgstr "Tuỳ chọn của bạn"
 
-#: gui/cleanmate_gui/welcome.py:60
+#: gui/cleanmate_gui/welcome.py:67
 msgid "Change them any time in Settings, in the main menu (Ctrl+,)."
 msgstr "Đổi lúc nào cũng được trong Cài đặt, ở menu chính (Ctrl+,)."
 
-#: gui/cleanmate_gui/welcome.py:68
+#: gui/cleanmate_gui/welcome.py:75
 msgid "Skip"
 msgstr "Bỏ qua"
 
-#: gui/cleanmate_gui/welcome.py:70
+#: gui/cleanmate_gui/welcome.py:77
 msgid "Back"
 msgstr "Quay lại"
 
-#: gui/cleanmate_gui/welcome.py:72 gui/cleanmate_gui/welcome.py:166
+#: gui/cleanmate_gui/welcome.py:79 gui/cleanmate_gui/welcome.py:200
 msgid "Next"
 msgstr "Tiếp"
 
-#: gui/cleanmate_gui/welcome.py:92
+#: gui/cleanmate_gui/welcome.py:99
 msgid "Free up disk space and keep Ubuntu tidy — safely."
 msgstr "Giải phóng dung lượng và giữ Ubuntu gọn gàng — an toàn."
 
-#: gui/cleanmate_gui/welcome.py:93
-msgid "What it does"
-msgstr "CleanMate làm gì"
+#: gui/cleanmate_gui/welcome.py:101
+msgid ""
+"Junk in your home folder in one scan: caches, old app logs, developer and AI "
+"tool junk and the Trash."
+msgstr ""
+"Rác trong thư mục riêng chỉ với một lần quét: bộ nhớ đệm, nhật ký ứng dụng "
+"cũ, rác của công cụ lập trình và AI, và Thùng rác."
 
-#: gui/cleanmate_gui/welcome.py:95
+#: gui/cleanmate_gui/welcome.py:103
+msgid "Large & Old Files and Duplicates"
+msgstr "Tệp lớn & cũ và Tệp trùng lặp"
+
+#: gui/cleanmate_gui/welcome.py:104
+msgid ""
+"Find big, old and duplicate files and move the ones you pick to the Trash."
+msgstr ""
+"Tìm tệp lớn, cũ và trùng lặp, rồi chuyển những tệp bạn chọn vào Thùng rác."
+
+#: gui/cleanmate_gui/welcome.py:106
 msgid ""
 "System, developer and AI tool junk in one scan: caches, old logs, unused "
 "packages and what removed apps left behind."
@@ -4153,27 +4186,31 @@ msgstr ""
 "Rác hệ thống, rác developer và rác công cụ AI trong một lần quét: bộ nhớ "
 "đệm, nhật ký cũ, gói không dùng và những gì ứng dụng đã gỡ để lại."
 
-#: gui/cleanmate_gui/welcome.py:98
-msgid "Browser history and cookies, terminal history and recent files."
-msgstr "Lịch sử và cookie trình duyệt, lịch sử terminal và tệp gần đây."
-
-#: gui/cleanmate_gui/welcome.py:100
+#: gui/cleanmate_gui/welcome.py:109
 msgid "Remove apps and the folders they leave in your home."
 msgstr "Gỡ ứng dụng và các thư mục chúng để lại trong thư mục nhà."
 
-#: gui/cleanmate_gui/welcome.py:101
+#: gui/cleanmate_gui/welcome.py:110
+msgid "What it does"
+msgstr "CleanMate làm gì"
+
+#: gui/cleanmate_gui/welcome.py:113
+msgid "Browser history and cookies, terminal history and recent files."
+msgstr "Lịch sử và cookie trình duyệt, lịch sử terminal và tệp gần đây."
+
+#: gui/cleanmate_gui/welcome.py:115
 msgid "See what takes up the space, folder by folder."
 msgstr "Xem thứ gì chiếm chỗ, từng thư mục một."
 
-#: gui/cleanmate_gui/welcome.py:103
+#: gui/cleanmate_gui/welcome.py:117
 msgid "How it stays safe"
 msgstr "Cách CleanMate giữ an toàn"
 
-#: gui/cleanmate_gui/welcome.py:104
+#: gui/cleanmate_gui/welcome.py:118
 msgid "You see everything first"
 msgstr "Bạn xem trước mọi thứ"
 
-#: gui/cleanmate_gui/welcome.py:105
+#: gui/cleanmate_gui/welcome.py:119
 msgid ""
 "Each clean lists the items and their sizes, and nothing is removed until you "
 "confirm."
@@ -4181,11 +4218,11 @@ msgstr ""
 "Mỗi lần dọn đều liệt kê các mục và dung lượng của chúng, và không có gì bị "
 "xoá cho đến khi bạn xác nhận."
 
-#: gui/cleanmate_gui/welcome.py:106
+#: gui/cleanmate_gui/welcome.py:120
 msgid "Your files go to the Trash"
 msgstr "Tệp của bạn vào Thùng rác"
 
-#: gui/cleanmate_gui/welcome.py:107
+#: gui/cleanmate_gui/welcome.py:121
 msgid ""
 "Caches and logs that apps make again are deleted. Your own files go to the "
 "Trash, and Undo puts them back."
@@ -4193,11 +4230,11 @@ msgstr ""
 "Bộ nhớ đệm và nhật ký mà ứng dụng tự tạo lại thì bị xoá. Tệp của chính bạn "
 "vào Thùng rác, và Hoàn tác trả chúng lại."
 
-#: gui/cleanmate_gui/welcome.py:109
+#: gui/cleanmate_gui/welcome.py:123
 msgid "Open source, no data collected"
 msgstr "Mã nguồn mở, không thu thập dữ liệu"
 
-#: gui/cleanmate_gui/welcome.py:110
+#: gui/cleanmate_gui/welcome.py:124
 msgid ""
 "Nothing about you is sent anywhere. The only connection is a daily check for "
 "a new version, which you can turn off; installed from a package, there is "
@@ -4206,19 +4243,19 @@ msgstr ""
 "Không có gì về bạn được gửi đi. Kết nối duy nhất là kiểm tra phiên bản mới "
 "mỗi ngày, bạn tắt được; khi cài bằng gói thì không có."
 
-#: gui/cleanmate_gui/welcome.py:117
+#: gui/cleanmate_gui/welcome.py:131
 msgid "What needs your password"
 msgstr "Những gì cần mật khẩu"
 
-#: gui/cleanmate_gui/welcome.py:118
+#: gui/cleanmate_gui/welcome.py:132
 msgid "Most cleaning runs as you, without a password."
 msgstr "Phần lớn việc dọn chạy bằng tài khoản của bạn, không cần mật khẩu."
 
-#: gui/cleanmate_gui/welcome.py:120
+#: gui/cleanmate_gui/welcome.py:134
 msgid "Items with a lock"
 msgstr "Mục có ổ khoá"
 
-#: gui/cleanmate_gui/welcome.py:121
+#: gui/cleanmate_gui/welcome.py:135
 msgid ""
 "The APT cache, system logs, old kernels and old Snap versions belong to the "
 "system. Cleaning them asks for your password in Ubuntu's own dialog; so do "
@@ -4228,17 +4265,17 @@ msgstr ""
 "thống. Dọn chúng sẽ hỏi mật khẩu qua hộp thoại của chính Ubuntu; gỡ ứng dụng "
 "apt, Snap và các tác vụ Bảo trì cũng vậy."
 
-#: gui/cleanmate_gui/welcome.py:125
+#: gui/cleanmate_gui/welcome.py:139
 msgid ""
 "Cleans only user and developer junk, so it never asks for your password."
 msgstr ""
 "Chỉ dọn rác người dùng và rác developer, nên không bao giờ hỏi mật khẩu."
 
-#: gui/cleanmate_gui/welcome.py:126
+#: gui/cleanmate_gui/welcome.py:140
 msgid "Snap, Flatpak and AppImage"
 msgstr "Snap, Flatpak và AppImage"
 
-#: gui/cleanmate_gui/welcome.py:127
+#: gui/cleanmate_gui/welcome.py:141
 msgid ""
 "Apps from apt, Snap, Flatpak and AppImage are all found, with their caches "
 "and leftovers."
@@ -4246,24 +4283,24 @@ msgstr ""
 "Ứng dụng từ apt, Snap, Flatpak và AppImage đều được nhận ra, cùng bộ nhớ đệm "
 "và phần còn sót lại của chúng."
 
-#: gui/cleanmate_gui/welcome.py:129
+#: gui/cleanmate_gui/welcome.py:143 gui/cleanmate_gui/welcome.py:177
 msgid "Never touched"
 msgstr "Không bao giờ đụng tới"
 
-#: gui/cleanmate_gui/welcome.py:130
+#: gui/cleanmate_gui/welcome.py:144 gui/cleanmate_gui/welcome.py:178
 msgid "Logins and keys"
 msgstr "Thông tin đăng nhập và khoá"
 
-#: gui/cleanmate_gui/welcome.py:131
+#: gui/cleanmate_gui/welcome.py:145 gui/cleanmate_gui/welcome.py:179
 msgid ".ssh, .gnupg and saved logins, your settings and bookmarks."
 msgstr ""
 ".ssh, .gnupg và thông tin đăng nhập đã lưu, cài đặt và dấu trang của bạn."
 
-#: gui/cleanmate_gui/welcome.py:132
+#: gui/cleanmate_gui/welcome.py:146
 msgid "Your documents"
 msgstr "Tài liệu của bạn"
 
-#: gui/cleanmate_gui/welcome.py:133
+#: gui/cleanmate_gui/welcome.py:147
 msgid ""
 "Nothing of yours is removed unless you tick it in Space Lens, Large & Old "
 "Files or Duplicates — and then it goes to the Trash."
@@ -4271,21 +4308,21 @@ msgstr ""
 "Không gì của bạn bị xoá trừ khi bạn tự chọn nó trong Space Lens, Tệp lớn & "
 "cũ hoặc Tệp trùng lặp — và khi đó nó vào Thùng rác."
 
-#: gui/cleanmate_gui/welcome.py:135
+#: gui/cleanmate_gui/welcome.py:149
 msgid "The kernel you run"
 msgstr "Kernel đang chạy"
 
-#: gui/cleanmate_gui/welcome.py:136
+#: gui/cleanmate_gui/welcome.py:150
 msgid "Old kernels can go, but never the one you run or the one before it."
 msgstr ""
 "Kernel cũ có thể được dọn, nhưng không bao giờ là kernel đang chạy hay "
 "kernel ngay trước nó."
 
-#: gui/cleanmate_gui/welcome.py:139
+#: gui/cleanmate_gui/welcome.py:153
 msgid "The terminal app"
 msgstr "App terminal"
 
-#: gui/cleanmate_gui/welcome.py:140
+#: gui/cleanmate_gui/welcome.py:154
 msgid ""
 "Run cm in a terminal for every tool, also over SSH. sudo cm cleans the "
 "system items in one go."
@@ -4293,14 +4330,36 @@ msgstr ""
 "Chạy cm trong terminal để có mọi công cụ, cả qua SSH. sudo cm dọn các mục hệ "
 "thống trong một lượt."
 
-#: gui/cleanmate_gui/welcome.py:142 gui/cleanmate_gui/window.py:158
+#: gui/cleanmate_gui/welcome.py:156 gui/cleanmate_gui/window.py:158
 msgid "All tools (terminal)"
 msgstr "Mọi công cụ (terminal)"
 
 #
-#: gui/cleanmate_gui/welcome.py:142 gui/cleanmate_gui/window.py:159
+#: gui/cleanmate_gui/welcome.py:156 gui/cleanmate_gui/window.py:159
 msgid "Open the terminal app (cm)"
 msgstr "Mở app terminal (cm)"
+
+#: gui/cleanmate_gui/welcome.py:170
+msgid "What the Flatpak reaches"
+msgstr "Bản Flatpak với tới đâu"
+
+#: gui/cleanmate_gui/welcome.py:171
+msgid "It runs as you, inside your home folder."
+msgstr "Nó chạy với quyền của bạn, trong thư mục riêng của bạn."
+
+#: gui/cleanmate_gui/welcome.py:173
+msgid "Your home folder"
+msgstr "Thư mục riêng của bạn"
+
+#: gui/cleanmate_gui/welcome.py:174
+msgid ""
+"Caches, old app logs, developer and AI tool junk and the Trash. Your own "
+"files only when you pick them in Space Lens, Large & Old Files or Duplicates "
+"— and then they go to the Trash."
+msgstr ""
+"Bộ nhớ đệm, nhật ký ứng dụng cũ, rác của công cụ lập trình và AI, và Thùng "
+"rác. Tệp của chính bạn chỉ khi bạn tự chọn chúng trong Space Lens, Tệp lớn & "
+"cũ hoặc Tệp trùng lặp — và khi đó chúng vào Thùng rác."
 
 #: gui/cleanmate_gui/window.py:69
 msgid ""

@@ -26,7 +26,7 @@ CleanMate (`cm`) is a command-line cleaner. This skill drives its headless mode.
 command -v cm || ls ~/.local/bin/cm ./cleanmate.sh
 ```
 
-Not installed: Ubuntu 24.04 `sudo add-apt-repository ppa:homielab/cleanmate && sudo apt install cleanmate`; any Ubuntu without sudo: `curl -fsSLO https://raw.githubusercontent.com/homielab/cleanmate-linux/main/cleanmate.sh && bash cleanmate.sh --install`.
+Not installed: Ubuntu 24.04 or newer `sudo add-apt-repository ppa:homielab/cleanmate && sudo apt install cleanmate`; any Ubuntu without sudo: `curl -fsSLO https://raw.githubusercontent.com/homielab/cleanmate-linux/main/cleanmate.sh && bash cleanmate.sh --install`.
 
 ## Scan
 

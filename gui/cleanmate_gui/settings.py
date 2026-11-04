@@ -9,6 +9,7 @@ Never clean lists the folders of `~/.config/cleanmate/exclude` (`settings-set ex
 The welcome's last step is this page with only the main rows (`keys`), so both save the same way.
 The low disk alert and the scan reminder are notifications the engine sends from a daily systemd user timer
 (`cleanmate-check.timer`, on while either is on) and, for the low disk alert, when the app opens.
+In the Flatpak (no systemd timers), the rows that need them say so and a row links to the Flatpak's limits.
 """
 import datetime
 import os
@@ -19,6 +20,7 @@ from .a11y import named
 from . import i18n
 from .i18n import _, ngettext
 from . import messages
+from .engine import FLATPAK_LIMITS_URL, IN_FLATPAK
 
 # each language by its own name, so you can find yours whatever the app is in now
 LANGUAGE_TITLES = {"system": _("Same as system"), "en": "English", "vi": "Tiếng Việt"}
@@ -65,14 +67,26 @@ def short_path(path):
     return "~" + path[len(home):] if path.startswith(home + "/") else path
 
 
+def flatpak_limits_row(window):
+    """A row that opens the page about what the Flatpak can't do (Settings and the welcome)."""
+    row = Adw.ActionRow(title=_("Limits of the Flatpak"), activatable=True,
+                        subtitle=_("System files, Uninstaller, Startup Items, Maintenance and automatic cleaning "
+                                   "are out of its reach. The PPA, the .deb and the snap have them."))
+    row.add_prefix(Gtk.Image(icon_name="dialog-information-symbolic"))
+    row.add_suffix(Gtk.Image(icon_name="adw-external-link-symbolic"))
+    row.connect("activated", lambda *_a: window._open_url(FLATPAK_LIMITS_URL))
+    return row
+
+
 class SettingsPage(Adw.PreferencesPage):
     """One row per setting; shown in a preferences dialog from the main menu. With KEYS, only those rows
     (language, schedule, remind, low_disk_pct), in one group under INTRO — the welcome's options."""
 
-    def __init__(self, window, keys=None, intro=None):
+    def __init__(self, window, keys=None, intro=None, flatpak=None):
         super().__init__(title=_("Settings"), icon_name="emblem-system-symbolic")
         self.window = window
         self.keys = keys
+        self.flatpak = IN_FLATPAK if flatpak is None else flatpak
         self.before_restart = None  # called when Restart is pressed, before the changes are saved
         self.engine = window.engine
         self.settings = {}  # key → the engine's "setting" event
@@ -153,6 +167,10 @@ class SettingsPage(Adw.PreferencesPage):
         for key in ("language", "low_disk_pct", "remind"):
             general.add(self.main_row(key, systemd))
         self.group(_("Automatic cleaning")).add(self.main_row("schedule", systemd))
+        self.limits_row = None
+        if self.flatpak:
+            self.limits_row = flatpak_limits_row(self.window)
+            self.group(None).add(self.limits_row)
 
         updates = self.group(_("Updates"))
         check = Adw.SwitchRow(title=_("Daily update check"),
@@ -261,7 +279,8 @@ class SettingsPage(Adw.PreferencesPage):
             row.connect("notify::selected", self.on_schedule)
         if key in ("remind", "schedule") and not systemd:
             row.set_sensitive(False)
-            row.set_subtitle(_("Needs systemd, which isn't available here"))
+            row.set_subtitle(_("Not in the Flatpak: it can't start CleanMate on a schedule") if self.flatpak
+                             else _("Needs systemd, which isn't available here"))
         self.rows[key] = row
         return row
 

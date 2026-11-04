@@ -16,6 +16,13 @@ on:
 permissions:
   contents: read
 
+env:
+  # Every Ubuntu series Launchpad still supports that has libadwaita 1.5 (24.04 and later).
+  # A new Ubuntu release: add it here; one past its end of life: take it out (the job
+  # fails while a series in this list is closed on Launchpad). packaging/build-source.sh
+  # and the "PPA package" job in ci.yml read this line.
+  SERIES: "noble resolute stonking"
+
 # one upload per tag at a time
 concurrency:
   group: ppa-${{ inputs.tag || github.ref_name }}
@@ -57,6 +64,21 @@ jobs:
           chmod 700 "$RUNNER_TEMP/gpg-ci"
           echo "KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')" >> "$GITHUB_ENV"
 
+      - name: Check every series is open on Launchpad
+        if: steps.gate.outputs.on == 'true'
+        run: |
+          curl -fsS "https://api.launchpad.net/devel/ubuntu/series" | python3 -c '
+          import json, os, sys
+          series = {e["name"]: e for e in json.load(sys.stdin)["entries"]}
+          wanted = os.environ["SERIES"].split()
+          closed = [s for s in wanted if not series.get(s, {}).get("active")]
+          if closed:
+              sys.exit("::error::Not open on Launchpad: %s. Update SERIES at the top of ppa.yml." % " ".join(closed))
+          for name, e in series.items():
+              if e["status"] in ("Supported", "Current Stable Release") and name not in wanted and float(e["version"]) > 24:
+                  print("::notice::Ubuntu %s (%s) is supported but not in SERIES" % (e["version"], name))
+          '
+
       - name: Add a debian/changelog entry for this version (if there isn't one)
         if: steps.gate.outputs.on == 'true'
         run: |
@@ -66,25 +88,31 @@ jobs:
             DEBFULLNAME=HomieLab DEBEMAIL=contact@homielab.com \
               dch -v "$v-0ppa1" -D noble "New upstream release, see CHANGELOG.md."
           fi
-          echo "DEB_VERSION=$(dpkg-parsechangelog -S Version)" >> "$GITHUB_ENV"
 
-      # Launchpad takes each version once; a second upload only earns a
-      # "Rejected: already accepted" email. (Uploads still in Launchpad's queue,
-      # which can take hours, don't show up here yet.)
-      - name: Skip if this version is already in the PPA
-        id: new
+      - name: Build and sign the source packages (one per series)
         if: steps.gate.outputs.on == 'true'
-        run: |
-          n=$(curl -fsS "https://api.launchpad.net/devel/~homielab/+archive/ubuntu/cleanmate?ws.op=getPublishedSources&source_name=cleanmate&version=$DEB_VERSION&exact_match=true" |
-            python3 -c 'import json,sys; print(json.load(sys.stdin)["total_size"])')
-          if [ "$n" = 0 ]; then echo "yes=true" >> "$GITHUB_OUTPUT"
-          else echo "::notice::$DEB_VERSION is already in the PPA; nothing to upload. For a packaging-only fix, bump the suffix in debian/changelog (e.g. -0ppa2)."; fi
-
-      - name: Build and sign the source package
-        if: steps.new.outputs.yes == 'true'
         run: |
           packaging/build-source.sh -us -uc
           debsign -p"$RUNNER_TEMP/gpg-ci" -k"$KEYID" dist/ppa/*_source.changes
+
+      # Launchpad takes a version once, and only above the one a series already
+      # has: an upload that isn't newer only earns a "Rejected" email. (Uploads
+      # still in Launchpad's queue, which can take hours, don't show up here yet.)
+      - name: Skip the series that already have this version
+        id: new
+        if: steps.gate.outputs.on == 'true'
+        run: |
+          : > "$RUNNER_TEMP/upload"
+          for c in dist/ppa/*_source.changes; do
+            s=$(sed -n 's/^Distribution: //p' "$c"); v=$(sed -n 's/^Version: //p' "$c")
+            have=$(curl -fsS "https://api.launchpad.net/devel/~homielab/+archive/ubuntu/cleanmate?ws.op=getPublishedSources&source_name=cleanmate&exact_match=true&distro_series=https://api.launchpad.net/devel/ubuntu/$s" |
+              python3 -c 'import json,sys; print(" ".join(e["source_package_version"] for e in json.load(sys.stdin)["entries"]))')
+            newer=""
+            for h in $have; do dpkg --compare-versions "$h" ge "$v" && newer=$h; done
+            if [ -n "$newer" ]; then echo "::notice::$s already has $newer; $v not uploaded. For a packaging-only fix, bump the suffix in debian/changelog (e.g. -0ppa2)."
+            else echo "$c" >> "$RUNNER_TEMP/upload"; fi
+          done
+          if [ -s "$RUNNER_TEMP/upload" ]; then echo "yes=true" >> "$GITHUB_OUTPUT"; fi
 
       # Launchpad silently drops uploads whose signature it can't match to an
       # account, so check against the public key as the keyserver has it.
@@ -105,9 +133,11 @@ jobs:
       - name: Upload to the PPA
         if: steps.new.outputs.yes == 'true'
         run: |
-          dput "$PPA" dist/ppa/*_source.changes
-          echo "::notice::Uploaded $DEB_VERSION. Launchpad emails contact@homielab.com when it's accepted (minutes, or hours when busy), then builds it."
+          while read -r c; do
+            dput "$PPA" "$c"
+            echo "::notice::Uploaded ${c##*/}. Launchpad emails contact@homielab.com when it's accepted (minutes, or hours when busy), then builds it."
+          done < "$RUNNER_TEMP/upload"
 
       - name: Remove the key material
         if: always()
-        run: rm -f "$RUNNER_TEMP/gpg-pass" "$RUNNER_TEMP/gpg-ci"; rm -rf ~/.gnupg
+        run: rm -f "$RUNNER_TEMP/gpg-pass" "$RUNNER_TEMP/gpg-ci" "$RUNNER_TEMP/upload"; rm -rf ~/.gnupg

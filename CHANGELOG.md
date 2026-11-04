@@ -32,6 +32,9 @@ All notable changes are listed here. The format follows
 
 ### Fixed
 
+- The PPA now has CleanMate for every Ubuntu release Launchpad supports: 24.04 LTS, 26.04 LTS and 26.10.
+- Automatic cleaning from the PPA, the `.deb` or the snap no longer asks you to install the launcher, and the snap's keeps running after the snap updates.
+- Flatpak: the welcome only promises what the Flatpak does, and the welcome and Settings link to what it can't do.
 - Desktop app: results are honest. Items whose check ran out of time are listed under **Not finished** with **Scan Again**, and the scan is never called clean while one remains. An engine failure shows its reason, **Copy Details** and **Report a Bug…** on Smart Scan, Large & Old Files, Duplicates and Space Lens instead of an empty page, and items a crashed clean never reached are marked failed, not skipped.
 - Desktop app: the clean summary separates the space freed from what went to the Trash, and **Empty Trash…** frees it. Free space is shown for both `/` and the home partition when they differ, and System Overview measures again after a clean. `cm --json clean` adds `to_trash` and `disks` to its `done` event.
 - Desktop app, **Uninstaller**: an app that can't be removed keeps its row with the reason, and the summary says how many could not be uninstalled. A dismissed or missing password dialog says so.

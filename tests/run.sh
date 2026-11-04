@@ -75,6 +75,7 @@ cm() { # run the app non-interactively inside the fake home (in English unless T
     ${CLEANMATE_MOUNTS:+CLEANMATE_MOUNTS=$CLEANMATE_MOUNTS} \
     ${CLEANMATE_SYSROOT:+CLEANMATE_SYSROOT=$CLEANMATE_SYSROOT} \
     ${CLEANMATE_PROC:+CLEANMATE_PROC=$CLEANMATE_PROC} \
+    ${TEST_SNAP:+SNAP=$TEST_SNAP} \
     ${container:+container=$container} bash "$SCRIPT" "$@"
 }
 
@@ -2838,6 +2839,58 @@ done true false" "every setting with its range and default; bad values fall back
   assert_contains "$out" "schedule off"
 }
 
+test_timer_runs_a_stable_path() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out pkg=$WORK/pkgroot clone=$HOME_DIR/src/cleanmate u=$HOME_DIR/.config/systemd/user self=$SCRIPT
+  ((EUID == 0)) && self=$WORK/cleanmate-as-user.sh # readable by the user the engine runs as
+  mkdir -p "$HOME_DIR/.local/bin" "$pkg/usr/bin" "$pkg/usr/share/cleanmate" "$clone"
+  # a fake `systemctl --user` (enabled units are files in ~/enabled); `cat` shows a unit as systemd would
+  printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift; mkdir -p "$HOME/enabled"' \
+    'case $1 in is-enabled) test -e "$HOME/enabled/$3" ;; enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;;' \
+    '  cat) cat "$HOME/.config/systemd/user/$2" ;; esac' >"$HOME_DIR/.local/bin/systemctl"
+  chmod +x "$HOME_DIR/.local/bin/systemctl"
+  # the .deb / PPA layout: /usr/bin/cleanmate next to /usr/share/cleanmate/packaged (under a test prefix)
+  cp "$SCRIPT" "$pkg/usr/bin/cleanmate"; : >"$pkg/usr/share/cleanmate/packaged"
+  cp "$SCRIPT" "$clone/cleanmate.sh"
+  chmod -R a+rX "$pkg"; chmod 755 "$pkg/usr/bin/cleanmate" "$clone/cleanmate.sh"
+  as_copy() { # ENGINE ARG… — run that copy of the engine like user_cm runs the checkout
+    local SCRIPT=$1; shift
+    if ((EUID == 0)); then
+      chown -R 65534:65534 "$HOME_DIR"
+      local AS_USER=(setpriv --reuid=65534 --regid=65534 --clear-groups)
+    fi
+    cm "$@"
+  }
+  unit() { env HOME="$HOME_DIR" "$HOME_DIR/.local/bin/systemctl" --user cat "$1" | grep '^ExecStart='; }
+
+  # a package: no launcher to install, the timer runs /usr/bin/cleanmate
+  out=$(as_copy "$pkg/usr/bin/cleanmate" --json settings-set schedule weekly)
+  assert_contains "$out" '"code":"schedule_on"'
+  [[ $out != *launcher* ]] && ok_ "no launcher hint for a package" || fail "a package is told to install the launcher: $out"
+  assert_eq "$(unit cleanmate.service)" "ExecStart=\"$pkg/usr/bin/cleanmate\" --auto" "the timer runs the package's command"
+  # the snap: /snap/bin/cleanmate, never the revision the engine runs from
+  out=$(TEST_SNAP=/snap/cleanmate/x7 as_copy "$self" --json settings-set schedule daily)
+  assert_contains "$out" '"code":"schedule_on"'
+  assert_eq "$(unit cleanmate.service)" 'ExecStart="/snap/bin/cleanmate" --auto' "the snap's timer runs /snap/bin/cleanmate"
+  # a timer an older snap pinned to its revision is moved to /snap/bin/cleanmate when the app checks (opens)
+  sed -i 's|^ExecStart=.*|ExecStart="/snap/cleanmate/x5/usr/bin/cleanmate" --auto|' "$u/cleanmate.service"
+  TEST_SNAP=/snap/cleanmate/x7 as_copy "$self" --json check >/dev/null
+  assert_eq "$(unit cleanmate.service)" 'ExecStart="/snap/bin/cleanmate" --auto' "an old revision's timer is repointed"
+  assert_contains "$(cat "$u/cleanmate.timer")" "OnCalendar=daily"
+  assert_eq "$(unit cleanmate-check.service)" 'ExecStart="/snap/bin/cleanmate" --check' "the daily check too"
+  # a clone in your home, not installed: the timer runs it, and you're told to install the launcher
+  out=$(as_copy "$clone/cleanmate.sh" --json settings-set schedule weekly)
+  assert_contains "$out" '"code":"schedule_not_installed"'
+  assert_contains "$out" "install the launcher"
+  assert_eq "$(unit cleanmate.service)" "ExecStart=\"$clone/cleanmate.sh\" --auto" "the timer runs the clone"
+  # …installed with `cm --install` (~/.local/bin/cleanmate): the timer runs that copy, no hint
+  cp "$SCRIPT" "$HOME_DIR/.local/bin/cleanmate"; chmod 755 "$HOME_DIR/.local/bin/cleanmate"
+  out=$(as_copy "$clone/cleanmate.sh" --json settings-set schedule weekly)
+  assert_contains "$out" '"code":"schedule_on"'
+  assert_eq "$(unit cleanmate.service)" "ExecStart=\"$HOME_DIR/.local/bin/cleanmate\" --auto" "the timer runs the installed copy"
+}
+
 test_low_disk_alert_and_scan_reminder() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -3676,6 +3729,30 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     fi
   done
   kill "$srv" 2>/dev/null
+}
+
+test_ppa_source_packages() {
+  command -v dpkg-buildpackage >/dev/null && command -v dh >/dev/null || { SKIPPED="dpkg-dev and debhelper not available"; return; }
+  git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || { SKIPPED="not a git checkout"; return; }
+  local out=$WORK/ppa s c v before
+  v=$(dpkg-parsechangelog -l "$ROOT/debian/changelog" -S Version)
+  before=$(cat "$ROOT/debian/changelog")
+  SERIES="noble resolute stonking" OUT=$out bash "$ROOT/packaging/build-source.sh" -us -uc >"$WORK/ppa.log" 2>&1 ||
+    { fail "build-source.sh failed: $(tail -n 5 "$WORK/ppa.log")"; return; }
+  assert_eq "$(find "$out" -name '*_source.changes' | wc -l)" 3 "one upload per series"
+  for s in noble resolute stonking; do
+    c=$out/cleanmate_${v}~${s}_source.changes
+    [[ -f $c ]] || { fail "no $s upload"; continue; }
+    assert_eq "$(sed -n 's/^Distribution: //p' "$c")" "$s" "$s: Distribution"
+    assert_eq "$(sed -n 's/^Version: //p' "$c")" "$v~$s" "$s: version"
+    assert_contains "$(cat "$c")" "cleanmate_${v%%-*}.orig.tar.xz" # each upload carries the tarball
+  done
+  assert_eq "$(find "$out" -name '*.orig.tar.xz' | wc -l)" 1 "one upstream tarball"
+  assert_eq "$(cat "$ROOT/debian/changelog")" "$before" "debian/changelog is left as it is"
+  SERIES="noble Resolute" OUT=$out bash "$ROOT/packaging/build-source.sh" -us -uc >/dev/null 2>&1 &&
+    fail "a wrong series name is built" || ok_ "a wrong series name is refused"
+  # with no SERIES, the list at the top of the PPA workflow
+  assert_eq "$(sed -n 's/^  SERIES: *"\(.*\)"$/\1/p' "$ROOT/.github/workflows/ppa.yml" | wc -w | tr -d ' ')" 3 "ppa.yml lists the series"
 }
 
 test_deb_package() {

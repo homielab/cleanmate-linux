@@ -54,17 +54,20 @@ jobs:
         run: tests/run.sh
 
   ppa:
-    name: PPA package (noble)
+    name: PPA package (every series)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq build-essential devscripts debhelper lintian python3-gi gir1.2-gdkpixbuf-2.0 librsvg2-common gettext
-      - name: Build the source package, then the .deb from it (as Launchpad does)
+      - name: Build the source packages (the series in ppa.yml), then the noble .deb from one (as Launchpad does)
         run: |
           packaging/build-source.sh -us -uc
+          for s in $(sed -n 's/^  SERIES: *"\(.*\)"$/\1/p' .github/workflows/ppa.yml); do
+            grep -qx "Distribution: $s" dist/ppa/cleanmate_*~"${s}"_source.changes || { echo "::error::No source package for $s"; exit 1; }
+          done
           mkdir build && cd build
-          dpkg-source -x ../dist/ppa/*.dsc
+          dpkg-source -x ../dist/ppa/*~noble.dsc
           cd cleanmate-*/ && dpkg-buildpackage -b -us -uc
       - name: Lintian
         run: lintian --fail-on error --suppress-tags no-manual-page build/*.changes dist/ppa/*.dsc

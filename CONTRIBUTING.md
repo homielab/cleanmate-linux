@@ -122,6 +122,12 @@ on their own, and checks the unused packages against `apt-get -s autoremove`. Ru
 user on a machine with many packages; `CLEANMATE_SCRIPT=old.sh` times another copy.
 CI runs everything on Ubuntu 22.04 and 24.04 for every pull request.
 
+The PPA gets one source package per Ubuntu release, listed in `SERIES` at the top of
+`.github/workflows/ppa.yml` (only releases Launchpad still builds for; the workflow fails on a closed
+one and points out a new one). `packaging/build-source.sh -us -uc` builds them unsigned in
+`dist/ppa/` (`SERIES=noble` for one), each versioned `<debian/changelog version>~<series>`; never write a series
+name into `debian/changelog` by hand.
+
 ## Desktop app
 
 ```bash
