@@ -5,7 +5,8 @@ from urllib.parse import unquote
 from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
 from .a11y import named
-from .engine import CAT_GROUP, CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, SMART_SCAN, human
+from .engine import (CAT_GROUP, CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, PACKAGE_HINT, PACKAGE_NEEDED,
+                     SMART_SCAN, human)
 from .errorview import ErrorPage, Failure, last_line, pkexec_reason
 from .i18n import _, detail_text, item_text, ngettext, note_text, why_running
 from .preview import open_file
@@ -302,8 +303,9 @@ class ScanPage(Gtk.Box):
         self.entry_rows.clear()
         self.group_rows.clear()
         self.gone.clear()
-        # an item whose program is running is skipped by the engine: never tick it
-        self.selected = {i: e["selected"] and not e.get("locked") for i, e in self.items.items()
+        # an item whose program is running is skipped by the engine, one that needs root can't be cleaned by
+        # this copy: never tick them
+        self.selected = {i: e["selected"] and not self.held(e) for i, e in self.items.items()
                          if e["status"] == "found"}
 
         found = [e for e in self.items.values() if e["status"] == "found"]
@@ -359,7 +361,7 @@ class ScanPage(Gtk.Box):
             group = Adw.PreferencesGroup(title=CATEGORY_TITLES.get(cat, cat))
             if junk and not self.privacy:
                 group.set_description(human(sum(e["bytes"] for e in junk)))
-            free = [e["id"] for e in junk if not e.get("locked")]  # the group box skips locked rows
+            free = [e["id"] for e in junk if not self.held(e)]  # the group box skips locked rows
             if len(free) > 1:
                 toggle = Gtk.CheckButton(label=_("All"), valign=Gtk.Align.CENTER, css_classes=["big-check"],
                                          tooltip_text=_("Select or deselect the whole group"))
@@ -457,19 +459,27 @@ class ScanPage(Gtk.Box):
         if hasattr(self, "no_match"):
             self.no_match.set_visible(bool(words) and not shown_any)
 
+    def held(self, e):
+        """The item can't be ticked: its program is running, or it needs root and this copy of the engine
+        can't ask for the password (not installed from a package)."""
+        return bool(e.get("locked")) or (e["root"] and not self.engine.can_ask_password())
+
     def item_row(self, e, biggest):
         locked = e.get("locked") or ""  # the program that has to be closed first
         subtitle = note_text(e["note"])
+        held = self.held(e)
         if locked:
             subtitle = _("Close {program} and scan again").format(program=locked)
+        elif held:
+            subtitle = PACKAGE_NEEDED
         elif e["root"]:
             subtitle = f"{subtitle} · {_('Needs your password')}" if subtitle else _("Needs your password")
-        expander = bool(e.get("entries")) and not locked and not self.privacy
+        expander = bool(e.get("entries")) and not held and not self.privacy
         row_type = Adw.ExpanderRow if expander else Adw.ActionRow
         row = row_type(title=item_text(e["label"]), subtitle=subtitle, use_markup=False, subtitle_lines=1,
                        tooltip_text=item_text(e["description"]), css_classes=["item-row"])
         check = Gtk.CheckButton(active=self.selected.get(e["id"], False), valign=Gtk.Align.CENTER,
-                                css_classes=["big-check"], sensitive=not locked)
+                                css_classes=["big-check"], sensitive=not held)
         check.connect("toggled", self.on_toggled, e["id"])
         self.checks[e["id"]] = check
         row.add_prefix(check)
@@ -477,9 +487,12 @@ class ScanPage(Gtk.Box):
         if locked:
             suffixes.append(Gtk.Image(icon_name="changes-prevent-symbolic", css_classes=["warning"],
                                       tooltip_text=_("{program} is running — close it, then scan again").format(program=locked)))
+        elif held:
+            suffixes.append(Gtk.Image(icon_name="changes-prevent-symbolic", css_classes=["warning"],
+                                      tooltip_text=PACKAGE_HINT))
         elif not expander:
             row.set_activatable_widget(check)
-        if e["root"] and not locked:
+        if e["root"] and not held:
             suffixes.append(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password")))
         if not self.privacy:
             bar, size = size_widgets(e["bytes"], biggest)
@@ -632,6 +645,8 @@ class ScanPage(Gtk.Box):
         section(_("Skipped when"), skipped or [_("Never: when it is ticked, it is cleaned")])
         if locked:
             text(_("Now: {program} is running — close it, then scan again").format(program=locked), "warning")
+        elif e["root"] and not self.engine.can_ask_password():
+            text(PACKAGE_HINT, "warning")
         folders = why["folders"]
         if folders:
             buttons = Gtk.Box(spacing=6, halign=Gtk.Align.END, margin_top=10)

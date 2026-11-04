@@ -3739,6 +3739,65 @@ test_engine_messages_translated() {
   return 0
 }
 
+# The password dialog (packaging/polkit): one action per page, each saying what it does in English and in
+# Vietnamese; polkit picks it by the engine's first argument, which must match the command; `cm --install`
+# (a copy you can change) puts no policy anywhere.
+test_polkit_actions_match_the_engine() {
+  local policy=$ROOT/packaging/polkit/com.homielab.CleanMate.policy out rc a found
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  out=$(python3 - "$policy" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+LANG = "{http://www.w3.org/XML/1998/namespace}lang"
+for a in ET.parse(sys.argv[1]).getroot().iter("action"):
+    notes = {n.get("key").rsplit(".", 1)[1]: n.text for n in a.iter("annotate")}
+    texts = sorted(f"{t.tag}:{t.get(LANG, 'en')}" for t in a if t.tag in ("description", "message") and (t.text or "").strip())
+    print(a.get("id"), notes.get("path"), notes.get("argv1"), ",".join(texts))
+PY
+  )
+  local texts="description:en,description:vi,message:en,message:vi"
+  assert_eq "$out" "com.homielab.CleanMate.clean-system /usr/bin/cleanmate --polkit=clean-system $texts
+com.homielab.CleanMate.uninstall-apps /usr/bin/cleanmate --polkit=uninstall-apps $texts
+com.homielab.CleanMate.maintenance /usr/bin/cleanmate --polkit=maintenance $texts" \
+    "three polkit actions for /usr/bin/cleanmate, picked by --polkit=ACTION, each in English and Vietnamese"
+  grep -q 'POLKIT_ACTIONS = {"clean": "clean-system", "uninstall": "uninstall-apps", "maintain": "maintenance"}' \
+    "$ROOT/gui/cleanmate_gui/engine.py" && ok_ "the desktop app sends the same actions" ||
+    fail "gui/cleanmate_gui/engine.py POLKIT_ACTIONS doesn't match the policy"
+  fresh_home
+  for a in clean-system:clean uninstall-apps:uninstall maintenance:maintain; do
+    out=$(cm --polkit="${a%%:*}" --json settings 2>&1); rc=$?
+    assert_eq "$rc" 2 "--polkit=${a%%:*} with another command is refused"
+    assert_contains "$out" "--polkit=${a%%:*} only goes with --json ${a#*:}"
+  done
+  out=$(cm --polkit=everything --json clean 2>&1); rc=$?
+  assert_eq "$rc" 2 "an unknown polkit action is refused"
+  assert_contains "$out" "Unknown polkit action: everything"
+  out=$(cm --polkit=clean-system --scan 2>&1); rc=$?
+  assert_eq "$rc" 2 "--polkit only with --json"
+  out=$(cm --polkit=maintenance --json --dry-run maintain free_ram 2>&1); rc=$?  # free_ram needs no extra tool
+  assert_contains "$out" '"event":"done"'
+  [[ $out != *"only goes with"* ]] && ok_ "the matching command runs" || fail "--polkit=maintenance refused maintain"
+  cm --install >/dev/null 2>&1
+  found=$(find "$HOME_DIR" \( -name '*.policy' -o -name '*polkit*' \) -print)
+  assert_eq "$found" "" "cm --install puts no polkit policy in your home"
+}
+
+# Which copy of the engine the desktop app runs through pkexec, and with which action (tests/engine_root_test.py)
+test_desktop_app_asks_for_root_only_with_a_root_owned_engine() {
+  local out
+  python3 -c 'from gi.repository import GLib' 2>/dev/null || { SKIPPED="python3-gi not available"; return; }
+  fresh_home
+  if out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$WORK" \
+    python3 "$ROOT/tests/engine_root_test.py" 2>&1); then
+    ok_ "pkexec: $(grep -m1 '^Ran' <<<"$out")"
+    ((VERBOSE)) && printf '%s\n' "$out" | sed 's/^/      | /'
+  else
+    fail "pkexec / root-owned engine tests failed"
+    printf '%s\n' "$out" | sed 's/^/      | /'
+  fi
+  return 0
+}
+
 test_scan_groups_can_be_turned_off() {
   fresh_home
   local out

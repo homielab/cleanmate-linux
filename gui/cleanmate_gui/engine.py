@@ -45,6 +45,13 @@ STDERR_LINES = 20
 STDERR_GRACE_MS = 300  # after a failed run, how long to wait for its last stderr lines
 # pkexec's own exit statuses: the password dialog was dismissed (126), not authorized or no dialog (127)
 PKEXEC_DISMISSED, PKEXEC_REFUSED = 126, 127
+# a run that needed root and was never started: this copy of the engine isn't root's (root_owned)
+NEEDS_PACKAGE = -2
+# the polkit action of each command run as root (packaging/polkit): the password dialog says what it is for
+POLKIT_ACTIONS = {"clean": "clean-system", "uninstall": "uninstall-apps", "maintain": "maintenance"}
+PACKAGE_NEEDED = _("Needs CleanMate installed from a package")
+PACKAGE_HINT = _("This copy of CleanMate is in a folder you can change, so it doesn't ask for your password. "
+                 "Install CleanMate from the PPA or the .deb package to do this here, or run “sudo cm” in a terminal.")
 
 
 # commands that change something on the disk: closing the window while one runs asks first
@@ -89,6 +96,26 @@ def kill_tree(pid):
             pass
 
 
+def root_owned(path):
+    """True when only root can change the file at PATH: it, and every folder above it, belongs to root and no
+    group or other user can write to it. A copy in your home folder (`cm --install`, a git clone) is not: any
+    program you run could edit it and wait for the next password you type."""
+    p = os.path.realpath(path)
+    if not os.path.isfile(p):
+        return False
+    while True:
+        try:
+            st = os.stat(p)
+        except OSError:
+            return False
+        if st.st_uid != 0 or st.st_mode & 0o022:
+            return False
+        parent = os.path.dirname(p)
+        if parent == p:
+            return True
+        p = parent
+
+
 class Run(Gio.Cancellable):
     """One engine run: cancel() kills it and what it started at once; stop() asks it to end early and still
     report (a scan then lists the items it got to)."""
@@ -116,6 +143,14 @@ class Engine:
         self.dry_run = dry_run
         self.env = env or {}  # extra environment variables for the engine (the self-test's own HOME)
         self.live = set()  # the runs that haven't ended yet
+        self.root_ok = None  # pkexec may run this engine (root_owned); None = not checked yet
+
+    def can_ask_password(self):
+        """Whether a command can run as root through pkexec: only root's own copy of the engine (the package's
+        /usr/bin/cleanmate), or any copy when the app already runs as root."""
+        if self.root_ok is None:
+            self.root_ok = os.geteuid() == 0 or root_owned(self.path)
+        return self.root_ok
 
     def writing(self):
         """The runs still changing something on the disk (cleaning, moving to the Trash, removing apps …)."""
@@ -129,20 +164,29 @@ class Engine:
     def run(self, args, on_event, on_done, as_root=False):
         """Start the engine. on_event(dict) per event, on_done(ok, exit_status) at the end.
 
-        Returns a Run (a Gio.Cancellable) that stops it. With as_root, the command goes
-        through pkexec (the standard Ubuntu password dialog). A run that fails (exit status not 0, not
-        cancelled) sends one last event before on_done: {"event": "failed", "status": N, "stderr": [lines]}
-        with the last lines the engine (or pkexec) wrote to stderr.
+        Returns a Run (a Gio.Cancellable) that stops it. With as_root, the command goes through pkexec (the
+        standard Ubuntu password dialog), with the polkit action of its command as the first argument, so the
+        dialog says what the password is for; only when can_ask_password(), else it never starts and ends with
+        status NEEDS_PACKAGE. A run that fails (exit status not 0, not cancelled) sends one last event before
+        on_done: {"event": "failed", "status": N, "stderr": [lines]} with the last lines the engine (or pkexec)
+        wrote to stderr.
         """
-        argv = ["bash", self.path, "--json"]
-        if as_root:  # pkexec from the engine's PATH (the self-test's stub), else the system's
-            argv = [shutil.which("pkexec", path=self.env.get("PATH")) or "pkexec", self.path, "--json"]
-        if self.dry_run:
-            argv.append("--dry-run")
-        argv += list(args)
         cancellable = Run()
         cancellable.command = next((a for a in args if not a.startswith("-")), "")
         cancellable.writes = cancellable.command in WRITING and "--check" not in args
+        argv = ["bash", self.path, "--json"]
+        if as_root:
+            if not self.can_ask_password() or cancellable.command not in POLKIT_ACTIONS:
+                GLib.idle_add(on_event, {"event": "failed", "status": NEEDS_PACKAGE, "stderr": []})
+                GLib.idle_add(on_done, False, NEEDS_PACKAGE)
+                return cancellable
+            # pkexec from the engine's PATH (the self-test's stub), else the system's; the real path, which the
+            # policy names (/usr/bin/cleanmate, not the cm link)
+            argv = [shutil.which("pkexec", path=self.env.get("PATH")) or "pkexec", os.path.realpath(self.path),
+                    f"--polkit={POLKIT_ACTIONS[cancellable.command]}", "--json"]
+        if self.dry_run:
+            argv.append("--dry-run")
+        argv += list(args)
         try:
             launcher = Gio.SubprocessLauncher.new(
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE

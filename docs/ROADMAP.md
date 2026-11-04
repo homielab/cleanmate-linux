@@ -38,7 +38,7 @@ The desktop app's *All tools (terminal)* entry is a shortcut to `cm`.
 | Engine | One Bash script (`cleanmate.sh`) | Runs everywhere with nothing to install; the terminal app, the desktop app and the timer share every rule and test |
 | Desktop app | Python 3 + PyGObject, GTK 4 + libadwaita 1.5 | Preinstalled on Ubuntu 24.04; native GNOME look, dark mode and accent colours for free |
 | GUI ↔ engine | JSON lines over a pipe | The GUI never decides what to delete; the engine can be rewritten later without touching the GUI |
-| Privileges | GUI runs as you; system items via `pkexec` | Standard password dialog; as root the engine refuses anything in a home folder |
+| Privileges | GUI runs as you; system items via `pkexec`, only for the root-owned package engine | Standard password dialog naming the task (clean, uninstall, Maintenance); a copy in your home asks for no password; as root the engine refuses anything in a home folder |
 | Older Ubuntu | 22.04 gets the terminal app only | It ships libadwaita 1.1 (no split view, dialogs, toasts) |
 | Packaging | `.deb` first, then a PPA | Flathub doesn't accept host system utilities; Snap needs classic confinement |
 

@@ -168,6 +168,13 @@ def run(app, win):
         report(not missing, f"why lines translated: {len(lines) - len(missing)} of {len(lines)}")
 
     def after_details():
+        root_found = [e["id"] for e in page.items.values() if e["status"] == "found" and e["root"] and not e.get("locked")]
+        if root_found and not win.engine.can_ask_password():
+            from .engine import PACKAGE_NEEDED
+            shown = [i for i in root_found if i in page.checks and i in page.item_rows]
+            report(shown and all(not page.checks[i].get_sensitive() and not page.selected.get(i)
+                                 and page.item_rows[i].get_subtitle() == PACKAGE_NEEDED for i in shown),
+                   f"not installed from a package: system items are locked, unticked, and say why: {shown}")
         user_items = [e for e in page.items.values()
                       if e["status"] == "found" and not e["root"] and not e.get("locked")]
         if not (win.engine.dry_run and user_items):
@@ -1148,7 +1155,22 @@ def uninstaller_test(win, report, wait, finish):
             report(True, "real uninstall skipped: the engine refuses Flatpak and folders as root")
             return done()
         page.engine = Engine(real_engine.path, dry_run=False, env=env)
-        wait(lambda: idle() and page.stack.get_visible_child_name() == "results", real_run, 30, "list after the dry run")
+        page.engine.root_ok = False  # a copy you can change (this checkout): pkexec never runs it
+        page.load()
+        wait(lambda: idle() and page.stack.get_visible_child_name() == "results", held_apps, 60, "list, not a package")
+
+    def held_apps():
+        from .engine import PACKAGE_NEEDED
+        held = [i for i in ("apt:gimp", "snap:vlc") if not page.checks[i].get_sensitive()
+                and page.rows[i].get_subtitle() == PACKAGE_NEEDED]
+        page.all_check.set_active(True)
+        report(held == ["apt:gimp", "snap:vlc"] and page.checks["flatpak:com.spotify.Client"].get_sensitive()
+               and [a["id"] for a in page.chosen()[0]] == ["flatpak:com.spotify.Client"],
+               f"not installed from a package: apt and Snap apps are locked and say why, Select all skips them: {held}")
+        page.all_check.set_active(False)
+        page.engine.root_ok = True  # from here on as the package's /usr/bin/cleanmate (root's)
+        page.load()
+        wait(lambda: idle() and page.stack.get_visible_child_name() == "results", real_run, 60, "list as a package")
 
     def real_run():
         open(os.path.join(home, "spotify-runs"), "w").close()  # `flatpak ps` lists Spotify now
@@ -1172,8 +1194,9 @@ def uninstaller_test(win, report, wait, finish):
             path = os.path.join(home, name)
             return open(path).read() if os.path.exists(path) else ""
         log, prompts = text("removed.log"), text("pkexec.log").splitlines()
-        report(len(prompts) == 1 and sorted(prompts[0].split(" uninstall ")[-1].split()) == ["apt:gimp", "snap:vlc"],
-               f"one password for the apt and Snap apps together: {prompts}")
+        report(len(prompts) == 1 and sorted(prompts[0].split(" uninstall ")[-1].split()) == ["apt:gimp", "snap:vlc"]
+               and " --polkit=uninstall-apps --json " in prompts[0],
+               f"one password for the apt and Snap apps together, the dialog says Uninstall apps: {prompts}")
         report("apt-get purge -y gimp" in log and "snap remove --purge vlc" in log and "flatpak" not in log,
                f"apt and Snap removed, the running Flatpak app not: {log!r}")
         skipped = U.running_text("com.spotify.Client")
@@ -2084,6 +2107,7 @@ def maintenance_test(win, report, wait, finish):
     def first():
         report(len(page.rows) == 9, f"Maintenance lists the terminal app's 9 tasks: {sorted(page.rows)}")
         page.engine = Engine(real_engine.path, dry_run=False, env=env)
+        page.engine.root_ok = True  # as the package's /usr/bin/cleanmate (root's); a copy you can change: held()
         page.load()
         wait(idle, listed, 60, "maintenance list")
 
@@ -2105,6 +2129,16 @@ def maintenance_test(win, report, wait, finish):
         page.show_results(items)
         report(not page.controls["locate"].get_sensitive()
                and page.rows["locate"].get_subtitle() == MISSING["locate"], "a missing tool locks the row with why")
+        from .engine import PACKAGE_NEEDED
+        page.engine.root_ok = False  # a copy you can change: no task that needs root can run
+        page.show_results(items)
+        held = sorted(m["id"] for m in items if m["available"] and not page.controls[m["id"]].get_sensitive()
+                      and page.rows[m["id"]].get_subtitle() == PACKAGE_NEEDED)
+        root_items = sorted(m["id"] for m in items if m["available"] and m["root"])
+        report(held == root_items and page.controls["fonts"].get_sensitive(),
+               f"not installed from a package: the tasks that need root are locked and say why: {held}")
+        page.engine.root_ok = True
+        page.show_results(items)
         page.start(page.items["fonts"])
         wait(idle, fonts_done, 60, "Rebuild font cache")
 
@@ -2125,7 +2159,8 @@ def maintenance_test(win, report, wait, finish):
         calls = read("pkexec.log").splitlines()
         ran = read("ran.log")
         flatpak = os.geteuid() == 0 or "flatpak update -y --noninteractive" in ran
-        report(len(calls) == 1 and "maintain update" in calls[0] and "apt-get update" in ran and "apt-get upgrade -y" in ran
+        report(len(calls) == 1 and "--polkit=maintenance --json maintain update" in calls[0] and "apt-get update" in ran
+               and "apt-get upgrade -y" in ran
                and flatpak and "apt-get update output" in page.log.text(),
                f"Update everything asks for the password once, then runs your flatpak part: {calls}")
         wait(idle, done, 30, "list after updating")
@@ -2609,7 +2644,7 @@ def honest_results_test(win, report, wait, finish):
     import json
     from . import errorview
     from . import window as W
-    from .engine import Engine, human
+    from .engine import NEEDS_PACKAGE, Engine, human
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     fake = os.path.join(sandbox, "cleanmate.sh")
     with open(fake, "w") as f:
@@ -2717,7 +2752,8 @@ def honest_results_test(win, report, wait, finish):
                                              "found."]) == _("Skipped — no password dialog could open (no polkit "
                                                              "authentication agent is running)")
                and errorview.pkexec_reason(126, []) == _("Skipped — no password was entered")
-               and errorview.pkexec_reason(1, ["E: boom"]) is None,
+               and errorview.pkexec_reason(1, ["E: boom"]) is None
+               and errorview.pkexec_reason(NEEDS_PACKAGE, []) == _("Skipped — needs CleanMate installed from a package"),
                "pkexec: a dismissed dialog and a missing polkit agent each say so")
         cleaned_up()
 

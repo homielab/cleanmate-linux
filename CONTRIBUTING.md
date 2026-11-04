@@ -27,6 +27,11 @@ docs/                       screenshots, roadmap, publishing guide
   light ones (`ITEM_LIGHT`), which share a few.
 - **Privileges.** Items that need root are listed in `ITEM_ROOT`. The terminal app uses `sudo`;
   the desktop app uses `pkexec`, and the engine refuses non-system items when it runs as root.
+  pkexec runs only a root-owned engine (`/usr/bin/cleanmate` from the package; `root_owned` in
+  `gui/cleanmate_gui/engine.py`), never a copy in a home folder, with `--polkit=ACTION` first so
+  polkit shows the action of the page: `clean-system`, `uninstall-apps` or `maintenance`
+  (`packaging/polkit/com.homielab.CleanMate.policy`; the engine refuses an action that doesn't
+  match its command). A new root command needs an action there and in `POLKIT_ACTIONS`.
 
 ## Adding something to clean
 
@@ -170,6 +175,10 @@ the text from `python3 -m cleanmate_gui.messages notify CODE [KEY VALUE]…`. A 
 there and in `po/vi.po`: `tests/run.sh engine_messages` (`tests/messages_test.py`) reads every code
 from `cleanmate.sh` and fails on one without. A code set from a variable gets a `# codes: a b` note
 on its line, so the test finds it.
+
+The password dialog's texts are in `packaging/polkit/com.homielab.CleanMate.policy`: each
+action's `<description>` and `<message>` once per language, with `xml:lang` (`tests/run.sh polkit`
+checks the Vietnamese ones).
 
 - In code, wrap text in `_("…")`, and counts in `ngettext("{n} file", "{n} files", n)` (it fills in
   `{n}` and any other `{field}=` you pass). Put values in `{named}` fields, never glue sentences together.

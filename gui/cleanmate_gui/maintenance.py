@@ -10,6 +10,7 @@ import os
 from gi.repository import Adw, Gtk, Pango
 
 from . import findbar
+from .engine import NEEDS_PACKAGE, PACKAGE_HINT, PACKAGE_NEEDED
 from .findbar import FindBar
 from .i18n import _, ngettext
 from . import messages
@@ -181,9 +182,16 @@ class MaintenancePage(Gtk.Box):
         for key, row in self.rows.items():
             row.set_visible(findbar.matches(words, row.get_title(), row.get_subtitle(), key))
 
+    def held(self, m):
+        """The item has steps that need root and this copy of the engine can't ask for the password (not
+        installed from a package); a dry run needs no root."""
+        return m["root"] and not self.engine.dry_run and not self.engine.can_ask_password()
+
     def subtitle(self, m):
         if not m["available"]:
             return MISSING.get(m["id"], m["reason"])
+        if self.held(m):
+            return PACKAGE_NEEDED
         if m["id"] == "snap_versions":
             if m["on"]:
                 return _("On: 2 versions of each snap are kept. Turn off to go back to snapd's default.")
@@ -199,26 +207,30 @@ class MaintenancePage(Gtk.Box):
         title, _desc, icon = TEXTS.get(m["id"], (m["label"], m["description"], "emblem-system-symbolic"))
         row = Adw.ActionRow(title=title, subtitle=self.subtitle(m), use_markup=False, css_classes=["item-row"])
         row.add_prefix(Gtk.Image(icon_name=icon, pixel_size=24))
+        usable = m["available"] and not self.held(m)
         if not m["available"]:
             row.add_suffix(Gtk.Image(icon_name="changes-prevent-symbolic", tooltip_text=MISSING.get(m["id"], m["reason"]),
                                      css_classes=["dim-label"]))
+        elif not usable:
+            row.add_suffix(Gtk.Image(icon_name="changes-prevent-symbolic", tooltip_text=PACKAGE_HINT,
+                                     css_classes=["warning"]))
         elif m["root"]:
             row.add_suffix(Gtk.Image(icon_name="system-lock-screen-symbolic", tooltip_text=_("Needs your password"),
                                      css_classes=["dim-label"]))
         if m["toggle"]:
             if m["id"] == "journal_limit" and m["on"] and m["value"] != m["target"]:
                 use = Gtk.Button(label=_("Use {mb} MB").format(mb=m["target"]), valign=Gtk.Align.CENTER,
-                                 sensitive=m["available"],
+                                 sensitive=usable,
                                  tooltip_text=_("The limit set in Settings → Journal size limit"))
                 use.connect("clicked", lambda *_a: self.start(m, "on"))
                 row.add_suffix(use)
-            control = Gtk.Switch(active=m["on"], valign=Gtk.Align.CENTER, sensitive=m["available"])
+            control = Gtk.Switch(active=m["on"], valign=Gtk.Align.CENTER, sensitive=usable)
             control.connect("notify::active", self.on_switched, m)
         else:
-            control = Gtk.Button(label=_("Run"), valign=Gtk.Align.CENTER, sensitive=m["available"])
+            control = Gtk.Button(label=_("Run"), valign=Gtk.Align.CENTER, sensitive=usable)
             control.connect("clicked", lambda *_a: self.confirm(m) if m["id"] == "update" else self.start(m))
         row.add_suffix(control)
-        if m["available"]:
+        if usable:
             row.set_activatable_widget(control)
         self.rows[m["id"]] = row
         self.controls[m["id"]] = control
@@ -296,6 +308,9 @@ class MaintenancePage(Gtk.Box):
                                                 mode=mode, user_steps=user_steps, as_root=as_root)
 
         def part_done(i, status):
+            if parts[i][0] and status == NEEDS_PACKAGE:  # this copy can't ask for the password
+                state["error"] = PACKAGE_NEEDED
+                return finish()
             if parts[i][0] and status in (126, 127):  # password dialog dismissed / not authorized
                 state["cancelled"] = True
                 return finish()

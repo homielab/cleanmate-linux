@@ -33,6 +33,9 @@ bash cleanmate.sh --install
 
 That adds the app to *Show Apps* and the `cm` command to your terminal, all inside your home
 folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app needs 24.04+).
+This copy (like one run from a git clone) lives in a folder you can change, so the desktop app
+never asks for your password with it: items that need root show *Needs CleanMate installed from a
+package*. Clean them with `sudo cm`, or install from the PPA or the `.deb`.
 
 **Other ways**
 

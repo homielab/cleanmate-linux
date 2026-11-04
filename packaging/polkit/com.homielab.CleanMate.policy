@@ -2,9 +2,14 @@
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <!--
-  Shown when the desktop app cleans system items (package cache, logs, crash
-  reports, old kernels, old snaps). The command itself refuses to clean anything
-  in your home folder when it runs as root.
+  The password dialog of the desktop app. It runs /usr/bin/cleanmate through
+  pkexec with the polkit option first (see exec.argv1 below), then the JSON
+  command, and polkit picks the action whose exec.argv1 matches, so the dialog
+  says what the password is for. The engine refuses an action that doesn't
+  match the command, and anything in your home folder when it runs as root.
+  Only the package's root-owned /usr/bin/cleanmate is run this way: a copy in
+  your home folder (installed from a git clone or the script) never asks for
+  the password.
 -->
 <policyconfig>
   <vendor>HomieLab</vendor>
@@ -13,12 +18,43 @@
 
   <action id="com.homielab.CleanMate.clean-system">
     <description>Clean system files</description>
-    <message>Authentication is required to clean system files such as the package cache and logs</message>
+    <description xml:lang="vi">Dọn tệp hệ thống</description>
+    <message>Authentication is required to clean system files such as the package cache, system logs and old kernels</message>
+    <message xml:lang="vi">Cần xác thực để dọn tệp hệ thống như bộ nhớ đệm gói, nhật ký hệ thống và kernel cũ</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/cleanmate</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">--polkit=clean-system</annotate>
+  </action>
+
+  <action id="com.homielab.CleanMate.uninstall-apps">
+    <description>Uninstall apps</description>
+    <description xml:lang="vi">Gỡ ứng dụng</description>
+    <message>Authentication is required to uninstall apt and Snap apps</message>
+    <message xml:lang="vi">Cần xác thực để gỡ ứng dụng apt và Snap</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/cleanmate</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">--polkit=uninstall-apps</annotate>
+  </action>
+
+  <action id="com.homielab.CleanMate.maintenance">
+    <description>Run maintenance tasks</description>
+    <description xml:lang="vi">Chạy tác vụ Bảo trì</description>
+    <message>Authentication is required to run maintenance tasks such as updating packages, repairing packages or limiting the size of system logs</message>
+    <message xml:lang="vi">Cần xác thực để chạy tác vụ Bảo trì như cập nhật gói, sửa gói hoặc giới hạn dung lượng nhật ký hệ thống</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/cleanmate</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">--polkit=maintenance</annotate>
   </action>
 </policyconfig>

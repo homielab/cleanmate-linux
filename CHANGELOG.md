@@ -28,6 +28,7 @@ All notable changes are listed here. The format follows
 - Repeat scans of a home with many idle projects are faster: the stale `node_modules` item reads its folders in parallel (about 80 → 60 ms for 50 projects).
 - The README starts with what CleanMate does, a screenshot and the install commands, and compares it with BleachBit; the full list of what it cleans moved to `docs/FEATURES.md`.
 - Minecraft caches are skipped only while Minecraft itself runs, not while any Java program (an IDE, a Gradle daemon) is open.
+- Desktop app: the password dialog says what it's for — cleaning system files, uninstalling apps or Maintenance. Installed with the script or from git, it asks for no password: system items say to install the package or run `sudo cm`.
 
 ### Fixed
 

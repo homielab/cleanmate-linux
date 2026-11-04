@@ -11,7 +11,7 @@ import re
 from gi.repository import Adw, Gtk
 
 from . import bugreport
-from .engine import PKEXEC_DISMISSED, PKEXEC_REFUSED
+from .engine import NEEDS_PACKAGE, PKEXEC_DISMISSED, PKEXEC_REFUSED
 from .i18n import _
 
 
@@ -75,6 +75,8 @@ class Failure:
 def pkexec_reason(status, stderr):
     """Why a run through pkexec did nothing: None when it ran (its own result counts), else the text for the rows."""
     text = "\n".join(stderr or ())
+    if status == NEEDS_PACKAGE:
+        return _("Skipped — needs CleanMate installed from a package")
     if status == PKEXEC_DISMISSED:
         return _("Skipped — no password was entered")
     if status == PKEXEC_REFUSED:

@@ -12669,6 +12669,7 @@ while (($#)); do
     --uninstall) MODE=uninstall ;;
     --update) MODE=update ;;
     --json) MODE=json ;;
+    --polkit=*) POLKIT_ACTION=${1#--polkit=} ;; # the desktop app's pkexec runs: see the check below
     --gui) MODE=gui ;;
     -*)
       [[ ($MODE == json && ${#JSON_ARGS[@]} -gt 0) || $MODE == restore ]] || { err "Unknown option: $1"; usage; exit 2; }
@@ -12683,6 +12684,19 @@ while (($#)); do
   esac
   shift
 done
+
+# --polkit=ACTION comes first in the desktop app's `pkexec cleanmate --polkit=ACTION --json COMMAND …`: polkit
+# picks the password dialog's action (packaging/polkit) by it, so it must name what the command does.
+if [[ -n ${POLKIT_ACTION:-} ]]; then
+  case $POLKIT_ACTION in
+    clean-system) _cmd=clean ;;
+    uninstall-apps) _cmd=uninstall ;;
+    maintenance) _cmd=maintain ;;
+    *) err "Unknown polkit action: $POLKIT_ACTION (use clean-system, uninstall-apps or maintenance)"; exit 2 ;;
+  esac
+  [[ $MODE == json && ${JSON_ARGS[0]:-} == "$_cmd" ]] ||
+    { err "--polkit=$POLKIT_ACTION only goes with --json $_cmd"; exit 2; }
+fi
 
 on_interrupt() { # stop every background job and its children (they ignore SIGINT)
   local p

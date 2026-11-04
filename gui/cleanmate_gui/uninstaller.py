@@ -15,7 +15,7 @@ from urllib.parse import unquote
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .a11y import named
-from .engine import human
+from .engine import PACKAGE_HINT, PACKAGE_NEEDED, human
 from .errorview import Failure, last_line, pkexec_reason
 from .i18n import _, ngettext
 from .largefiles import short_path
@@ -262,7 +262,11 @@ class UninstallerPage(Gtk.Box):
         else:
             tip = _("{kind} package {package}\nApp {size} · your data {data}").format(
                 kind=kind, package=package, size=human(a["bytes"]), data=human(a["data_bytes"]))
-        if a["kind"] not in USER_KINDS:
+        held = self.held(a)
+        if held:
+            subtitle = PACKAGE_NEEDED
+            tip += "\n" + PACKAGE_HINT
+        elif a["kind"] not in USER_KINDS:
             tip += "\n" + _("Needs your password")
         if a["leftovers"]:
             row = Adw.ExpanderRow(title=a["name"], subtitle=subtitle, use_markup=False, tooltip_text=tip,
@@ -270,7 +274,8 @@ class UninstallerPage(Gtk.Box):
         else:
             row = Adw.ActionRow(title=a["name"], subtitle=subtitle, use_markup=False, tooltip_text=tip,
                                 css_classes=["item-row"])
-        check = Gtk.CheckButton(active=a["id"] in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"])
+        check = Gtk.CheckButton(active=a["id"] in self.selected and not held, valign=Gtk.Align.CENTER,
+                                css_classes=["big-check"], sensitive=not held)
         check.connect("toggled", self.on_app_toggled, a["id"])
         self.checks[a["id"]] = check
         prefixes = [check, app_icon(a["desktop"])]  # the box first, then the icon
@@ -405,8 +410,14 @@ class UninstallerPage(Gtk.Box):
             row.set_visible(not q or q in os.path.basename(path).lower())
         self.sync_all_check()
 
+    def held(self, a):
+        """An apt or Snap app this copy of the engine can't remove: it needs root and the copy isn't installed
+        from a package (a dry run needs no root)."""
+        return a["kind"] not in USER_KINDS and not self.engine.dry_run and not self.engine.can_ask_password()
+
     def shown_ids(self):
-        return [i for i, row in self.rows.items() if row.get_visible()]
+        """The apps shown that can be ticked."""
+        return [i for i, row in self.rows.items() if row.get_visible() and not self.held(self.apps[i])]
 
     def sync_all_check(self):
         """The box above the list follows the apps shown: none / some (inconsistent) / all."""
@@ -462,7 +473,7 @@ class UninstallerPage(Gtk.Box):
             self.update_summary()
 
     def chosen(self):
-        apps = [a for a in self.sorted_apps() if a["id"] in self.selected]  # in the list's order
+        apps = [a for a in self.sorted_apps() if a["id"] in self.selected and not self.held(a)]  # in the list's order
         folders = [l for a in apps for l in a["leftovers"] if l["path"] in self.left_selected]
         return apps, folders
 
