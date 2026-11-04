@@ -40,9 +40,9 @@ All notable changes are listed here. The format follows
 
 ### Added
 
-- **User & App Junk** now cleans Steam caches (web cache, logs, crash dumps), often 0.5–2 GB.
-- **User & App Junk** now cleans Minecraft and Prism Launcher caches, logs and crash reports.
-- Games, saves, worlds, mods and sign-ins are never touched.
+- **User & App Junk** now cleans Steam caches, web cache, logs and crash dumps, often 0.5–2 GB.
+- **User & App Junk** also tidies Minecraft and Prism Launcher caches, logs and crash reports.
+- Your games, saves, worlds, mods and sign-ins are never touched.
 
 ## [2.2.0] — 2026-11-02
 
@@ -50,9 +50,9 @@ All notable changes are listed here. The format follows
 
 - **Developer Junk** finds many more leftovers: old build folders (Gradle, Flutter, Next.js and more) and Terraform, Helm, minikube, Haskell, Scala and Composer caches.
 - **Developer Junk** also finds old versions you no longer use: asdf and mise runtimes, Proton and Wine builds, Unity Editor versions, Vagrant boxes.
-- Clean game launcher caches (Wine, Lutris, Heroic) and the package cache left by GNOME Software.
+- Cleans game launcher caches (Wine, Lutris, Heroic) and the package cache left by GNOME Software.
 - See what CleanMate moved to the Trash, even in earlier sessions, and put it back.
-- AI agents like Claude Code and Codex can now scan and clean with CleanMate, only touching what you confirm.
+- AI agents like Claude Code and Codex can scan and clean with CleanMate, only touching what you confirm.
 
 ### Changed
 
@@ -66,10 +66,10 @@ All notable changes are listed here. The format follows
 
 - A **Welcome** screen on first launch explains what CleanMate cleans and lets you set the main options.
 - Notifications for low disk space and, if you want, a reminder to scan.
-- **Report a Bug…** in the main menu fills in your system details and opens a GitHub issue; nothing is sent until you submit.
+- **Report a Bug…** in the main menu fills in your system details and opens a GitHub issue. Nothing is sent until you submit.
 - **Uninstaller** can reset an app to a fresh start and remove AppImage apps.
 - **Privacy** cleans browsing history, downloads list and cookies in Firefox, Chrome, Brave, Edge and more.
-- **Startup Items** marks entries left behind by removed apps as Missing, so you can remove them.
+- **Startup Items** marks entries left by removed apps as Missing, so you can sweep them out.
 - New cleanups: desktop search index, GPU shader cache, old Android SDK versions and old editor extensions (VS Code, Cursor and others).
 
 ### Changed
@@ -80,7 +80,7 @@ All notable changes are listed here. The format follows
 
 ### Fixed
 
-- Fixed Docker sizes in languages like Vietnamese, and project build folders sometimes missing from **Smart Scan**.
+- Docker sizes now show correctly in languages like Vietnamese, and project build folders no longer go missing from **Smart Scan**.
 
 ## [2.0.0] — 2026-10-31
 
@@ -92,8 +92,8 @@ First public release of CleanMate for Linux.
 - **System Junk**: APT cache, unused packages, old kernels, old Snap versions, old downloads, installers and screenshots.
 - **Logs**: system journal, crash reports and old app logs.
 - **User & App Junk**: Trash (also on USB drives), thumbnails, and every browser and app cache as its own choice.
-- **AI Tools**: caches and logs of Claude Code, Codex, Cursor and more; chats and logins are never touched.
-- **AI Models**: downloaded Ollama, Hugging Face and LM Studio models, each with its size, never pre-selected.
+- **AI Tools**: caches and logs of Claude Code, Codex, Cursor and more. Chats and logins are never touched.
+- **AI Models**: downloaded Ollama, Hugging Face and LM Studio models, each with its size and never pre-selected.
 - **Developer Junk**: package caches, idle `node_modules`, old Node, Python and Java versions, Docker and Android emulator files.
 - **Privacy**: shell, recent files and other history.
 
