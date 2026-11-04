@@ -75,6 +75,7 @@ cm() { # run the app non-interactively inside the fake home (in English unless T
     ${CLEANMATE_MOUNTS:+CLEANMATE_MOUNTS=$CLEANMATE_MOUNTS} \
     ${CLEANMATE_SYSROOT:+CLEANMATE_SYSROOT=$CLEANMATE_SYSROOT} \
     ${CLEANMATE_PROC:+CLEANMATE_PROC=$CLEANMATE_PROC} \
+    CLEANMATE_POWER="${CLEANMATE_POWER:-$WORK/no-power}" ${CLEANMATE_TIMER:+CLEANMATE_TIMER=$CLEANMATE_TIMER} \
     ${CLEANMATE_TMP_DIRS:+CLEANMATE_TMP_DIRS=$CLEANMATE_TMP_DIRS} \
     ${TEST_SNAP:+SNAP=$TEST_SNAP} \
     ${container:+container=$container} bash "$SCRIPT" "$@"
@@ -1262,6 +1263,149 @@ test_auto_clean_reports_what_is_left() {
   out=$(<"$log")
   assert_contains "$out" "Worth a look: "
   assert_contains "$out" "Google Chrome"
+}
+
+# Automatic cleaning waits while a laptop runs on battery (the timer's unit has ConditionACPower; --auto
+# checks too), unless Settings › Run even on battery is on.
+test_auto_clean_waits_for_ac_power() {
+  fresh_home
+  local p=$WORK/power out u=$HOME_DIR/.config/systemd/user st=$HOME_DIR/.local/state/cleanmate
+  mkdir -p "$p/BAT0" "$p/AC" "$p/hidpp_battery_0"
+  echo Battery >"$p/BAT0/type"; echo Mains >"$p/AC/type"; echo 0 >"$p/AC/online"
+  echo Battery >"$p/hidpp_battery_0/type"; echo Device >"$p/hidpp_battery_0/scope" # a wireless mouse
+  new "$HOME_DIR/.cache/thumbnails/large/a.png"
+  out=$(CLEANMATE_POWER=$p user_cm --auto 2>&1 </dev/null)
+  assert_contains "$out" "automatic Smart Clean postponed: the computer is on battery"
+  assert_contains "$out" "Plug it in, or turn on Settings › Run even on battery."
+  assert_exists "$HOME_DIR/.cache/thumbnails/large/a.png"
+  assert_contains "$(cat "$st/clean.log")" "Automatic cleaning postponed: on battery, it runs once the computer is plugged in"
+  echo 1 >"$p/AC/online" # plugged in
+  CLEANMATE_POWER=$p user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_missing "$HOME_DIR/.cache/thumbnails/large/a.png"
+  # Run even on battery
+  echo 0 >"$p/AC/online"
+  new "$HOME_DIR/.cache/thumbnails/large/b.png"
+  out=$(user_cm --json settings-set auto_on_battery 1)
+  assert_contains "$out" '"id":"auto_on_battery","state":"ok"'
+  assert_contains "$(user_cm --json settings)" '"key":"auto_on_battery"'
+  out=$(CLEANMATE_POWER=$p user_cm --auto 2>&1 </dev/null)
+  [[ $out != *postponed* ]] && ok_ "runs on battery when allowed" || fail "Run even on battery is ignored: $out"
+  assert_missing "$HOME_DIR/.cache/thumbnails/large/b.png"
+  # the units: the service waits for AC power unless running on battery is allowed; the timer retries hourly
+  out=$(in_app 'schedule_service_text /usr/bin/cleanmate; AUTO_ON_BATTERY=1; schedule_service_text /usr/bin/cleanmate | grep -c ConditionACPower')
+  assert_contains "$out" $'[Unit]\nDescription=CleanMate — automatic Smart Clean\nConditionACPower=true\n'
+  assert_contains "$out" $'Environment=CLEANMATE_TIMER=1\nExecStart="/usr/bin/cleanmate" --auto\n'
+  assert_eq "${out##*$'\n'}" 0 "no condition when running on battery is allowed"
+  assert_contains "$(in_app 'schedule_timer_text weekly')" $'OnCalendar=weekly\nOnCalendar=hourly\nPersistent=true'
+  # the timer's hourly run cleans only once the schedule is due (the stamp: the last clean it started)
+  out=$(in_app 'AUTO_STAMP=$HOME/stamp; schedule_get() { echo weekly; }
+    auto_due && echo "no stamp: due"
+    date +%s >"$AUTO_STAMP"; auto_due || echo "cleaned this week: not due"
+    date -d "8 days ago" +%s >"$AUTO_STAMP"; auto_due && echo "last week: due"
+    schedule_get() { echo daily; }; date -d "yesterday 23:00" +%s >"$AUTO_STAMP"; auto_due && echo "daily, yesterday: due"
+    schedule_get() { echo off; }; auto_due || echo "off: never"')
+  assert_eq "$out" $'no stamp: due\ncleaned this week: not due\nlast week: due\ndaily, yesterday: due\noff: never' "auto_due"
+  # a timer run that is not due does nothing; one that is due cleans and writes the stamp
+  mkdir -p "$HOME_DIR/.local/bin" "$u"
+  printf '#!/bin/sh\nexit 0\n' >"$HOME_DIR/.local/bin/systemctl"; chmod +x "$HOME_DIR/.local/bin/systemctl"
+  printf '[Timer]\nOnCalendar=weekly\nOnCalendar=hourly\n' >"$u/cleanmate.timer"
+  mkdir -p "$st"; date +%s >"$st/auto-last"
+  new "$HOME_DIR/.cache/thumbnails/large/c.png"
+  out=$(CLEANMATE_TIMER=1 user_cm --auto 2>&1 </dev/null)
+  assert_eq "$out" "" "the hourly run is silent when nothing is due"
+  assert_exists "$HOME_DIR/.cache/thumbnails/large/c.png"
+  date -d "8 days ago" +%s >"$st/auto-last"
+  CLEANMATE_TIMER=1 user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_missing "$HOME_DIR/.cache/thumbnails/large/c.png"
+  (($(cat "$st/auto-last") > $(date -d "1 hour ago" +%s))) && ok_ "the stamp is written" || fail "the stamp is not updated"
+}
+
+# Automatic cleaning cleans the AI caches the tools make again, never their history or models.
+test_auto_clean_cleans_ai_caches_only() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out
+  sized "$HOME_DIR/.claude/cache/c" 5000
+  old "$HOME_DIR/.claude/projects/p/old.jsonl" 200
+  sized "$HOME_DIR/.ollama/models/blobs/sha256-x" 5000
+  select_only ai_claude_cache ai_claude_history
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_missing "$HOME_DIR/.claude/cache/c"
+  assert_exists "$HOME_DIR/.claude/projects/p/old.jsonl"
+  assert_exists "$HOME_DIR/.ollama/models/blobs/sha256-x"
+  out=$(in_app 'for id in ai_claude_cache ai_claude_history npm journal trash; do auto_cleans $id && echo "$id"; done')
+  assert_eq "$out" $'ai_claude_cache\nnpm' "auto_cleans: regenerated AI caches and user/developer junk"
+  out=$(user_cm --json items | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] in ("ai_claude_cache", "ai_claude_history"):
+        print(e["id"], "Automatic cleaning leaves it alone" in e["why"]["skipped"])')
+  assert_eq "$out" $'ai_claude_cache False\nai_claude_history True' "why: what automatic cleaning leaves alone"
+}
+
+# Unused Flatpak runtimes: measured from what `flatpak uninstall --unused` would remove (a fake flatpak
+# on PATH), removed by it, hidden in the Flatpak build, skipped while flatpak installs or updates.
+test_flatpak_unused_runtimes() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/fpbin out show r=$HOME_DIR/.local/share/flatpak/runtime
+  mkdir -p "$bin"
+  cat >"$bin/flatpak" <<'SH'
+#!/bin/sh
+echo "$*" >>"$HOME/flatpak.log"
+r=$HOME/.local/share/flatpak/runtime
+case "$*" in
+  --default-arch) echo x86_64 ;;
+  "uninstall --unused --user")
+    printf '\nThese runtimes in installation '"'user'"' are pinned and won'"'t"' be removed; see flatpak-pin(1):\n  runtime/org.test.Pinned/x86_64/1\n\n'
+    printf '        ID                      Arch     Branch   Op\n'
+    [ -d "$r/org.test.Old" ] && printf ' 1.\t   \torg.test.Old\t1\tr\n'
+    [ -d "$r/org.test.Old.Locale" ] && printf ' 2.\t   \torg.test.Old.Locale\ti386\t1\tr\n'
+    printf '\nProceed with these changes to the user installation? [Y/n]: ' ;;
+  "uninstall --unused --system") echo "Nothing unused to uninstall" ;;
+  "uninstall --unused -y --noninteractive") rm -r "$r/org.test.Old" "$r/org.test.Old.Locale" ;;
+esac
+SH
+  chmod +x "$bin/flatpak"
+  local BASE_PATH="$bin:$BASE_PATH"
+  sized "$r/org.test.Platform/x86_64/1/active/files/lib" 300000 # used by an app: stays
+  sized "$r/org.test.Pinned/x86_64/1/active/files/lib" 70000
+  sized "$r/org.test.Old/x86_64/1/active/files/own" 200000
+  ln "$r/org.test.Platform/x86_64/1/active/files/lib" "$r/org.test.Old/x86_64/1/active/files/shared" # one file on disk
+  sized "$r/org.test.Old.Locale/i386/1/active/files/l" 50000
+  show='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] == "flatpak_unused":
+        print(e["status"], 250000 <= e["bytes"] < 290000, e["note"] or "-", e["locked"] or "-", e["root"])
+    elif e["event"] == "task" and e["id"] == "flatpak_unused" and e["state"] != "run": print(e["state"])
+    elif e["event"] == "maint" and e["id"] == "flatpak_unused": print("frees", 250000 <= int(e["frees"]) < 290000)'
+  out=$(user_cm --json scan --only system | python3 -c "$show")
+  assert_eq "$out" "found True 2 unused runtimes - False" "the unused runtimes, without what an app still uses"
+  out=$(user_cm --json items | grep '"id":"flatpak_unused"')
+  assert_contains "$out" "/.local/share/flatpak/runtime"
+  assert_contains "$out" "/var/lib/flatpak/runtime"
+  assert_contains "$out" "a Flatpak install or update"
+  assert_contains "$out" '"category":"system"'
+  assert_contains "$(user_cm --json details flatpak_unused)" "org.test.Old.Locale/i386/1 (your installation)"
+  assert_contains "$(user_cm --json maintenance | python3 -c "$show")" "frees True"
+  [[ $(container=flatpak cm --json items) != *'"id":"flatpak_unused"'* ]] && ok_ "hidden in the Flatpak" || fail "flatpak_unused shows in the Flatpak"
+  # flatpak updating: the item is locked and a clean skips it; `flatpak run` doesn't lock it
+  proc_stub "$WORK/fpproc" 4242 /usr/bin/flatpak --user update
+  proc_stub "$WORK/fpproc" 4243 flatpak run org.test.App
+  out=$(CLEANMATE_PROC=$WORK/fpproc user_cm --json scan --only system | python3 -c "$show")
+  assert_eq "$out" "found True 2 unused runtimes flatpak False" "locked while flatpak updates"
+  out=$(CLEANMATE_PROC=$WORK/fpproc user_cm --json clean flatpak_unused | python3 -c "$show")
+  assert_eq "$out" "skip" "skipped while flatpak updates"
+  assert_exists "$r/org.test.Old"
+  rm -r "$WORK/fpproc/4242"
+  out=$(CLEANMATE_PROC=$WORK/fpproc user_cm --json clean flatpak_unused | python3 -c "$show")
+  assert_eq "$out" "ok" "cleaned"
+  assert_missing "$r/org.test.Old"; assert_missing "$r/org.test.Old.Locale"
+  assert_exists "$r/org.test.Platform/x86_64/1/active/files/lib"; assert_exists "$r/org.test.Pinned"
+  assert_contains "$(cat "$HOME_DIR/flatpak.log")" "uninstall --unused -y --noninteractive"
+  assert_eq "$(user_cm --json scan --only system | python3 -c "$show")" "clean False - - False" "nothing left after"
+  rm -r "$WORK/fpproc"
 }
 
 test_flatpak_metainfo_leaves_out_hidden_pages() {
@@ -2867,6 +3011,7 @@ test_json_settings() {
   out=$(user_cm --json settings | settings_list)
   assert_eq "$out" "language system
 schedule off
+auto_on_battery 0 0-1/0
 remind off
 update_check 1 0-1/1
 low_disk_pct 10 0-50/10
@@ -6251,6 +6396,7 @@ notes = {
     "needs sqlite3": "cần sqlite3",
     "install sqlite3 to count entries": "cài sqlite3 để đếm số mục",
     "2 dumps": "2 bản dump",
+    "2 unused runtimes": "2 runtime không còn dùng",
     "~/.cache/thumbnails": "~/.cache/thumbnails",
     "Firefox, Chromium": "Firefox, Chromium",
     "Downloads folder is outside your home folder (/mnt/d); CleanMate only cleans inside it":
@@ -6280,6 +6426,8 @@ details = {
     "  6.8.0-40  ← kept as a fallback": "  6.8.0-40  ← giữ làm dự phòng",
     "  6.8.0-31  ← will be removed: linux-image-6.8.0-31": "  6.8.0-31  ← sẽ bị xoá: linux-image-6.8.0-31",
     "  80 MB  core (revision 1234)": "  80 MB  core (bản 1234)",
+    "  1.2 GB  org.gnome.Platform/x86_64/45 (system installation)":
+        "  1.2 GB  org.gnome.Platform/x86_64/45 (kho cài đặt của hệ thống)",
     "  Largest archived journal files:": "  Tệp journal lưu trữ lớn nhất:",
     "  Archived and active journals take up 1.1G in the file system.":
         "  Journal lưu trữ và đang dùng chiếm 1.1G trên hệ thống tệp.",

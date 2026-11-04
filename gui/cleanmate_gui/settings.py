@@ -167,7 +167,15 @@ class SettingsPage(Adw.PreferencesPage):
         general = self.group(_("General"))
         for key in ("language", "low_disk_pct", "remind"):
             general.add(self.main_row(key, systemd))
-        self.group(_("Automatic cleaning")).add(self.main_row("schedule", systemd))
+        auto = self.group(_("Automatic cleaning"))
+        auto.add(self.main_row("schedule", systemd))
+        if "auto_on_battery" in self.settings and not self.flatpak:  # the Flatpak has no schedule
+            battery = plain_row(Adw.SwitchRow, title=_("Run even on battery"),
+                                subtitle=_("Off: on a laptop, automatic cleaning waits until it is plugged in"))
+            battery.set_sensitive(systemd)
+            battery.connect("notify::active", self.on_switch, "auto_on_battery")
+            self.rows["auto_on_battery"] = battery
+            auto.add(battery)
         self.limits_row = None
         if self.flatpak:
             self.limits_row = flatpak_limits_row(self.window)
@@ -274,8 +282,8 @@ class SettingsPage(Adw.PreferencesPage):
             row.connect("notify::selected", self.on_remind)
         else:  # schedule
             row = plain_row(Adw.ComboRow, title=_("Automatic cleaning"),
-                               subtitle=_("Runs a Smart Clean of user and developer junk and tells you what it "
-                                          "freed"),
+                               subtitle=_("Runs a Smart Clean of user and developer junk and AI caches when the "
+                                          "computer is plugged in, and tells you what it freed"),
                                model=Gtk.StringList.new([SCHEDULE_TITLES[s] for s in SCHEDULES]))
             row.connect("notify::selected", self.on_schedule)
         if key in ("remind", "schedule") and not systemd:
@@ -325,7 +333,7 @@ class SettingsPage(Adw.PreferencesPage):
             row.restart_button.set_visible(pending)
             row.set_subtitle(_("Restart CleanMate to use the new language. The system's language does not change.")
                              if pending else "")
-        elif key in ("update_check", "recent_files") or key.startswith("group_"):
+        elif key in ("update_check", "recent_files", "auto_on_battery") or key.startswith("group_"):
             row.set_active(bool(s["value"]))
         elif key == "exclusions":
             for old in row.folder_rows:
@@ -457,6 +465,9 @@ class SettingsPage(Adw.PreferencesPage):
             elif key == "schedule":
                 self.toast(_("Automatic cleaning: {when}").format(when=SCHEDULE_TITLES[value])
                            if value != "off" else _("Automatic cleaning is off"))
+            elif key == "auto_on_battery":
+                self.toast(_("Automatic cleaning also runs on battery") if value == "1"
+                           else _("Automatic cleaning runs only when plugged in"))
             elif key == "remind":
                 self.toast(_("Scan reminder: {when}").format(when=SCHEDULE_TITLES[value])
                            if value != "off" else _("Scan reminder is off"))

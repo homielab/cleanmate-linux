@@ -137,7 +137,8 @@ class Welcome(Adw.Dialog):
                "asks for your password in Ubuntu's own dialog; so do removing apt and Snap apps and Maintenance "
                "tasks.")),
             ("emblem-synchronizing-symbolic", _("Automatic cleaning"),
-             _("Cleans only user and developer junk, so it never asks for your password.")),
+             _("Cleans only user and developer junk and AI caches, so it never asks for your password. "
+               "On a laptop it waits until it is plugged in.")),
             ("application-x-addon-symbolic", _("Snap, Flatpak and AppImage"),
              _("Apps from apt, Snap, Flatpak and AppImage are all found, with their caches and leftovers.")),
         ]))

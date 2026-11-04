@@ -174,6 +174,7 @@ _COUNTS = {
     "remembered choice": lambda n: ngettext("{n} remembered choice", "{n} remembered choices", n),
     "history entry": lambda n: ngettext("{n} history entry", "{n} history entries", n),
     "cookie": lambda n: ngettext("{n} cookie", "{n} cookies", n),
+    "unused runtime": lambda n: ngettext("{n} unused runtime", "{n} unused runtimes", n),
 }
 
 
@@ -266,6 +267,8 @@ def _details():
         (r"^(\s*\S+  )← kept as a fallback$", lambda m: m[1] + _("← kept as a fallback")),
         (r"^(\s*\S+  )← will be removed: ", lambda m: m[1] + _("← will be removed: ")),
         (r" \(revision (\w+)\)$", lambda m: " " + _("(revision {revision})").format(revision=m[1])),
+        (r" \(your installation\)$", lambda m: " " + _("(your installation)")),
+        (r" \(system installation\)$", lambda m: " " + _("(system installation)")),
         (r"^(\s*)Largest archived journal files:$", lambda m: m[1] + _("Largest archived journal files:")),
         (r"^(\s*)Archived and active journals take up (\S+) in the file system\.$",
          lambda m: m[1] + _("Archived and active journals take up {size} in the file system.").format(size=m[2])),

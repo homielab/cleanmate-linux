@@ -198,6 +198,10 @@ class MaintenancePage(Gtk.Box):
                 return _("On: 2 versions of each snap are kept. Turn off to go back to snapd's default.")
             if m["value"]:
                 return _("Keep 2 versions of each snap instead of {now}").format(now=m["value"])
+        if m["id"] == "flatpak_unused" and m.get("frees", "").isdigit():
+            if int(m["frees"]):
+                return _("Remove runtimes no installed app uses — {size} to free").format(size=messages.human(m["frees"]))
+            return _("Every runtime is used by an app: nothing to remove now")
         if m["id"] == "journal_limit":
             if m["on"]:
                 return _("On: system logs stay under {mb} MB").format(mb=m["value"])

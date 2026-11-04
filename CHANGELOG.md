@@ -24,9 +24,11 @@ All notable changes are listed here. The format follows
 
 - Desktop app, **Large & Old Files**: says how many files it skipped and why, and **Search Other Drives Too** also searches the disks mounted inside the folder you picked (`cm --json large --all-drives`).
 - `cm --scan`, `--clean` and automatic cleaning exit with 1 when a task failed and 3 when only part was done (no `sudo`), so scripts can tell; `cm --json clean` reports `status`.
+- **System Junk** shows unused Flatpak runtimes with their size, and Maintenance says how much removing them frees.
 
 ### Changed
 
+- Automatic cleaning also clears the caches AI tools rebuild (never chat history or models), and on a laptop waits until it's plugged in — **Run even on battery** in Settings if you'd rather not wait.
 - Desktop app in Vietnamese: errors, task results and the low disk, scan reminder and automatic cleaning notifications are translated too (the engine sends codes the app translates); `cm` in the terminal stays in English. Opening the terminal app also works with Konsole and Xfce Terminal.
 - Repeat scans of a home with many idle projects are faster: the stale `node_modules` item reads its folders in parallel (about 80 → 60 ms for 50 projects).
 - The README starts with what CleanMate does, a screenshot and the install commands, and compares it with BleachBit; the full list of what it cleans moved to `docs/FEATURES.md`.

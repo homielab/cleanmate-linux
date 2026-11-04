@@ -138,9 +138,11 @@ Checked against BleachBit's own website and documentation (November 2026). More 
 ## Automatic cleaning
 
 *Settings → Automatic cleaning* runs a weekly (or daily, monthly) clean of user and developer
-junk and notifies you: *"Freed 1.2 GB. Worth a look: Docker build cache 2.0 GB, Google Chrome
-1.8 GB."* It never empties the Trash, never touches browsers, apps, Docker volumes, stopped
-containers or project build folders and never needs your password. In the desktop app it's in *Settings* in the main
+junk and the caches AI tools rebuild, and notifies you: *"Freed 1.2 GB. Worth a look: Docker build
+cache 2.0 GB, Google Chrome 1.8 GB."* It never empties the Trash, never touches browsers, apps, AI
+chat history or models, Docker volumes, stopped containers or project build folders and never needs
+your password. On a laptop it runs only when plugged in: a clean due while on battery waits until
+you plug it in (*Settings → Run even on battery* turns this off). In the desktop app it's in *Settings* in the main
 menu (Ctrl+,); both apps share the same settings. The timer runs the installed `cleanmate`: `/usr/bin/cleanmate`
 from the PPA or the `.deb`, `/snap/bin/cleanmate` from the snap (so it keeps working after the snap updates), or the
 copy `cm --install` made. A git clone that isn't installed is run from where it is, and you're asked to install the
