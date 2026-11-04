@@ -1410,7 +1410,8 @@ for l in sys.stdin:
   assert_eq "$out" "found True 2 unused runtimes - False" "the unused runtimes, without what an app still uses"
   out=$(user_cm --json items | grep '"id":"flatpak_unused"')
   assert_contains "$out" "/.local/share/flatpak/runtime"
-  assert_contains "$out" "/var/lib/flatpak/runtime"
+  # items lists only existing paths: the system installation only where there is one
+  if [[ -d /var/lib/flatpak/runtime ]]; then assert_contains "$out" "/var/lib/flatpak/runtime"; elif [[ $out == *"/var/lib/flatpak/runtime"* ]]; then fail "lists a missing /var/lib/flatpak"; fi
   assert_contains "$out" "a Flatpak install or update"
   assert_contains "$out" '"category":"system"'
   assert_contains "$(user_cm --json details flatpak_unused)" "org.test.Old.Locale/i386/1 (your installation)"
