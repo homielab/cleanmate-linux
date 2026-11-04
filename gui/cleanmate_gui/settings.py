@@ -21,6 +21,7 @@ from . import i18n
 from .i18n import _, ngettext
 from . import messages
 from .engine import FLATPAK_LIMITS_URL, IN_FLATPAK
+from .rows import plain_row
 
 # each language by its own name, so you can find yours whatever the app is in now
 LANGUAGE_TITLES = {"system": _("Same as system"), "en": "English", "vi": "Tiếng Việt"}
@@ -69,7 +70,7 @@ def short_path(path):
 
 def flatpak_limits_row(window):
     """A row that opens the page about what the Flatpak can't do (Settings and the welcome)."""
-    row = Adw.ActionRow(title=_("Limits of the Flatpak"), activatable=True,
+    row = plain_row(Adw.ActionRow, title=_("Limits of the Flatpak"), activatable=True,
                         subtitle=_("System files, Uninstaller, Startup Items, Maintenance and automatic cleaning "
                                    "are out of its reach. The PPA, the .deb and the snap have them."))
     row.add_prefix(Gtk.Image(icon_name="dialog-information-symbolic"))
@@ -173,7 +174,7 @@ class SettingsPage(Adw.PreferencesPage):
             self.group(None).add(self.limits_row)
 
         updates = self.group(_("Updates"))
-        check = Adw.SwitchRow(title=_("Daily update check"),
+        check = plain_row(Adw.SwitchRow, title=_("Daily update check"),
                               subtitle=_("A quiet check for a new version once a day"))
         if self.info.get("packaged"):
             check.set_sensitive(False)
@@ -188,7 +189,7 @@ class SettingsPage(Adw.PreferencesPage):
             key = "group_" + gid
             if key not in self.settings:
                 continue
-            row = Adw.SwitchRow(title=title)
+            row = plain_row(Adw.SwitchRow, title=title)
             row.connect("notify::active", self.on_switch, key)
             self.rows[key] = row
             scan.add(row)
@@ -210,7 +211,7 @@ class SettingsPage(Adw.PreferencesPage):
         self.rows["exclusions"] = never
 
         data = self.group(_("Your data"))
-        selections = Adw.ActionRow(title=_("Remembered selections"))
+        selections = plain_row(Adw.ActionRow, title=_("Remembered selections"))
         reset = Gtk.Button(label=_("Reset"), valign=Gtk.Align.CENTER)
         reset.connect("clicked", lambda *_a: self.confirm_reset())
         selections.add_suffix(reset)
@@ -218,7 +219,7 @@ class SettingsPage(Adw.PreferencesPage):
         self.rows["selections"] = selections
         data.add(selections)
 
-        recent = Adw.SwitchRow(title=_("Remember recent files"),
+        recent = plain_row(Adw.SwitchRow, title=_("Remember recent files"),
                                subtitle=_("Files and Open dialogs list the files you used lately"))
         if "recent_files" not in self.settings:
             recent.set_sensitive(False)
@@ -227,14 +228,14 @@ class SettingsPage(Adw.PreferencesPage):
         self.rows["recent_files"] = recent
         data.add(recent)
 
-        activity = Adw.ActionRow(title=_("Activity log"), subtitle=_("What was cleaned and when"),
+        activity = plain_row(Adw.ActionRow, title=_("Activity log"), subtitle=_("What was cleaned and when"),
                                  activatable=True)
         activity.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
         activity.connect("activated", lambda *_a: self.show_activity())
         self.rows["activity"] = activity
         data.add(activity)
 
-        trashed = Adw.ActionRow(title=_("Moved to the Trash"),
+        trashed = plain_row(Adw.ActionRow, title=_("Moved to the Trash"),
                                 subtitle=_("Put back what CleanMate moved to the Trash, also in earlier sessions"),
                                 activatable=True)
         trashed.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
@@ -248,7 +249,7 @@ class SettingsPage(Adw.PreferencesPage):
     def main_row(self, key, systemd):
         """The row of a main setting: language, low_disk_pct, remind or schedule."""
         if key == "language":
-            row = Adw.ComboRow(title=_("Language"),
+            row = plain_row(Adw.ComboRow, title=_("Language"),
                                model=Gtk.StringList.new([LANGUAGE_TITLES[c] for c in i18n.LANGUAGES]))
             restart = Gtk.Button(label=_("Restart"), valign=Gtk.Align.CENTER, visible=False)
             restart.add_css_class("suggested-action")
@@ -258,7 +259,7 @@ class SettingsPage(Adw.PreferencesPage):
             row.connect("notify::selected", self.on_language)
         elif key == "low_disk_pct":
             values = sorted(set(LOW_DISK) | {self.settings.get("low_disk_pct", {}).get("value", 10)})
-            row = Adw.ComboRow(title=_("Low disk alert"),
+            row = plain_row(Adw.ComboRow, title=_("Low disk alert"),
                                subtitle=_("A notification when the system disk is almost full. Checked daily and "
                                           "when CleanMate opens.") if systemd else
                                _("A notification when the system disk is almost full. Checked when CleanMate opens."),
@@ -266,13 +267,13 @@ class SettingsPage(Adw.PreferencesPage):
             row.values = values
             row.connect("notify::selected", self.on_low_disk)
         elif key == "remind":
-            row = Adw.ComboRow(title=_("Scan reminder"),
+            row = plain_row(Adw.ComboRow, title=_("Scan reminder"),
                                subtitle=_("A notification when you haven't scanned for a while. Click it to open "
                                           "CleanMate."),
                                model=Gtk.StringList.new([SCHEDULE_TITLES[r] for r in REMINDERS]))
             row.connect("notify::selected", self.on_remind)
         else:  # schedule
-            row = Adw.ComboRow(title=_("Automatic cleaning"),
+            row = plain_row(Adw.ComboRow, title=_("Automatic cleaning"),
                                subtitle=_("Runs a Smart Clean of user and developer junk and tells you what it "
                                           "freed"),
                                model=Gtk.StringList.new([SCHEDULE_TITLES[s] for s in SCHEDULES]))
@@ -285,7 +286,7 @@ class SettingsPage(Adw.PreferencesPage):
         return row
 
     def group(self, title, description=None):
-        group = Adw.PreferencesGroup(title=title, description=description)
+        group = Adw.PreferencesGroup(title=title, description=description and GLib.markup_escape_text(description))
         self.add(group)
         self.groups.append(group)
         return group
@@ -293,7 +294,7 @@ class SettingsPage(Adw.PreferencesPage):
     def number_row(self, key):
         s = self.settings[key]
         title, subtitle = NUMBERS[key]
-        row = Adw.SpinRow(title=title, subtitle=subtitle, numeric=True, climb_rate=1,
+        row = plain_row(Adw.SpinRow, title=title, subtitle=subtitle, numeric=True, climb_rate=1,
                           adjustment=Gtk.Adjustment(lower=s["min"], upper=s["max"], step_increment=1,
                                                     page_increment=10, value=s["value"]))
         row.set_tooltip_text(_("From {min} to {max}, default {default}").format(
@@ -330,7 +331,7 @@ class SettingsPage(Adw.PreferencesPage):
             for old in row.folder_rows:
                 row.remove(old)
             row.folder_rows = [self.exclusion_row(path) for path in s["value"]] or [
-                Adw.ActionRow(title=_("No folders yet"), css_classes=["dim-label"])]
+                plain_row(Adw.ActionRow, title=_("No folders yet"), css_classes=["dim-label"])]
             for new in row.folder_rows:
                 row.add(new)
         elif key == "selections":
@@ -398,7 +399,7 @@ class SettingsPage(Adw.PreferencesPage):
             self.change(key, str(int(self.rows[key].get_value())))
 
     def exclusion_row(self, path):
-        row = Adw.ActionRow(title=os.path.basename(path), subtitle=short_path(path), use_markup=False,
+        row = plain_row(Adw.ActionRow, title=os.path.basename(path), subtitle=short_path(path),
                             tooltip_text=path)
         row.add_prefix(Gtk.Image(icon_name="folder-symbolic"))
         remove = named(Gtk.Button(icon_name="list-remove-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
@@ -557,7 +558,7 @@ class ActivityPage(Adw.NavigationPage):
         self.loading = False
         for epoch, text in self.lines:
             when = datetime.datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M") if epoch else ""
-            row = Adw.ActionRow(title=GLib.markup_escape_text(text), subtitle=when, title_lines=3)
+            row = plain_row(Adw.ActionRow, title=text, subtitle=when, title_lines=3)
             self.list.append(row)
         self.stack.set_visible_child_name("list" if self.lines else "empty")
         self.folder.set_sensitive(bool(self.path) and os.path.isdir(os.path.dirname(self.path)))

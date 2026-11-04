@@ -14,6 +14,7 @@ from . import i18n
 from .engine import IN_FLATPAK
 from .i18n import _
 from .settings import SettingsPage, flatpak_limits_row
+from .rows import plain_row
 
 OPTIONS = ("language", "schedule", "remind", "low_disk_pct")  # rows of the last step, keys of the settings file
 FLATPAK_OPTIONS = ("language", "low_disk_pct")  # no systemd timers in the Flatpak: no schedule, no reminder
@@ -153,7 +154,7 @@ class Welcome(Adw.Dialog):
             title=_("The terminal app"),
             description=_("Run cm in a terminal for every tool, also over SSH. sudo cm cleans the system items "
                           "in one go."))
-        row = Adw.ActionRow(title=_("All tools (terminal)"), subtitle=_("Open the terminal app (cm)"))
+        row = plain_row(Adw.ActionRow, title=_("All tools (terminal)"), subtitle=_("Open the terminal app (cm)"))
         row.add_prefix(Gtk.Image(icon_name="utilities-terminal-symbolic"))
         button = Gtk.Button(label=_("Open"), valign=Gtk.Align.CENTER)
         button.connect("clicked", lambda *_a: self.window.open_terminal())

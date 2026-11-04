@@ -2541,7 +2541,7 @@ msgid "Skipped when"
 msgstr ""
 
 #: gui/cleanmate_gui/scanpage.py:645
-msgid "Never: when it is ticked, it is cleaned"
+msgid "No rule of its own; Settings › Never clean still applies"
 msgstr ""
 
 #: gui/cleanmate_gui/scanpage.py:647

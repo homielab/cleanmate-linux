@@ -203,7 +203,9 @@ checks the Vietnamese ones).
 - Check: `msgfmt --check po/vi.po`, then `po/compile.sh gui/locale` and
   `LANG=vi_VN.UTF-8 bash cleanmate.sh --gui --dry-run`. `tests/run.sh gui_selftest` runs the self-test
   in English and Vietnamese; `tests/run.sh -v gui_selftest` lists item texts without a translation
-  (`SELFTEST warn untranslated item …`).
+  (`SELFTEST warn untranslated item …`) and fails on any `Gtk-WARNING` or `Pango-WARNING`.
+- Rows show text, not markup: build an `Adw.*Row` with `plain_row(Adw.ActionRow, title=…, subtitle=…)`
+  (`rows.py`), and pass a status page's or group's description through `GLib.markup_escape_text`.
 - Vietnamese uses the macOS app's terms: Dọn dẹp, Thùng rác, Rác developer, Quét thông minh.
 
 ## Releasing

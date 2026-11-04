@@ -21,6 +21,7 @@ from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
 from . import messages
+from .rows import plain_row
 
 FULL = 0.9  # a disk fuller than this is shown in the warning colour
 HISTORY_POINTS = 30  # days in the free-space chart
@@ -510,7 +511,7 @@ class OverviewPage(Gtk.Box):
 
         # the way in: System Overview only shows facts, Smart Scan finds what can go
         scan = Adw.PreferencesGroup()
-        row = Adw.ActionRow(title=_("Smart Scan"), use_markup=False, css_classes=["item-row"],
+        row = plain_row(Adw.ActionRow, title=_("Smart Scan"), css_classes=["item-row"],
                             subtitle=last_scan_text(d.get("last_scan", {}).get("time", 0)))
         row.add_prefix(Gtk.Image(icon_name="starred-symbolic", pixel_size=32))
         self.smart_button = named(Gtk.Button(label=_("Run Smart Scan"), valign=Gtk.Align.CENTER,
@@ -633,7 +634,7 @@ class OverviewPage(Gtk.Box):
             outside.set_description(_("No Timeshift snapshots, swap file or reserved space found."))
         biggest = max([e["bytes"] or 0 for e in items] + [beyond or 0], default=0)
         if beyond is not None:  # all of the system disk's use that isn't your home: /usr, /var, snap, Docker…
-            row = Adw.ActionRow(title=_("Outside your home folder"), use_markup=False, css_classes=["item-row"],
+            row = plain_row(Adw.ActionRow, title=_("Outside your home folder"), css_classes=["item-row"],
                                 subtitle=_("Apps, system files, logs, snaps and Docker on the system disk (/)"))
             row.add_prefix(Gtk.Image(icon_name="drive-harddisk-system-symbolic", pixel_size=24))
             for widget in size_widgets(beyond, biggest):
@@ -647,7 +648,7 @@ class OverviewPage(Gtk.Box):
             outside.add(row)
         for e in items:
             title, subtitle = outside_text(e)
-            row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False, css_classes=["item-row"])
+            row = plain_row(Adw.ActionRow, title=title, subtitle=subtitle, css_classes=["item-row"])
             row.add_prefix(Gtk.Image(icon_name=OUTSIDE_ICONS.get(e["kind"], "drive-harddisk-symbolic"),
                                      pixel_size=24))
             if e["bytes"] is None:
@@ -670,7 +671,7 @@ class OverviewPage(Gtk.Box):
         biggest = max([e["bytes"] for e in dirs or []], default=0)
         for e in dirs or []:
             path = e["path"]
-            row = Adw.ActionRow(title=os.path.basename(path), subtitle=short_path(path), use_markup=False,
+            row = plain_row(Adw.ActionRow, title=os.path.basename(path), subtitle=short_path(path),
                                 subtitle_lines=1, css_classes=["item-row"], activatable=True,
                                 tooltip_text=_("Open in Space Lens"))
             row.add_prefix(Gtk.Image(icon_name="folder-symbolic", pixel_size=24))
@@ -693,7 +694,7 @@ class OverviewPage(Gtk.Box):
         command = e.get("command") or ""
         icon, style = PROTECTION_STATES.get(e["state"], PROTECTION_STATES["unknown"])
         subtitle = hint + ("\n" + command if command else "")
-        row = Adw.ActionRow(title=name, use_markup=False, subtitle_selectable=True, css_classes=["item-row"])
+        row = plain_row(Adw.ActionRow, title=name, subtitle_selectable=True, css_classes=["item-row"])
         row.set_subtitle(subtitle)  # after use_markup=False: a command may hold "&&"
         row.add_prefix(Gtk.Image(icon_name=icon, pixel_size=24, css_classes=[style]))
         if command:
@@ -711,13 +712,13 @@ class OverviewPage(Gtk.Box):
         self.window.toast(_("Command copied. Paste it in a terminal to run it."))
 
     def fact_row(self, key, label, value):
-        row = Adw.ActionRow(title=label, subtitle=value, use_markup=False, subtitle_selectable=True,
+        row = plain_row(Adw.ActionRow, title=label, subtitle=value, subtitle_selectable=True,
                             css_classes=["property"])
         self.rows[key] = row
         return row
 
     def bar_row(self, key, title, subtitle, fraction, icon, tooltip=None):
-        row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False, css_classes=["item-row"],
+        row = plain_row(Adw.ActionRow, title=title, subtitle=subtitle, css_classes=["item-row"],
                             tooltip_text=tooltip)
         row.add_prefix(Gtk.Image(icon_name=icon, pixel_size=24))
         bar = usage_bar(fraction)

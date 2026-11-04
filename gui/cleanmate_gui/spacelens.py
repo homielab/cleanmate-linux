@@ -21,6 +21,7 @@ from .largefiles import short_path
 from .preview import open_file, row_buttons, show_in_files
 from .scanpage import size_widgets
 from . import messages
+from .rows import plain_row
 
 
 def reason_text(reason):
@@ -462,8 +463,8 @@ class SpaceLensPage(Gtk.Box):
         for e in self.shown:
             group.add(self.entry_row(e, biggest, total))
         if hidden:
-            row = Adw.ActionRow(title=ngettext("{n} hidden item", "{n} hidden items", len(hidden)),
-                                subtitle=_("Names starting with a dot · Ctrl+Shift+. shows them"), use_markup=False,
+            row = plain_row(Adw.ActionRow, title=ngettext("{n} hidden item", "{n} hidden items", len(hidden)),
+                                subtitle=_("Names starting with a dot · Ctrl+Shift+. shows them"),
                                 css_classes=["item-row"])
             row.add_prefix(Gtk.Image(icon_name="view-conceal-symbolic"))
             for widget in size_widgets(sum(e["bytes"] for e in hidden), biggest):
@@ -549,7 +550,7 @@ class SpaceLensPage(Gtk.Box):
         if e.get("unreadable") and not e.get("denied"):
             subtitle += " · " + ngettext("{n} folder inside couldn't be read", "{n} folders inside couldn't be read",
                                          e["unreadable"])
-        row = Adw.ActionRow(title=os.path.basename(path), subtitle=subtitle, use_markup=False, subtitle_lines=1,
+        row = plain_row(Adw.ActionRow, title=os.path.basename(path), subtitle=subtitle, subtitle_lines=1,
                             css_classes=["item-row"], tooltip_text=path)
         row.add_prefix(Gtk.Image(gicon=entry_icon(e)))
         if e["movable"]:

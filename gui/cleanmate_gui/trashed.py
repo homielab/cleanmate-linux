@@ -17,6 +17,7 @@ from .i18n import _, item_text, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
 from . import messages
+from .rows import plain_row
 
 LIMIT = 500  # as many as the engine's record keeps of what is still in the Trash
 GONE_DAYS = 30  # how long an item that left the Trash stays listed
@@ -225,7 +226,7 @@ class TrashedPage(Gtk.Box):
         facts = [short_path(folder) or "/", source_text(i.get("source")), item_date(i.get("date"))]
         if not in_trash:
             facts.insert(0, _("No longer in the Trash"))
-        row = Adw.ActionRow(title=name or path, subtitle=" · ".join(facts), use_markup=False, subtitle_lines=1,
+        row = plain_row(Adw.ActionRow, title=name or path, subtitle=" · ".join(facts), subtitle_lines=1,
                             css_classes=["item-row"], tooltip_text=path)
         icon = "folder-symbolic" if i.get("kind") == "folder" else "text-x-generic-symbolic"
         if not in_trash:  # can't come back: greyed out, no box and no buttons

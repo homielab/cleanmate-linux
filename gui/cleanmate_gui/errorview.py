@@ -7,8 +7,9 @@ The details leave out your home folder and user name, like the system details of
 import getpass
 import os
 import re
+import traceback
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, GLib, Gtk
 
 from . import bugreport
 from .engine import NEEDS_PACKAGE, PKEXEC_DISMISSED, PKEXEC_REFUSED
@@ -48,6 +49,13 @@ class Failure:
         elif e.get("event") == "failed":
             self.status = e.get("status")
             self.stderr = list(e.get("stderr") or [])
+
+    def crashed(self, error):
+        """A Python error in the app itself (no engine run): its message and the last lines of the traceback."""
+        self.message = f"{type(error).__name__}: {error}"
+        self.status = -1
+        lines = "".join(traceback.format_exception(type(error), error, error.__traceback__)).splitlines()
+        self.stderr = lines[-12:]
 
     @property
     def failed(self):
@@ -129,7 +137,7 @@ class ErrorPage(Gtk.Box):
 
     def show(self, failure):
         self.failure = failure
-        self.status.set_description(failure.reason())
+        self.status.set_description(GLib.markup_escape_text(failure.reason()))  # a description is markup
         self.text.set_label(failure.details())
 
     def copy(self):

@@ -15,7 +15,7 @@ import threading
 import gi
 
 gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import GdkPixbuf  # noqa: E402
+from gi.repository import GdkPixbuf, GLib  # noqa: E402
 
 # Photos only: JPEG, PNG, WebP, HEIC/HEIF, TIFF, AVIF, when this system's GdkPixbuf can read them
 # (WebP needs webp-pixbuf-loader, HEIC/AVIF heif-gdk-pixbuf / libavif).
@@ -165,7 +165,7 @@ def load_small(path, width, height, fit=False, max_pixels=None):
     except Exception:  # GLib.Error, OSError, or a loader that gives up half way
         try:
             loader.close()
-        except Exception:
+        except GLib.Error:  # closing a loader that already gave up fails too; the photo is skipped either way
             pass
         return None
     if pixbuf is None or not full:
@@ -267,8 +267,14 @@ def group_photos(photos, cancelled=lambda: False):
     if pairs is None:
         return None
     near = {(i, j) for _d, i, j in pairs}
+    # closest pairs merge first. Buckets, not sorted(): a sort of millions of pairs holds the GIL in one call and
+    # freezes the window; a loop lets the main thread run
+    by_distance = [[] for _d in range(DCT_MAX + DIFF_MAX + 1)]
+    for d, i, j in pairs:
+        by_distance[d].append((i, j))
+    del pairs
     cluster = {}  # index → its member list (shared)
-    for _d, i, j in sorted(pairs):  # closest pairs merge first
+    for i, j in (pair for bucket in by_distance for pair in bucket):
         a, b = cluster.get(i, [i]), cluster.get(j, [j])
         if a is b or not all((min(x, y), max(x, y)) in near for x in a for y in b):
             continue

@@ -12,6 +12,7 @@ from .i18n import _, detail_text, item_text, ngettext, note_text, why_running
 from .preview import open_file
 from .settings import short_path
 from . import messages
+from .rows import plain_row
 
 
 # Items whose clean-all removes something else than the parts listed (`docker volume prune` keeps named
@@ -374,12 +375,10 @@ class ScanPage(Gtk.Box):
                 group.add(row)
             more, clean_rows = None, []
             if clean:
-                more = Adw.ExpanderRow(title=ngettext("{n} more item is clean", "{n} more items are clean", len(clean)),
-                                       use_markup=False)
+                more = plain_row(Adw.ExpanderRow, title=ngettext("{n} more item is clean", "{n} more items are clean", len(clean)))
                 more.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"]))
                 for e in clean:
-                    row = Adw.ActionRow(title=item_text(e["label"]), subtitle=note_text(e["note"]) or _("clean"),
-                                         use_markup=False)
+                    row = plain_row(Adw.ActionRow, title=item_text(e["label"]), subtitle=note_text(e["note"]) or _("clean"))
                     row.add_css_class("dim-label")
                     more.add_row(row)
                     clean_rows.append((row, e))
@@ -406,7 +405,7 @@ class ScanPage(Gtk.Box):
         rows = []
         for e in sorted(items, key=lambda e: item_text(e["label"])):
             secs = e.get("durationMs", 0) / 1000
-            row = Adw.ActionRow(title=item_text(e["label"]), use_markup=False, subtitle=_(
+            row = plain_row(Adw.ActionRow, title=item_text(e["label"]), subtitle=_(
                 "Stopped after {secs}s — not checked to the end").format(secs=f"{secs:.0f}") if secs >= 1
                 else _("Not checked: the scan ran out of time"))
             row.add_prefix(Gtk.Image(icon_name="dialog-warning-symbolic", css_classes=["warning"]))
@@ -518,7 +517,7 @@ class ScanPage(Gtk.Box):
     def load_entries(self, item_id, row):
         if item_id in self.entries or getattr(row, "loading", None):
             return
-        placeholder = Adw.ActionRow(title=_("Loading…"), css_classes=["dim-label"])
+        placeholder = plain_row(Adw.ActionRow, title=_("Loading…"), css_classes=["dim-label"])
         row.loading = placeholder
         row.add_row(placeholder)
         found = []
@@ -534,7 +533,7 @@ class ScanPage(Gtk.Box):
                 return  # scanned again meanwhile
             self.entries[item_id] = found
             if not found:
-                row.add_row(Adw.ActionRow(title=_("Nothing to choose one by one — Clean removes it all"),
+                row.add_row(plain_row(Adw.ActionRow, title=_("Nothing to choose one by one — Clean removes it all"),
                                           css_classes=["dim-label"]))
                 return
             on = self.selected.get(item_id, False)
@@ -553,7 +552,7 @@ class ScanPage(Gtk.Box):
         self.engine.details(item_id, on_event, on_done)
 
     def entry_row(self, item_id, x):
-        row = Adw.ActionRow(title=detail_text(x["label"]), subtitle=entry_note(x.get("note")), use_markup=False, title_lines=1,
+        row = plain_row(Adw.ActionRow, title=detail_text(x["label"]), subtitle=entry_note(x.get("note")), title_lines=1,
                             css_classes=["item-row"], tooltip_text=x["id"])
         check = Gtk.CheckButton(active=x["id"] in self.entry_selected[item_id], valign=Gtk.Align.CENTER,
                                 css_classes=["big-check"])
@@ -642,7 +641,7 @@ class ScanPage(Gtk.Box):
             text(item_text(note))
         section(_("After cleaning"), [item_text(line) for line in why["after"]])
         skipped = ([why_running(why["running"])] if why["running"] else []) + [item_text(line) for line in why["skipped"]]
-        section(_("Skipped when"), skipped or [_("Never: when it is ticked, it is cleaned")])
+        section(_("Skipped when"), skipped or [_("No rule of its own; Settings › Never clean still applies")])
         if locked:
             text(_("Now: {program} is running — close it, then scan again").format(program=locked), "warning")
         elif e["root"] and not self.engine.can_ask_password():
@@ -928,7 +927,7 @@ class ScanPage(Gtk.Box):
             self.clean_list.remove(child)
             child = self.clean_list.get_first_child()
         for i in user_ids + root_ids:
-            row = Adw.ActionRow(title=item_text(self.items[i]["label"]), subtitle=_("waiting"), use_markup=False)
+            row = plain_row(Adw.ActionRow, title=item_text(self.items[i]["label"]), subtitle=_("waiting"))
             spinner = Gtk.Image(icon_name="content-loading-symbolic", css_classes=["dim-label"])
             row.add_prefix(spinner)
             row.icon = spinner
@@ -1077,7 +1076,7 @@ class ScanPage(Gtk.Box):
         if s["emptied"] is not None:
             parts.append(_("Trash emptied: {size} freed").format(size=human(s["emptied"])))
         subtitle = "\n".join([" · ".join(parts), *s["disks"]])
-        row = Adw.ActionRow(title=s["title"], subtitle=subtitle, use_markup=False, subtitle_lines=0,
+        row = plain_row(Adw.ActionRow, title=s["title"], subtitle=subtitle, subtitle_lines=0,
                             css_classes=["clean-summary"])
         row.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"], valign=Gtk.Align.CENTER))
         self.summary_undo = None

@@ -3226,6 +3226,27 @@ for l in sys.stdin:
   assert_exists "$d/.npm/_cacache/x"
 }
 
+test_why_names_each_program_and_items_without_rules() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out bin=$WORK/whybin
+  sized "$HOME_DIR/.ghcup/cache/ghc.tar.xz" 5000
+  running_stub "$bin" ghcup
+  out=$(user_cm --json items | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] in ("haskell_cache", "docker_build"):
+        print(e["id"], ",".join(e["why"]["running"]), "|".join(e["why"]["skipped"]))')
+  assert_contains "$out" "haskell_cache cabal,ghc,stack,ghcup " "ghcup is named, not folded into ghc"
+  assert_contains "$out" "docker_build  No rule of its own; Settings › Never clean still applies"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --scan --only dev 2>&1)
+  assert_contains "$out" "close ghcup first"
+  out=$(BASE_PATH="$bin:$BASE_PATH" user_cm --json clean haskell_cache 2>&1)
+  assert_contains "$out" '"id":"haskell_cache","state":"skip"'
+  assert_contains "$out" '"code":"app_running"'
+  assert_exists "$HOME_DIR/.ghcup/cache/ghc.tar.xz"
+}
+
 test_json_recent_files_and_activity() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -3745,6 +3766,8 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     ((VERBOSE)) && echo "      $lang:"
     ((VERBOSE)) && grep SELFTEST <<<"$out" | sed 's/^/      | /'
     assert_contains "$out" "SELFTEST done"
+    [[ $out == *Gtk-WARNING* || $out == *Pango-WARNING* || $out == *Adwaita-WARNING* ]] &&
+      { fail "GTK printed a warning"; grep -E '(Gtk|Pango|Adwaita)-WARNING' <<<"$out" | sort | uniq -c | head -5 | sed 's/^/      | /'; }
     [[ $out == *"SELFTEST FAIL"* ]] && { fail "GUI self-test reported a failure"; grep 'SELFTEST FAIL' <<<"$out" | sed 's/^/      | /'; }
     assert_contains "$out" "dry-run clean finished"
     assert_contains "$out" "group box selects the whole group"

@@ -24,6 +24,7 @@ from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
 from . import messages
+from .rows import plain_row
 
 MIN_SIZES = [("100 KB", 100 << 10), ("1 MB", 1 << 20), ("10 MB", 10 << 20), ("100 MB", 100 << 20)]
 FILES, PHOTOS = "files", "photos"  # the two modes: identical files, similar photos
@@ -338,14 +339,17 @@ class DuplicatesPage(Gtk.Box):
                     last[0] = now
                     GLib.idle_add(show_progress, done, total)
 
-            groups = None
+            groups, failure = None, None
             try:
                 photos = similar.find_photos(folder, exclusions, cancellable.is_cancelled)
                 GLib.idle_add(show_progress, 0, len(photos))
                 read = similar.hash_photos(photos, cancellable.is_cancelled, progress)
                 groups = similar.group_photos(read, cancellable.is_cancelled)
+            except Exception as e:  # a bug, never "no similar photos found": the error page says what went wrong
+                failure = Failure("similar photos", self.engine.env.get("HOME"))
+                failure.crashed(e)
             finally:  # the page never stays on "Searching…"
-                GLib.idle_add(finished, cancellable, groups)
+                GLib.idle_add(finished, cancellable, groups, failure)
 
         def show_progress(done, total):
             if gen == self.generation and total:
@@ -353,11 +357,17 @@ class DuplicatesPage(Gtk.Box):
                                                         total, done=done))
             return False
 
-        def finished(cancellable, found):
+        def finished(cancellable, found, failure):
             if gen != self.generation or cancellable.is_cancelled():
                 return False  # stopped, or replaced by a newer search
             self.running = None
             self.window.set_busy(False)
+            if failure:
+                self.groups, self.found = [], 0
+                self.selected = set()
+                self.failed.show(failure)
+                self.stack.set_visible_child_name("failed")
+                return False
             found = found or []
             self.groups = found[:similar.GROUPS_LIMIT]
             self.found = len(found)
@@ -456,7 +466,7 @@ class DuplicatesPage(Gtk.Box):
 
     def group_row(self, g, biggest, expand):
         keep = keeper(g)
-        row = Adw.ExpanderRow(title=os.path.basename(keep), use_markup=False, expanded=expand,
+        row = plain_row(Adw.ExpanderRow, title=os.path.basename(keep), expanded=expand,
                               css_classes=["item-row"])
         everything = (_("Every photo is selected: none would be kept") if self.mode == PHOTOS
                       else _("Every copy is selected: none would be kept"))
@@ -533,7 +543,7 @@ class DuplicatesPage(Gtk.Box):
             subtitle = (_("Oldest · modified {date}") if keep else _("Modified {date}")).format(date=date)
             tip = _("Move this copy to the Trash")
         # one line each (the path is in the tooltip): wrapped labels made laying out 2,000 rows take seconds
-        row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False,
+        row = plain_row(Adw.ActionRow, title=title, subtitle=subtitle,
                             title_lines=1, subtitle_lines=1, css_classes=["item-row"], tooltip_text=path)
         check = Gtk.CheckButton(active=path in self.selected, valign=Gtk.Align.CENTER, css_classes=["big-check"],
                                 tooltip_text=tip)

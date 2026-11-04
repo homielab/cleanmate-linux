@@ -12,6 +12,7 @@ from . import findbar
 from .findbar import FindBar
 from .i18n import _, ngettext
 from . import messages
+from .rows import plain_row
 
 
 def unit_icon(u):
@@ -60,7 +61,7 @@ class StartupPage(Gtk.Box):
         results.append(Gtk.ScrolledWindow(child=Adw.Clamp(maximum_size=900, child=self.results),
                                           vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER))
         self.stack.add_named(results, "results")
-        self.show_system = Adw.SwitchRow(title=_("Show system services"),
+        self.show_system = plain_row(Adw.SwitchRow, title=_("Show system services"),
                                          subtitle=_("Parts of Ubuntu that start for every user"))
         self.show_system.connect("notify::active", lambda *_a: self.show_results())
         self.load()
@@ -95,7 +96,7 @@ class StartupPage(Gtk.Box):
             self.running = None
             self.window.set_busy(False)
             if "message" in info:
-                self.failed.set_description(messages.text(info))
+                self.failed.set_description(GLib.markup_escape_text(messages.text(info)))
                 self.stack.set_visible_child_name("failed")
                 return
             self.units, self.info = units, info
@@ -168,7 +169,7 @@ class StartupPage(Gtk.Box):
 
     def unit_row(self, u):
         subtitle = u["description"] if u["description"] and u["description"] != u["name"] else u["command"]
-        row = Adw.ActionRow(title=u["name"], subtitle=subtitle, use_markup=False, subtitle_lines=1,
+        row = plain_row(Adw.ActionRow, title=u["name"], subtitle=subtitle, subtitle_lines=1,
                             css_classes=["item-row"], tooltip_text=u["path"] or u["id"].split(":", 1)[1])
         row.add_prefix(unit_icon(u))
         if u["system"]:

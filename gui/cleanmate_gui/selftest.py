@@ -661,12 +661,18 @@ def duplicates_test(win, report, wait, finish):
     wait(idle, searched, 60, "duplicates search")
 
 
+# The longest the window may freeze (no main loop iteration) while Similar Photos reads and lists 2,000 photos.
+# Measured 130-210 ms in Docker on a Mac; a person notices a freeze from about half a second.
+MAX_PAUSE_MS = 500
+
+
 def similar_photos_test(win, report, wait, finish):
     """Duplicates › Similar Photos in a throwaway home: a photo, a smaller copy and a re-saved one group, a different
     photo, a hidden folder and a Never clean folder stay out; nothing ticked, the full-size photo suggested and
     previewed; thumbnails; Stop returns at once; 2,000 photos keep the window responsive while read, listed and
     scrolled; dry run, then Trash and Undo."""
     from gi.repository import GdkPixbuf
+    from . import similar
     from .duplicates import FILES, PHOTOS
     from .engine import Engine
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
@@ -689,8 +695,11 @@ def similar_photos_test(win, report, wait, finish):
     beach.scale_simple(320, 240, GdkPixbuf.InterpType.BILINEAR).savev(smaller, "jpeg", ["quality"], ["95"])
     beach.savev(resaved, "jpeg", ["quality"], ["60"])
     other.savev(os.path.join(pictures, "other.jpg"), "jpeg", ["quality"], ["90"])
-    for d in (private, hidden):
-        shutil.copy(resaved, d)
+    shutil.copy(resaved, hidden)
+    if os.geteuid() == 0:  # the engine refuses settings as root, so the page gets no Never clean folders
+        report(True, "Similar Photos and Never clean skipped: the engine refuses settings as root")
+    else:
+        shutil.copy(resaved, private)
     for i in range(2000):
         shutil.copy(resaved if i % 2 else smaller, os.path.join(many, f"{i:04d}.jpg"))
     env = {"HOME": home, "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
@@ -748,13 +757,33 @@ def similar_photos_test(win, report, wait, finish):
         page.stop()
         report(page.running is None and page.stack.get_visible_child_name() == "results",
                "Stop ends a photo search at once")
+        real_find = similar.find_photos
+
+        def broken(*_a):
+            raise OSError("disk went away")
+
+        similar.find_photos = broken
+        page.search()
+
+        def crashed():
+            similar.find_photos = real_find
+            report(page.stack.get_visible_child_name() == "failed"
+                   and "disk went away" in page.failed.get_description(),
+                   "an error while reading photos shows the error page, not \"no similar photos\"")
+            many_photos()
+
+        wait(idle, crashed, 60, "photo search that fails")
+
+    def many_photos():
         page.set_folder(many)
-        gaps, last, listed = {"reading": 0, "listing": 0}, [GLib.get_monotonic_time()], [0]
+        gaps, last, listed = {"reading": 0, "listing": 0}, [None], [0]
 
         def tick():  # through the search, then 3 s of listing, reading thumbnails and scrolling
+            # the longest the main loop went without running this 20 ms timer: how long the window froze
             now = GLib.get_monotonic_time()
             phase = "listing" if listed[0] else "reading"
-            gaps[phase] = max(gaps[phase], now - last[0])
+            if last[0] is not None:
+                gaps[phase] = max(gaps[phase], now - last[0])
             last[0] = now
             if page.stack.get_visible_child_name() == "searching":
                 return True
@@ -771,9 +800,9 @@ def similar_photos_test(win, report, wait, finish):
     def many_read(reading_ms, listing_ms):
         report(len(page.shown_groups()) == 1 and len(page.shown_groups()[0]["files"]) == 2000,
                "2,000 photos read: one group")
-        report(reading_ms < 500,
+        report(reading_ms < MAX_PAUSE_MS,
                f"the window stays responsive while reading 2,000 photos (longest pause {reading_ms} ms)")
-        report(listing_ms < 500 and len(page.checks) > 300,
+        report(listing_ms < MAX_PAUSE_MS and len(page.checks) > 300,
                f"the window stays responsive while listing 2,000 photos with their thumbnails and scrolling "
                f"(longest pause {listing_ms} ms, {len(page.checks)} rows in 3 s)")
         page.set_folder(pictures)
@@ -2149,7 +2178,7 @@ def maintenance_test(win, report, wait, finish):
     def fonts_done():
         title = _("Rebuild font cache")
         if os.geteuid() == 0:
-            report("runs as you" in page.log.text(), "as root the engine refuses the font cache")
+            report(_("This task runs as you, not as root.") in page.log.text(), "as root the engine refuses the font cache")
         else:
             report("fonts cached" in page.log.text() and "fc-cache -f" in read("ran.log")
                    and page.log.status.get_text() == _("{title}: done").format(title=title)

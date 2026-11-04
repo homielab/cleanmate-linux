@@ -17,6 +17,7 @@ from .findbar import FindBar
 from .i18n import _, ngettext
 from .scanpage import size_widgets
 from . import messages
+from .rows import plain_row
 
 MIN_SIZES = [("50 MB", 50 << 20), ("100 MB", 100 << 20), ("500 MB", 500 << 20), ("1 GB", 1 << 30),
              ("5 GB", 5 << 30)]
@@ -246,7 +247,8 @@ class LargeFilesPage(Gtk.Box):
         failure = Failure("cm --json large", self.engine.env.get("HOME"))
         min_bytes = MIN_SIZES[self.size_drop.get_selected()][1]
         days = AGES[self.age_drop.get_selected()][1]
-        self.searching.set_description(_("Files of {size} or more in {folder}").format(size=human(min_bytes), folder=short_path(self.folder)))
+        self.searching.set_description(GLib.markup_escape_text(
+            _("Files of {size} or more in {folder}").format(size=human(min_bytes), folder=short_path(self.folder))))
         self.stack.set_visible_child_name("searching")
         self.bar.set_revealed(False)
         self.window.set_busy(True)
@@ -294,7 +296,7 @@ class LargeFilesPage(Gtk.Box):
         self.shown = []
         notes = skipped_notes(self.info)
         if not self.files:
-            self.empty.set_description("\n".join([_("Try a smaller size, any age, or another folder."), *notes]))
+            self.empty.set_description(GLib.markup_escape_text("\n".join([_("Try a smaller size, any age, or another folder."), *notes])))
             self.empty.get_child().set_visible(bool(self.info.get("other_drives")))
             self.stack.set_visible_child_name("empty")
             self.bar.set_revealed(False)
@@ -367,8 +369,7 @@ class LargeFilesPage(Gtk.Box):
         path = e["path"]
         folder, name = os.path.split(path)
         when = time.strftime("%-d %b %Y", time.localtime(e["mtime"]))
-        row = Adw.ActionRow(title=name, subtitle=_("{folder} · modified {date}").format(folder=short_path(folder), date=when),
-                            use_markup=False,
+        row = plain_row(Adw.ActionRow, title=name, subtitle=_("{folder} · modified {date}").format(folder=short_path(folder), date=when),
                             subtitle_lines=1, css_classes=["item-row"],
                             tooltip_text=path + "\n" + _("Last opened {date}").format(
                                 date=time.strftime("%-d %b %Y", time.localtime(e["atime"]))))

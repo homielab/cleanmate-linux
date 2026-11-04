@@ -21,6 +21,7 @@ from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
 from . import messages
+from .rows import plain_row
 
 SORTS = [(_("Size"), "size"), (_("Last used"), "used"), (_("Name"), "name")]
 UNUSED = [(_("All apps"), 0), (_("Unused for 1+ month"), 1), (_("Unused for 3+ months"), 3),
@@ -269,10 +270,10 @@ class UninstallerPage(Gtk.Box):
         elif a["kind"] not in USER_KINDS:
             tip += "\n" + _("Needs your password")
         if a["leftovers"]:
-            row = Adw.ExpanderRow(title=a["name"], subtitle=subtitle, use_markup=False, tooltip_text=tip,
+            row = plain_row(Adw.ExpanderRow, title=a["name"], subtitle=subtitle, tooltip_text=tip,
                                   css_classes=["item-row"])
         else:
-            row = Adw.ActionRow(title=a["name"], subtitle=subtitle, use_markup=False, tooltip_text=tip,
+            row = plain_row(Adw.ActionRow, title=a["name"], subtitle=subtitle, tooltip_text=tip,
                                 css_classes=["item-row"])
         check = Gtk.CheckButton(active=a["id"] in self.selected and not held, valign=Gtk.Align.CENTER,
                                 css_classes=["big-check"], sensitive=not held)
@@ -295,8 +296,7 @@ class UninstallerPage(Gtk.Box):
 
     def leftover_row(self, a, left):
         path = left["path"]
-        row = Adw.ActionRow(title=short_path(path), subtitle=_("Moved to the Trash after uninstalling"),
-                            use_markup=False, title_lines=1, css_classes=["item-row"])
+        row = plain_row(Adw.ActionRow, title=short_path(path), subtitle=_("Moved to the Trash after uninstalling"), title_lines=1, css_classes=["item-row"])
         check = Gtk.CheckButton(active=path in self.left_selected, valign=Gtk.Align.CENTER,
                                 css_classes=["big-check"], sensitive=a["id"] in self.selected,
                                 tooltip_text=_("Also move this folder to the Trash"))
@@ -322,7 +322,7 @@ class UninstallerPage(Gtk.Box):
         biggest = max(o["bytes"] for o in self.orphans)
         for o in self.orphans:
             path = o["path"]
-            row = Adw.ActionRow(title=short_path(path), use_markup=False, title_lines=1, css_classes=["item-row"],
+            row = plain_row(Adw.ActionRow, title=short_path(path), title_lines=1, css_classes=["item-row"],
                                 subtitle=LEFTOVER_REASONS.get(o["kind"], _("No app with this name is installed")),
                                 tooltip_text=path)
             check = Gtk.CheckButton(active=path in self.orphan_selected, valign=Gtk.Align.CENTER,
@@ -517,7 +517,7 @@ class UninstallerPage(Gtk.Box):
                 note = _("folders kept")
             else:
                 note = _("no folders in your home")
-            row = Adw.ActionRow(title=a["name"], use_markup=False, css_classes=["item-row"],
+            row = plain_row(Adw.ActionRow, title=a["name"], css_classes=["item-row"],
                                 subtitle=" · ".join((KIND_LABELS.get(a["kind"], a["kind"]), note)))
             row.add_prefix(app_icon(a["desktop"]))
             for widget in size_widgets(sizes[a["id"]], biggest):
@@ -622,7 +622,7 @@ class UninstallerPage(Gtk.Box):
             self.work_list.remove(child)
             child = self.work_list.get_first_child()
         for a in apps:
-            row = Adw.ActionRow(title=a["name"], subtitle=_("waiting"), use_markup=False)
+            row = plain_row(Adw.ActionRow, title=a["name"], subtitle=_("waiting"))
             row.icon = Gtk.Image(icon_name="content-loading-symbolic", css_classes=["dim-label"])
             row.add_prefix(row.icon)
             self.work_list.append(row)

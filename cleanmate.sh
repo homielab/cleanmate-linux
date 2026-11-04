@@ -11080,9 +11080,12 @@ why_running() { # ID → WHY_RUN: the programs whose running makes the item skip
     n=${n%%[.[\\]*} n=${n%-} n=${n%-bin} # wine.* → wine, ghc-[0-9.]* → ghc, vivaldi-bin → vivaldi
     [[ -n $n ]] && keep+=("$n")
   done
-  for n in "${keep[@]}"; do # steamwebhelper goes with steam, ZCode with zcode
+  for n in "${keep[@]}"; do # steamwebhelper goes with steam, zed-editor with zed, ZCode with zcode; ghcup is not ghc
     lc=${n,,}
-    for m in "${keep[@]}"; do [[ $lc != "${m,,}" && $lc == "${m,,}"* ]] && continue 2; done
+    for m in "${keep[@]}"; do
+      m=${m,,}
+      [[ $lc != "$m" && ($lc == "$m"-* || (${#m} -gt 3 && $lc == "$m"*)) ]] && continue 2
+    done
     for m in "${WHY_RUN[@]}"; do [[ $lc == "${m,,}" ]] && continue 2; done
     WHY_RUN+=("$n")
   done
@@ -11131,6 +11134,7 @@ json_why() { # VAR ID → VAR = the item's "why" object: where it is, what clean
     skip+=("Automatic cleaning leaves it alone")
   [[ -n ${ITEM_DATA_LOSS[$id]:-} ]] && skip+=("Unattended cleaning (automatic, or cm --clean --yes): it may hold your data")
   why_running "$id"
+  ((${#skip[@]} + ${#WHY_RUN[@]})) || skip+=("No rule of its own; Settings › Never clean still applies")
   json_str e "${ITEM_EFFECT[$id]:-}"
   json_strs w "${shown[@]}"; json_strs n "${WHY_NOTES[@]}"; json_strs a "${after[@]}"
   json_strs s "${skip[@]}"; json_strs r "${WHY_RUN[@]}"; json_strs f "${folders[@]}"

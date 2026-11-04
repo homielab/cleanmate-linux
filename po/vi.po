@@ -2536,8 +2536,8 @@ msgid "Skipped when"
 msgstr "Bỏ qua khi"
 
 #: gui/cleanmate_gui/scanpage.py:645
-msgid "Never: when it is ticked, it is cleaned"
-msgstr "Không bao giờ: đã tick là được dọn"
+msgid "No rule of its own; Settings › Never clean still applies"
+msgstr "Không có luật riêng; Cài đặt › Không bao giờ dọn vẫn áp dụng"
 
 #: gui/cleanmate_gui/scanpage.py:647
 #, python-brace-format

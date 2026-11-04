@@ -7,13 +7,14 @@ The engine lists the items with their state (`--json maintenance`) and runs one 
 """
 import os
 
-from gi.repository import Adw, Gtk, Pango
+from gi.repository import Adw, GLib, Gtk, Pango
 
 from . import findbar
 from .engine import NEEDS_PACKAGE, PACKAGE_HINT, PACKAGE_NEEDED
 from .findbar import FindBar
 from .i18n import _, ngettext
 from . import messages
+from .rows import plain_row
 
 # id → (title, description, icon); the engine's English labels are the fallback
 TEXTS = {
@@ -141,7 +142,7 @@ class MaintenancePage(Gtk.Box):
             self.running, self.busy = None, False
             self.window.set_busy(False)
             if info or not items:
-                self.failed.set_description(messages.text(info))
+                self.failed.set_description(GLib.markup_escape_text(messages.text(info)))
                 self.stack.set_visible_child_name("failed")
                 return
             self.show_results(items)
@@ -205,7 +206,7 @@ class MaintenancePage(Gtk.Box):
 
     def item_row(self, m):
         title, _desc, icon = TEXTS.get(m["id"], (m["label"], m["description"], "emblem-system-symbolic"))
-        row = Adw.ActionRow(title=title, subtitle=self.subtitle(m), use_markup=False, css_classes=["item-row"])
+        row = plain_row(Adw.ActionRow, title=title, subtitle=self.subtitle(m), css_classes=["item-row"])
         row.add_prefix(Gtk.Image(icon_name=icon, pixel_size=24))
         usable = m["available"] and not self.held(m)
         if not m["available"]:
