@@ -7,7 +7,12 @@
 # on which apps are open), and each cleanup test switches on only the items it
 # is testing. Needs no root and no network.
 #
-# Usage: tests/run.sh [-v] [NAME_FILTER]
+# Usage: tests/run.sh [-v] [-j N] [NAME_FILTER]
+#   -v           details of each check
+#   -j N         N tests at a time (default: one per CPU; -j 1 runs them one after another)
+#   NAME_FILTER  only tests whose name contains it; several with "|", e.g. 'locale|size'
+#
+# Each test runs in its own subshell with its own WORK folder and HOME, so tests run in parallel.
 
 set -uo pipefail
 
@@ -21,21 +26,29 @@ kill_tree() { local c; for c in $(command pgrep -P "$1"); do kill_tree "$c"; kil
 trap 'kill_tree $$; rm -rf "$WORK"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
-VERBOSE=0
-[[ ${1:-} == -v ]] && { VERBOSE=1; shift; }
+VERBOSE=0 JOBS=$(nproc 2>/dev/null || echo 2)
+while (($#)); do
+  case $1 in
+    -v) VERBOSE=1; shift ;;
+    -j) [[ ${2:-} =~ ^[1-9][0-9]*$ ]] || { echo "usage: $0 [-v] [-j N] [NAME_FILTER]" >&2; exit 2; }; JOBS=$2; shift 2 ;;
+    -j[1-9]*) JOBS=${1#-j}; shift ;;
+    *) break ;;
+  esac
+done
 FILTER=${1:-}
 
 # stubs: no privilege escalation, no "is the app running?" surprises, and no
 # real Docker on the machine leaking into results (the Docker test brings its own)
-mkdir -p "$WORK/stubs"
-printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/sudo"
-printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/pgrep"
-printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/docker"
-printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/podman" # CI machines ship podman and conda: keep them out too
-printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/conda"
-chmod +x "$WORK/stubs/"*
+STUBS=$WORK/stubs # shared by every test: never change them in a test (tests run in parallel)
+mkdir -p "$STUBS"
+printf '#!/bin/sh\nexit 1\n' >"$STUBS/sudo"
+printf '#!/bin/sh\nexit 1\n' >"$STUBS/pgrep"
+printf '#!/bin/sh\nexit 1\n' >"$STUBS/docker"
+printf '#!/bin/sh\nexit 1\n' >"$STUBS/podman" # CI machines ship podman and conda: keep them out too
+printf '#!/bin/sh\nexit 1\n' >"$STUBS/conda"
+chmod +x "$STUBS/"*
 # your own ~/… commands (e.g. an installed cm) must not leak into the tests
-BASE_PATH="$WORK/stubs:$(tr ':' '\n' <<<"$PATH" | grep -v "^$HOME/" | grep -vx "$HOME" | paste -sd: -)"
+BASE_PATH="$STUBS:$(tr ':' '\n' <<<"$PATH" | grep -v "^$HOME/" | grep -vx "$HOME" | paste -sd: -)"
 
 if [[ -t 1 ]]; then G=$'\e[32m' R=$'\e[31m' Y=$'\e[33m' D=$'\e[2m' N=$'\e[0m'; else G="" R="" Y="" D="" N=""; fi
 
@@ -83,16 +96,16 @@ cm() { # run the app non-interactively inside the fake home (in English unless T
 
 # As root, `--json clean` refuses home items (the desktop app elevates only for
 # system items), so tests of cleaning home items run as an ordinary user.
-AS_USER=()
+AS_USER=() USER_SCRIPT=$WORK/cleanmate-as-user.sh # USER_SCRIPT: a copy of the engine the user can read (as root)
 if ((EUID == 0)); then
   chmod 711 "$WORK" # the user needs to reach the stubs and the fake homes
-  cp "$SCRIPT" "$WORK/cleanmate-as-user.sh" && chmod 644 "$WORK/cleanmate-as-user.sh" # the checkout may be root-only
+  cp "$SCRIPT" "$USER_SCRIPT" && chmod 644 "$USER_SCRIPT" # the checkout may be root-only
 fi
 user_cm() { # like cm; as root it runs as nobody, who owns the fake home for the time being
   ((EUID == 0)) || { cm "$@"; return; }
   command -v setpriv >/dev/null || { fail "running as root needs setpriv (util-linux)"; return 1; }
   chown -R 65534:65534 "$HOME_DIR"
-  local AS_USER=(setpriv --reuid=65534 --regid=65534 --clear-groups) SCRIPT=$WORK/cleanmate-as-user.sh
+  local AS_USER=(setpriv --reuid=65534 --regid=65534 --clear-groups) SCRIPT=$USER_SCRIPT
   cm "$@"
 }
 
@@ -119,6 +132,33 @@ old() { # FILE [DAYS] — create FILE, last modified and read DAYS (default 200)
 new() { mkdir -p "$(dirname "$1")"; printf 'data\n' >"$1"; }
 
 fail() { printf '    %s✘ %s%s\n' "$R" "$*" "$N"; FAILED=1; }
+# Waiting: poll until a condition holds instead of sleeping a fixed time; fail with what it waited for.
+wait_for() { # SECONDS WHAT CMD… — run CMD every 0.05 s until it succeeds; after SECONDS fail "timed out waiting for WHAT"
+  local end=$((${EPOCHREALTIME/[.,]/} + $1 * 1000000)) what=$2
+  shift 2
+  until "$@"; do
+    ((${EPOCHREALTIME/[.,]/} < end)) || { fail "timed out waiting for $what"; return 1; }
+    sleep 0.05
+  done
+}
+# /proc/PID/fd and exe of another user's process need ptrace rights root lacks in a container: read them as its owner
+proc_check() { # PID BASH_CODE ARGS… — run BASH_CODE (with "$@" = PID ARGS…) as the owner of PID
+  local owner
+  owner=$(stat -c %u "/proc/$1" 2>/dev/null) || return 1
+  if ((EUID == 0 && owner != 0)); then setpriv --reuid="$owner" --regid="$owner" --clear-groups bash -c "$2" _ "$1" "${@:3}"
+  else bash -c "$2" _ "$1" "${@:3}"; fi
+}
+holds_open() { # PID FILE — PID has FILE open
+  # shellcheck disable=SC2016 # the code runs in another bash
+  proc_check "$1" 'for fd in /proc/"$1"/fd/*; do [[ $(readlink "$fd") == "$2" ]] && exit 0; done; exit 1' "$(realpath "$2")"
+}
+runs_exe() { # PID EXE — PID runs EXE
+  # shellcheck disable=SC2016
+  proc_check "$1" '[[ $(readlink "/proc/$1/exe") == "$2" ]]' "$(realpath "$2")"
+}
+not_running() { ! kill -0 "$1" 2>/dev/null; } # PID
+port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; } # PORT — something listens there
+
 ok_() { ((VERBOSE)) && printf '    %s✔ %s%s\n' "$D" "$*" "$N"; return 0; }
 assert_exists() { if [[ -e $1 || -L $1 ]]; then ok_ "exists: ${1#"$HOME_DIR"/}"; else fail "should exist: ${1#"$HOME_DIR"/}"; fi; }
 assert_missing() { if [[ -e $1 || -L $1 ]]; then fail "should be gone: ${1#"$HOME_DIR"/}"; else ok_ "gone: ${1#"$HOME_DIR"/}"; fi; }
@@ -780,7 +820,7 @@ test_install_downloads_app_files() {
   port=$((20000 + RANDOM % 20000))
   (cd "$www" && exec python3 -m http.server "$port" --bind 127.0.0.1) >/dev/null 2>&1 &
   srv=$!
-  for _ in 1 2 3 4 5 6 7 8 9 10; do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.3; done
+  wait_for 10 "the test web server on port $port" port_open "$port"
   out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_BUNDLE_URL="http://127.0.0.1:$port/main.tar.gz" \
     bash "$lone/cleanmate.sh" --install 2>&1)
   kill "$srv" 2>/dev/null
@@ -816,7 +856,7 @@ test_update_flow() {
   port=$((20000 + RANDOM % 20000))
   (cd "$www" && exec python3 -m http.server "$port" --bind 127.0.0.1) >/dev/null 2>&1 &
   srv=$!
-  for _ in 1 2 3 4 5 6 7 8 9 10; do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.3; done
+  wait_for 10 "the test web server on port $port" port_open "$port"
   cm --install >/dev/null 2>&1
 
   out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/bad.sh" cm --update 2>&1 </dev/null)
@@ -1631,24 +1671,24 @@ image 1024 x.jxl' "file kinds by extension, any case"
 test_json_trash_and_restore() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
-  local out f1="$HOME_DIR/Videos/film one.mkv" f2="$HOME_DIR/Docs/ünï %20.pdf" keep=$HOME_DIR/Videos/keep.mkv
+  local out f1="$HOME_DIR/Videos/film one.mkv" f2="$HOME_DIR/Docs/ünï %20.pdf" kept=$HOME_DIR/Videos/keep.mkv
   local trash=$HOME_DIR/.local/share/Trash
-  new "$f1"; new "$f2"; new "$keep"
+  new "$f1"; new "$f2"; new "$kept"
   local tasks='import sys, json
 for l in sys.stdin:
     e = json.loads(l)
     if e["event"] == "task": print(e["state"], e["trash"] or "-", e["info"])
     elif e["event"] == "done": print("done", e.get("moved", e.get("restored")), e["failed"])'
   if ((EUID == 0)); then
-    out=$(cm --json trash "$keep" 2>&1); assert_contains "$out" "Refusing to move files to the Trash as root"
-    assert_exists "$keep"
+    out=$(cm --json trash "$kept" 2>&1); assert_contains "$out" "Refusing to move files to the Trash as root"
+    assert_exists "$kept"
   fi
   out=$(user_cm --json --dry-run trash "$f1" | python3 -c "$tasks")
   assert_eq "$out" $'ok - would be moved to the Trash\ndone 1 0' "dry run"
   assert_exists "$f1"
   out=$(user_cm --json trash "$f1" "$f2" "$HOME_DIR/missing" "$HOME_DIR" | python3 -c "$tasks")
   assert_eq "$out" $'ok film one.mkv moved to the Trash\nok ünï %20.pdf moved to the Trash\nfail - Not found\nfail - Refusing to touch protected path: '"$HOME_DIR"$'\ndone 2 2' "trash"
-  assert_missing "$f1"; assert_missing "$f2"; assert_exists "$keep"; assert_exists "$HOME_DIR"
+  assert_missing "$f1"; assert_missing "$f2"; assert_exists "$kept"; assert_exists "$HOME_DIR"
   assert_exists "$trash/files/film one.mkv"; assert_exists "$trash/info/ünï %20.pdf.trashinfo"
   out=$(user_cm --json --dry-run restore "film one.mkv" | python3 -c "$tasks")
   assert_eq "$out" $'ok film one.mkv would be put back\ndone 1 0' "dry-run restore"
@@ -1932,7 +1972,7 @@ for l in sys.stdin:
   # everything, while a program keeps a file in the Trash open
   "${hold[@]}" sleep 60 <"$t/files/open.log" >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test holder to open open.log" holds_open "$pid" "$t/files/open.log"
   out=$(user_cm --json clean trash_drives | python3 -c "$list")
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
   assert_eq "$out" "ok 3000 2.9 KB freed" "empties the drive's Trash, an open file stays"
@@ -1977,7 +2017,7 @@ for l in sys.stdin:
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   "${hold[@]}" sleep 60 <"$dl/open.run" >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test holder to open open.run" holds_open "$pid" "$dl/open.run"
   out=$(user_cm --json scan --only system | grep '"id":"old_installers"' | python3 -c "$list")
   assert_eq "$out" "old_installers 3300 3 files older than 30 days False True False" \
     "old installers at the top of Downloads only, not ticked"
@@ -2068,9 +2108,13 @@ print(done[-1]["stopped"] if done else "no done", ids.get("old_downloads"), ids.
   pid=$!
   (sleep 15; kill -9 "$pid" 2>/dev/null) &
   watchdog=$!
-  for _ in {1..100}; do [[ -s $HOME_DIR/snap.pid ]] && break; sleep 0.1; done
+  wait_for 10 "the scan to start the snap stub" test -s "$HOME_DIR/snap.pid"
   stub=$(cat "$HOME_DIR/snap.pid" 2>/dev/null)
-  sleep 1 # the quick items are done
+  only_snap_left() { # the last progress event says every item but one (the hanging snap stub) is done
+    local l; l=$(grep '"event":"progress"' "$WORK/stop.json" | tail -n 1)
+    [[ $l =~ \"done\":([0-9]+),\"total\":([0-9]+) ]] && ((BASH_REMATCH[1] + 1 == BASH_REMATCH[2]))
+  }
+  wait_for 10 "the scan to finish every item but the hanging one" only_snap_left
   t0=${EPOCHREALTIME/[.,]/}
   kill -TERM "$pid"
   wait "$pid"; rc=$?
@@ -2080,8 +2124,7 @@ print(done[-1]["stopped"] if done else "no done", ids.get("old_downloads"), ids.
   out=$(python3 -c "$summary" <"$WORK/stop.json")
   assert_eq "$out" "True found None" "a stopped scan lists what it checked, leaves out the item still running and says stopped"
   ((ms < 3000)) && ok_ "stopped in ${ms} ms" || fail "Stop took ${ms} ms"
-  for _ in {1..20}; do [[ -n $stub ]] && kill -0 "$stub" 2>/dev/null || break; sleep 0.1; done
-  if [[ -n $stub ]] && kill -0 "$stub" 2>/dev/null; then fail "the stopped scan left its worker running"; kill -9 "$stub"; fi
+  if [[ -n $stub ]] && ! wait_for 2 "the stopped scan's worker to exit (it was left running)" not_running "$stub"; then kill -9 "$stub"; fi
   rm "$HOME_DIR/snap.pid"
   # now snap answers at once (a stub, also where the machine has a real snap): its item is checked to the end
   printf '#!/bin/sh\necho "Name  Version  Rev  Tracking  Publisher  Notes"\n' >"$bin/snap"
@@ -2125,7 +2168,7 @@ for l in sys.stdin:
   assert_eq "$out" "old.pdf open.txt" "a folder with too many files is skipped"
   "${hold[@]}" sleep 60 <"$dl/open.txt" >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test holder to open open.txt" holds_open "$pid" "$dl/open.txt"
   out=$(user_cm --json scan --only system | grep '"id":"old_downloads"' | python3 -c "$list")
   assert_eq "$out" "old_downloads 6000 2 items untouched for 90+ days False True False" \
     "old files and folders at the top of Downloads, not ticked"
@@ -2222,7 +2265,7 @@ for l in sys.stdin:
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   "${hold[@]}" sleep 60 <"$shots/Screenshot from 2025-01-03 10-00-00.png" >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test holder to open Screenshot from 2025-01-03 10-00-00.png" holds_open "$pid" "$shots/Screenshot from 2025-01-03 10-00-00.png"
   out=$(user_cm --json scan --only system | grep '"id":"old_screenshots"' | python3 -c "$list")
   assert_eq "$out" "old_screenshots 6500 4 files untouched for 90+ days False True False" \
     "old screenshots in Pictures and Pictures/Screenshots, not ticked"
@@ -2327,7 +2370,7 @@ for l in sys.stdin:
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   "${hold[@]}" sleep 60 <"$dl/open.crdownload" >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test holder to open open.crdownload" holds_open "$pid" "$dl/open.crdownload"
   qb=$(in_app "urlencode_path 'movie.!qB'")
   out=$(user_cm --json scan --only system | grep '"id":"abandoned_downloads"' | python3 -c "$list")
   assert_eq "$out" "abandoned_downloads 11550 6 downloads untouched for 7+ days False True False" \
@@ -2427,7 +2470,8 @@ for l in sys.stdin:
   pids+=($!)
   "${hold[@]}" sleep 60 <"$c/open/.venv/lib/x.so" >/dev/null 2>&1 &
   pids+=($!)
-  sleep 0.3
+  wait_for 5 "the test program cargo to start" runs_exe "${pids[0]}" "$WORK/buildbin/cargo"
+  wait_for 5 "the test holder to open x.so" holds_open "${pids[1]}" "$c/open/.venv/lib/x.so"
   out=$(user_cm --json scan --only dev | grep '"id":"stale_build_dirs"' | python3 -c "$list")
   assert_eq "$out" "stale_build_dirs $((b_rusty + b_py + b_pods)) 3 projects idle for 90+ days False True False" \
     "three idle projects, not ticked"
@@ -2475,7 +2519,7 @@ test_stale_terraform_providers() {
   mkdir -p "$WORK/tfbin"; cp "$(command -v sleep)" "$WORK/tfbin/terraform"; chmod 755 "$WORK/tfbin" "$WORK/tfbin/terraform"
   "${hold[@]}" sh -c 'cd "$1" && exec "$2" 60' _ "$c/applying" "$WORK/tfbin/terraform" >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test program terraform to start" runs_exe "$pid" "$WORK/tfbin/terraform"
   out=$(user_cm --json details stale_build_dirs | grep '"event":"entry"')
   assert_eq "$(wc -l <<<"$out")" "1" "only the idle Terraform project"
   assert_contains "$out" '"bytes":4000'; assert_contains "$out" "~/code/infra — .terraform/providers/, .terraform/modules/ · 100 days idle"
@@ -2643,7 +2687,7 @@ for l in sys.stdin:
   local hold=(); ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups)
   "${hold[@]}" sleep 60 <"$u/openfile/state.vscdb" >/dev/null 2>&1 &
   local pid=$!
-  sleep 0.3
+  wait_for 5 "the test holder to open state.vscdb" holds_open "$pid" "$u/openfile/state.vscdb"
   out=$(user_cm --json details vscode_stale_workspaces | python3 -c "$list")
   assert_contains "$out" "gone1 $b1 off old project · Code · 0 days"
   assert_contains "$out" "gone2 $b2 off team · Code · 0 days"
@@ -2780,7 +2824,7 @@ for e in map(json.loads, sys.stdin): print(e["event"], e.get("kind", ""), e.get(
   assert_eq "$out" $'place home HOME\nplace system /\nplace drive OUT/disk\ndone  ' "places: home, the system disk, then each disk"
   # the terminal Space Lens reads the same folder with the same engine rules
   local as=() script=$SCRIPT
-  ((EUID == 0)) && as=(setpriv --reuid=65534 --regid=65534 --clear-groups) script=$WORK/cleanmate-as-user.sh
+  ((EUID == 0)) && as=(setpriv --reuid=65534 --regid=65534 --clear-groups) script=$USER_SCRIPT
   out=$("${as[@]}" env -i HOME="$HOME_DIR" PATH="$HOME_DIR/.local/bin:$BASE_PATH" LANG=C.UTF-8 bash -c 'source "$1"
     SESSION_TMP=$(mktemp -d -p "$HOME"); ui_busy() { wait "$2"; }; sl_load "$2"
     for i in "${!SL_PATH[@]}"; do echo "${SL_PATH[i]##*/} ${SL_SIZE[i]} ${SL_REASON[i]:+view-only}"; done
@@ -3207,7 +3251,7 @@ test_timer_runs_a_stable_path() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
   local out pkg=$WORK/pkgroot clone=$HOME_DIR/src/cleanmate u=$HOME_DIR/.config/systemd/user self=$SCRIPT
-  ((EUID == 0)) && self=$WORK/cleanmate-as-user.sh # readable by the user the engine runs as
+  ((EUID == 0)) && self=$USER_SCRIPT # readable by the user the engine runs as
   mkdir -p "$HOME_DIR/.local/bin" "$pkg/usr/bin" "$pkg/usr/share/cleanmate" "$clone"
   # a fake `systemctl --user` (enabled units are files in ~/enabled); `cat` shows a unit as systemd would
   printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift; mkdir -p "$HOME/enabled"' \
@@ -3370,7 +3414,7 @@ for l in sys.stdin:
   user_cm --json settings-set exclusions add "$d/Projects/a*b" >/dev/null
   out=$(user_cm --json settings-set exclusions add "$keep" | python3 -c "$tasks")
   assert_eq "$out" $'ok already in the list\nexclusions keep Downloads keep a*b' "added once"
-  for p in "$d" "$d/" "$d/.." / "$WORK/stubs" "$d/linked" "$d/linked/keep" "$d/nope" "Projects" "$d/Videos/film.mkv"; do
+  for p in "$d" "$d/" "$d/.." / "$STUBS" "$d/linked" "$d/linked/keep" "$d/nope" "Projects" "$d/Videos/film.mkv"; do
     user_cm --json settings-set exclusions add "$p"
   done | python3 -c "$tasks" >"$WORK/refused"
   assert_eq "$(grep -c '^fail' "$WORK/refused")" 10 "ten paths refused"
@@ -3955,7 +3999,7 @@ EOS
   new "$h/.config/zqrecent/data" # in use lately
   sh -c 'exec sleep 60' <"$h/.config/zqopen/data" >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test holder to open data" holds_open "$pid" "$h/.config/zqopen/data"
   out=$(CLEANMATE_APP_DIRS=$h/apps BASE_PATH="$bin:$BASE_PATH" cm --json apps | python3 -c 'import sys, json
 for l in sys.stdin:
     e = json.loads(l)
@@ -4008,7 +4052,8 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   mkdir -p "$rt" && chmod 700 "$rt"
   XDG_RUNTIME_DIR=$rt gtk4-broadwayd ":$display" >/dev/null 2>&1 &
   srv=$!
-  sleep 1
+  broadway_up() { compgen -G "$rt/broadway*.socket" >/dev/null; }
+  wait_for 10 "the Broadway display server" broadway_up
   for lang in "${locales[@]}"; do
     # a private, invisible display; dry run; the self-test never touches system items
     out=$(env -i HOME="$HOME_DIR" PATH="$WORK/guilock:$BASE_PATH" LANG="$lang" XDG_RUNTIME_DIR="$rt" \
@@ -4892,9 +4937,10 @@ test_ai_coding_tool_caches_keep_sessions_and_logins() {
   # a running tool is skipped when unattended
   new "$h/.cline/data/logs/l2"; new "$h/.config/Cursor/logs/l2"; new "$h/.codeium/windsurf/database/l2"
   new "$h/.local/share/opencode/log/l2"; new "$h/.local/share/kilo/log/l2"
-  printf '#!/bin/sh\ncase "$*" in *cline*|*cursor*|*windsurf*|*opencode*|*kilo*) exit 0;; esac\nexit 1\n' >"$WORK/stubs/pgrep"
-  out=$(cm --clean --yes --only ai 2>&1 </dev/null)
-  printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/pgrep"
+  mkdir -p "$WORK/pgrep"
+  printf '#!/bin/sh\ncase "$*" in *cline*|*cursor*|*windsurf*|*opencode*|*kilo*) exit 0;; esac\nexit 1\n' >"$WORK/pgrep/pgrep"
+  chmod +x "$WORK/pgrep/pgrep"
+  out=$(BASE_PATH="$WORK/pgrep:$BASE_PATH" cm --clean --yes --only ai 2>&1 </dev/null)
   for t in Cline Cursor Windsurf opencode Kilo; do assert_contains "$out" "Skipping $t"; done
   for f in .cline/data/logs/l2 .config/Cursor/logs/l2 .codeium/windsurf/database/l2 .local/share/opencode/log/l2 .local/share/kilo/log/l2; do
     assert_exists "$h/$f"
@@ -4962,7 +5008,7 @@ for l in sys.stdin:
   ((EUID == 0)) && chown -R 65534:65534 "$h"
   "${hold[@]}" sleep 60 <"$h/.cache/whisper/open.pt" >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test holder to open open.pt" holds_open "$pid" "$h/.cache/whisper/open.pt"
   out=$(user_cm --json scan --only models | grep '"id":"ai_model_caches"' | python3 -c "$list")
   assert_eq "$out" "ai_model_caches models False True False" "one AI models item, not ticked, with entries"
   out=$(user_cm --json details ai_model_caches | python3 -c "$list" | sed "s|$h|~|" | sort)
@@ -5558,7 +5604,7 @@ $(in_app "urlencode_path '$fv/3.19.0'") $b319 off Flutter 3.19.0" "one entry per
   rm "$n/v18.20.4/bin/node"; cp "$(command -v sleep)" "$n/v18.20.4/bin/node"
   "${hold[@]}" "$n/v18.20.4/bin/node" 60 >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test program node to start" runs_exe "$pid" "$n/v18.20.4/bin/node"
   out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes"' | python3 -c "$list" | cut -d' ' -f4-)
   assert_eq "$out" "3 versions not your default; skipped while running: Node v18.20.4 False True False" "a running version is skipped"
   assert_eq "$(user_cm --json details old_runtimes | python3 -c "$list" | grep -c v18)" "0" "no entry for a running version"
@@ -5637,7 +5683,7 @@ for l in sys.stdin:
   rm "$py/3.11.4/bin/python"; cp "$(command -v sleep)" "$py/3.11.4/bin/python"
   "${hold[@]}" "$py/3.11.4/bin/python" 60 >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test program python to start" runs_exe "$pid" "$py/3.11.4/bin/python"
   out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes"' | python3 -c "$labels")
   assert_eq "$out" "7 versions not your default; skipped while running: Python 3.11.4" "a running version is skipped"
   enc=$(in_app "urlencode_path '$rs/beta-$host'")
@@ -5735,7 +5781,7 @@ for l in sys.stdin:
   rm "$ap/3.10.0/bin/python"; cp "$(command -v sleep)" "$ap/3.10.0/bin/python"
   "${hold[@]}" "$ap/3.10.0/bin/python" 60 >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test program python to start" runs_exe "$pid" "$ap/3.10.0/bin/python"
   out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes_asdf_mise"' | python3 -c "$labels")
   assert_contains "$out" "5 versions not pinned, not the newest; skipped while running: python 3.10.0 (asdf)"
   # automatic cleaning leaves them alone even when ticked
@@ -5930,7 +5976,7 @@ for l in sys.stdin:
   rm "$ed/2022.3.10f1/Editor/Unity"; cp "$(command -v sleep)" "$ed/2022.3.10f1/Editor/Unity"
   "${hold[@]}" "$ed/2022.3.10f1/Editor/Unity" 60 >/dev/null 2>&1 &
   pid=$!
-  sleep 0.3
+  wait_for 5 "the test program Unity to start" runs_exe "$pid" "$ed/2022.3.10f1/Editor/Unity"
   out=$(scan | grep unity_old_editors)
   assert_contains "$out" "1 version not pinned, not the newest; skipped while running: Unity 2022.3.10f1"
   # automatic cleaning leaves them alone even when ticked
@@ -6023,9 +6069,10 @@ test_firebase_zcode_mimocode_keep_logins_and_sessions() {
   done
   # a running ZCode or MiMoCode is skipped when unattended
   new "$h/.zcode/v2/logs/l2"; new "$h/.local/share/mimocode/log/l2"
-  printf '#!/bin/sh\ncase "$*" in *zcode*|*mimo*) exit 0;; esac\nexit 1\n' >"$WORK/stubs/pgrep"
-  out=$(cm --clean --yes --only ai 2>&1 </dev/null)
-  printf '#!/bin/sh\nexit 1\n' >"$WORK/stubs/pgrep"
+  mkdir -p "$WORK/pgrep"
+  printf '#!/bin/sh\ncase "$*" in *zcode*|*mimo*) exit 0;; esac\nexit 1\n' >"$WORK/pgrep/pgrep"
+  chmod +x "$WORK/pgrep/pgrep"
+  out=$(BASE_PATH="$WORK/pgrep:$BASE_PATH" cm --clean --yes --only ai 2>&1 </dev/null)
   assert_contains "$out" "Skipping ZCode"; assert_contains "$out" "Skipping MiMoCode"
   assert_exists "$h/.zcode/v2/logs/l2"; assert_exists "$h/.local/share/mimocode/log/l2"
 }
@@ -6583,26 +6630,62 @@ real_dirs() { # the real user's app folders and Trash — tests must never touch
 }
 REAL_BEFORE=$(real_dirs)
 
-pass=0 failed=0 skipped=0
-printf 'CleanMate tests — %s\n\n' "$(bash "$SCRIPT" --version | head -n 1)"
-for t in $(declare -F | awk '{print $3}' | grep '^test_'); do
-  [[ -n $FILTER && $t != *"$FILTER"* ]] && continue
-  result=$(
+wanted() { # TEST — matches NAME_FILTER (any of its "|" parts)
+  local part
+  [[ -z $FILTER ]] && return 0
+  IFS='|' read -ra parts <<<"$FILTER"
+  for part in "${parts[@]}"; do [[ -n $part && $1 == *"$part"* ]] && return 0; done
+  return 1
+}
+run_one() { # TEST → its output, then @@pass / @@fail / @@skip REASON, into $WORK/results/TEST
+  (
+    WORK=$WORK/tests/$1 # its own folder: tests that name fixed paths under WORK can't collide
+    mkdir -p "$WORK"
     FAILED="" SKIPPED=""
-    "$t"
+    "$1"
     if [[ -n $SKIPPED ]]; then echo "@@skip $SKIPPED"
     elif [[ -n $FAILED ]]; then echo "@@fail"
     else echo "@@pass"; fi
-  )
+  ) >"$WORK/results/$1.out" </dev/null
+  mv "$WORK/results/$1.out" "$WORK/results/$1"
+}
+report() { # TEST — print its result once it is there
+  local result status name
+  result=$(<"$WORK/results/$1")
   status=$(tail -n 1 <<<"$result")
-  name=${t#test_}; name=${name//_/ }
+  name=${1#test_}; name=${name//_/ }
   case $status in
     @@pass) printf '  %s✔%s %s\n' "$G" "$N" "$name"; ((++pass)) ;;
     @@skip*) printf '  %s–%s %s %s(skipped: %s)%s\n' "$Y" "$N" "$name" "$D" "${status#@@skip }" "$N"; ((++skipped)) ;;
     *) printf '  %s✘%s %s\n' "$R" "$N" "$name"; ((++failed)) ;;
   esac
   sed '$d' <<<"$result" | grep -v '^$'
+  rm -f "$WORK/results/$1"
+  rm -rf "$WORK/tests/$1"
+}
+
+pass=0 failed=0 skipped=0
+printf 'CleanMate tests — %s\n\n' "$(bash "$SCRIPT" --version | head -n 1)"
+mkdir -p "$WORK/results" "$WORK/tests"
+chmod 711 "$WORK/tests" # as root, the user tests run as must reach their folders
+# these measure how fast the app answers: they run alone, after the others
+ALONE=" test_gui_selftest "
+tests=() alone=()
+for t in $(declare -F | awk '{print $3}' | grep '^test_'); do
+  wanted "$t" || continue
+  if [[ $ALONE == *" $t "* ]]; then alone+=("$t"); else tests+=("$t"); fi
 done
+next=0 running=0
+for t in "${tests[@]}"; do
+  if ((running >= JOBS)); then wait -n; ((running--)); fi
+  run_one "$t" &
+  ((++running))
+  # print finished tests in order, as soon as the ones before them are done
+  while ((next < ${#tests[@]})) && [[ -e $WORK/results/${tests[next]} ]]; do report "${tests[next]}"; ((++next)); done
+done
+wait
+while ((next < ${#tests[@]})); do report "${tests[next]}"; ((++next)); done
+for t in "${alone[@]}"; do run_one "$t"; report "$t"; done
 if [[ $(real_dirs) != "$REAL_BEFORE" ]]; then
   printf '  %s✘ the tests changed your real ~/.config or ~/.local/state cleanmate folder%s\n' "$R" "$N"
   diff <(printf '%s\n' "$REAL_BEFORE") <(real_dirs) | sed 's/^/      | /'

@@ -91,14 +91,22 @@ Rules of thumb:
 
 ## Checking your change
 
+Each test gets its own `WORK` folder and fake home, so tests run in parallel: don't change the shared
+stubs (`$STUBS`) in a test — put a stub in `$WORK/<dir>` and prefix `BASE_PATH`. Never wait with a fixed
+`sleep`: `wait_for SECONDS "what" CMD…` polls CMD and fails with "timed out waiting for what"
+(`holds_open PID FILE`, `runs_exe PID EXE`, `port_open PORT`, `not_running PID`). A test that measures how
+fast the app answers goes in `ALONE` at the end of `tests/run.sh`.
+
 ```bash
-tests/run.sh               # all tests, ~45 s — safe on your own machine
-tests/run.sh -v docker     # only tests with "docker" in the name, with details
+tests/run.sh               # all tests, in parallel (one per CPU) — safe on your own machine
+tests/run.sh -j 1          # one after another, e.g. to read a failing test's details in order
+tests/run.sh -v docker     # only tests with "docker" in the name, with details ('docker|snap': either)
 python3 tests/similar_test.py   # Similar Photos: hashes and grouping on generated photos (needs python3-gi)
 python3 tests/preview_test.py   # thumbnails and video frames of the file pages (python3-gi; videos also gir1.2-gstreamer-1.0)
 python3 tests/messages_test.py  # every code the engine sends has a text in the desktop app, in Vietnamese too
-LC_ALL=vi_VN.UTF-8 tests/run.sh   # same, in a language with a decimal comma (also de_DE.UTF-8; needs `sudo locale-gen vi_VN.UTF-8`). CI runs both
-shellcheck -S warning cleanmate.sh tests/run.sh packaging/build-deb.sh
+LC_ALL=vi_VN.UTF-8 tests/run.sh   # same, in a language with a decimal comma (also de_DE.UTF-8; needs `sudo locale-gen vi_VN.UTF-8`). CI runs both on the tests that format or sort numbers and texts
+shellcheck -S warning -x cleanmate.sh tests/run.sh tests/bench-*.sh packaging/*.sh packaging/flathub/build.sh po/*.sh   # CI pins ShellCheck 0.11.0
+python3 -m py_compile gui/cleanmate-gui $(find gui tests -name '*.py')
 bash cleanmate.sh --dry-run   # try it for real without deleting anything
 ```
 
@@ -120,6 +128,8 @@ another copy. A whole scan waits for its slowest item, so compare medians.
 home, the real system): the first scan with nothing cached and a repeat scan, then the slowest items
 on their own, and checks the unused packages against `apt-get -s autoremove`. Run it as an ordinary
 user on a machine with many packages; `CLEANMATE_SCRIPT=old.sh` times another copy.
+With `BENCH_LIMITS=tests/bench-limits.sh` it fails when a median is over the limits there; the
+Benchmark workflow (`.github/workflows/bench.yml`) runs it that way weekly and on demand.
 `tests/bench-dupes.sh [COUNT [ROUNDS [SIZE_BYTES]]]` times Duplicates on a throwaway folder of 20,000
 files of one size (300 KB; sparse, so little disk), every one read: a tenth are copies, the rest differ
 at the start or only at the end. It prints the median and a checksum of the groups found, which must

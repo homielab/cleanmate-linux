@@ -8,16 +8,26 @@ on:
 permissions:
   contents: read
 
+env:
+  SHELLCHECK_VERSION: "0.11.0" # newest release; bump on purpose, then fix what it reports
+
 jobs:
   lint:
     name: ShellCheck
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: Install ShellCheck ${{ env.SHELLCHECK_VERSION }} (pinned, not the runner's)
+        run: |
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v$SHELLCHECK_VERSION/shellcheck-v$SHELLCHECK_VERSION.linux.x86_64.tar.xz" |
+            tar -xJ -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/shellcheck-v$SHELLCHECK_VERSION" >>"$GITHUB_PATH"
       - name: ShellCheck (warnings and errors)
-        run: shellcheck --version && shellcheck -S warning cleanmate.sh tests/run.sh packaging/build-deb.sh packaging/build-source.sh packaging/make-screenshots.sh packaging/make-man.sh packaging/flathub/build.sh
-      - name: Python syntax (desktop app)
-        run: python3 -m py_compile gui/cleanmate-gui gui/cleanmate_gui/*.py tests/tui_smoke.py tests/similar_test.py tests/preview_test.py tests/messages_test.py
+        run: shellcheck --version && shellcheck -S warning -x cleanmate.sh tests/run.sh tests/bench-*.sh packaging/*.sh packaging/flathub/build.sh po/*.sh
+      - name: Python syntax (desktop app and every test script)
+        run: python3 -m py_compile gui/cleanmate-gui $(find gui tests -name '*.py')
+      - name: Pyflakes (when the runner has it)
+        run: if python3 -m pyflakes --version >/dev/null 2>&1; then python3 -m pyflakes gui tests; else echo "pyflakes not installed: skipped"; fi
       - name: Store metadata (AppStream, launcher)
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq appstream desktop-file-utils
@@ -51,7 +61,10 @@ jobs:
         env:
           LANG: ${{ matrix.locale }}
           LC_ALL: ${{ matrix.locale }}
-        run: tests/run.sh
+        # the decimal-comma languages only rerun the tests that format or sort numbers and texts
+        run: |
+          if [[ $LC_ALL == C.UTF-8 ]]; then tests/run.sh
+          else tests/run.sh 'size|human|decimal|number|lang|transl|messages|large|lens|overview|history|free|disk|details'; fi
 
   ppa:
     name: PPA package (every series)

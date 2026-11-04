@@ -12,7 +12,10 @@
 # loaded. Run it as an ordinary user, like the app, on a machine with many
 # packages installed.
 #
-# Usage: tests/bench-scan.sh [ROUNDS [SLOWEST]]
+# With BENCH_LIMITS=FILE (tests/bench-limits.sh in CI) it fails when a median
+# is over the limit set there.
+#
+# Usage: [BENCH_LIMITS=FILE] tests/bench-scan.sh [ROUNDS [SLOWEST]]
 
 set -euo pipefail
 
@@ -61,7 +64,16 @@ for ((r = 1; r <= ROUNDS; r++)); do
   row "$r" "$s1" "$s2"
   f1+=("$s1") f2+=("$s2")
 done
-row median "$(med "${f1[@]}")" "$(med "${f2[@]}")"
+m1=$(med "${f1[@]}") m2=$(med "${f2[@]}")
+row median "$m1" "$m2"
+over=0
+if [[ -n ${BENCH_LIMITS:-} ]]; then
+  # shellcheck source=bench-limits.sh
+  source "$BENCH_LIMITS"
+  over_limit() { awk -v v="$2" -v max="$3" 'BEGIN { exit !(v > max) }' && { echo "SLOW: $1 took ${2} s, the limit is ${3} s ($BENCH_LIMITS)"; over=1; }; } # WHAT SECONDS MAX
+  over_limit "median first scan" "$m1" "$SCAN_FIRST_MAX" || true
+  over_limit "median scan again" "$m2" "$SCAN_AGAIN_MAX" || true
+fi
 
 forget
 echo "slowest items, first:"
@@ -80,3 +92,4 @@ if command -v apt-get >/dev/null; then
     exit 1
   fi
 fi
+((over == 0))
