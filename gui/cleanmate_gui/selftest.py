@@ -1388,6 +1388,8 @@ def settings_test(win, report, wait, finish):
     low disk alert off (the daily check timer comes and goes), pick a language (Restart starts the app
     again, here through a stub), forget remembered selections and add and remove a Never clean folder."""
     from .engine import Engine
+    from .messages import human
+    from .settings import auto_last_text
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
     conf = os.path.join(home, ".config", "cleanmate")
@@ -1412,6 +1414,8 @@ def settings_test(win, report, wait, finish):
     os.makedirs(os.path.dirname(log))
     with open(log, "w") as f:
         f.write("2026-01-02 03:04:05 trash /home/alex/old.iso\n2026-01-03 10:00:00 Cleanup finished — 1.0 MB freed\n")
+    with open(os.path.join(state, "cleanmate", "auto-state"), "w") as f:  # the timer's last clean failed
+        f.write(f"last_items=npm\nlast_result=failed\nlast_time={int(time.time())}\nlast_why=task_failed\n")
     env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"), "XDG_STATE_HOME": state,
            "CLEANMATE_NO_UPDATE_CHECK": "1",
            "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
@@ -1430,7 +1434,7 @@ def settings_test(win, report, wait, finish):
     def done():
         dialog.close()
         shutil.rmtree(sandbox, ignore_errors=True)
-        docker_entries_test(win, report, wait, finish)
+        low_disk_alert_test(win, report, wait, finish)
 
     def first():
         report("schedule" in page.rows or os.geteuid() == 0, "Settings opens from the main menu")
@@ -1452,6 +1456,13 @@ def settings_test(win, report, wait, finish):
         report(all(page.rows.get(f"group_{g}") and page.rows[f"group_{g}"].get_active()
                    for g in ("system", "logs", "user", "ai", "dev", "privacy")),
                "Scan groups: a switch per group, all on by default")
+        last = page.rows.get("auto_last")
+        failed = _("couldn't clean {items}").format(items=i18n.item_text("npm cache"))
+        report(last is not None and failed in last.get_subtitle(),
+               f"Automatic cleaning shows the last run and why it failed: {last and last.get_subtitle()}")
+        freed = auto_last_text({"time": int(time.time()), "result": "ok", "freed": 1048576, "retrying": True})
+        report(human(1048576) in freed and _("The last try didn't finish: it tries again within the hour") in freed,
+               f"… or what it freed, and that it tries again: {freed}")
         row.set_value(30)
         wait(idle, dry_changed, 30, "dry-run change")
 
@@ -1571,6 +1582,48 @@ def settings_test(win, report, wait, finish):
         done()
 
     wait(idle, first, 30, "first settings")
+
+
+def low_disk_alert_test(win, report, wait, finish):
+    """The low disk alert of a throwaway home with a fake `df` (5 % free): the app sends it as a Gio
+    notification, never notify-send (missing in the Flatpak and without libnotify-bin), once a day."""
+    from .engine import Engine
+    app = win.get_application()
+    if os.geteuid() == 0:  # the engine refuses checks as root
+        report(True, "low disk alert skipped as root")
+        return docker_entries_test(win, report, wait, finish)
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
+    os.makedirs(home)
+    os.makedirs(bin_dir)
+    for name, text in (("df", '#!/bin/sh\necho "1B-blocks Avail"\necho "100000000000 5000000000"\n'),
+                       ("notify-send", '#!/bin/sh\necho "$*" >>"$HOME/notify.log"\n'),
+                       ("systemctl", "#!/bin/sh\nexit 0\n")):
+        with open(os.path.join(bin_dir, name), "w") as f:
+            f.write(text)
+        os.chmod(os.path.join(bin_dir, name), 0o755)
+    env = {"HOME": home, "XDG_CONFIG_HOME": os.path.join(home, ".config"),
+           "XDG_STATE_HOME": os.path.join(home, ".local", "state"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+           "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
+    engine = Engine(win.engine.path, env=env)
+    real_notify = app.send_notification
+    sent, runs = [], []
+    app.send_notification = lambda nid, note: sent.append(nid)
+
+    def first():
+        report(sent == ["check-low_disk"] and not os.path.exists(os.path.join(home, "notify.log")),
+               f"a due low disk alert is sent by the app, not notify-send: {sent}")
+        app.check_disk(engine, lambda ok, status: runs.append(2))
+        wait(lambda: len(runs) == 2, second, 30, "low disk check again")
+
+    def second():
+        report(sent == ["check-low_disk"], "once a day: the next check sends nothing")
+        app.send_notification = real_notify
+        shutil.rmtree(sandbox, ignore_errors=True)
+        docker_entries_test(win, report, wait, finish)
+
+    app.check_disk(engine, lambda ok, status: runs.append(1))
+    wait(lambda: runs, first, 30, "low disk check")
 
 
 DOCKER_STUB = """#!/bin/sh
@@ -2699,6 +2752,11 @@ def flatpak_welcome_test(win, report, wait, finish):
                f"no automatic cleaning or scan reminder: {rows}")
         report(root or settings.limits_row is not None and _("Limits of the Flatpak") in labels(settings),
                "Settings of the Flatpak links to its limits")
+        only_open = _("A notification when the disk is almost full, only when you open CleanMate: the "
+                      "Flatpak can't check in the background")
+        report(root or dialog.options.rows["low_disk_pct"].get_subtitle() == only_open
+               and settings.rows["low_disk_pct"].get_subtitle() == only_open,
+               "the Flatpak's low disk alert says it only warns when CleanMate opens")
         win._open_url = real_open
         honest_results_test(win, report, wait, finish)
 

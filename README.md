@@ -143,7 +143,10 @@ junk and the caches AI tools rebuild, and notifies you: *"Freed 1.2 GB. Worth a 
 cache 2.0 GB, Google Chrome 1.8 GB."* It never empties the Trash, never touches browsers, apps, AI
 chat history or models, Docker volumes, stopped containers or project build folders and never needs
 your password. On a laptop it runs only when plugged in: a clean due while on battery waits until
-you plug it in (*Settings → Run even on battery* turns this off). In the desktop app it's in *Settings* in the main
+you plug it in (*Settings → Run even on battery* turns this off). A clean that fails or is cut short (sleep,
+logging out) is tried again within the hour, up to 3 times; after that it waits for the next scheduled time and
+notifies you once: *"Couldn't finish automatic cleaning"*. *Settings → Automatic cleaning → Last run* shows when it
+last ran and what it freed, or why it failed. In the desktop app it's in *Settings* in the main
 menu (Ctrl+,); both apps share the same settings. The timer runs the installed `cleanmate`: `/usr/bin/cleanmate`
 from the PPA or the `.deb`, `/snap/bin/cleanmate` from the snap (so it keeps working after the snap updates), or the
 copy `cm --install` made. A git clone that isn't installed is run from where it is, and you're asked to install the
@@ -157,8 +160,9 @@ Smart Scan, `--scan`, `--clean` and automatic cleaning leave it out.
 CleanMate notifies you when `/` has less than 10 % free (*Settings → Low disk alert*: 5–20 % or
 Off; once a day at most) and, if you turn on *Settings → Scan reminder*, when you haven't scanned
 for a week or a month. A daily systemd user timer (`cleanmate-check.timer`) checks while either is
-on, and the desktop app checks the disk when it opens. Click the notification to open CleanMate.
-Check now with `cm --check`.
+on, and the desktop app checks the disk when it opens and sends the alert itself, so it also
+reaches you without `notify-send` (in the Flatpak, or without `libnotify-bin`). Click the notification to open
+CleanMate. Check now with `cm --check`; it says so when `notify-send` is missing and nothing can be sent.
 
 ## Command line & AI agents
 

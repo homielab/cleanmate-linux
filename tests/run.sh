@@ -1412,6 +1412,74 @@ test_auto_clean_waits_for_ac_power() {
   (($(cat "$st/auto-last") > $(date -d "1 hour ago" +%s))) && ok_ "the stamp is written" || fail "the stamp is not updated"
 }
 
+# The stamp is written once a timer's clean has finished: a failed or interrupted try is retried by the hourly
+# run, up to 3 tries a period; then it gives up for the period with one notification. Settings shows the last run.
+test_auto_clean_retries_until_it_finishes() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/autobin out u=$HOME_DIR/.config/systemd/user st=$HOME_DIR/.local/state/cleanmate log=$HOME_DIR/notify.log
+  local period i last='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "auto_last":
+        print(e["result"] or "-", e["freed"], e["reason"] or "-", e["items"], e["retrying"])'
+  mkdir -p "$bin" "$HOME_DIR/.local/bin" "$u" "$st"
+  printf '#!/bin/sh\nexit 0\n' >"$HOME_DIR/.local/bin/systemctl"
+  printf '#!/bin/sh\necho "$*" >>"$HOME/notify.log"\n' >"$bin/notify-send"
+  printf '#!/bin/sh\nexit 1\n' >"$bin/npm" # npm cache clean fails
+  chmod 755 "$HOME_DIR/.local/bin/systemctl" "$bin/"*
+  printf '[Timer]\nOnCalendar=weekly\nOnCalendar=hourly\n' >"$u/cleanmate.timer"
+  select_only npm
+  local BASE_PATH="$bin:$BASE_PATH"
+  sized "$HOME_DIR/.npm/_cacache/content-v2/x" 5000
+  : >"$log"
+  # a failed try leaves the period due; the hourly run tries again and writes the stamp once it finishes
+  out=$(CLEANMATE_TIMER=1 user_cm --auto 2>&1 </dev/null)
+  assert_contains "$out" "Not everything could be cleaned (try 1 of 3): it tries again within the hour."
+  assert_missing "$st/auto-last"
+  assert_contains "$(cat "$st/auto-state")" "tries=1"
+  assert_eq "$(user_cm --json settings | python3 -c "$last")" "- 0 - [] True" "Settings: trying again, no run yet"
+  printf '#!/bin/sh\nrm -r "$HOME/.npm/_cacache"\n' >"$bin/npm" # and now it works
+  CLEANMATE_TIMER=1 user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_missing "$HOME_DIR/.npm/_cacache"
+  assert_exists "$st/auto-last"
+  assert_contains "$(cat "$st/auto-state")" $'last_result=ok\nlast_time='
+  assert_contains "$(cat "$st/auto-state")" "tries=0"
+  out=$(user_cm --json settings | python3 -c "$last")
+  [[ $out == "ok "[1-9]*" - [] False" ]] && ok_ "Settings: the last run and what it freed" || fail "auto_last: $out"
+  out=$(CLEANMATE_TIMER=1 user_cm --auto 2>&1 </dev/null)
+  assert_eq "$out" "" "finished this period: the hourly run does nothing"
+  # three failed tries: it gives up for the period, writes the stamp and notifies once
+  printf '#!/bin/sh\nexit 1\n' >"$bin/npm"
+  sized "$HOME_DIR/.npm/_cacache/content-v2/x" 5000
+  rm "$st/auto-last" "$st/auto-state"
+  : >"$log"
+  for i in 1 2; do
+    CLEANMATE_TIMER=1 user_cm --auto >/dev/null 2>&1 </dev/null
+    assert_missing "$st/auto-last"
+  done
+  out=$(CLEANMATE_TIMER=1 user_cm --auto 2>&1 </dev/null)
+  assert_contains "$out" "automatic Smart Clean couldn't finish in 3 tries"
+  assert_exists "$st/auto-last"
+  assert_eq "$(grep -c "Couldn't finish automatic cleaning" "$log")" 1 "one failure notification"
+  assert_contains "$(cat "$log")" "Couldn't clean npm cache."
+  assert_contains "$(cat "$st/auto-state")" "last_result=failed"
+  out=$(CLEANMATE_TIMER=1 user_cm --auto 2>&1 </dev/null)
+  assert_eq "$out" "" "gave up: nothing until the next period"
+  assert_eq "$(grep -c "Couldn't finish automatic cleaning" "$log")" 1 "still one failure notification"
+  assert_eq "$(user_cm --json settings | python3 -c "$last")" "failed 0 task_failed ['npm cache'] False" "Settings: failed"
+  # tries stopped before they ended (sleep, log out) count too: the 4th start gives up
+  period=$(in_app 'schedule_get() { echo weekly; }; auto_periodv p; echo $p')
+  rm "$st/auto-last"
+  printf 'period=%s\nrunning=1\ntries=3\n' "$period" >"$st/auto-state"
+  : >"$log"
+  out=$(CLEANMATE_TIMER=1 user_cm --auto 2>&1 </dev/null)
+  assert_contains "$out" "couldn't finish in 3 tries"
+  assert_contains "$(cat "$st/auto-state")" "last_why=interrupted"
+  assert_contains "$(cat "$log")" "It was stopped 3 times before it finished"
+  assert_exists "$HOME_DIR/.npm/_cacache/content-v2/x"
+}
+
 # Automatic cleaning cleans the AI caches the tools make again, never their history or models.
 test_auto_clean_cleans_ai_caches_only() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
@@ -3382,6 +3450,48 @@ for l in sys.stdin:
   user_cm --json settings-set low_disk_pct 0 >/dev/null
   assert_missing "$u/cleanmate-check.timer"
   assert_contains "$(cat "$HOME_DIR/systemctl.log")" "--user disable --now cleanmate-check.timer"
+}
+
+# The low disk alert reaches you without notify-send (the Flatpak, no libnotify-bin): --json check hands the
+# notification to the desktop app, which sends it; --check says it can't send any.
+test_low_disk_alert_without_notify_send() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  ((EUID != 0)) || { SKIPPED="settings are per user"; return; }
+  fresh_home
+  local bin=$WORK/dfbin out st=$HOME_DIR/.local/state/cleanmate log=$HOME_DIR/notify.log
+  local ev='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "check":
+        n = e.get("notify") or {}
+        print(e["due"], e["notified"], n.get("code"), n.get("args"), n.get("title"), n.get("urgency"))'
+  mkdir -p "$bin" "$HOME_DIR/.local/bin" "$st"
+  printf '#!/bin/sh\necho "1B-blocks Avail"\necho "100000000000 5000000000"\n' >"$bin/df" # 5 % free
+  printf '#!/bin/sh\nexit 0\n' >"$HOME_DIR/.local/bin/systemctl"
+  chmod +x "$bin/df" "$HOME_DIR/.local/bin/systemctl"
+  # with notify-send on PATH the app still sends it (never both): the engine only hands it over
+  mkdir -p "$WORK/notifybin"
+  printf '#!/bin/sh\necho "$*" >>"$HOME/notify.log"\n' >"$WORK/notifybin/notify-send"; chmod +x "$WORK/notifybin/notify-send"
+  out=$(BASE_PATH="$bin:$WORK/notifybin:$BASE_PATH" cm --json check low_disk | python3 -c "$ev")
+  assert_eq "$out" "True True low_disk {'bytes': '5000000000', 'pct': '5'} Disk almost full critical" \
+    "--json check: the notification for the app to send"
+  assert_missing "$log"
+  out=$(BASE_PATH="$bin:$WORK/notifybin:$BASE_PATH" cm --json check low_disk | python3 -c "$ev")
+  assert_eq "$out" "True False None None None None" "--json check: once a day"
+  # --check without notify-send: nothing is marked sent, one line says why
+  rm "$st/notified.tsv"
+  out=$(BASE_PATH="$bin:$(path_without notify-send)" cm --check)
+  assert_contains "$out" "Low disk alert: 5% free on / (below 10%), not notified"
+  assert_eq "$(grep -c 'notify-send is missing' <<<"$out")" 1 "one line says notify-send is missing"
+  assert_missing "$st/notified.tsv"
+  # … and the app, opened later, still gets it
+  out=$(BASE_PATH="$bin:$(path_without notify-send)" cm --json check low_disk | python3 -c "$ev")
+  assert_contains "$out" "True True low_disk"
+  # nothing to say when the alert and the reminder are off
+  echo "low_disk_pct=0" >"$HOME_DIR/.config/cleanmate/settings"
+  out=$(BASE_PATH="$bin:$(path_without notify-send)" cm --check)
+  [[ $out != *notify-send* ]] && ok_ "no notify-send line when both are off" || fail "notify-send line with both off: $out"
+  rm -r "$bin" "$WORK/notifybin"
 }
 
 test_never_clean_exclusions() {

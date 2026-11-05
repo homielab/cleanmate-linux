@@ -50,7 +50,7 @@ SYS_DISK=/ # the disk the free-space figures are about; the Flatpak can't see /,
 ((FLATPAK)) && SYS_DISK=$HOME
 LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/cleanmate"
 LOG_FILE="$LOG_DIR/clean.log"
-AUTO_STAMP="$LOG_DIR/auto-last" # when the cleaning timer last started a clean (epoch)
+AUTO_STAMP="$LOG_DIR/auto-last" # when the cleaning timer last finished (or gave up on) a period's clean (epoch)
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cleanmate"
 
 UPDATE_REPO=${CLEANMATE_REPO:-homielab/cleanmate-linux}
@@ -10564,11 +10564,21 @@ outside_exclusions() { # VAR START… → VAR = the starting folders (tidied) th
   done
 }
 
-notify() { # CODE TITLE BODY ICON URGENCY [KEY VALUE]…
+NOTE_JSON="" # --json check: the notification the desktop app sends itself (notify)
+
+notify() { # CODE TITLE BODY ICON URGENCY [KEY VALUE]… — false when it can't be sent (no notify-send)
   # desktop-entry names our launcher, so clicking the notification opens CleanMate (GNOME); the snap's
   # launcher is <snap>_cleanmate.desktop
-  have notify-send || return 0
-  local entry=$APP_ID title=$2 body=$3 text
+  local entry=$APP_ID title=$2 body=$3 text v a="" i
+  if ((JSON)); then # the desktop app asked (--json check): it sends it, in its language, through GLib (the
+    # notification portal in the Flatpak, where notify-send can't reach the desktop)
+    local -a kv=("${@:6}")
+    for ((i = 0; i + 1 < ${#kv[@]}; i += 2)); do json_str v "${kv[i + 1]}"; a+=${a:+,}"\"${kv[i]}\":$v"; done
+    json_str title "$2"; json_str body "$3"
+    NOTE_JSON="{\"code\":\"$1\",\"title\":$title,\"body\":$body,\"icon\":\"${4:-user-trash-full}\",\"urgency\":\"${5:-normal}\",\"args\":{$a}}"
+    return 0
+  fi
+  have notify-send || return 1
   [[ -n ${SNAP_INSTANCE_NAME:-} ]] && entry=${SNAP_INSTANCE_NAME}_cleanmate
   # in the language of the desktop app, when it is here: it translates the code (English otherwise)
   if text=$(notify_text "$1" "${@:6}") && [[ $text == *$'\n'* ]]; then title=${text%%$'\n'*} body=${text#*$'\n'}; fi
@@ -10719,9 +10729,10 @@ last_scan_time() { # VAR → VAR = epoch of the last scan or cleanup by either a
   return 0
 }
 
-check_low_disk() { # → CK_DUE, CK_SENT, CK_PCT (free %, floor), CK_AVAIL; notifies at most once a day
-  local size avail at
-  CK_DUE=0 CK_SENT=0 CK_PCT=-1 CK_AVAIL=0
+check_low_disk() { # → CK_DUE, CK_SENT, CK_UNSENT (due but notify-send is missing), CK_PCT (free %, floor), CK_AVAIL;
+  # notifies at most once a day (--json: NOTE_JSON for the desktop app to send)
+  local size avail at sent=0
+  CK_DUE=0 CK_SENT=0 CK_UNSENT=0 CK_PCT=-1 CK_AVAIL=0 NOTE_JSON=""
   read -r size avail < <(LC_ALL=C df -B1 --output=size,avail "$SYS_DISK" 2>/dev/null | tail -n 1)
   [[ $size =~ ^[0-9]+$ && $avail =~ ^[0-9]+$ ]] && ((size > 0)) || return 0
   CK_PCT=$((avail * 100 / size)) CK_AVAIL=$avail
@@ -10731,13 +10742,13 @@ check_low_disk() { # → CK_DUE, CK_SENT, CK_PCT (free %, floor), CK_AVAIL; noti
   ((EPOCHSECONDS - at >= 86400)) || return 0
   ((DRY_RUN)) && return 0
   notify low_disk "Disk almost full" "Only $(human "$avail") ($CK_PCT%) free on /. Open CleanMate to free up space." \
-    drive-harddisk critical bytes "$avail" pct "$CK_PCT"
-  mark_notified low_disk && CK_SENT=1
+    drive-harddisk critical bytes "$avail" pct "$CK_PCT" && sent=1
+  if ((sent)); then mark_notified low_disk && CK_SENT=1; else CK_UNSENT=1; fi # unsent: the desktop app sends it when it opens
 }
 
-check_remind() { # → CK_DUE, CK_SENT, CK_LAST (epoch of the last scan, 0 = never); notifies once per period
-  local days at
-  CK_DUE=0 CK_SENT=0
+check_remind() { # → CK_DUE, CK_SENT, CK_UNSENT, CK_LAST (epoch of the last scan, 0 = never); notifies once per period
+  local days at sent=0
+  CK_DUE=0 CK_SENT=0 CK_UNSENT=0 NOTE_JSON=""
   last_scan_time CK_LAST
   [[ $REMIND != off ]] || return 0
   days=${REMIND_DAYS[$REMIND]}
@@ -10748,11 +10759,11 @@ check_remind() { # → CK_DUE, CK_SENT, CK_LAST (epoch of the last scan, 0 = nev
   ((DRY_RUN)) && return 0
   if ((CK_LAST)); then
     notify remind "Time for a Smart Scan" "Your last scan was $(((EPOCHSECONDS - CK_LAST) / 86400)) days ago. Open CleanMate to see what can be cleaned." \
-      system-search normal days "$(((EPOCHSECONDS - CK_LAST) / 86400))"
+      system-search normal days "$(((EPOCHSECONDS - CK_LAST) / 86400))" && sent=1
   else
-    notify remind_first "Time for a Smart Scan" "Open CleanMate to see what can be cleaned." system-search
+    notify remind_first "Time for a Smart Scan" "Open CleanMate to see what can be cleaned." system-search && sent=1
   fi
-  mark_notified remind && CK_SENT=1
+  if ((sent)); then mark_notified remind && CK_SENT=1; else CK_UNSENT=1; fi
 }
 
 check_timer_sync() { # turn cleanmate-check.timer on while the low disk alert or the scan reminder is on, else off
@@ -10806,6 +10817,7 @@ run_checks() { # --check: the low disk alert and the scan reminder, one line eac
         if ((CK_PCT < 0)); then printf 'Low disk alert: could not read the free space of /\n'
         elif ((!LOW_DISK_PCT)); then printf 'Low disk alert: off (%d%% free on /)\n' "$CK_PCT"
         elif ((CK_SENT)); then printf 'Low disk alert: notified, %d%% free on / (below %d%%)\n' "$CK_PCT" "$LOW_DISK_PCT"
+        elif ((CK_UNSENT)); then printf 'Low disk alert: %d%% free on / (below %d%%), not notified\n' "$CK_PCT" "$LOW_DISK_PCT"
         elif ((CK_DUE)); then printf 'Low disk alert: %d%% free on / (below %d%%), already notified today%s\n' \
           "$CK_PCT" "$LOW_DISK_PCT" "$( ((DRY_RUN)) && echo " or dry run")"
         else printf 'Low disk alert: fine, %d%% free on / (alert below %d%%)\n' "$CK_PCT" "$LOW_DISK_PCT"; fi ;;
@@ -10814,10 +10826,16 @@ run_checks() { # --check: the low disk alert and the scan reminder, one line eac
         last=never; ((CK_LAST)) && last="$(((EPOCHSECONDS - CK_LAST) / 86400)) days ago"
         if [[ $REMIND == off ]]; then printf 'Scan reminder: off (last scan: %s)\n' "$last"
         elif ((CK_SENT)); then printf 'Scan reminder: notified (last scan: %s)\n' "$last"
+        elif ((CK_UNSENT)); then printf 'Scan reminder: due (last scan: %s), not notified\n' "$last"
         elif ((CK_DUE)); then printf 'Scan reminder: due (last scan: %s), already reminded%s\n' "$last" "$( ((DRY_RUN)) && echo " or dry run")"
         else printf 'Scan reminder: %s, last scan %s\n' "$REMIND" "$last"; fi ;;
     esac
   done
+  # without notify-send these checks can't show anything; say so, whether or not one is due now
+  if ! have notify-send && { ((LOW_DISK_PCT > 0)) || [[ $REMIND != off ]]; }; then
+    if ((FLATPAK)); then printf 'Notifications: none from here in the Flatpak; the low disk alert shows when you open CleanMate\n'
+    else printf 'Notifications: notify-send is missing, so none are sent (install libnotify-bin); the low disk alert shows when you open CleanMate\n'; fi
+  fi
 }
 
 json_check() { # [KIND…] — the same checks for the desktop app: one "check" event per kind
@@ -10833,13 +10851,13 @@ json_check() { # [KIND…] — the same checks for the desktop app: one "check" 
       low_disk)
         check_low_disk
         due=false sent=false; ((CK_DUE)) && due=true; ((CK_SENT)) && sent=true
-        printf '{"event":"check","kind":"low_disk","due":%s,"notified":%s,"free_pct":%d,"avail":%d,"threshold":%d}\n' \
-          "$due" "$sent" "$CK_PCT" "$CK_AVAIL" "$LOW_DISK_PCT" ;;
+        printf '{"event":"check","kind":"low_disk","due":%s,"notified":%s,"free_pct":%d,"avail":%d,"threshold":%d%s}\n' \
+          "$due" "$sent" "$CK_PCT" "$CK_AVAIL" "$LOW_DISK_PCT" "${NOTE_JSON:+,\"notify\":$NOTE_JSON}" ;;
       remind)
         check_remind
         due=false sent=false; ((CK_DUE)) && due=true; ((CK_SENT)) && sent=true
-        printf '{"event":"check","kind":"remind","due":%s,"notified":%s,"last_scan":%d,"every":"%s"}\n' \
-          "$due" "$sent" "$CK_LAST" "$REMIND" ;;
+        printf '{"event":"check","kind":"remind","due":%s,"notified":%s,"last_scan":%d,"every":"%s"%s}\n' \
+          "$due" "$sent" "$CK_LAST" "$REMIND" "${NOTE_JSON:+,\"notify\":$NOTE_JSON}" ;;
     esac
   done
   printf '{"event":"done"}\n'
@@ -11307,23 +11325,102 @@ on_battery() {
   ((bat))
 }
 
-auto_due() { # → true when the timer's clean is due: none since the schedule's last time (daily, Monday, the 1st)
-  local last since
+auto_periodv() { # VAR → epoch the schedule's current period began (daily: midnight, weekly: Monday, monthly:
+  # the 1st); false when automatic cleaning is off
+  local -n __ap=$1
   case $(schedule_get) in
-    daily) since=$(date -d 'today 00:00' +%s) ;;
-    weekly) since=$(date -d "$(date +%F) -$(($(date +%u) - 1)) days" +%s) ;;
-    monthly) since=$(date -d "$(date +%Y-%m-01)" +%s) ;;
+    daily) __ap=$(date -d 'today 00:00' +%s) ;;
+    weekly) __ap=$(date -d "$(date +%F) -$(($(date +%u) - 1)) days" +%s) ;;
+    monthly) __ap=$(date -d "$(date +%Y-%m-01)" +%s) ;;
     *) return 1 ;;
   esac
+}
+
+auto_due() { # → true when the timer's clean is due: none finished since the schedule's last time
+  local last since
+  auto_periodv since || return 1
   last=$(cat "$AUTO_STAMP" 2>/dev/null)
   [[ $last =~ ^[0-9]+$ ]] || return 0
   ((last < since))
 }
 
+# The timer's runs, for the hourly retries and Settings › Automatic cleaning (KEY=VALUE lines): period (its
+# start) and tries this period, running (a try started and hasn't ended: put to sleep, logged out, killed),
+# why / items (how this period's last try failed), last_time / last_result (ok, partial, failed) /
+# last_freed / last_why / last_items (the last run that finished or gave up), notified (the period whose
+# failure was notified).
+AUTO_STATE="$LOG_DIR/auto-state"
+AUTO_TRIES=3 # a period's clean that stops or fails this many times waits for the next period
+declare -A AUTO=()
+
+auto_state_load() { AUTO=(); load_kv "$AUTO_STATE" AUTO '^[a-z0-9_,]*$'; }
+
+auto_state_save() { # [KEY=VALUE]… — set these and write the file
+  local kv k
+  for kv; do AUTO[${kv%%=*}]=${kv#*=}; done
+  mkdir -p "$LOG_DIR" || return 1
+  for k in "${!AUTO[@]}"; do printf '%s=%s\n' "$k" "${AUTO[$k]}"; done | sort >"$AUTO_STATE.tmp" &&
+    mv -f "$AUTO_STATE.tmp" "$AUTO_STATE"
+}
+
+auto_try_start() { # PERIOD — a timer run begins a try; false when the period's tries are used up (it gives up)
+  auto_state_load
+  [[ ${AUTO[period]:-} == "$1" ]] || AUTO[period]=$1 AUTO[tries]=0 AUTO[running]=0 AUTO[why]="" AUTO[items]=""
+  ((${AUTO[running]:-0})) && AUTO[why]=interrupted AUTO[items]="" # the last try never got to its end
+  if ((${AUTO[tries]:-0} >= AUTO_TRIES)); then auto_give_up; return 1; fi
+  auto_state_save tries=$((${AUTO[tries]:-0} + 1)) running=1
+}
+
+auto_try_end() { # how the try ended: cleaned (also partly) → the period is done; a task failed → the hourly
+  # run tries again, AUTO_TRIES times at most
+  local i id result=ok failed_ids=()
+  if ((RUN_FAILED)); then
+    for ((i = 0; i < ${#T_STATE[@]}; i++)); do
+      [[ ${T_STATE[i]} == fail && ${T_FN[i]} == task_clean ]] && failed_ids+=("${T_ARG[i]}")
+    done
+    AUTO[why]=task_failed AUTO[items]=$(IFS=,; printf '%s' "${failed_ids[*]}") AUTO[running]=0
+    if ((${AUTO[tries]:-0} >= AUTO_TRIES)); then auto_give_up; return; fi
+    auto_state_save
+    printf '\nNot everything could be cleaned (try %d of %d): it tries again within the hour.\n' "${AUTO[tries]}" "$AUTO_TRIES"
+    log "Automatic cleaning failed (try ${AUTO[tries]} of $AUTO_TRIES): it tries again within the hour"
+    return 0
+  fi
+  for id in "${SCANNED[@]}"; do ((RES_RC[$id] == 3)) && result=partial; done
+  printf '%s\n' "$EPOCHSECONDS" >"$AUTO_STAMP"
+  auto_state_save tries=0 running=0 why= items= last_time="$EPOCHSECONDS" last_result=$result \
+    last_freed="${RUN_FREED:-0}" last_why= last_items=
+}
+
+auto_give_up() { # the period's clean stopped or failed AUTO_TRIES times: it waits for the next period; say so once
+  local id n=0 args=() failed_labels="" why=${AUTO[why]:-interrupted}
+  mkdir -p "$LOG_DIR" && printf '%s\n' "$EPOCHSECONDS" >"$AUTO_STAMP"
+  auto_state_save tries=0 running=0 last_time="$EPOCHSECONDS" last_result=failed last_freed=0 last_why="$why" \
+    last_items="${AUTO[items]:-}" why= items=
+  RUN_FAILED=1
+  printf "CleanMate — automatic Smart Clean couldn't finish in %d tries; it runs again at the next scheduled time.\n" "$AUTO_TRIES"
+  log "Automatic cleaning couldn't finish in $AUTO_TRIES tries ($why): it runs again at the next scheduled time"
+  [[ ${AUTO[notified]:-} == "${AUTO[period]}" ]] && return 0
+  for id in ${AUTO[last_items]//,/ }; do
+    [[ -n ${ITEM_LABEL[$id]:-} ]] || continue
+    args+=("item$((++n))" "${ITEM_LABEL[$id]}") failed_labels+=${failed_labels:+, }${ITEM_LABEL[$id]}
+  done
+  if [[ $why == task_failed ]] && ((n)); then
+    notify auto_failed "Couldn't finish automatic cleaning" "Couldn't clean $failed_labels. It runs again at the next scheduled time; open CleanMate to see why." \
+      dialog-warning normal reason "$why" "${args[@]}"
+  else
+    notify auto_failed "Couldn't finish automatic cleaning" "It was stopped $AUTO_TRIES times before it finished, for example by sleep or logging out. It runs again at the next scheduled time, or clean now in CleanMate." \
+      dialog-warning normal reason "$why" tries "$AUTO_TRIES"
+  fi
+  auto_state_save notified="${AUTO[period]}"
+}
+
 auto_mode() { # --auto: unattended Smart Clean of user, developer and AI cache junk, run by the timer
   INTERACTIVE=0 ASSUME_YES=1
-  local id b left=() left_args=() body title # left_args: itemN "BYTES LABEL", for the translated notification
-  [[ -n ${CLEANMATE_TIMER:-} ]] && ! auto_due && return 0 # the hourly catch-up, nothing due
+  local id b left=() left_args=() body title period="" # left_args: itemN "BYTES LABEL", for the translated notification
+  if [[ -n ${CLEANMATE_TIMER:-} ]]; then
+    auto_due || return 0 # the hourly catch-up, nothing due
+    auto_periodv period
+  fi
   if ((!AUTO_ON_BATTERY)) && on_battery; then
     printf 'CleanMate — automatic Smart Clean postponed: the computer is on battery.\n'
     if [[ -n ${CLEANMATE_TIMER:-} ]]; then printf 'It runs once the computer is plugged in.\n'
@@ -11331,7 +11428,9 @@ auto_mode() { # --auto: unattended Smart Clean of user, developer and AI cache j
     log "Automatic cleaning postponed: on battery, it runs once the computer is plugged in"
     return 0
   fi
-  [[ -n ${CLEANMATE_TIMER:-} ]] && mkdir -p "$LOG_DIR" && printf '%s\n' "$EPOCHSECONDS" >"$AUTO_STAMP"
+  # the stamp is written once the clean has finished (auto_try_end): a try put to sleep, logged out or failed
+  # leaves the period due, so the hourly run tries again
+  if [[ -n $period ]] && ! auto_try_start "$period"; then return 0; fi
   printf 'CleanMate — automatic Smart Clean (%s)\n\n' "$(date '+%F %T')"
   local -a cats
   smart_catsv cats
@@ -11361,6 +11460,7 @@ auto_mode() { # --auto: unattended Smart Clean of user, developer and AI cache j
     printf '\n  %s: %s\n' "$title" "$body"
     notify auto_clean "$title" "$body" user-trash-full normal freed "$RUN_FREED" "${left_args[@]}"
   fi
+  [[ -n $period ]] && auto_try_end
   check_low_disk # at most once a day, shared with the daily check
 }
 
@@ -12482,10 +12582,25 @@ json_setting() { # KEY → one "setting" event with what is in effect now
   esac
 }
 
+json_auto_last() { # the timer's last clean and whether it is trying again now (Settings › Automatic cleaning)
+  local id v items="" retrying=false period
+  auto_state_load
+  if ((${AUTO[tries]:-0} > 0)) && auto_periodv period && [[ ${AUTO[period]:-} == "$period" ]] && auto_due; then
+    retrying=true
+  fi
+  [[ ${AUTO[last_time]:-} =~ ^[0-9]+$ || $retrying == true ]] || return 0
+  for id in ${AUTO[last_items]//,/ }; do
+    [[ -n ${ITEM_LABEL[$id]:-} ]] && json_str v "${ITEM_LABEL[$id]}" && items+=${items:+,}$v
+  done
+  printf '{"event":"auto_last","time":%d,"result":"%s","freed":%d,"reason":"%s","items":[%s],"retrying":%s}\n' \
+    "${AUTO[last_time]:-0}" "${AUTO[last_result]:-}" "${AUTO[last_freed]:-0}" "${AUTO[last_why]:-}" "$items" "$retrying"
+}
+
 json_settings() {
   ((EUID != 0)) || { json_error per_user "Settings are per user: run this as yourself, not as root"; return 2; }
   local k
   for k in language schedule auto_on_battery remind "${SETTING_KEYS[@]}" selections recent_files exclusions "${SCAN_GROUPS[@]/#/group_}"; do json_setting "$k"; done
+  json_auto_last
   printf '{"event":"done","systemd":%s,"packaged":%s}\n' "$(json_bool user_timers)" "$(json_bool packaged)"
 }
 

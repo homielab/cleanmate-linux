@@ -6,6 +6,11 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Automatic cleaning tries again within the hour if it fails or your laptop sleeps, tells you if it still can't finish, and *Settings* shows its last run.
+- The low disk alert now reaches you in the Flatpak too: CleanMate warns you when you open it.
+
 ## [2.4.1] — 2026-11-06
 
 First published release of the 2.4 series (a 2.4.0 tag was never published).

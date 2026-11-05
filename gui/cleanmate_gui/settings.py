@@ -8,7 +8,8 @@ the engine's (`--json activity`). The language is the desktop app's own (the ter
 Never clean lists the folders of `~/.config/cleanmate/exclude` (`settings-set exclusions add|remove PATH`).
 The welcome's last step is this page with only the main rows (`keys`), so both save the same way.
 The low disk alert and the scan reminder are notifications the engine sends from a daily systemd user timer
-(`cleanmate-check.timer`, on while either is on) and, for the low disk alert, when the app opens.
+(`cleanmate-check.timer`, on while either is on) and, for the low disk alert, the app sends when it opens.
+Automatic cleaning shows how the timer's last clean went (the engine's `auto_last` event).
 In the Flatpak (no systemd timers), the rows that need them say so and a row links to the Flatpak's limits.
 """
 import datetime
@@ -71,12 +72,36 @@ def short_path(path):
 def flatpak_limits_row(window):
     """A row that opens the page about what the Flatpak can't do (Settings and the welcome)."""
     row = plain_row(Adw.ActionRow, title=_("Limits of the Flatpak"), activatable=True,
-                        subtitle=_("System files, Uninstaller, Startup Items, Maintenance and automatic cleaning "
-                                   "are out of its reach. The PPA, the .deb and the snap have them."))
+                        subtitle=_("System files, Uninstaller, Startup Items, Maintenance, automatic cleaning and "
+                                   "background notifications are out of its reach. The PPA, the .deb and the snap "
+                                   "have them."))
     row.add_prefix(Gtk.Image(icon_name="dialog-information-symbolic"))
     row.add_suffix(Gtk.Image(icon_name="adw-external-link-symbolic"))
     row.connect("activated", lambda *_a: window._open_url(FLATPAK_LIMITS_URL))
     return row
+
+
+def auto_last_text(e):
+    """Settings › Automatic cleaning › Last run: when the timer's last clean ran and how it went."""
+    lines = []
+    if e.get("time"):
+        when = GLib.DateTime.new_from_unix_local(e["time"]).format("%x %H:%M")
+        result = e.get("result")
+        if result == "failed":
+            items = [i18n.item_text(i) for i in e.get("items") or []]
+            reason = (_("couldn't clean {items}").format(items=", ".join(items))
+                      if e.get("reason") == "task_failed" and items else
+                      _("stopped before it finished, for example by sleep or logging out"))
+            lines.append(_("{when}, failed: {reason}").format(when=when, reason=reason))
+        elif result == "partial":
+            lines.append(_("{when}, partly done, freed {size}").format(when=when, size=messages.human(e.get("freed"))))
+        elif e.get("freed"):
+            lines.append(_("{when}, freed {size}").format(when=when, size=messages.human(e.get("freed"))))
+        else:
+            lines.append(_("{when}, nothing to clean").format(when=when))
+    if e.get("retrying"):
+        lines.append(_("The last try didn't finish: it tries again within the hour"))
+    return "\n".join(lines)
 
 
 class SettingsPage(Adw.PreferencesPage):
@@ -92,6 +117,7 @@ class SettingsPage(Adw.PreferencesPage):
         self.engine = window.engine
         self.settings = {}  # key → the engine's "setting" event
         self.info = {}  # the "done" or "error" event of the last load
+        self.auto_last = {}  # the "auto_last" event: the timer's last clean
         self.rows = {}  # key → row
         self.groups = []
         self.syncing = False  # a row moved by the page, not by you
@@ -119,13 +145,15 @@ class SettingsPage(Adw.PreferencesPage):
             self.window.set_busy(False)
         self.generation += 1
         gen = self.generation
-        settings, info = {}, {}
+        settings, info, auto_last = {}, {}, {}
         self.loading = True
         self.window.set_busy(True)
 
         def on_event(e):
             if e["event"] == "setting":
                 settings[e["key"]] = e
+            elif e["event"] == "auto_last":
+                auto_last.update(e)
             elif e["event"] in ("done", "error"):
                 info.update(e)
 
@@ -134,7 +162,7 @@ class SettingsPage(Adw.PreferencesPage):
                 return
             self.running, self.loading = None, False
             self.window.set_busy(False)
-            self.settings, self.info = settings, info
+            self.settings, self.info, self.auto_last = settings, info, auto_last
             self.build()
             self.next_change()  # what was asked while loading
 
@@ -176,6 +204,12 @@ class SettingsPage(Adw.PreferencesPage):
             battery.connect("notify::active", self.on_switch, "auto_on_battery")
             self.rows["auto_on_battery"] = battery
             auto.add(battery)
+        last = auto_last_text(self.auto_last) if not self.flatpak else ""
+        if last:
+            row = plain_row(Adw.ActionRow, title=_("Last run"), subtitle=last)
+            row.add_css_class("property")
+            self.rows["auto_last"] = row
+            auto.add(row)
         self.limits_row = None
         if self.flatpak:
             self.limits_row = flatpak_limits_row(self.window)
@@ -267,11 +301,16 @@ class SettingsPage(Adw.PreferencesPage):
             row.connect("notify::selected", self.on_language)
         elif key == "low_disk_pct":
             values = sorted(set(LOW_DISK) | {self.settings.get("low_disk_pct", {}).get("value", 10)})
-            row = plain_row(Adw.ComboRow, title=_("Low disk alert"),
-                               subtitle=_("A notification when the system disk is almost full. Checked daily and "
-                                          "when CleanMate opens.") if systemd else
-                               _("A notification when the system disk is almost full. Checked when CleanMate opens."),
-                               model=Gtk.StringList.new([low_disk_title(v) for v in values]))
+            if self.flatpak:
+                subtitle = _("A notification when the disk is almost full, only when you open CleanMate: the "
+                             "Flatpak can't check in the background")
+            elif systemd:
+                subtitle = _("A notification when the system disk is almost full. Checked daily and when CleanMate "
+                             "opens.")
+            else:
+                subtitle = _("A notification when the system disk is almost full. Checked when CleanMate opens.")
+            row = plain_row(Adw.ComboRow, title=_("Low disk alert"), subtitle=subtitle,
+                            model=Gtk.StringList.new([low_disk_title(v) for v in values]))
             row.values = values
             row.connect("notify::selected", self.on_low_disk)
         elif key == "remind":

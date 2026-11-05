@@ -350,7 +350,7 @@ class Engine:
         return self.run(["overview"], on_event, on_done)
 
     def check(self, kinds, on_event, on_done):
-        """Low disk alert / scan reminder: the engine sends the desktop notification itself."""
+        """Low disk alert / scan reminder: the engine decides; a `check` event with `notify` is for the app to send."""
         return self.run(["check", *kinds], on_event, on_done)
 
     def version(self):

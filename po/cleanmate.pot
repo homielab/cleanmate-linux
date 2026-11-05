@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-04 20:05+0000\n"
+"POT-Creation-Date: 2026-11-05 19:39+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: gui/cleanmate_gui/app.py:117
+#: gui/cleanmate_gui/app.py:138
 #, python-brace-format
 msgid "Engine not found: {path}"
 msgstr ""
@@ -46,7 +46,7 @@ msgstr ""
 #: gui/cleanmate_gui/bugreport.py:86 gui/cleanmate_gui/duplicates.py:681
 #: gui/cleanmate_gui/largefiles.py:462 gui/cleanmate_gui/maintenance.py:264
 #: gui/cleanmate_gui/scanpage.py:895 gui/cleanmate_gui/scanpage.py:1118
-#: gui/cleanmate_gui/settings.py:498 gui/cleanmate_gui/spacelens.py:651
+#: gui/cleanmate_gui/settings.py:537 gui/cleanmate_gui/spacelens.py:651
 #: gui/cleanmate_gui/startup.py:267 gui/cleanmate_gui/trashed.py:340
 #: gui/cleanmate_gui/uninstaller.py:597 gui/cleanmate_gui/uninstaller.py:823
 msgid "Cancel"
@@ -392,12 +392,12 @@ msgid_plural "Put back {n} files from the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/engine.py:20 gui/cleanmate_gui/settings.py:60
+#: gui/cleanmate_gui/engine.py:20 gui/cleanmate_gui/settings.py:61
 #: gui/cleanmate_gui/window.py:71
 msgid "System Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/settings.py:60
+#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/settings.py:61
 #: gui/cleanmate_gui/window.py:73
 msgid "Logs"
 msgstr ""
@@ -414,7 +414,7 @@ msgstr ""
 msgid "App Caches"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/settings.py:60
+#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/settings.py:61
 #: gui/cleanmate_gui/window.py:77
 msgid "AI Tools"
 msgstr ""
@@ -423,12 +423,12 @@ msgstr ""
 msgid "AI Models"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:27 gui/cleanmate_gui/settings.py:61
+#: gui/cleanmate_gui/engine.py:27 gui/cleanmate_gui/settings.py:62
 #: gui/cleanmate_gui/window.py:80
 msgid "Developer Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:28 gui/cleanmate_gui/settings.py:61
+#: gui/cleanmate_gui/engine.py:28 gui/cleanmate_gui/settings.py:62
 #: gui/cleanmate_gui/welcome.py:113 gui/cleanmate_gui/window.py:83
 msgid "Privacy"
 msgstr ""
@@ -511,24 +511,24 @@ msgstr ""
 
 #: gui/cleanmate_gui/findbar.py:93 gui/cleanmate_gui/scanpage.py:204
 #: gui/cleanmate_gui/scanpage.py:591 gui/cleanmate_gui/scanpage.py:692
-#: gui/cleanmate_gui/settings.py:462
+#: gui/cleanmate_gui/settings.py:501
 #, python-brace-format
 msgid "Could not change it: {reason}"
 msgstr ""
 
 #: gui/cleanmate_gui/findbar.py:95 gui/cleanmate_gui/scanpage.py:593
-#: gui/cleanmate_gui/scanpage.py:696 gui/cleanmate_gui/settings.py:464
+#: gui/cleanmate_gui/scanpage.py:696 gui/cleanmate_gui/settings.py:503
 msgid "Dry run: nothing was saved"
 msgstr ""
 
 #: gui/cleanmate_gui/findbar.py:98 gui/cleanmate_gui/scanpage.py:596
-#: gui/cleanmate_gui/settings.py:487
+#: gui/cleanmate_gui/settings.py:526
 #, python-brace-format
 msgid "{folder} is never cleaned now"
 msgstr ""
 
 #: gui/cleanmate_gui/findbar.py:112 gui/cleanmate_gui/scanpage.py:607
-#: gui/cleanmate_gui/settings.py:488
+#: gui/cleanmate_gui/settings.py:527
 #, python-brace-format
 msgid "{folder} can be cleaned again"
 msgstr ""
@@ -1409,19 +1409,19 @@ msgid "This system doesn't use the systemd journal."
 msgstr ""
 
 #: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/overview.py:370
-#: gui/cleanmate_gui/settings.py:30 gui/cleanmate_gui/settings.py:36
+#: gui/cleanmate_gui/settings.py:31 gui/cleanmate_gui/settings.py:37
 msgid "Off"
 msgstr ""
 
-#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:30
+#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:31
 msgid "Daily"
 msgstr ""
 
-#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:30
+#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:31
 msgid "Weekly"
 msgstr ""
 
-#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:30
+#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/settings.py:31
 msgid "Monthly"
 msgstr ""
 
@@ -1592,7 +1592,7 @@ msgstr ""
 msgid "Not found"
 msgstr ""
 
-#: gui/cleanmate_gui/messages.py:94 gui/cleanmate_gui/settings.py:246
+#: gui/cleanmate_gui/messages.py:94 gui/cleanmate_gui/settings.py:280
 #: gui/cleanmate_gui/window.py:104
 msgid "Moved to the Trash"
 msgstr ""
@@ -1864,6 +1864,28 @@ msgstr ""
 #: gui/cleanmate_gui/messages.py:225
 #, python-brace-format
 msgid "Worth a look: {items}. Open CleanMate to review."
+msgstr ""
+
+#: gui/cleanmate_gui/messages.py:231
+#, python-brace-format
+msgid ""
+"Couldn't clean {items}. It runs again at the next scheduled time; open "
+"CleanMate to see why."
+msgstr ""
+
+#: gui/cleanmate_gui/messages.py:235
+#, python-brace-format
+msgid ""
+"It was stopped {n} time before it finished, for example by sleep or logging "
+"out. It runs again at the next scheduled time, or clean now in CleanMate."
+msgid_plural ""
+"It was stopped {n} times before it finished, for example by sleep or logging "
+"out. It runs again at the next scheduled time, or clean now in CleanMate."
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/messages.py:239
+msgid "Couldn't finish automatic cleaning"
 msgstr ""
 
 #: gui/cleanmate_gui/overview.py:35
@@ -2846,377 +2868,421 @@ msgstr ""
 msgid "Could not empty the Trash: {reason}"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:27
+#: gui/cleanmate_gui/settings.py:28
 msgid "Same as system"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:36
+#: gui/cleanmate_gui/settings.py:37
 #, python-brace-format
 msgid "Below {pct} free"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:41
+#: gui/cleanmate_gui/settings.py:42
 msgid "Journal logs"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:41
+#: gui/cleanmate_gui/settings.py:42
 msgid "Days of system logs to keep"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:42
+#: gui/cleanmate_gui/settings.py:43
 msgid "Journal size limit"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:42
+#: gui/cleanmate_gui/settings.py:43
 msgid "Megabytes of system logs to keep at most"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:43
+#: gui/cleanmate_gui/settings.py:44
 msgid "Oversized logs"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:43
+#: gui/cleanmate_gui/settings.py:44
 msgid "Empty live logs larger than this many megabytes"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:44
+#: gui/cleanmate_gui/settings.py:45
 msgid "App logs"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:44
+#: gui/cleanmate_gui/settings.py:45
 msgid "Clean when not written for this many days"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:45
+#: gui/cleanmate_gui/settings.py:46
 msgid "Temporary files"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:45
+#: gui/cleanmate_gui/settings.py:46
 msgid "Clean when older than this many days"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:46
+#: gui/cleanmate_gui/settings.py:47
 msgid "App caches"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:46
+#: gui/cleanmate_gui/settings.py:47
 msgid "Clean when not used for this many days"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:47
+#: gui/cleanmate_gui/settings.py:48
 msgid "Project build folders"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:48
+#: gui/cleanmate_gui/settings.py:49
 msgid ""
 "node_modules, Cargo target/, Python .venv/ and Pods/ of projects idle for "
 "this many days"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:50
+#: gui/cleanmate_gui/settings.py:51
 msgid "Old installers"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:50
+#: gui/cleanmate_gui/settings.py:51
 msgid "Offer installers in Downloads older than this many days"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:51
+#: gui/cleanmate_gui/settings.py:52
 msgid "Old downloads"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:51
+#: gui/cleanmate_gui/settings.py:52
 msgid ""
 "Offer files and folders in Downloads, and screenshots, not opened or changed "
 "for this many days"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:53
+#: gui/cleanmate_gui/settings.py:54
 msgid "AI chat history"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:53
+#: gui/cleanmate_gui/settings.py:54
 msgid "Clean AI sessions older than this many days"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:60 gui/cleanmate_gui/window.py:75
+#: gui/cleanmate_gui/settings.py:61 gui/cleanmate_gui/window.py:75
 msgid "User & App Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:73
+#: gui/cleanmate_gui/settings.py:74
 msgid "Limits of the Flatpak"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:74
+#: gui/cleanmate_gui/settings.py:75
 msgid ""
-"System files, Uninstaller, Startup Items, Maintenance and automatic cleaning "
-"are out of its reach. The PPA, the .deb and the snap have them."
+"System files, Uninstaller, Startup Items, Maintenance, automatic cleaning "
+"and background notifications are out of its reach. The PPA, the .deb and the "
+"snap have them."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:87 gui/cleanmate_gui/window.py:173
+#: gui/cleanmate_gui/settings.py:92
+#, python-brace-format
+msgid "couldn't clean {items}"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:94
+msgid "stopped before it finished, for example by sleep or logging out"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:95
+#, python-brace-format
+msgid "{when}, failed: {reason}"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:97
+#, python-brace-format
+msgid "{when}, partly done, freed {size}"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:99
+#, python-brace-format
+msgid "{when}, freed {size}"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:101
+#, python-brace-format
+msgid "{when}, nothing to clean"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:103
+msgid "The last try didn't finish: it tries again within the hour"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:112 gui/cleanmate_gui/window.py:173
 #: gui/cleanmate_gui/window.py:316 gui/cleanmate_gui/window.py:473
 msgid "Settings"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:153
+#: gui/cleanmate_gui/settings.py:181
 msgid "Can't read your settings"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:154
+#: gui/cleanmate_gui/settings.py:182
 msgid "The cleaning engine didn't answer."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:167 gui/cleanmate_gui/window.py:314
+#: gui/cleanmate_gui/settings.py:195 gui/cleanmate_gui/window.py:314
 msgid "General"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:170 gui/cleanmate_gui/settings.py:284
+#: gui/cleanmate_gui/settings.py:198 gui/cleanmate_gui/settings.py:323
 #: gui/cleanmate_gui/welcome.py:139
 msgid "Automatic cleaning"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:173
+#: gui/cleanmate_gui/settings.py:201
 msgid "Run even on battery"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:174
+#: gui/cleanmate_gui/settings.py:202
 msgid "Off: on a laptop, automatic cleaning waits until it is plugged in"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:184
+#: gui/cleanmate_gui/settings.py:209
+msgid "Last run"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:218
 msgid "Updates"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:185
+#: gui/cleanmate_gui/settings.py:219
 msgid "Daily update check"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:186
+#: gui/cleanmate_gui/settings.py:220
 msgid "A quiet check for a new version once a day"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:189
+#: gui/cleanmate_gui/settings.py:223
 msgid "Your package manager keeps CleanMate up to date"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:194
+#: gui/cleanmate_gui/settings.py:228
 msgid "Scan groups"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:194
+#: gui/cleanmate_gui/settings.py:228
 msgid ""
 "A group that is off is left out of Smart Scan, here and in the terminal app."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:205
+#: gui/cleanmate_gui/settings.py:239
 msgid "Keep for"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:205
+#: gui/cleanmate_gui/settings.py:239
 msgid ""
 "What cleaning leaves alone. Smart Scan uses the new values on its next scan."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:210
+#: gui/cleanmate_gui/settings.py:244
 msgid "Never clean"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:210
+#: gui/cleanmate_gui/settings.py:244
 msgid ""
 "Large & Old Files, Duplicates, Space Lens, project build folders, old "
 "installers and old downloads skip these folders, and nothing in them is "
 "moved to the Trash."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:213
+#: gui/cleanmate_gui/settings.py:247
 msgid "Add Folder…"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:221
+#: gui/cleanmate_gui/settings.py:255
 msgid "Your data"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:222
+#: gui/cleanmate_gui/settings.py:256
 msgid "Remembered selections"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:223 gui/cleanmate_gui/settings.py:499
+#: gui/cleanmate_gui/settings.py:257 gui/cleanmate_gui/settings.py:538
 #: gui/cleanmate_gui/uninstaller.py:824
 msgid "Reset"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:230
+#: gui/cleanmate_gui/settings.py:264
 msgid "Remember recent files"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:231
+#: gui/cleanmate_gui/settings.py:265
 msgid "Files and Open dialogs list the files you used lately"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:234
+#: gui/cleanmate_gui/settings.py:268
 msgid "Needs GNOME's gsettings, which isn't available here"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:239 gui/cleanmate_gui/settings.py:535
+#: gui/cleanmate_gui/settings.py:273 gui/cleanmate_gui/settings.py:574
 msgid "Activity log"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:239
+#: gui/cleanmate_gui/settings.py:273
 msgid "What was cleaned and when"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:247
+#: gui/cleanmate_gui/settings.py:281
 msgid "Put back what CleanMate moved to the Trash, also in earlier sessions"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:260
+#: gui/cleanmate_gui/settings.py:294
 msgid "Language"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:262
+#: gui/cleanmate_gui/settings.py:296
 msgid "Restart"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:270
-msgid "Low disk alert"
+#: gui/cleanmate_gui/settings.py:305
+msgid ""
+"A notification when the disk is almost full, only when you open CleanMate: "
+"the Flatpak can't check in the background"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:271
+#: gui/cleanmate_gui/settings.py:308
 msgid ""
 "A notification when the system disk is almost full. Checked daily and when "
 "CleanMate opens."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:273
+#: gui/cleanmate_gui/settings.py:311
 msgid ""
 "A notification when the system disk is almost full. Checked when CleanMate "
 "opens."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:278
+#: gui/cleanmate_gui/settings.py:312
+msgid "Low disk alert"
+msgstr ""
+
+#: gui/cleanmate_gui/settings.py:317
 msgid "Scan reminder"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:279
+#: gui/cleanmate_gui/settings.py:318
 msgid ""
 "A notification when you haven't scanned for a while. Click it to open "
 "CleanMate."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:285
+#: gui/cleanmate_gui/settings.py:324
 msgid ""
 "Runs a Smart Clean of user and developer junk and AI caches when the "
 "computer is plugged in, and tells you what it freed"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:291
+#: gui/cleanmate_gui/settings.py:330
 msgid "Not in the Flatpak: it can't start CleanMate on a schedule"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:292
+#: gui/cleanmate_gui/settings.py:331
 msgid "Needs systemd, which isn't available here"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:308
+#: gui/cleanmate_gui/settings.py:347
 #, python-brace-format
 msgid "From {min} to {max}, default {default}"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:334
+#: gui/cleanmate_gui/settings.py:373
 msgid ""
 "Restart CleanMate to use the new language. The system's language does not "
 "change."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:342
+#: gui/cleanmate_gui/settings.py:381
 msgid "No folders yet"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:346
+#: gui/cleanmate_gui/settings.py:385
 #, python-brace-format
 msgid "{n} remembered choice for Smart Scan"
 msgid_plural "{n} remembered choices for Smart Scan"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/settings.py:414
+#: gui/cleanmate_gui/settings.py:453
 msgid "Remove from the list"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:421
+#: gui/cleanmate_gui/settings.py:460
 msgid "Folder to never clean"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:466
+#: gui/cleanmate_gui/settings.py:505
 #, python-brace-format
 msgid "Automatic cleaning: {when}"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:467
+#: gui/cleanmate_gui/settings.py:506
 msgid "Automatic cleaning is off"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:469
+#: gui/cleanmate_gui/settings.py:508
 msgid "Automatic cleaning also runs on battery"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:470
+#: gui/cleanmate_gui/settings.py:509
 msgid "Automatic cleaning runs only when plugged in"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:472
+#: gui/cleanmate_gui/settings.py:511
 #, python-brace-format
 msgid "Scan reminder: {when}"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:473
+#: gui/cleanmate_gui/settings.py:512
 msgid "Scan reminder is off"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:475
+#: gui/cleanmate_gui/settings.py:514
 #, python-brace-format
 msgid "Low disk alert below {pct} free"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:476
+#: gui/cleanmate_gui/settings.py:515
 msgid "Low disk alert is off"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:479
+#: gui/cleanmate_gui/settings.py:518
 #, python-brace-format
 msgid "{group} is back in Smart Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:480
+#: gui/cleanmate_gui/settings.py:519
 #, python-brace-format
 msgid "{group} is left out of Smart Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:484
+#: gui/cleanmate_gui/settings.py:523
 msgid "Smart Scan is back to its default choices"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:496
+#: gui/cleanmate_gui/settings.py:535
 msgid "Forget remembered selections?"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:497
+#: gui/cleanmate_gui/settings.py:536
 msgid "Smart Scan goes back to its default choices."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:541
+#: gui/cleanmate_gui/settings.py:580
 msgid "Reading the log…"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:544
+#: gui/cleanmate_gui/settings.py:583
 msgid "Nothing yet"
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:545
+#: gui/cleanmate_gui/settings.py:584
 msgid "Nothing has been cleaned yet."
 msgstr ""
 
-#: gui/cleanmate_gui/settings.py:551
+#: gui/cleanmate_gui/settings.py:590
 msgid "Open the log folder"
 msgstr ""
 

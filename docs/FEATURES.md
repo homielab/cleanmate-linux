@@ -8,7 +8,8 @@ Everything the Ubuntu app does, in detail. Install and overview: [README](../REA
 **Desktop app** — the first time it opens, a short welcome shows in three steps what CleanMate
 cleans and how it keeps your files safe, what needs your password and what it never touches, and the
 main options (language, automatic cleaning — user and developer junk and AI caches, only when plugged in
-unless *Settings › Run even on battery* is on —, scan reminder, low disk alert); in the Flatpak it shows
+unless *Settings › Run even on battery* is on, retried within the hour when it fails, with its last run in
+*Settings* —, scan reminder, low disk alert, sent by the app itself when it opens); in the Flatpak it shows
 only what the Flatpak does (no password step, Uninstaller, terminal app or schedule) and links to its
 limits, as *Settings* does; *main menu → Getting
 Started…* shows it again; its last button, **Run Smart Scan**, starts the first scan. Then untick anything

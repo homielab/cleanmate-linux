@@ -9,7 +9,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
-from . import welcome  # noqa: E402
+from . import messages, welcome  # noqa: E402
 from .engine import Engine  # noqa: E402
 from .i18n import _  # noqa: E402
 
@@ -80,6 +80,27 @@ class App(Adw.Application):
         self.spawn(self.relaunch_argv())
         self.quit()
 
+    def check_disk(self, engine=None, on_done=None):
+        """The low disk alert: the engine decides (below Settings › Low disk alert, once a day at most) and the
+        app sends it, so it also reaches you where the engine's notify-send can't (the Flatpak, a system
+        without libnotify-bin)."""
+        return (engine or self.engine).check(["low_disk"], self.on_check, on_done or (lambda ok, status: None))
+
+    def on_check(self, e):
+        note = e.get("notify") if e.get("event") == "check" else None
+        if not note:
+            return
+        try:
+            title, body = messages.notification(note.get("code"), note.get("args") or {})
+        except (KeyError, TypeError, ValueError):
+            title, body = note.get("title") or "CleanMate", note.get("body") or ""
+        notification = Gio.Notification.new(title)
+        notification.set_body(body)
+        notification.set_icon(Gio.ThemedIcon.new(note.get("icon") or "dialog-warning"))
+        if note.get("urgency") == "critical":
+            notification.set_priority(Gio.NotificationPriority.URGENT)
+        self.send_notification(f"check-{e.get('kind', 'alert')}", notification)
+
     def do_activate(self):
         if self.window is not None:  # opened again (a second `cm --gui`, the app icon): this window comes up
             self.window.present()
@@ -96,9 +117,9 @@ class App(Adw.Application):
         if self.selftest:
             from .selftest import run
             run(self, win)
-        else:  # the low disk alert, in the background; no scan reminder while you have the app open
-            self.engine.check(["low_disk"], lambda e: None, lambda ok, status: None)
-            if welcome.is_new() and os.geteuid() != 0:  # root has no settings to save it in
+        elif os.geteuid() != 0:  # root has no settings: no low disk alert or welcome to save
+            self.check_disk()  # in the background; no scan reminder while you have the app open
+            if welcome.is_new():
                 win.show_welcome(first_run=True)
 
 

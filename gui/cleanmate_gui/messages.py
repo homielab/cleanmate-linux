@@ -5,7 +5,7 @@ Every `error` event, and every `task` event that says how something went, carrie
 module turns the code into translated text; an event without a code keeps its English text.
 The background notifications (low disk, scan reminder, automatic cleaning) come here too:
 the engine runs `python3 -m cleanmate_gui.messages notify CODE [KEY VALUE]…` and sends what
-it prints. So this module imports no GTK, only i18n.
+it prints, and the app sends the one `--json check` hands it. So this module imports no GTK, only i18n.
 
 tests/messages_test.py checks that every code the engine sends has a text here, translated.
 """
@@ -151,7 +151,7 @@ def texts():
 
 
 # the background notifications: (title, body) — see notification()
-NOTIFICATIONS = ("low_disk", "remind", "remind_first", "auto_clean")
+NOTIFICATIONS = ("low_disk", "remind", "remind_first", "auto_clean", "auto_failed")
 
 
 def _fields(args):
@@ -225,6 +225,18 @@ def notification(code, args):
             body = (body + " " if body else "") + _("Worth a look: {items}. Open CleanMate to review.").format(
                 items=", ".join(left))
         return title, body
+    if code == "auto_failed":
+        items = [item_text(args[k]) for k in sorted(k for k in args if k.startswith("item"))]
+        if args.get("reason") == "task_failed" and items:
+            body = _("Couldn't clean {items}. It runs again at the next scheduled time; open CleanMate to see "
+                     "why.").format(items=", ".join(items))
+        else:
+            n = int(args.get("tries", 3) or 3)
+            body = ngettext("It was stopped {n} time before it finished, for example by sleep or logging out. It "
+                            "runs again at the next scheduled time, or clean now in CleanMate.",
+                            "It was stopped {n} times before it finished, for example by sleep or logging out. It "
+                            "runs again at the next scheduled time, or clean now in CleanMate.", n)
+        return _("Couldn't finish automatic cleaning"), body
     raise KeyError(code)
 
 

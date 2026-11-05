@@ -86,6 +86,7 @@ def asked_texts():
         messages.texts(), messages.maint_missing(), messages._values()
         for code in messages.NOTIFICATIONS:
             messages.notification(code, SAMPLE_ARGS[code])
+        messages.notification("auto_failed", STOPPED)
         messages.text({"code": "trimmed", "args": {"n": "2"}})
     finally:
         messages._, messages.ngettext = real_, real_n
@@ -97,7 +98,9 @@ SAMPLE_ARGS = {
     "remind": {"days": "9"},
     "remind_first": {},
     "auto_clean": {"freed": "2147483648", "item1": "524288000 Thumbnail cache"},
+    "auto_failed": {"reason": "task_failed", "item1": "npm cache"},
 }
+STOPPED = {"reason": "interrupted", "tries": "3"}  # auto_failed's other text
 
 
 class EngineCodes(unittest.TestCase):
@@ -128,6 +131,8 @@ class EngineCodes(unittest.TestCase):
         for code in messages.NOTIFICATIONS:
             title, body = messages.notification(code, SAMPLE_ARGS[code])
             self.assertTrue(title and body and "{" not in title + body, code)
+        title, body = messages.notification("auto_failed", STOPPED)
+        self.assertTrue("3" in body and "{" not in title + body, body)
 
     def test_unknown_code_keeps_english(self):
         self.assertEqual(messages.text({"code": "no_such_code", "info": "as sent"}), "as sent")

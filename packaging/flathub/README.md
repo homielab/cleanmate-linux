@@ -62,8 +62,9 @@ The app says so instead of failing, and the full `.deb` version (PPA or Releases
   pre-selected, the scan says *close it first: the Flatpak can't see if it's open*, and the
   unattended clean (`--clean --yes`, `--auto`) skips them. Select one in the app after closing the
   program.
-- **No schedule and no reminders:** automatic cleaning and scan reminders use systemd user timers
-  on the host.
+- **No schedule and no background notifications:** automatic cleaning, scan reminders and the daily
+  low disk check use systemd user timers on the host. The low disk alert shows only when you open
+  CleanMate.
 
 The welcome promises only what the Flatpak does: no password step, no Uninstaller, no terminal app
 and no automatic cleaning; its second step says what the Flatpak reaches, and its options are the
