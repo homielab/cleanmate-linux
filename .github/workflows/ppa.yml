@@ -128,7 +128,7 @@ jobs:
         with:
           name: ppa-upload
           path: dist/ppa/
-          retention-days: 14
+          retention-days: 7
 
       # Launchpad's FTP sometimes answers "550 internal server error": retry.
       # -f: dput's log of a half-done upload would otherwise block the retry

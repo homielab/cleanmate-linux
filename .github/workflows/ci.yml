@@ -3,10 +3,17 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: &docs ["*.md", "docs/**", "screenshots/**"]
   pull_request:
+    paths-ignore: *docs
 
 permissions:
   contents: read
+
+# a newer push to the same branch cancels the run still going
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   SHELLCHECK_VERSION: "0.11.0" # newest release; bump on purpose, then fix what it reports
@@ -42,10 +49,10 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
         # vi_VN and de_DE write decimals with a comma: numbers must still parse and read the same
+        # (one job for both: each runs under a minute, and every job bills at least one)
         locale: [C.UTF-8]
         include:
-          - { os: ubuntu-24.04, locale: vi_VN.UTF-8 }
-          - { os: ubuntu-24.04, locale: de_DE.UTF-8 }
+          - { os: ubuntu-24.04, locale: vi_VN.UTF-8 de_DE.UTF-8 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -60,12 +67,13 @@ jobs:
         run: sudo locale-gen vi_VN.UTF-8 de_DE.UTF-8
       - name: Run tests
         env:
-          LANG: ${{ matrix.locale }}
-          LC_ALL: ${{ matrix.locale }}
+          LOCALES: ${{ matrix.locale }}
         # the decimal-comma languages only rerun the tests that format or sort numbers and texts
         run: |
-          if [[ $LC_ALL == C.UTF-8 ]]; then tests/run.sh
-          else tests/run.sh 'size|human|decimal|number|lang|transl|messages|large|lens|overview|history|free|disk|details'; fi
+          for l in $LOCALES; do
+            if [[ $l == C.UTF-8 ]]; then LANG=$l LC_ALL=$l tests/run.sh
+            else LANG=$l LC_ALL=$l tests/run.sh 'size|human|decimal|number|lang|transl|messages|large|lens|overview|history|free|disk|details'; fi
+          done
 
   ppa:
     name: PPA package (every series)
@@ -105,3 +113,4 @@ jobs:
         with:
           name: snap
           path: ${{ steps.build.outputs.snap }}
+          retention-days: 3

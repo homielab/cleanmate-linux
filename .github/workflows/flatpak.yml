@@ -3,10 +3,17 @@ name: Flatpak
 on:
   push:
     branches: [main]
+    paths-ignore: &docs ["*.md", "docs/**", "screenshots/**"]
   pull_request:
+    paths-ignore: *docs
 
 permissions:
   contents: read
+
+# a newer push to the same branch cancels the run still going
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
