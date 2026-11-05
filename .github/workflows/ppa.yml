@@ -130,11 +130,19 @@ jobs:
           path: dist/ppa/
           retention-days: 14
 
+      # Launchpad's FTP sometimes answers "550 internal server error": retry.
+      # -f: dput's log of a half-done upload would otherwise block the retry
+      # (the step above already keeps out versions Launchpad has).
       - name: Upload to the PPA
         if: steps.new.outputs.yes == 'true'
         run: |
           while read -r c; do
-            dput "$PPA" "$c"
+            for i in 1 2 3 4; do
+              dput -f "$PPA" "$c" && break
+              [ "$i" = 4 ] && exit 1
+              echo "::warning::Upload of ${c##*/} failed (try $i), retrying in $((i * 30)) s"
+              sleep $((i * 30))
+            done
             echo "::notice::Uploaded ${c##*/}. Launchpad emails contact@homielab.com when it's accepted (minutes, or hours when busy), then builds it."
           done < "$RUNNER_TEMP/upload"
 
