@@ -2046,7 +2046,8 @@ clean_entries_abandoned_downloads() { # encoded names (json_clean_entries only p
 # ── User ──
 
 scan_thumbs() {
-  du_sumv SCAN_BYTES "$HOME/.cache/thumbnails"
+  # file sizes only: the folders (4 KB each on ext4) are not freed, they stay
+  SCAN_BYTES=$(find "$HOME/.cache/thumbnails" -type f -printf '%s\n' 2>/dev/null | sum_lines)
   SCAN_NOTE="~/.cache/thumbnails"
   ((SCAN_BYTES > 0)) || return 2
 }
