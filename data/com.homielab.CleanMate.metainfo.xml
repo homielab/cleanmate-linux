@@ -138,6 +138,18 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="2.4.0" date="2026-11-06">
+      <description>
+        <p>Similar Photos, Moved to the Trash, Space Lens for the whole disk and a more honest Smart Scan.</p>
+        <ul>
+          <li>Duplicates: Similar Photos, with thumbnails and Open</li>
+          <li>Moved to the Trash: see and put back everything CleanMate moved</li>
+          <li>Space Lens for the whole disk, with the reason each system folder stays</li>
+          <li>Why is this safe? on every Smart Scan item, and Stop for long scans</li>
+          <li>Scan groups in Settings, unused Flatpak runtimes, a manual page for cm</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.3.0" date="2026-11-02">
       <description>
         <p>Steam and Minecraft cache cleaning, and a fix for restore --list.</p>

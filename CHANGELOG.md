@@ -6,51 +6,42 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-11-06
+
 ### Added
 
+- **Smart Scan** in the desktop app: run it from System Overview and the welcome, **Stop** it any time, and see how long it took and what is still unfinished, with **Scan Again**.
+- **Why is this safe?** on every Smart Scan and Privacy item: what it is, what cleaning does and when it is skipped, plus **Open Folder** and **Never Clean**.
+- **Moved to the Trash** (Ctrl+Shift+5): everything CleanMate moved to the Trash, also from earlier sessions and the terminal app. Search, filter, **Put Back** or **Show in Files**.
+- **Space Lens** reads the whole disk: pick your home folder, the system disk or another drive, and see why each system folder stays and where to clean it.
+- **Duplicates › Similar Photos** finds resized, edited or burst copies of the same photo, suggests the biggest to keep and moves the rest to the Trash, with Undo. It runs on your computer only.
+- Thumbnails and **Open** for images and videos in Large & Old Files, Duplicates and Similar Photos; Large & Old Files sorts and filters by kind.
+- **Settings › Scan groups** turns whole groups of cleaning off, in both apps and in automatic cleaning.
+- **Never Clean This Folder** from a row's menu, and **Ctrl+F** search on more pages.
+- Unused Flatpak runtimes show up in **System Junk**, and Maintenance says how much removing them frees.
+- A notification with what a clean freed, and the window reopens where you left it.
 - `man cm` opens a manual page, and `cm --help` lists every `--json` command.
-- Desktop app: **Run Smart Scan** on System Overview (with when you last scanned) and as the welcome's last step; **Ctrl+F** searches Large & Old Files, Duplicates, Space Lens, Startup Items, Maintenance and Uninstaller too; **Stop** in Large & Old Files and Space Lens; **Never Clean This Folder** from a row's menu in Large & Old Files, Duplicates and Space Lens.
-- Desktop app: closing the window while something is cleaning asks first instead of leaving the engine running; opening CleanMate again brings up the window already open.
-- Desktop app, **Moved to the Trash** (Ctrl+Shift+5, *Settings › Moved to the Trash*, **View Moved Items** after a clean): everything CleanMate moved to the Trash, also in earlier sessions and from the terminal app, newest first — search, filter by the tool that moved it, **Put Back** one item, the ticked ones or all, **Show in Files**; items emptied from the Trash since are greyed out as *No longer in the Trash*.
-- `cm restore --list --gone DAYS` also lists what left the Trash in the last DAYS days; every item now has `inTrash` and `location` (its path in the Trash).
-- Desktop app, **Space Lens** for the whole disk: a Locations button opens your home folder, the system disk (`/`) or any other disk, with the full path in the path bar. Outside your home folder each row shows a lock that says why it stays (system packages, Docker, the journal, logs, snaps, another user's files) and links to the page that cleans it; folders you can't read say *no permission* instead of 0. **Ctrl+Shift+.** shows or hides hidden files, and every row has **Open**. System Overview adds **Outside your home folder** with **View in Space Lens**. The terminal Space Lens follows the same rules, and `cm --json lens` adds `reason`, `denied` and `unreadable`; `cm --json places` lists the disks.
-- Desktop app: **Why is this safe?** — an ⓘ button on every Smart Scan and Privacy item says what it is, where it is, what cleaning does (rebuilt, moved to the Trash or deleted for good) and when it is skipped; **Open Folder** and **Never Clean** (the item's folders go to *Settings › Never clean*, and scans leave it out). A row locked by a running program names it. `cm --json items` and `scan` carry the same as `why`.
-- **Settings › Scan groups**: turn off a whole group (System Junk, Logs, User & App Junk, AI Tools, Developer Junk, Privacy) and Smart Scan leaves it out in both apps, `cm --scan`, `--clean` and automatic cleaning; its page in the desktop app says it is off, with **Turn On**.
-- Desktop app: a notification with what a clean freed when the window isn't in front; it reopens on the last page and at the last size; Ctrl+0 and Ctrl+Shift+1…4 open Large & Old Files, Duplicates, Uninstaller, Startup Items and Maintenance; every icon-only button has a name for screen readers.
-- Desktop app, **Large & Old Files**, **Duplicates** and **Similar Photos**: images and videos show a thumbnail, **Open** (or Enter on a row) opens a file in its default app, and Similar Photos shows the photo you point at large beside the list, the suggested one marked. Large & Old Files sorts by size, date modified, name or kind and can show only videos, images, disk images and virtual machines, archives, documents or other files.
-- Flatpak for Flathub (`packaging/flathub/`): the desktop app and the `cleanmate` engine, with access to your home folder only. In the Flatpak, items and pages that need your password or the host system (apt, the journal, old kernels, Docker, Uninstaller, Startup Items, Maintenance) are left out and System Junk and Logs say why; items whose program must be closed are not pre-selected, because the sandbox can't see running programs. Its Flathub listing shows only screenshots of pages the Flatpak has.
-- **Duplicates › Similar Photos** in the desktop app: finds photos that look alike (resized or re-saved copies, edits, burst shots) on your computer only, suggests keeping the largest one and moves the others you tick to the Trash, with Undo. Hidden folders, Never clean folders and Shotwell or digiKam libraries are skipped.
-- Desktop app, Smart Scan and the cleanup pages: **Stop** ends a scan and lists what it checked so far; **Ctrl+F** searches the results by name or path; **Never Clean This** on a listed folder (old downloads, stale build folders) adds it to *Settings › Never clean*. The confirmation lists every item with *To the Trash* or *Deleted permanently* and the total of each, and after a clean a summary (space freed, Trash vs deleted, Undo, Open Trash) stays until the next scan. The results show how long the scan took.
-- `cm --scan` ends with how long the scan took and its three slowest items; `cm --json scan` gives `durationMs` for each item and for the whole scan (the same field as the macOS app).
-
-- **Large & Old Files** and **Duplicates** say how many files they skipped and why, in both apps; the terminal app's Large Files now lists the same files as the desktop app. **Search Other Drives Too** also searches the disks mounted inside the folder you picked (`cm --json large --all-drives`).
-- `cm --scan`, `--clean` and automatic cleaning exit with 1 when a task failed and 3 when only part was done (no `sudo`), so scripts can tell; `cm --json clean` reports `status`.
-- **System Junk** shows unused Flatpak runtimes with their size, and Maintenance says how much removing them frees.
+- Flatpak build for Flathub, with access to your home folder only.
 
 ### Changed
 
-- Automatic cleaning also clears the caches AI tools rebuild (never chat history or models), and on a laptop waits until it's plugged in — **Run even on battery** in Settings if you'd rather not wait.
-- Desktop app in Vietnamese: errors, task results and the low disk, scan reminder and automatic cleaning notifications are translated too (the engine sends codes the app translates); `cm` in the terminal stays in English. Opening the terminal app also works with Konsole and Xfce Terminal.
-- **Duplicates** is about six times faster on folders full of same-size files: 20,000 of them take 19 seconds instead of 112 on four cores.
-- Repeat scans of a home with many idle projects are faster: the stale `node_modules` item reads its folders in parallel (about 80 → 60 ms for 50 projects).
-- The README starts with what CleanMate does, a screenshot and the install commands, and compares it with BleachBit; the full list of what it cleans moved to `docs/FEATURES.md`.
-- Minecraft caches are skipped only while Minecraft itself runs, not while any Java program (an IDE, a Gradle daemon) is open.
-- Desktop app: the password dialog says what it's for — cleaning system files, uninstalling apps or Maintenance. Installed with the script or from git, it asks for no password: system items say to install the package or run `sudo cm`.
+- **Duplicates** is about six times faster on folders with many same-size files, and repeat scans of a home with many projects are faster.
+- Automatic cleaning also clears AI tool caches (never chat history or models), and on a laptop waits until it is plugged in.
+- The desktop app speaks Vietnamese in errors, results and notifications too.
+- Closing the window during a clean asks first.
+- The password dialog says what it is for.
+- Minecraft caches are skipped only while Minecraft itself is running.
 
 ### Fixed
 
-- The PPA now has CleanMate for every Ubuntu release Launchpad supports: 24.04 LTS, 26.04 LTS and 26.10.
-- Automatic cleaning from the PPA, the `.deb` or the snap no longer asks you to install the launcher, and the snap's keeps running after the snap updates.
-- Flatpak: the welcome only promises what the Flatpak does, and the welcome and Settings link to what it can't do.
-- Desktop app: results are honest. Items whose check ran out of time are listed under **Not finished** with **Scan Again**, and the scan is never called clean while one remains. An engine failure shows its reason, **Copy Details** and **Report a Bug…** on Smart Scan, Large & Old Files, Duplicates and Space Lens instead of an empty page — Similar Photos too — and items a crashed clean never reached are marked failed, not skipped.
-- Desktop app: the clean summary separates the space freed from what went to the Trash, and **Empty Trash…** frees it. Free space is shown for both `/` and the home partition when they differ, and System Overview measures again after a clean. `cm --json clean` adds `to_trash` and `disks` to its `done` event.
-- Desktop app, **Uninstaller**: an app that can't be removed keeps its row with the reason, and the summary says how many could not be uninstalled. A dismissed or missing password dialog says so.
-- A scan that hits its time limit no longer reports an item as clean when its check was cut short.
-- *Never clean* folders inside app caches, app logs and temporary files are kept when those are cleaned.
-- Caches stay untouched while Gradle, Maven, Android Studio or another tool using them runs, also from a snap or Flatpak.
-- Desktop app: names with “&” or sizes like “<1%” show up everywhere, and **Why is this safe?** names every program that blocks an item, ghcup included.
-- System Overview: **Freed** counts only space really freed; what went to the Trash shows below it.
-- The `.deb` brings video thumbnails along, and moving to the Trash outside your home folder says when `gio` is missing.
+- Results are honest: a scan that ran out of time lists the item under **Not finished** instead of calling it clean, and failed or partly done cleans exit with a clear code in `cm`.
+- Caches stay untouched while Gradle, Maven, Android Studio or similar tools using them run.
+- *Never clean* folders are kept inside app caches, logs and temporary files.
+- **Freed** counts only space really freed; what went to the Trash shows separately, with **Empty Trash…**.
+- **Uninstaller** keeps a row it could not remove and says why.
+- The PPA now has CleanMate for Ubuntu 24.04 LTS, 26.04 LTS and 26.10.
+- Automatic cleaning from the PPA, `.deb` or snap no longer asks for the launcher.
+- Names with “&” and sizes like “<1%” show up everywhere.
 
 ## [2.3.0] — 2026-11-02
 
@@ -129,6 +120,7 @@ First public release of CleanMate for Linux.
 
 - Install from the PPA, the `.deb` on GitHub, snap or the install script.
 
+[2.4.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.4.0
 [2.3.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.3.0
 [2.2.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.2.0
 [2.1.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.1.0
