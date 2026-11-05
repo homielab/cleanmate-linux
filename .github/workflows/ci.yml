@@ -27,7 +27,8 @@ jobs:
       - name: Python syntax (desktop app and every test script)
         run: python3 -m py_compile gui/cleanmate-gui $(find gui tests -name '*.py')
       - name: Pyflakes (when the runner has it)
-        run: if python3 -m pyflakes --version >/dev/null 2>&1; then python3 -m pyflakes gui tests; else echo "pyflakes not installed: skipped"; fi
+        run: |
+          if python3 -m pyflakes --version >/dev/null 2>&1; then python3 -m pyflakes gui tests; else echo "pyflakes not installed, skipped"; fi
       - name: Store metadata (AppStream, launcher)
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq appstream desktop-file-utils
