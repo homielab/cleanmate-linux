@@ -6,7 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
-## [2.4.0] — 2026-11-06
+## [2.4.1] — 2026-11-06
+
+First published release of the 2.4 series (a 2.4.0 tag was never published).
+
 
 ### Added
 
@@ -42,6 +45,7 @@ All notable changes are listed here. The format follows
 - The PPA now has CleanMate for Ubuntu 24.04 LTS, 26.04 LTS and 26.10.
 - Automatic cleaning from the PPA, `.deb` or snap no longer asks for the launcher.
 - Names with “&” and sizes like “<1%” show up everywhere.
+- Release builds and PPA uploads are more reliable.
 
 ## [2.3.0] — 2026-11-02
 
@@ -120,7 +124,7 @@ First public release of CleanMate for Linux.
 
 - Install from the PPA, the `.deb` on GitHub, snap or the install script.
 
-[2.4.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.4.0
+[2.4.1]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.4.1
 [2.3.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.3.0
 [2.2.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.2.0
 [2.1.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.1.0
