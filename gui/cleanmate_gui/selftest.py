@@ -669,7 +669,8 @@ def duplicates_test(win, report, wait, finish):
 
 # The longest the window may freeze (no main loop iteration) while Similar Photos reads and lists 2,000 photos.
 # Measured 130-210 ms in Docker on a Mac; a person notices a freeze from about half a second.
-MAX_PAUSE_MS = 500
+# Shared CI runners stall for a few hundred ms now and then; a real hang is seconds, so CI gets more room.
+MAX_PAUSE_MS = int(os.environ.get("CLEANMATE_SELFTEST_MAX_PAUSE_MS") or 500)
 
 
 def similar_photos_test(win, report, wait, finish):

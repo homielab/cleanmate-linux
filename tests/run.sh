@@ -4039,7 +4039,9 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   fresh_home
   local out srv lang display=$((50 + RANDOM % 40)) locales=(C.UTF-8)
   if command -v msgfmt >/dev/null; then # the Vietnamese translation too
-    bash "$ROOT/po/compile.sh" "$WORK/locale" && locales+=(vi_VN.UTF-8)
+    bash "$ROOT/po/compile.sh" "$WORK/locale"
+    if locale -a 2>/dev/null | grep -qix 'vi_VN\.utf-\?8'; then locales+=(vi_VN.UTF-8) # GTK warns when the locale isn't generated
+    else echo "      (vi_VN.UTF-8 not generated: GUI self-test in English only)"; fi
   else
     echo "      (msgfmt not installed: GUI self-test in English only)"
   fi
@@ -4057,7 +4059,7 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   for lang in "${locales[@]}"; do
     # a private, invisible display; dry run; the self-test never touches system items
     out=$(env -i HOME="$HOME_DIR" PATH="$WORK/guilock:$BASE_PATH" LANG="$lang" XDG_RUNTIME_DIR="$rt" \
-      CLEANMATE_LOCALEDIR="$WORK/locale" GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
+      CLEANMATE_SELFTEST_MAX_PAUSE_MS="${CI:+1500}" CLEANMATE_LOCALEDIR="$WORK/locale" GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
       timeout 120 "$py" "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
     ((VERBOSE)) && echo "      $lang:"
     ((VERBOSE)) && grep SELFTEST <<<"$out" | sed 's/^/      | /'

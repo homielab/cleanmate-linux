@@ -26,7 +26,8 @@ jobs:
       - name: Install test dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 libgtk-4-bin gettext appstream desktop-file-utils
+          sudo apt-get install -y -qq python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 libgtk-4-bin gettext appstream desktop-file-utils locales
+          sudo locale-gen vi_VN.UTF-8
           python3 -m pip install --user pyte || python3 -m pip install --user --break-system-packages pyte
 
       - name: Run tests
