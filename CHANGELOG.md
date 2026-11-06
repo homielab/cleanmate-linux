@@ -6,6 +6,12 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- After a clean, Smart Scan and Privacy check only what you just cleaned, so the results are back in a blink.
+- An item under **Not finished** has **Rescan This Item**: check just that one again, the rest stay put.
+- **Similar Photos** remembers the photos it already read, so searching again takes seconds instead of minutes.
+
 ### Fixed
 
 - Automatic cleaning tries again within the hour if it fails or your laptop sleeps, tells you if it still can't finish, and *Settings* shows its last run.

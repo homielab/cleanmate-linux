@@ -6,7 +6,7 @@ from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
 from .a11y import named
 from .engine import (CAT_GROUP, CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, PACKAGE_HINT, PACKAGE_NEEDED,
-                     SMART_SCAN, human)
+                     SMART_SCAN, human, merge_scan)
 from .errorview import ErrorPage, Failure, last_line, pkexec_reason
 from .i18n import _, detail_text, item_text, ngettext, note_text, why_running
 from .preview import open_file
@@ -82,6 +82,7 @@ class ScanPage(Gtk.Box):
         self.entry_rows = {}  # item id → {entry id → row}
         self.group_rows = []  # (group, junk ids, "more items are clean" row or None, [(clean row, item)])
         self.gone = set()  # items whose every entry went to Never clean: hidden until the next scan
+        self.rescan_buttons = []  # Rescan This Item of each item under Not finished
 
         if IN_FLATPAK and {"system", "logs"} & set(categories):
             banner = Adw.Banner(title=_("System files are out of the Flatpak's reach: the package cache, system "
@@ -277,6 +278,38 @@ class ScanPage(Gtk.Box):
 
         self.running = self.engine.scan(None if self.smart else self.categories, on_event, on_done)
 
+    def rescan(self, ids):
+        """Scan only these items again (the ones just cleaned, or one that didn't finish) and merge them into the
+        results; the other rows keep what the last scan found. If that scan fails or is stopped, scan everything."""
+        if self.running:
+            return
+        got, info = {}, {}
+
+        def on_event(e):
+            if e["event"] == "item":
+                got[e["id"]] = e
+            elif e["event"] == "done":
+                info.update(e)
+
+        def on_done(ok, status):
+            self.running = None
+            self.window.set_busy(False)
+            if not ok or not info or info.get("stopped"):
+                return self.scan(keep_summary=True)
+            self.items = merge_scan(self.items, got, ids)
+            self.show_results()
+            if self.scan_again:
+                self.scan_again = False
+                self.scan(keep_summary=True)
+
+        self.bar.set_revealed(False)  # nothing to clean until the rows are up to date
+        for button in self.rescan_buttons:
+            button.set_sensitive(False)
+        if getattr(self, "unfinished_button", None):
+            self.unfinished_button.set_sensitive(False)
+        self.window.set_busy(True)
+        self.running = self.engine.scan(None, on_event, on_done, items=ids)
+
     def stop(self):
         """End the scan early: the engine lists the items it got to. One that doesn't end soon is killed."""
         run = self.running
@@ -304,6 +337,8 @@ class ScanPage(Gtk.Box):
         self.entry_rows.clear()
         self.group_rows.clear()
         self.gone.clear()
+        self.rescan_buttons.clear()
+        self.unfinished_button = None
         # an item whose program is running is skipped by the engine, one that needs root can't be cleaned by
         # this copy: never tick them
         self.selected = {i: e["selected"] and not self.held(e) for i, e in self.items.items()
@@ -409,10 +444,21 @@ class ScanPage(Gtk.Box):
                 "Stopped after {secs}s — not checked to the end").format(secs=f"{secs:.0f}") if secs >= 1
                 else _("Not checked: the scan ran out of time"))
             row.add_prefix(Gtk.Image(icon_name="dialog-warning-symbolic", css_classes=["warning"]))
+            one = Gtk.Button(label=_("Rescan This Item"), valign=Gtk.Align.CENTER,
+                             tooltip_text=_("Check only this item again, the other results stay"))
+            one.connect("clicked", self.rescan_unfinished, row, e["id"])
+            row.add_suffix(one)
+            self.rescan_buttons.append(one)
             group.add(row)
             rows.append((row, e))
         self.group_rows.append((group, [], None, rows))
         return group
+
+    def rescan_unfinished(self, _button, row, item_id):
+        if self.running:
+            return
+        row.set_subtitle(_("Checking again…"))
+        self.rescan([item_id])
 
     # ── search: Ctrl+F filters items and their listed parts by name or path ──
     @staticmethod
@@ -1034,7 +1080,7 @@ class ScanPage(Gtk.Box):
             if self.freed or self.privacy:
                 self.window.notify_cleaned(msg, self.engine.dry_run)
             self.window.refresh_disk()
-            GLib.timeout_add(1200, lambda: (self.scan(keep_summary=True), False)[1])
+            self.rescan(ids)  # only what was cleaned: the other rows keep their sizes
 
         # items with only some entries ticked (or a BY_ENTRY item) run one by one with those entries, the rest together
         some = {i: sorted(self.entry_selected[i]) for i in user_ids if self.by_entries(i)}

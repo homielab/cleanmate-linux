@@ -165,5 +165,100 @@ class SimilarPhotosTest(unittest.TestCase):
         self.assertEqual(similar.find_photos(self.dir, cancelled=stop.is_set), [])
 
 
+class HashCacheTest(unittest.TestCase):
+    """The hash cache: a second search of unchanged photos decodes none of them."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="cleanmate-similar-cache-")
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.photos = os.path.join(self.dir, "Pictures")
+        os.makedirs(self.photos)
+        beach = picture(1)
+        self.beach = save(beach, os.path.join(self.photos, "beach.png"))
+        self.beach_low = save(beach, os.path.join(self.photos, "beach low.jpg"), "jpeg", quality=40)
+        self.city = save(picture(2), os.path.join(self.photos, "city.jpg"), "jpeg", quality=90)
+        with open(os.path.join(self.photos, "broken.jpg"), "wb") as f:
+            f.write(os.urandom(30000))
+        self.cache = os.path.join(self.dir, "cache", "cleanmate", "similar-hashes.tsv")
+        self.loads = []
+        real = similar.load_small
+
+        def counted(path, *args, **kw):
+            self.loads.append(os.path.basename(path))
+            return real(path, *args, **kw)
+
+        similar.load_small = counted
+        self.addCleanup(setattr, similar, "load_small", real)
+
+    def search(self, **kw):
+        self.loads.clear()
+        read = similar.hash_photos(similar.find_photos(self.photos, min_bytes=0), cache=self.cache, **kw)
+        return {os.path.basename(p["path"]): (p["dct"], p["diff"], p["width"], p["height"]) for p in read}
+
+    def cached_names(self):
+        with open(self.cache, encoding="utf-8") as f:
+            return sorted(os.path.basename(line.split("\t")[0]) for line in f if not line.startswith("#"))
+
+    def test_second_search_reads_nothing(self):
+        first = self.search()
+        self.assertEqual(sorted(self.loads), ["beach low.jpg", "beach.png", "broken.jpg", "city.jpg"])
+        self.assertEqual(sorted(first), ["beach low.jpg", "beach.png", "city.jpg"])
+        self.assertEqual(self.search(), first)
+        self.assertEqual(self.loads, [], "unchanged photos (and the unreadable one) are not decoded again")
+        self.assertEqual(os.stat(self.cache).st_mode & 0o777, 0o600)
+        self.assertEqual(self.cached_names(), ["beach low.jpg", "beach.png", "broken.jpg", "city.jpg"])
+
+    def test_changed_photo_is_read_again_deleted_one_leaves_the_cache(self):
+        first = self.search()
+        save(picture(7), self.city, "jpeg", quality=90)
+        st = os.stat(self.city)
+        os.utime(self.city, ns=(st.st_atime_ns, st.st_mtime_ns + 2_000_000_000))
+        os.remove(self.beach_low)
+        again = self.search()
+        self.assertEqual(self.loads, ["city.jpg"])
+        self.assertNotEqual(again["city.jpg"], first["city.jpg"])
+        self.assertEqual(again["beach.png"], first["beach.png"])
+        self.assertEqual(self.cached_names(), ["beach.png", "broken.jpg", "city.jpg"])
+        self.assertEqual(self.search(), again)
+        self.assertEqual(self.loads, [])
+
+    def test_other_folders_lines_stay_while_their_photos_do(self):
+        self.search()
+        other = os.path.join(self.dir, "Other")
+        os.makedirs(other)
+        save(picture(3), os.path.join(other, "sea.jpg"), "jpeg", quality=85)
+        similar.hash_photos(similar.find_photos(other, min_bytes=0), cache=self.cache)
+        self.assertIn("beach.png", self.cached_names())
+        self.assertIn("sea.jpg", self.cached_names())
+        os.remove(self.beach)
+        similar.hash_photos(similar.find_photos(other, min_bytes=0), cache=self.cache)
+        self.assertNotIn("beach.png", self.cached_names(), "a deleted photo's line goes, whichever folder is searched")
+
+    def test_damaged_cache_is_ignored(self):
+        first = self.search()
+        for junk in (os.urandom(4000), b"# cleanmate similar-hashes 0\n/x\t1\t2\t3\t4\t5\t6\n",
+                     b"# cleanmate similar-hashes 1\nnot a line\n/a\tb\n" + self.beach.encode() + b"\tx\ty\n"):
+            with open(self.cache, "wb") as f:
+                f.write(junk)
+            self.assertEqual(self.search(), first)
+            self.assertEqual(len(self.loads), 4, "a damaged cache: every photo is read, the search works")
+        os.remove(self.cache)
+        os.makedirs(self.cache)  # can't be read or written: the search still works
+        self.assertEqual(self.search(), first)
+
+    def test_stopped_search_keeps_what_it_read(self):
+        stop = threading.Event()
+        self.assertEqual(self.search(workers=1, progress=lambda done, total: done >= 2 and stop.set(),
+                                     cancelled=stop.is_set), {})
+        read = list(self.loads)
+        self.assertGreaterEqual(len(read), 2)
+        self.search()
+        self.assertEqual(sorted(self.loads + read), ["beach low.jpg", "beach.png", "broken.jpg", "city.jpg"])
+
+    def test_cache_file_is_in_the_user_cache_folder(self):
+        self.assertEqual(similar.cache_file(), os.path.join(GLib.get_user_cache_dir(), "cleanmate",
+                                                            "similar-hashes.tsv"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

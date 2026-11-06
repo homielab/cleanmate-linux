@@ -1030,6 +1030,7 @@ declare -A ITEM_CAT ITEM_LABEL ITEM_DEFAULT ITEM_DESC ITEM_ROOT
 declare -A CAT_TITLE=([system]="System Junk" [logs]="Logs" [user]="User Junk" [browser]="Browsers"
   [apps]="App Caches" [ai]="AI Tools" [models]="AI Models" [dev]="Developer Junk" [privacy]="Privacy")
 CATEGORIES=(system logs user browser apps ai models dev)
+ALL_CATEGORIES=("${CATEGORIES[@]}" privacy) # in this order; privacy is only scanned when named
 SMART_CATS=()
 ONLY_GIVEN=0 # --only names the groups: scan those even when they are off in Settings
 # Each category's group, as the desktop app's sidebar and Settings › Scan groups show them
@@ -6923,9 +6924,13 @@ load_scan_cache() {
   done <"$SCAN_CACHE_FILE"
 }
 
-save_scan_cache() { # record RES_* for SCANNED; forget items of those categories that vanished
+save_scan_cache() { # record RES_* for SCANNED; forget items of those categories (or the picked items) that vanished
   local id c
   for id in "${!LAST_RC[@]}"; do
+    if ((${#SCAN_PICK[@]})); then # a scan of some items says nothing about the others
+      [[ -n ${SCAN_PICK[$id]:-} ]] && unset "LAST_RC[$id]" "LAST_BYTES[$id]" "LAST_AT[$id]"
+      continue
+    fi
     for c in "${SCAN_CATS[@]}"; do
       [[ ${ITEM_CAT[$id]:-} == "$c" ]] && unset "LAST_RC[$id]" "LAST_BYTES[$id]" "LAST_AT[$id]"
     done
@@ -7038,6 +7043,7 @@ res_notev() { # VAR ID — the scan note, led by the program that has to be clos
 }
 SCAN_TIMEOUT=120
 SCAN_STOP=0 # set by SIGTERM during `--json scan` (Stop in the desktop app): end early, list what was scanned
+declare -A SCAN_PICK=() # `--json scan --items`: only these items (the desktop app checks again what it just cleaned)
 
 kill_tree() { # PID — it first, so a scan worker can't report a result for the program it was waiting on, then what it started
   local c kids
@@ -7131,7 +7137,9 @@ scan_items() { # CATEGORY...
   local -a w_ids=() w_pid=() w_done=()
   local -A live=() cat_n=()
   for cat in "$@"; do
-    for id in "${ITEM_IDS[@]}"; do [[ ${ITEM_CAT[$id]} == "$cat" ]] && SCAN_IDS+=("$id"); done
+    for id in "${ITEM_IDS[@]}"; do
+      [[ ${ITEM_CAT[$id]} == "$cat" ]] && { ((${#SCAN_PICK[@]} == 0)) || [[ -n ${SCAN_PICK[$id]:-} ]]; } && SCAN_IDS+=("$id")
+    done
   done
   tmp=$(mktemp -d -p "$SESSION_TMP") || return 1
   now_msv t0
@@ -11689,8 +11697,27 @@ json_main() { # SUBCOMMAND ARGS…
     scan)
       # SIGTERM (Stop in the desktop app) ends the scan early: the items scanned so far are still listed
       trap 'SCAN_STOP=1' TERM
-      local -a cats
-      smart_catsv cats
+      local -a cats picked
+      local c
+      while (($#)); do
+        case $1 in
+          --items) # only these items, in any group (the desktop app checks again what it just cleaned)
+            IFS=, read -ra picked <<<"${2:-}"
+            ((${#picked[@]})) || { json_error usage "No items given."; return 2; }
+            for id in "${picked[@]}"; do
+              [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error unknown_item "Unknown item: $id" id "$id"; return 2; }
+              SCAN_PICK[$id]=1
+            done
+            shift 2 ;;
+          *) json_error usage "Unknown option of scan: $1"; return 2 ;;
+        esac
+      done
+      if ((${#SCAN_PICK[@]})); then
+        cats=()
+        for c in "${ALL_CATEGORIES[@]}"; do
+          for id in "${!SCAN_PICK[@]}"; do [[ ${ITEM_CAT[$id]} == "$c" ]] && { cats+=("$c"); break; }; done
+        done
+      else smart_catsv cats; fi
       scan_items "${cats[@]}"
       for id in "${SCANNED[@]}"; do json_item "$id" scanned; done
       found_total
@@ -13144,7 +13171,7 @@ Exit codes (--scan, --clean, --auto): 0 done, 1 a task failed, 2 wrong option,
 
 For the desktop app
       --json CMD    Machine-readable engine, one JSON event per line. CMD is one of:
-                    items, scan, details ID, clean ID… [--entries E1,E2…],
+                    items, scan [--items ID,…], details ID, clean ID… [--entries E1,E2…],
                     large [--min BYTES] [--days N] [--path DIR] [--limit N] [--all-drives],
                     lens [--path DIR] [--limit N], places,
                     dupes [--min BYTES] [--path DIR] [--limit N],

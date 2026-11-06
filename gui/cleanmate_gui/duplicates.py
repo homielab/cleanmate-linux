@@ -365,7 +365,7 @@ class DuplicatesPage(Gtk.Box):
             try:
                 photos = similar.find_photos(folder, exclusions, cancellable.is_cancelled)
                 GLib.idle_add(show_progress, 0, len(photos))
-                read = similar.hash_photos(photos, cancellable.is_cancelled, progress)
+                read = similar.hash_photos(photos, cancellable.is_cancelled, progress, cache=similar.cache_file())
                 groups = similar.group_photos(read, cancellable.is_cancelled)
             except Exception as e:  # a bug, never "no similar photos found": the error page says what went wrong
                 failure = Failure("similar photos", self.engine.env.get("HOME"))

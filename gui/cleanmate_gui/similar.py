@@ -5,6 +5,8 @@ Each photo is decoded at 32 × 32 pixels and gets two 64-bit perceptual hashes: 
 picture's brightness) and a difference hash (which way brightness goes between neighbouring pixels). Two
 photos are close when both hashes differ in few bits; a group is a set of photos that are all close to each
 other (complete linkage), so a chain of small changes never pulls two different photos together.
+The hashes are kept in a cache file (by path, size and modification time), so the next search reads only the
+photos that are new or changed.
 The page (`duplicates.py`) shows the groups; moving to the Trash and undo go through the engine.
 """
 import math
@@ -76,7 +78,7 @@ def find_photos(folder, exclusions=(), cancelled=lambda: False, min_bytes=MIN_BY
             if not stat.S_ISREG(st.st_mode) or st.st_size < min_bytes or (st.st_dev, st.st_ino) in seen:
                 continue
             seen.add((st.st_dev, st.st_ino))
-            photos.append({"path": path, "bytes": st.st_size, "mtime": int(st.st_mtime)})
+            photos.append({"path": path, "bytes": st.st_size, "mtime": int(st.st_mtime), "mtime_ns": st.st_mtime_ns})
     return photos
 
 
@@ -188,31 +190,125 @@ def photo_hashes(path):
         return dct_hash(_gray(small)), diff_hash(_gray(tiny)), width, height
 
 
-def hash_photos(photos, cancelled=lambda: False, progress=lambda done, total: None, workers=None):
+# ── the hash cache: path, size and modification time → hashes, one line a photo ──
+CACHE_HEADER = "# cleanmate similar-hashes 1"  # a new hash method changes the version: old lines are read again
+UNREADABLE = None  # cached for a photo GdkPixbuf can't read: it isn't tried again until it changes
+
+
+def cache_file():
+    """~/.cache/cleanmate/similar-hashes.tsv (XDG_CACHE_HOME)."""
+    return os.path.join(GLib.get_user_cache_dir(), "cleanmate", "similar-hashes.tsv")
+
+
+def _stamp(photo):
+    return photo["bytes"], photo.get("mtime_ns", photo["mtime"])
+
+
+def load_cache(path):
+    """{photo path: ((bytes, mtime_ns), hashes or UNREADABLE)}; {} when the file is missing, unreadable or of
+    another version. A damaged line is skipped."""
+    cache = {}
+    try:
+        with open(path, encoding="utf-8", errors="strict") as f:
+            if f.readline().rstrip("\n") != CACHE_HEADER:
+                return {}
+            for line in f:
+                try:
+                    p, size, mtime, dct, diff, width, height = line.rstrip("\n").split("\t")
+                    stamp = (int(size), int(mtime))
+                    hashes = UNREADABLE if dct == "-" else (int(dct, 16), int(diff, 16), int(width), int(height))
+                except ValueError:
+                    continue
+                if p.startswith("/"):
+                    cache[p] = (stamp, hashes)
+    except (OSError, UnicodeDecodeError):
+        return {}
+    return cache
+
+
+def save_cache(path, cache):
+    """Write the cache in one go (a new file moved over the old one, so a crash never leaves half a file); readable
+    only by you, since it lists your photos. Nothing happens when it can't be written."""
+    folder = os.path.dirname(path)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    try:
+        os.makedirs(folder, mode=0o700, exist_ok=True)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_CLOEXEC", 0), 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(CACHE_HEADER + "\n")
+            for p, ((size, mtime), hashes) in sorted(cache.items()):
+                if "\t" in p or "\n" in p:
+                    continue  # a name with a tab or line break doesn't fit a line: it is read again next time
+                if hashes is UNREADABLE:
+                    f.write(f"{p}\t{size}\t{mtime}\t-\t-\t0\t0\n")
+                else:
+                    dct, diff, width, height = hashes
+                    f.write(f"{p}\t{size}\t{mtime}\t{dct:x}\t{diff:x}\t{width}\t{height}\n")
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def _still_there(path, stamp):
+    """True when the photo of a cache line outside this search is still the same file (kept for its own folder's
+    next search); a deleted or changed one is dropped."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return False
+    return (st.st_size, st.st_mtime_ns) == stamp
+
+
+def hash_photos(photos, cancelled=lambda: False, progress=lambda done, total: None, workers=None, cache=None):
     """Add "dct", "diff", "width", "height" to each photo that can be read; return those ([] when cancelled).
     Several threads decode at once (GdkPixbuf lets go of the GIL while it decodes); they are daemon threads, so
-    quitting the app never waits for them."""
-    total, results, lock, state = len(photos), [None] * len(photos), threading.Lock(), {"next": 0, "done": 0}
+    quitting the app never waits for them. cache: the hash cache file (cache_file()): photos it has with the same
+    size and modification time aren't read again; what was read is written back, also when cancelled."""
+    known = load_cache(cache) if cache else {}
+    total, results, lock = len(photos), [None] * len(photos), threading.Lock()
+    got = [False] * total  # from the cache, or read in this run: written back
+    todo = []
+    for i, photo in enumerate(photos):
+        hit = known.get(photo["path"])
+        if hit and hit[0] == _stamp(photo):
+            results[i], got[i] = hit[1], True
+        else:
+            todo.append(i)
+    state = {"next": 0, "done": total - len(todo)}
+    if state["done"]:
+        progress(state["done"], total)
 
     def run():
         while not cancelled():
             with lock:
-                i = state["next"]
+                k = state["next"]
                 state["next"] += 1
-            if i >= total:
+            if k >= len(todo):
                 return
+            i = todo[k]
             results[i] = photo_hashes(photos[i]["path"])
+            got[i] = True
             with lock:
                 state["done"] += 1
                 done = state["done"]
             progress(done, total)
 
     threads = [threading.Thread(target=run, daemon=True)
-               for _n in range(max(1, min(workers or os.cpu_count() or 2, 8, total)))]
+               for _n in range(max(1, min(workers or os.cpu_count() or 2, 8, len(todo))))] if todo else []
     for t in threads:
         t.start()
     for t in threads:
         t.join()
+    if cache:
+        listed = {p["path"] for p in photos}
+        fresh = {p: hit for p, hit in known.items() if p not in listed and _still_there(p, hit[0])}
+        for i, photo in enumerate(photos):
+            if got[i]:
+                fresh[photo["path"]] = (_stamp(photo), results[i])
+        save_cache(cache, fresh)
     if cancelled():
         return []
     read = []

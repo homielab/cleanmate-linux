@@ -2764,13 +2764,17 @@ def flatpak_welcome_test(win, report, wait, finish):
 
 
 FAKE_ENGINE = """#!/bin/bash
-# the self-test's fake engine: answers COMMAND from COMMAND.jsonl (stdout), COMMAND.err (stderr), COMMAND.rc (exit)
+# the self-test's fake engine: answers COMMAND from COMMAND.jsonl (stdout), COMMAND.err (stderr), COMMAND.rc (exit);
+# `scan --items` from scan-items.* when there is one. Each call's arguments go to calls.log.
 dir=${0%/*}
 shift
+printf '%s\\n' "$*" >>"$dir/calls.log"
 while [[ ${1:-} == --* ]]; do case $1 in --only) shift 2 ;; *) shift ;; esac; done
-[[ -f $dir/$1.jsonl ]] && cat "$dir/$1.jsonl"
-[[ -f $dir/$1.err ]] && cat "$dir/$1.err" >&2
-exit "$(cat "$dir/$1.rc" 2>/dev/null || echo 0)"
+cmd=$1
+[[ $1 == scan && ${2:-} == --items && -f $dir/scan-items.jsonl ]] && cmd=scan-items
+[[ -f $dir/$cmd.jsonl ]] && cat "$dir/$cmd.jsonl"
+[[ -f $dir/$cmd.err ]] && cat "$dir/$cmd.err" >&2
+exit "$(cat "$dir/$cmd.rc" 2>/dev/null || echo 0)"
 """
 
 
@@ -2800,6 +2804,14 @@ def honest_results_test(win, report, wait, finish):
                           ("err", "".join(line + "\n" for line in err))):
             with open(os.path.join(sandbox, f"{command}.{ext}"), "w") as f:
                 f.write(text)
+
+    def calls():
+        """The fake engine's calls so far, one string of arguments each."""
+        try:
+            with open(os.path.join(sandbox, "calls.log")) as f:
+                return f.read().splitlines()
+        except OSError:
+            return []
 
     smart = win.pages["smart"]
     template = next(iter(smart.items.values()), None)
@@ -2852,6 +2864,23 @@ def honest_results_test(win, report, wait, finish):
                "the timed-out item is listed under Not finished with Scan Again, not among the clean ones")
         clean_rows = [e["id"] for _g, _j, _m, rows in smart.group_rows for _r, e in rows]
         report(clean_rows.count("fake_slow") == 1 and "fake_ok" in clean_rows, "the clean item stays in its group")
+        report(len(smart.rescan_buttons) == 1 and _("Rescan This Item") in labels(groups[0]),
+               "the timed-out item offers Rescan This Item")
+        answer("scan-items", [item("fake_slow", "found", 4096),
+                              {"event": "done", "locations": 1, "durationMs": 5, "stopped": False}])
+        before = len(calls())
+        smart.rescan_buttons[0].emit("clicked")
+        report(smart.running is not None and not smart.bar.get_revealed(),
+               "Rescan This Item checks it again; Clean waits for it")
+        wait(lambda: smart.running is None and "fake_slow" in smart.checks, lambda: one_rescanned(before), 30,
+             "the timed-out item scanned again")
+
+    def one_rescanned(before):
+        report(calls()[before:] == ["scan --items fake_slow"], f"only that item is scanned again: {calls()[before:]}")
+        report(smart.items["fake_slow"]["status"] == "found" and "fake_ok" in smart.items
+               and not any(g.get_title() == _("Not finished") for g, *_r in smart.group_rows),
+               "its new result replaces Not finished; the other rows stay")
+        os.remove(os.path.join(sandbox, "scan-items.jsonl"))
         crashed_pages()
 
     # ── 2. the engine crashes on four pages ──
@@ -2916,10 +2945,14 @@ def honest_results_test(win, report, wait, finish):
                    "disks": [{"mount": "/home", "before": 20 * gb, "after": 20 * gb},
                              {"mount": "/", "before": 10 * gb, "after": 10 * gb + 500}],
                    "trash": {"fake_a": ["a.deb"], "fake_b": ["b.deb"]}}])
+        answer("scan-items", [item(i, "clean", 0, trash=i != "fake_c") for i in ("fake_a", "fake_b", "fake_c")]
+               + [{"event": "done", "locations": 3, "durationMs": 5, "stopped": False}])
+        before = len(calls())
         smart.clean(["fake_a", "fake_b", "fake_c"])
-        wait(lambda: smart.clean_summary is not None, clean_done, 30, "the fake clean")
+        wait(lambda: smart.clean_summary is not None, lambda: clean_done(before, GLib.get_monotonic_time()), 30,
+             "the fake clean")
 
-    def clean_done():
+    def clean_done(before, ended):
         title = smart.clean_title.get_text()
         expected = _("Freed {size}").format(size=human(500)) + " · " + _(
             "{size} in the Trash (empty the Trash to get it back)").format(size=human(3000))
@@ -2928,7 +2961,19 @@ def honest_results_test(win, report, wait, finish):
         report(len(lines) == 2 and lines[0].startswith(_("Free space on {disk}: {before} → {after}").split("{")[0])
                and "/home" in lines[1], "with / and /home on separate disks, both free spaces are shown")
         wait(lambda: smart.running is None and smart.stack.get_visible_child_name() == "results"
-             and smart.summary_empty is not None, summary_shown, 30, "the results after the clean")
+             and smart.summary_empty is not None, lambda: rescanned(before, ended), 30, "the results after the clean")
+
+    def rescanned(before, ended):
+        secs = (GLib.get_monotonic_time() - ended) / 1e6
+        scans = [c for c in calls()[before:] if not c.startswith("clean")]
+        report(scans == ["scan --items fake_a,fake_b,fake_c"] and secs < 3,
+               f"after the clean only the three cleaned items are scanned again, results in {secs:.1f}s: {scans}")
+        found = {i: e["bytes"] for i, e in smart.items.items() if e["status"] == "found"}
+        report(found == {"fake_d": 700} and len(smart.items) == 4
+               and ngettext("{size} of junk found in {n} item", "{size} of junk found in {n} items", 1,
+                            size=human(700)) in labels(smart.scan_header),
+               "the cleaned rows are clean, the row not cleaned keeps its size, the total adds up")
+        summary_shown()
 
     def summary_shown():
         report(smart.summary_empty.get_visible(), "the summary offers Empty Trash…")

@@ -96,6 +96,16 @@ def kill_tree(pid):
             pass
 
 
+def merge_scan(items, rescanned, ids):
+    """The results of a scan of only some items (`scan --items IDS`) merged into those of the last full scan:
+    items (id → "item" event) in their order, each of IDS replaced by its new event or, when the scan no longer
+    lists it (Never clean, nothing there to check), left out like a full scan would; the others unchanged."""
+    ids = set(ids)
+    merged = {i: rescanned.get(i) if i in ids else e for i, e in items.items()}
+    merged.update((i, e) for i, e in rescanned.items() if i not in merged)
+    return {i: e for i, e in merged.items() if e is not None}
+
+
 def root_owned(path):
     """True when only root can change the file at PATH: it, and every folder above it, belongs to root and no
     group or other user can write to it. A copy in your home folder (`cm --install`, a git clone) is not: any
@@ -269,8 +279,11 @@ class Engine:
         return cancellable
 
     # ── convenience wrappers ──
-    def scan(self, categories, on_event, on_done):
-        """Scan these categories; None = Smart Scan, which leaves out the groups turned off in Settings."""
+    def scan(self, categories, on_event, on_done, items=None):
+        """Scan these categories; None = Smart Scan, which leaves out the groups turned off in Settings.
+        items: only these item IDs (whatever their group), e.g. the ones just cleaned."""
+        if items:
+            return self.run(["scan", "--items", ",".join(items)], on_event, on_done)
         only = ["--only", ",".join(categories)] if categories is not None else []
         return self.run([*only, "scan"], on_event, on_done)
 

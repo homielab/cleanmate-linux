@@ -33,6 +33,7 @@ Not installed: Ubuntu 24.04 or newer `sudo add-apt-repository ppa:homielab/clean
 ```bash
 cm --json scan                    # default groups (no privacy)
 cm --json scan --only logs,dev    # selected groups
+cm --json scan --items thumbs,trash  # only these items (ids from `cm --json items`), e.g. to check again after a clean
 ```
 
 Groups: `system, logs, user, browser, apps, ai, models, dev, privacy`. Each `"event":"item"` line has `id`, `category`, `label`, `description`, `bytes`, `status` (`found`, `clean`, `timeout`), `note`, `selected` (pre-selected by CleanMate), `locked` (empty, or the program that is running), `root`, `trash` (goes to the Trash, undoable; otherwise deleted for good), `data_loss` (may hold the user's data, see rule 6), `durationMs` (how long its scan took), `why` (why it is safe: `effect` `regenerated`/`trash`/`delete`, `where`, `after`, `skipped`, `running`; read it to the user when they ask what an item is or what they would lose). The last line is `{"event":"done","total_bytes":…,"durationMs":…}`.

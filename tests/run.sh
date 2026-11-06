@@ -2201,6 +2201,56 @@ print(done[-1]["stopped"] if done else "no done", ids.get("old_downloads"), ids.
   assert_eq "$out" "False found clean" "a scan right after Stop runs to the end"
 }
 
+# --json scan --items: only those items, whatever their group (the desktop app checks again what it just
+# cleaned); merged into the last full scan (engine.merge_scan), the results and total match a new full scan
+test_json_scan_items() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out state
+  mkdir -p "$HOME_DIR/.cache/thumbnails/large" "$HOME_DIR/.local/share/Trash/files" "$HOME_DIR/.local/share/Trash/info"
+  head -c 5000 /dev/zero >"$HOME_DIR/.cache/thumbnails/large/a.png"
+  head -c 3000 /dev/zero >"$HOME_DIR/.cache/thumbnails/large/b.png"
+  printf '%s\n' '<?xml version="1.0"?>' '<xbel version="1.0">' '<bookmark href="file:///a.pdf"/>' '</xbel>' \
+    >"$HOME_DIR/.local/share/recently-used.xbel"
+  local summary='import sys, json
+ev = [json.loads(l) for l in sys.stdin if l.strip()]
+items = sorted(e["id"] for e in ev if e["event"] == "item")
+done = [e for e in ev if e["event"] == "done"]
+print(" ".join(items), "|", max([e["total"] for e in ev if e["event"] == "progress"] or [0]) <= 3,
+      done[-1]["locations"] if done else "no done")'
+  out=$(user_cm --json scan --items thumbs,trash,priv_recent | python3 -c "$summary")
+  assert_eq "$out" "priv_recent thumbs trash | True 3" "only the three items are scanned, privacy too when named"
+  out=$(user_cm --json scan --items thumbs,nope 2>&1); assert_eq "$?" 2 "an unknown item is refused"
+  assert_contains "$out" '"code":"unknown_item"'
+  out=$(user_cm --json scan --items 2>&1); assert_eq "$?" 2 "--items needs a list"
+  out=$(user_cm --json scan --nope 2>&1); assert_eq "$?" 2 "an unknown option of scan is refused"
+
+  user_cm --json scan --only user >"$WORK/full.json"
+  state=${HOME_DIR}/.local/state/cleanmate/last-scan.tsv
+  assert_contains "$(cut -f1 "$state")" "app_cache"
+  rm "$HOME_DIR/.cache/thumbnails/large/a.png" # as if cleaned; and a file goes to the Trash
+  head -c 7000 /dev/zero >"$HOME_DIR/.local/share/Trash/files/old.txt"
+  printf '[Trash Info]\nPath=/tmp/old.txt\nDeletionDate=2026-01-01T00:00:00\n' >"$HOME_DIR/.local/share/Trash/info/old.txt.trashinfo"
+  user_cm --json scan --items thumbs,trash >"$WORK/some.json"
+  assert_contains "$(cut -f1 "$state")" "app_cache" # a scan of some items keeps the others' last results
+  user_cm --json scan --only user >"$WORK/again.json"
+  python3 -c 'from gi.repository import GLib' 2>/dev/null || { SKIPPED="python3-gi not available (the merge)"; return; }
+  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_LOCALEDIR="$ROOT/no-locale" python3 -c '
+import json, sys
+sys.path.insert(0, sys.argv[1] + "/gui")
+from cleanmate_gui.engine import merge_scan
+def items(path):
+    return {e["id"]: e for e in map(json.loads, open(path)) if e["event"] == "item"}
+def view(items):
+    return sorted((i, e["status"], e["bytes"]) for i, e in items.items())
+full, some, again = items(sys.argv[2]), items(sys.argv[3]), items(sys.argv[4])
+merged = merge_scan(full, some, ["thumbs", "trash"])
+total = lambda x: sum(e["bytes"] for e in x.values() if e["status"] == "found")
+print(view(merged) == view(again), total(merged) == total(again), total(merged) != total(full))
+' "$ROOT" "$WORK/full.json" "$WORK/some.json" "$WORK/again.json" 2>&1)
+  assert_eq "$out" "True True True" "the merged results and total match a full scan"
+}
+
 test_old_downloads() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
