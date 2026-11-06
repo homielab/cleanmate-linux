@@ -167,8 +167,8 @@ In a container:
 
 ```bash
 docker run --rm -v "$PWD":/src:ro -v "$PWD/docs/screenshots":/out ubuntu:24.04 bash -c '
-  apt-get update && apt-get install -y python3-gi python3-pyte python3-pil gir1.2-gtk-4.0 \
-    gir1.2-adw-1 libgtk-4-bin fonts-ubuntu fonts-noto-color-emoji
+  apt-get update && apt-get install -y python3-gi python3-gi-cairo python3-pyte python3-pil \
+    gir1.2-gtk-4.0 gir1.2-adw-1 libgtk-4-bin fonts-ubuntu fonts-noto-color-emoji
   cp -r /src /w && useradd -m u && chown -R u /w
   su u -c "OUT=/tmp/shots bash /w/packaging/make-screenshots.sh" && cp /tmp/shots/*.png /out/'
 ```

@@ -25,6 +25,9 @@ checkbutton.big-check check { min-width: 24px; min-height: 24px; }
 row.item-row { min-height: 48px; }
 .keep-badge { background-color: alpha(@accent_bg_color, 0.18); color: @accent_color; border-radius: 99px;
               padding: 2px 10px; font-weight: bold; font-size: smaller; }
+.welcome-dot { background-color: alpha(@window_fg_color, 0.3); border-radius: 99px;
+               min-width: 7px; min-height: 7px; }
+.welcome-dot.active { background-color: @accent_bg_color; }
 """
 
 

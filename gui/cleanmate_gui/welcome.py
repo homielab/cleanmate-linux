@@ -5,6 +5,8 @@ the terminal app. 3. The main options — the Settings rows themselves (`Setting
 save the same keys and turn the same timers on and off — and the way in: its button runs Smart Scan. Closing it the first time saves `welcome_shown=1`
 through the engine; opened from the menu it changes nothing. It doesn't open by itself in the self-test,
 for screenshots or as root (settings are per user, so it would come back every time).
+The steps move in a `Gtk.Stack` (a `Adw.Carousel` hands each page only its natural width, so the steps
+shrank to a narrow column in the middle of the dialog) with a dot per step as the indicator.
 The Flatpak's welcome only promises what the Flatpak does: no Uninstaller, password, terminal app or
 automatic cleaning; step 2 says what it reaches and links to its limits.
 """
@@ -23,10 +25,6 @@ FLATPAK_OPTIONS = ("language", "low_disk_pct")  # no systemd timers in the Flatp
 def is_new(config=None):
     """True until the welcome was closed once (`welcome_shown=1` in the settings file)."""
     return i18n.saved_setting("welcome_shown", config) != "1"
-
-
-def animations():
-    return Gtk.Settings.get_default().get_property("gtk-enable-animations")
 
 
 def intro(icon, title, text):
@@ -68,10 +66,15 @@ class Welcome(Adw.Dialog):
             _("Change them any time in Settings, in the main menu (Ctrl+,).")))
         self.options.before_restart = self.mark_shown  # a new language restarts the app: don't come back
         self.steps = [self.what_step(), self.flatpak_step() if self.flatpak else self.scope_step(), self.options]
-        self.carousel = Adw.Carousel(vexpand=True)
-        for step in self.steps:
-            self.carousel.append(step)
-        self.carousel.connect("page-changed", self.on_page)
+        self.pager = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT_RIGHT, transition_duration=250,
+                               vexpand=True, hhomogeneous=True, vhomogeneous=True)
+        for i, step in enumerate(self.steps):
+            self.pager.add_named(step, str(i))
+        self.pager.connect("notify::visible-child", self.on_page)
+        self.dots = [Gtk.Box(css_classes=["welcome-dot"]) for _ in self.steps]
+        dots_box = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
+        for dot in self.dots:
+            dots_box.append(dot)
 
         self.skip = Gtk.Button(label=_("Skip"))
         self.skip.connect("clicked", lambda *_a: self.close())
@@ -82,9 +85,9 @@ class Welcome(Adw.Dialog):
                           else self.go(self.index + 1))
         header = Adw.HeaderBar()
         header.pack_start(self.skip)
-        bottom = Gtk.CenterBox(start_widget=self.back, center_widget=Adw.CarouselIndicatorDots(carousel=self.carousel),
+        bottom = Gtk.CenterBox(start_widget=self.back, center_widget=dots_box,
                                end_widget=self.next, margin_start=12, margin_end=12, margin_top=6, margin_bottom=12)
-        view = Adw.ToolbarView(content=self.carousel)
+        view = Adw.ToolbarView(content=self.pager)
         view.add_top_bar(header)
         view.add_bottom_bar(bottom)
         self.set_child(Adw.ToastOverlay(child=view))  # the options' toasts
@@ -189,10 +192,14 @@ class Welcome(Adw.Dialog):
     # ── moving ──
     def go(self, index):
         index = max(0, min(index, len(self.steps) - 1))
-        self.carousel.scroll_to(self.steps[index], animations())
+        if index == self.index:
+            return
+        self.pager.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT if index > self.index
+                                       else Gtk.StackTransitionType.SLIDE_RIGHT)
+        self.pager.set_visible_child(self.steps[index])
 
-    def on_page(self, _carousel, index):
-        self.index = index
+    def on_page(self, *_a):
+        self.index = self.steps.index(self.pager.get_visible_child())
         self.update()
 
     def update(self):
@@ -200,6 +207,11 @@ class Welcome(Adw.Dialog):
         self.back.set_visible(self.index > 0)
         self.skip.set_visible(not last)
         self.next.set_label(_("Run Smart Scan") if last else _("Next"))
+        for i, dot in enumerate(self.dots):
+            if i == self.index:
+                dot.add_css_class("active")
+            else:
+                dot.remove_css_class("active")
 
     def start(self):
         """The last step's button: close and run the first Smart Scan."""

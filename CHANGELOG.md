@@ -14,6 +14,8 @@ All notable changes are listed here. The format follows
 
 ### Fixed
 
+- The desktop app no longer crashes on systems without `python3-gi-cairo`: the Overview shows a note instead of the charts, and `cm --gui` says what to install.
+- The welcome steps fill the whole dialog again instead of shrinking to a narrow column in the middle.
 - Automatic cleaning tries again within the hour if it fails or your laptop sleeps, tells you if it still can't finish, and *Settings* shows its last run.
 - The low disk alert now reaches you in the Flatpak too: CleanMate warns you when you open it.
 

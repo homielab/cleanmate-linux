@@ -4187,6 +4187,44 @@ for l in sys.stdin:
   assert_exists "$h/.config/Zqslack/data"
 }
 
+test_gui_imports_have_packages() {
+  # The desktop app must never die for the lack of a Debian package: every GI namespace it imports
+  # (`from gi.repository …`, `gi.require_version`, `gi.require_foreign`) has to be named in
+  # debian/control. python3-gi-cairo was missing and the app died at its first Overview chart.
+  # The map is what Ubuntu 24.04 ships; Gst (video thumbnails, imported lazily) may sit in Recommends.
+  local -A pkg=(
+    [Gtk]=gir1.2-gtk-4.0 [Gdk]=gir1.2-gtk-4.0 [Gsk]=gir1.2-gtk-4.0 [Adw]=gir1.2-adw-1
+    [Pango]=gir1.2-pango-1.0 [GdkPixbuf]=gir1.2-gdkpixbuf-2.0
+    [GLib]=gir1.2-glib-2.0 [Gio]=gir1.2-glib-2.0 [GObject]=gir1.2-glib-2.0 [GioUnix]=gir1.2-glib-2.0
+    [Gst]=gir1.2-gstreamer-1.0
+    [cairo]=python3-gi-cairo # gi.require_foreign("cairo"): the cairo.Context converter
+  )
+  local joined deps recs
+  joined=$(sed -e ':a' -e 'N' -e '$!ba' -e 's/\n[[:space:]]\+/ /g' debian/control)
+  deps=$(sed -n 's/^Depends: //p' <<<"$joined")
+  recs=$(sed -n 's/^Recommends: //p' <<<"$joined")
+  in_field() { printf '%s' "$2" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[ (].*//' | grep -qx "$1"; }
+  local -a names=()
+  while IFS= read -r ns; do [[ -n $ns ]] && names+=("$ns"); done < <(
+    sed -n 's/.*from gi\.repository import \([A-Za-z0-9, ]*\).*/\1/p;
+            s/.*gi\.require_version("\([A-Za-z0-9]*\)".*/\1/p;
+            s/.*gi\.require_foreign("\([A-Za-z0-9]*\)").*/\1/p' \
+      gui/cleanmate-gui gui/cleanmate_gui/*.py cleanmate.sh | tr ',;' ' \n' | tr ' ' '\n' |
+    sed '/^$/d' | sort -u)
+  local ns p bad=""
+  for ns in "${names[@]}"; do
+    p=${pkg[$ns]:-}
+    if [[ -z $p ]]; then
+      bad+="   the GUI imports $ns: map it to its Debian package in test_gui_imports_have_packages"$'\n'
+    elif [[ $ns == Gst ]]; then
+      in_field "$p" "$deps $recs" || bad+="   $ns needs $p: not in debian/control Depends or Recommends"$'\n'
+    elif ! in_field "$p" "$deps"; then
+      bad+="   $ns needs $p: not in debian/control Depends"$'\n'
+    fi
+  done
+  [[ -z $bad ]] || { printf '%s' "$bad"; fail "the GUI's imports and debian/control disagree"; }
+}
+
 test_gui_selftest() {
   command -v gtk4-broadwayd >/dev/null || { SKIPPED="gtk4-broadwayd not installed (package libgtk-4-bin)"; return; }
   local py="" c
@@ -4220,13 +4258,18 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     # a private, invisible display; dry run; the self-test never touches system items
     out=$(env -i HOME="$HOME_DIR" PATH="$WORK/guilock:$BASE_PATH" LANG="$lang" XDG_RUNTIME_DIR="$rt" \
       CLEANMATE_SELFTEST_MAX_PAUSE_MS="${CI:+1500}" CLEANMATE_LOCALEDIR="$WORK/locale" GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
-      timeout 120 "$py" "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
+      timeout 180 "$py" "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
     ((VERBOSE)) && echo "      $lang:"
     ((VERBOSE)) && grep SELFTEST <<<"$out" | sed 's/^/      | /'
     assert_contains "$out" "SELFTEST done"
     [[ $out == *Gtk-WARNING* || $out == *Pango-WARNING* || $out == *Adwaita-WARNING* ]] &&
       { fail "GTK printed a warning"; grep -E '(Gtk|Pango|Adwaita)-WARNING' <<<"$out" | sort | uniq -c | head -5 | sed 's/^/      | /'; }
+    [[ $out == *"foreign struct converter"* ]] &&
+      { fail "a chart hit the missing cairo converter"; grep -n 'foreign struct converter' <<<"$out" | head -3 | sed 's/^/      | /'; }
     [[ $out == *"SELFTEST FAIL"* ]] && { fail "GUI self-test reported a failure"; grep 'SELFTEST FAIL' <<<"$out" | sed 's/^/      | /'; }
+    assert_contains "$out" "the Overview charts drew to snapshots"
+    assert_contains "$out" "the charts stay hidden"
+    assert_contains "$out" "step 1 fills the dialog"
     assert_contains "$out" "dry-run clean finished"
     assert_contains "$out" "group box selects the whole group"
     assert_contains "$out" "locked row “Claude Code — cache & logs” can't be ticked (claude running)"

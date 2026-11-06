@@ -49,6 +49,21 @@ def screenshot(win, path, then=None, tries=15):
     then and then()
 
 
+def content_widths(page):
+    """A step page's own width and the widest content clamp inside it (the welcome steps must fill the
+    dialog: a page narrower than the dialog is the bug where the steps shrank to a middle column)."""
+    clamps, stack = [], [page]
+    while stack:
+        w = stack.pop()
+        if isinstance(w, Adw.Clamp):
+            clamps.append(w.get_allocation().width)
+        c = w.get_first_child()
+        while c:
+            stack.append(c)
+            c = c.get_next_sibling()
+    return page.get_allocation().width, max(clamps or [0])
+
+
 def run(app, win):
     report_default = win.content_stack.get_visible_child_name()
     show_scene_page(win, "smart")
@@ -2280,6 +2295,7 @@ def overview_test(win, report, wait, finish):
     from .engine import Engine, human
     from .overview import FreedPanel, last_scan_text
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+    chart_drawn = []  # (chart names that rendered, filled by the draw checks)
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
     videos, projects = os.path.join(home, "Videos"), os.path.join(home, "Projects")
     sysroot = os.path.join(sandbox, "root")
@@ -2440,6 +2456,28 @@ def overview_test(win, report, wait, finish):
         settings.set_property("gtk-enable-animations", was)
         report(not still.animated and still.numbers["lifetime"][0].get_label() == human(2147483648),
                "with animations off the Freed numbers show their value at once")
+        from . import overview as O
+        O._charts_ok = False  # what a system without python3-gi-cairo sees
+        page.refresh_button.emit("clicked")
+        wait(lambda: idle() and page.freed is not None and "top:" + videos in page.rows, without_charts, 60,
+             "refresh without cairo")
+
+    def without_charts():
+        report(page.chart is None and page.freed.chart is None,
+               "without python3-gi-cairo the Overview keeps working and the charts stay hidden")
+        note = _("Install python3-gi-cairo to see the charts.")
+        labels, stack = [], [page.results]
+        while stack:
+            w = stack.pop()
+            if isinstance(w, Gtk.Label) and w.get_label() == note:
+                labels.append(w)
+            c = w.get_first_child()
+            while c:
+                stack.append(c)
+                c = c.get_next_sibling()
+        report(len(labels) == 2, f"a note stands where each chart would be ({len(labels)} of 2)")
+        from . import overview as O
+        O._charts_ok = True  # this machine has the package: back to the charts
         page.refresh_button.emit("clicked")
         wait(lambda: idle() and page.freed is not None and "top:" + videos in page.rows, refreshed_again, 60,
              "second refresh")
@@ -2451,6 +2489,15 @@ def overview_test(win, report, wait, finish):
         report(chart is not None and [p["avail"] for p in chart.points] == [9000000000, 7000000000, 5000000000]
                and human(7000000000) in chart.point_text(1), "free-space history: a chart of three days with a "
                "date and value per day")
+        for name, drawn_chart in (("history", page.chart), ("freed", page.freed.chart)):
+            screenshot(drawn_chart, os.path.join(sandbox, f"{name}-chart.png"),
+                       then=lambda n=name: chart_drawn.append(n))
+        wait(lambda: len(chart_drawn) == 2, drawn, 10, "the charts drew")
+
+    def drawn():
+        # rendering a chart hands the draw func a real cairo.Context: without the converter the app dies
+        # right here, so this check is what makes a missing python3-gi-cairo visible on CI
+        report(len(chart_drawn) == 2, "the Overview charts drew to snapshots (a missing converter dies here)")
         page.rows["top:" + videos].activate()
         lens = win.pages["lens"]
         wait(lambda: lens.running is None and lens.folder == videos, lambda: opened(lens), 60, "Space Lens folder")
@@ -2629,7 +2676,25 @@ def welcome_test(win, report, wait, finish):
         return welcome.closes > 0
 
     def at(n):
-        return lambda: dialog.index == n and abs(dialog.carousel.get_position() - n) < 0.01
+        # the step is there when the stack laid it out: only then is its width worth checking
+        return lambda: dialog.index == n and dialog.pager.get_visible_child() is dialog.steps[n] \
+            and dialog.steps[n].get_allocation().width > 0
+
+    def check_widths(tag, welcome=None):
+        """The current step fills its dialog: the page as wide as the stack, the content within the page's
+        margins — the bug this watches for is a step shrunken to a column in the middle. (A stack lays out
+        only the visible page, so each step is checked when it shows.)"""
+        w = welcome or dialog
+        dialog_w = w.pager.get_width()
+        page_w, clamp_w = content_widths(w.steps[w.index])
+        report(page_w >= dialog_w and clamp_w >= dialog_w - 26,
+               f"{tag}: step {w.index + 1} fills the dialog (page {page_w}, content {clamp_w} of {dialog_w})")
+
+    def shoot(tag, welcome=None):
+        if shots:
+            screenshot((welcome or dialog), os.path.join(shots, f"welcome-{tag}.png"))
+
+    shots = os.environ.get("CLEANMATE_SELFTEST_SHOTS") or ""
 
     def done():
         win.engine, win.open_terminal = real_engine, real_terminal
@@ -2640,11 +2705,45 @@ def welcome_test(win, report, wait, finish):
     def step1():
         report(not dialog.back.get_visible() and dialog.skip.get_visible() and dialog.next.get_label() == _("Next"),
                "the welcome opens on step 1 with Next and Skip")
+        check_widths("welcome, wide window")
+        shoot("step1")
+        narrow(0)  # then the same steps in a window narrower than the welcome: a bottom sheet
+
+    small = None
+    sheet = None
+
+    def narrow(step=0):
+        """A window narrower than the welcome shows it as a bottom sheet; its steps still fill it."""
+        nonlocal small, sheet
+        if step == 0:
+            small = Gtk.Window(default_width=420, default_height=640)
+            small.present()
+            sheet = closes(W.Welcome(win, first_run=False))
+            sheet.present(small)
+            wait(lambda: sheet.pager.get_width() > 0, lambda: narrow(1), 10, "the bottom sheet")
+            return
+        check_widths("welcome, bottom sheet", sheet)
+        if sheet.index == 0:
+            shoot("step1-narrow", sheet)
+        if sheet.index < len(sheet.steps) - 1:
+            nxt = sheet.index + 1
+            sheet.next.emit("clicked")
+            wait(lambda: sheet.index == nxt and sheet.steps[nxt].get_allocation().width > 0,
+                 lambda: narrow(nxt), 10, f"the bottom sheet's step {nxt + 1}")
+            return
+        sheet.skip.emit("clicked")
+        wait(lambda: closed(sheet), narrow_done, 10, "the bottom sheet closed")
+
+    def narrow_done():
+        nonlocal small
+        small.destroy()
         dialog.next.emit("clicked")
         wait(at(1), step2, 10, "welcome step 2")
 
     def step2():
         report(dialog.back.get_visible(), "Next goes to step 2, Back shows")
+        check_widths("welcome, wide window")
+        shoot("step2")
         dialog.terminal_button.emit("clicked")
         report(terminals == [1], "step 2 opens the terminal app")
         dialog.next.emit("clicked")
@@ -2653,6 +2752,8 @@ def welcome_test(win, report, wait, finish):
     def step3():
         report(not dialog.skip.get_visible() and dialog.next.get_label() == _("Run Smart Scan"),
                "step 3 ends with Run Smart Scan")
+        check_widths("welcome, wide window")
+        shoot("step3")
         wait(idle, options, 30, "welcome options")
 
     def options():
@@ -2717,8 +2818,8 @@ def welcome_test(win, report, wait, finish):
         report(saved() == before, "closing it from the menu changes no setting")
         done()
 
-    # laid out first: the carousel loses a scroll asked before it has a size
-    wait(lambda: win.get_visible_dialog() is dialog and dialog.carousel.get_width() > 0, step1, 10, "the welcome")
+    # laid out first: the stack's pages have no width before the dialog shows
+    wait(lambda: win.get_visible_dialog() is dialog and dialog.pager.get_width() > 0, step1, 10, "the welcome")
 
 
 def flatpak_welcome_test(win, report, wait, finish):
@@ -2742,11 +2843,27 @@ def flatpak_welcome_test(win, report, wait, finish):
            f"(found: {promised})")
     report(_("Limits of the Flatpak") in limits and _("Large & Old Files and Duplicates") in text,
            "its step 2 links to the Flatpak's limits; step 1 shows the file tools instead of the Uninstaller")
-    dialog.limits_row.emit("activated")
-    report(opened == [FLATPAK_LIMITS_URL], f"the limits row opens the page about the Flatpak: {opened}")
-    settings = SettingsPage(win, flatpak=True)
+    dialog.present(win)  # laid out: its three steps must fill the dialog like the regular welcome's do
+    wait(lambda: dialog.pager.get_width() > 0, lambda: flatpak_step_widths(0), 10, "the Flatpak's welcome")
 
-    def loaded():
+    def flatpak_step_widths(i):
+        if i:
+            dialog_w = dialog.pager.get_width()
+            page_w, clamp_w = content_widths(dialog.steps[i - 1])
+            report(page_w >= dialog_w and clamp_w >= dialog_w - 26,
+                   f"the Flatpak's welcome step {i} fills the dialog (page {page_w}, content {clamp_w})")
+        if i == len(dialog.steps):
+            dialog.force_close()
+            dialog.limits_row.emit("activated")
+            report(opened == [FLATPAK_LIMITS_URL], f"the limits row opens the page about the Flatpak: {opened}")
+            settings = SettingsPage(win, flatpak=True)
+            return wait(lambda: not dialog.options.busy() and not settings.busy(),
+                        lambda: loaded(settings), 30, "the Flatpak's options")
+        dialog.pager.set_visible_child(dialog.steps[i])
+        wait(lambda: dialog.steps[i].get_allocation().width > 0, lambda: flatpak_step_widths(i + 1), 10,
+             f"the Flatpak's welcome step {i + 1} laid out")
+
+    def loaded(settings):
         rows = sorted(dialog.options.rows)
         report(root or rows == sorted(W.FLATPAK_OPTIONS), f"its options are the language and the low disk alert, "
                f"no automatic cleaning or scan reminder: {rows}")
@@ -2759,8 +2876,6 @@ def flatpak_welcome_test(win, report, wait, finish):
                "the Flatpak's low disk alert says it only warns when CleanMate opens")
         win._open_url = real_open
         honest_results_test(win, report, wait, finish)
-
-    wait(lambda: not dialog.options.busy() and not settings.busy(), loaded, 30, "the Flatpak's options")
 
 
 FAKE_ENGINE = """#!/bin/bash

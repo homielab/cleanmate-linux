@@ -10942,7 +10942,16 @@ do_install() { # copy to ~/.local/bin, add the `cm` shorthand and an app-grid en
     INSTALL_LOG+=("${YELLOW}!${NC} Couldn't get the desktop app (offline?) — the terminal app is installed.")
   fi
   [[ -f $ICON_FILE ]] && icon=$APP_ID
-  [[ -f $GUI_HOME/cleanmate-gui ]] && gui_supported && gui=1
+  if [[ -f $GUI_HOME/cleanmate-gui ]]; then # say the packages when the desktop app can't open everything
+    if gui_supported; then
+      gui=1
+      gui_cairo_supported || INSTALL_LOG+=("${YELLOW}!${NC} For the Overview charts, also install:"
+        "    sudo apt install python3-gi-cairo")
+    else
+      INSTALL_LOG+=("${YELLOW}!${NC} The desktop app needs GTK 4 + libadwaita 1.5, install them with: "
+        "sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1")
+    fi
+  fi
   if ((gui)); then # app grid opens the desktop app; right-click offers the terminal app
     printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=CleanMate" \
       "Comment=Free up disk space and keep Ubuntu tidy" "Exec=$BIN_PATH --gui" "Icon=$icon" \
@@ -13114,6 +13123,10 @@ raise SystemExit(0 if (Adw.get_major_version(), Adw.get_minor_version()) >= (1, 
 PY
 }
 
+gui_cairo_supported() { # the Overview charts: PyGObject needs python3-gi-cairo to hand over a cairo.Context
+  python3 -c 'import gi; gi.require_foreign("cairo")' 2>/dev/null
+}
+
 launch_gui() {
   local dir
   if ! dir=$(gui_dir); then
@@ -13121,9 +13134,13 @@ launch_gui() {
     return 1
   fi
   if ! gui_supported; then
-    err "The desktop app needs GTK 4 + libadwaita 1.5 (Ubuntu 24.04 or newer)."
+    err "The desktop app needs GTK 4 + libadwaita 1.5 (Ubuntu 24.04 or newer). Install them with:"
+    err "    sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1"
     err "On older systems use the terminal app: cm"
     return 1
+  fi
+  if ! gui_cairo_supported; then # the app still opens: the Overview shows a note instead of the charts
+    err "The Overview charts need python3-gi-cairo. Install it with: sudo apt install python3-gi-cairo"
   fi
   local extra=()
   ((DRY_RUN)) && extra=(--dry-run)

@@ -11,6 +11,7 @@ the system turns animations off.
 """
 import datetime
 import os
+import sys
 import time
 
 from gi.repository import Adw, GLib, Gtk
@@ -27,6 +28,47 @@ FULL = 0.9  # a disk fuller than this is shown in the warning colour
 HISTORY_POINTS = 30  # days in the free-space chart
 WEEK_CHANGE = 100 << 20  # free space changing less than this a week counts as stable
 ANIMATION_MS = 600  # the Freed numbers count up and the bars grow this long
+
+
+_charts_ok = None  # None until the first chart asks; remembered for the whole session
+
+
+def charts_ok():
+    """True when PyGObject can hand a cairo.Context to a draw callback: the `python3-gi-cairo` package.
+    Without it the charts are left out (a note shows instead) and the app keeps working."""
+    global _charts_ok
+    if _charts_ok is None:
+        try:
+            import gi
+            gi.require_foreign("cairo")
+            _charts_ok = True
+        except Exception as error:  # not installed, or present without its cairo bridge
+            _charts_ok = False
+            print(f"cleanmate-gui: the Overview charts need python3-gi-cairo "
+                  f"(install it with: sudo apt install python3-gi-cairo): {error}", file=sys.stderr, flush=True)
+    return _charts_ok
+
+
+def charts_note():
+    """The line that stands where a chart would be when python3-gi-cairo is missing."""
+    return Gtk.Label(label=_("Install python3-gi-cairo to see the charts."), wrap=True,
+                     justify=Gtk.Justification.CENTER, margin_top=6, margin_bottom=6,
+                     css_classes=["dim-label"])
+
+
+def guarded_draw(draw):
+    """A draw func that can't take the app down: an error is logged once and the chart draws nothing."""
+    warned = []
+
+    def guarded(area, cr, width, height):
+        try:
+            draw(area, cr, width, height)
+        except Exception as error:
+            if not warned:
+                warned.append(1)
+                print(f"cleanmate-gui: drawing the chart failed, the app goes on: {error}",
+                      file=sys.stderr, flush=True)
+    return guarded
 
 
 def last_scan_text(epoch, today=None):
@@ -99,7 +141,7 @@ class HistoryChart(Gtk.DrawingArea):
                          margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
         self.points = points[-HISTORY_POINTS:]
         self.hover = None
-        self.set_draw_func(self.draw)
+        self.set_draw_func(guarded_draw(self.draw))
         self.connect("query-tooltip", self.on_query_tooltip)
         motion = Gtk.EventControllerMotion()
         motion.connect("motion", lambda _c, x, _y: self.set_hover(self.index_at(x)))
@@ -178,7 +220,7 @@ class FreedByDayChart(Gtk.DrawingArea):
         self.days = days  # [{"date", "bytes", "cleanups"}], oldest first
         self.hover = None
         self.progress = 1.0  # share of each bar's height, while they grow
-        self.set_draw_func(self.draw)
+        self.set_draw_func(guarded_draw(self.draw))
         self.connect("query-tooltip", self.on_query_tooltip)
         motion = Gtk.EventControllerMotion()
         motion.connect("motion", lambda _c, x, _y: self.set_hover(self.index_at(x)))
@@ -293,8 +335,11 @@ class FreedPanel(Gtk.Box):
         self.append(cards)
         days = f.get("freed_by_day") or []
         if any(d["cleanups"] for d in days):
-            self.chart = FreedByDayChart(days)
-            self.append(Gtk.Frame(child=self.chart, css_classes=["view"]))
+            if charts_ok():
+                self.chart = FreedByDayChart(days)
+                self.append(Gtk.Frame(child=self.chart, css_classes=["view"]))
+            else:
+                self.append(charts_note())
         self.animated = animate and animations_on(self)  # counts up once it shows
         self.animating = self.animated
         if self.animating:
@@ -562,8 +607,11 @@ class OverviewPage(Gtk.Box):
                                       "the chart shows here after a few days."))
         else:
             history.set_description(history_trend(points))
-            self.chart = HistoryChart(points)
-            history.add(Gtk.Frame(child=self.chart, css_classes=["view"]))
+            if charts_ok():
+                self.chart = HistoryChart(points)
+                history.add(Gtk.Frame(child=self.chart, css_classes=["view"]))
+            else:
+                history.add(charts_note())
         self.groups["history"] = history
         self.results.append(history)
 
@@ -589,7 +637,7 @@ class OverviewPage(Gtk.Box):
         else:
             self.freed = FreedPanel(f, animate=not self.freed_shown)  # Refresh doesn't count up again
             self.freed_shown = True
-            if not self.freed.chart:
+            if not any(day["cleanups"] for day in f.get("freed_by_day") or []):
                 freed.set_description(_("No cleanups in the last 30 days."))
             freed.add(self.freed)
         self.groups["freed"] = freed

@@ -37,6 +37,13 @@ confinement: classic
 # Shell and Python only, so one build runs everywhere (named *_all.snap).
 # Without this the store's build service builds every architecture separately
 # (and fails on i386, which core24 doesn't have).
+#
+# Classic runs the host's Python and GTK stack, so the desktop app uses the
+# host's packages too: python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1 and — for the
+# Overview charts — python3-gi-cairo. Staging it here is no use: its binding is
+# built for one Python version, while a classic snap runs the host's (3.12 on
+# 24.04, 3.13 on 24.10+). Without it the app opens and the Overview shows a
+# note instead of the charts; `cm --gui` says the package to install.
 platforms:
   all:
     build-on: [amd64]
