@@ -5033,6 +5033,108 @@ test_build_tool_caches() {
   assert_missing "$h/mine/o/ok" # zig's own cache folder under a custom ZIG_GLOBAL_CACHE_DIR
 }
 
+# The Go module cache (go env GOMODCACHE, locked while go or gopls runs), Nix's old generations
+# (user profiles only, sized from a dry-run GC), the Python tool caches and the Jupyter cache.
+test_go_modcache_nix_and_python_tool_caches() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/devbin bin2=$WORK/gocustombin golog=$WORK/go.log nixlog=$WORK/nix.log
+  mkdir -p "$bin" "$bin2"
+  # go: answers `go env GOMODCACHE`, logs every call; `clean -modcache` empties the module cache
+  cat >"$bin/go" <<EOF
+#!/bin/sh
+printf 'go %s\n' "\$*" >> "$golog"
+if [ "\$1" = env ] && [ "\$2" = GOMODCACHE ]; then printf '%s\n' "\$HOME/go/pkg/mod"; exit 0; fi
+if [ "\$1" = clean ] && [ "\$2" = -modcache ]; then
+  find "\$HOME/go/pkg/mod" -mindepth 1 -maxdepth 1 -exec rm -r {} + 2>/dev/null
+fi
+exit 0
+EOF
+  # go with GOMODCACHE pointed outside the default: the engine asks it every time
+  cat >"$bin2/go" <<EOF
+#!/bin/sh
+printf 'go %s\n' "\$*" >> "$golog"
+if [ "\$1" = env ] && [ "\$2" = GOMODCACHE ]; then printf '%s\n' "\$HOME/go-custom/mod"; exit 0; fi
+exit 0
+EOF
+  # nix-collect-garbage: logs every call; --dry-run reports 1.50 GiB, a real run empties the fake store
+  cat >"$bin/nix-collect-garbage" <<EOF
+#!/bin/sh
+printf 'nix %s\n' "\$*" >> "$nixlog"
+case "\$*" in *--dry-run*) printf '1.50 GiB freed\n' ;;
+  *) find "\$HOME/.local/state/nix/profiles/store" -mindepth 1 -delete 2>/dev/null ;; esac
+exit 0
+EOF
+  chmod 755 "$bin/go" "$bin2/go" "$bin/nix-collect-garbage"
+  new "$h/go/pkg/mod/cache/download/example.com/m@v/m.zip"
+  new "$h/go-custom/mod/m2.zip"
+  new "$h/.cache/ruff/rc/a"; new "$h/.cache/mypy/m/b"; new "$h/.cache/pytest/p/c"
+  new "$h/.cache/not-a-tool/keep"
+  new "$h/.cache/jupyter/metrics/x"
+  new "$h/.jupyter/lab/workspaces/w.json" # lab workspaces are data, not cache
+  mkdir -p "$h/.local/state/nix/profiles/store"
+  new "$h/.local/state/nix/profiles/store/garbage-path"
+  new "$h/.local/state/nix/profiles/kept-here"
+  : >"$golog"; : >"$nixlog"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --scan --only dev 2>&1)
+  for n in "Go module cache" "Nix garbage" "Python tool caches" "Jupyter cache"; do assert_contains "$out" "$n"; done
+  grep -Fxq 'go env GOMODCACHE' "$golog" && ok_ "scan asks go for GOMODCACHE" || fail "scan never ran go env GOMODCACHE"
+  grep -Fxq 'nix --delete-older-than 30d --dry-run' "$nixlog" && ok_ "scan dry-runs the GC" || fail "scan never dry-ran nix-collect-garbage: $(tail -2 "$nixlog")"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] in ("go_modcache", "nix_garbage", "python_tool_caches", "jupyter_cache"):
+        print(e["id"], e["bytes"], e["note"])')
+  assert_contains "$out" "go_modcache $(du -sb "$h/go/pkg/mod" | cut -f1) ~/go/pkg/mod"
+  assert_contains "$out" "nix_garbage 1610612736" # 1.50 GiB as the dry run reports
+  assert_contains "$out" "python_tool_caches $(du -scb "$h/.cache/ruff" "$h/.cache/mypy" "$h/.cache/pytest" | tail -1 | cut -f1)"
+  assert_contains "$out" "jupyter_cache $(du -sb "$h/.cache/jupyter" | cut -f1)"
+  # the custom GOMODCACHE is what the note shows
+  out=$(BASE_PATH="$bin2:$BASE_PATH" cm --json scan | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] == "go_modcache": print(e["note"])')
+  assert_contains "$out" "~/go-custom/mod"
+  # go running: the module cache is locked and an unattended clean keeps it, the rest is cleaned
+  running_stub "$bin" go
+  select_only go_modcache python_tool_caches jupyter_cache nix_garbage
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] == "go_modcache": print(repr(e["locked"]))')
+  assert_contains "$out" "'go'"
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  assert_exists "$h/go/pkg/mod/cache/download/example.com/m@v/m.zip" # go is running
+  assert_missing "$h/.cache/ruff/rc/a"; assert_missing "$h/.cache/mypy/m/b"; assert_missing "$h/.cache/pytest/p/c"
+  assert_missing "$h/.cache/jupyter/metrics/x"
+  assert_exists "$h/.cache/not-a-tool/keep"
+  assert_exists "$h/.jupyter/lab/workspaces/w.json"
+  grep -Fxq 'nix --delete-older-than 30d' "$nixlog" && ok_ "clean GCs without --dry-run" || fail "clean never ran nix-collect-garbage: $(tail -2 "$nixlog")"
+  assert_missing "$h/.local/state/nix/profiles/store/garbage-path"
+  assert_exists "$h/.local/state/nix/profiles/kept-here" # only the stub's store folder went
+  rm -r "$bin/pgrep" # go has finished
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  grep -Fxq 'go clean -modcache' "$golog" && ok_ "clean runs go clean -modcache" || fail "clean never ran go clean -modcache: $(tail -2 "$golog")"
+  assert_missing "$h/go/pkg/mod/cache/download/example.com/m@v/m.zip"
+  # without nix-collect-garbage the item stays out even with a profiles folder
+  local ids='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item": print(e["id"])'
+  fresh_home
+  mkdir -p "$HOME_DIR/.local/state/nix/profiles" "$HOME_DIR/.cache/jupyter"
+  out=$(BASE_PATH="$(path_without nix-collect-garbage)" cm --json scan | python3 -c "$ids")
+  assert_contains "$out" "jupyter_cache"
+  [[ $out != *"nix_garbage"* ]] && ok_ "no nix binary: no Nix garbage" || fail "nix_garbage listed without nix-collect-garbage"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan | python3 -c "$ids")
+  assert_contains "$out" "nix_garbage" # the stub is back
+  # nothing installed: every new item stays out
+  fresh_home
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json scan | python3 -c "$ids")
+  for n in go_modcache nix_garbage python_tool_caches jupyter_cache; do
+    [[ $out != *"$n"* ]] && ok_ "nothing there: no $n" || fail "$n listed in an empty home"
+  done
+}
+
 test_telegram_and_spotify_caches() {
   fresh_home
   local h=$HOME_DIR out bin=$WORK/mediabin t

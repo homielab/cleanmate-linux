@@ -6,6 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Developer Junk finds four more caches: the Go module cache (`go env GOMODCACHE`), Nix's old generations, the ruff/mypy/pytest caches under `~/.cache` and the Jupyter cache.
+
 ### Changed
 
 - After a clean, Smart Scan and Privacy check only what you just cleaned, so the results are back in a blink.

@@ -485,6 +485,36 @@ msgstr ""
 msgid "Your environments: only downloaded archives, the index cache and logs go"
 msgstr ""
 
+#. go_modcache label
+msgid "Go module cache"
+msgstr ""
+
+#. go_modcache description
+msgid "Go's downloaded modules (go env GOMODCACHE); downloaded again on the next build."
+msgstr ""
+
+#. go_modcache why
+msgid "Go's module cache (go env GOMODCACHE)"
+msgstr ""
+
+#. nix_garbage label
+msgid "Nix garbage"
+msgstr ""
+
+#. nix_garbage description
+#, python-brace-format
+msgid "Generations of your Nix profiles older than {0} days and store paths nothing references. The generation in use stays."
+msgstr ""
+
+#. nix_garbage why
+#, python-brace-format
+msgid "Generations of your Nix profiles older than {0} days and the store paths they leave behind"
+msgstr ""
+
+#. nix_garbage why
+msgid "The generation in use stays"
+msgstr ""
+
 #. docker_dangling label
 msgid "Docker: dangling images"
 msgstr ""
@@ -1042,6 +1072,22 @@ msgstr ""
 
 #. rustup_downloads description
 msgid "Leftover rustup downloads and temp files. Your installed toolchains are kept."
+msgstr ""
+
+#. python_tool_caches label
+msgid "Python tool caches"
+msgstr ""
+
+#. python_tool_caches description
+msgid "ruff, mypy and pytest caches under ~/.cache, where a tool was configured to keep one."
+msgstr ""
+
+#. jupyter_cache label
+msgid "Jupyter cache"
+msgstr ""
+
+#. jupyter_cache description
+msgid "Jupyter's cached data (~/.cache/jupyter). Notebooks, settings and lab workspaces are kept."
 msgstr ""
 
 #. browser_test_cache label

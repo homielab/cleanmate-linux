@@ -1091,6 +1091,8 @@ reg cargo        dev    "Cargo registry cache"              0 "Downloaded and ex
 reg gradle       dev    "Gradle caches"                     0 "Gradle dependency and build caches; re-downloaded on next build."
 reg maven        dev    "Maven repository"                  0 "Local Maven repository (~/.m2/repository); re-downloaded on next build."
 reg conda        dev    "Conda package cache"               1 "Downloaded package archives, index cache and logs (conda clean --tarballs). Your environments are kept."
+reg go_modcache  dev    "Go module cache"                   0 "Go's downloaded modules (go env GOMODCACHE); downloaded again on the next build."
+reg nix_garbage  dev    "Nix garbage"                       0 "Generations of your Nix profiles older than 30 days and store paths nothing references. The generation in use stays."
 reg docker_dangling dev "Docker: dangling images"           1 "Untagged leftover image layers from rebuilds — nothing uses them."
 reg docker_build dev    "Docker: build cache"               0 "BuildKit cache. Safe to remove; the next build is slower once."
 reg docker_containers dev "Docker: stopped containers"      0 "Containers that aren't running. Anything stored inside them (not in volumes) is lost."
@@ -1112,7 +1114,7 @@ declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1)
 declare -A AUTO_NEVER=([trash]=1 [trash_drives]=1 [tracker_index]=1 [baloo_index]=1 [stale_build_dirs]=1
   [android_images]=1 [android_avd_snapshots]=1 [android_sdk_old]=1 [game_runners_old]=1 [old_runtimes]=1
   [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [jetbrains_old_versions]=1
-  [vscode_old_extensions]=1)
+  [vscode_old_extensions]=1 [nix_garbage]=1)
 # items whose scan only looks at a few folders (test, du) and runs no other tool that
 # could hang: a scan runs them in a few shared processes, one after the other, since a
 # process each costs more than the scan. reg_cache_item, reg_list_item and reg_folders_item add theirs;
@@ -1175,6 +1177,9 @@ why cargo             regenerated "@CARGO_PATHS"
 why gradle            regenerated "@GRADLE_PATHS"
 why maven             regenerated "@MAVEN_PATHS"
 why conda             regenerated "Conda's package folders (pkgs)" "Your environments: only downloaded archives, the index cache and logs go"
+why go_modcache       regenerated "Go's module cache (go env GOMODCACHE)"
+why nix_garbage       delete      "Generations of your Nix profiles older than 30 days and the store paths they leave behind" \
+  "The generation in use stays"
 why docker_dangling   delete      "Docker's image store (docker image prune)" "Image layers a tagged image or a container uses"
 why docker_build      regenerated "Docker's build cache (docker builder prune)"
 why docker_containers delete      "Docker's stopped containers (docker container prune)" "Containers that are running"
@@ -3809,10 +3814,64 @@ scan_gobuild() { dev_scan "~/.cache/go-build" "${GO_PATHS[@]}"; }
 clean_gobuild() { if have go; then run go clean -cache; else empty_dir "${GO_PATHS[0]}"; fi; }
 details_gobuild() { detail_paths "${GO_PATHS[@]}"; }
 
+# The module cache (GOMODCACHE, by default ~/go/pkg/mod): `go clean -modcache` empties it, the next
+# build downloads its modules again. A running build (go) or language server (gopls) locks the item.
+go_modcache_dir() { # → the module cache folder go uses
+  local p=""
+  if have go; then p=$(timeout 10 go env GOMODCACHE 2>/dev/null); fi
+  printf '%s\n' "${p:-$HOME/go/pkg/mod}"
+}
+scan_go_modcache() { local p; p=$(go_modcache_dir); dev_scan "${p/#$HOME/\~}" "$p"; }
+clean_go_modcache() {
+  local p; p=$(go_modcache_dir)
+  if have go; then run go clean -modcache
+  elif [[ $p == "$HOME"/* ]]; then empty_dir "$p"
+  else warn "Skipping ${ITEM_LABEL[go_modcache]}: only go can clean ${p/#$HOME/\~}."; return 1; fi
+}
+details_go_modcache() { detail_paths "$(go_modcache_dir)"; }
+ITEM_RUNNING[go_modcache]="go"
+lockedby_go_modcache() { running_proc -x 'go|gopls'; }
+precheck_go_modcache() {
+  lockedby_go_modcache >/dev/null || return 0
+  if ((ASSUME_YES)); then warn "Skipping ${ITEM_LABEL[go_modcache]}: it is running."; return 1; fi
+  ui_confirm "${ITEM_LABEL[go_modcache]} is running" "Close it first for best results. Clean its module cache anyway?" n
+}
+
 CARGO_PATHS=("$HOME/.cargo/registry/cache" "$HOME/.cargo/registry/src")
 scan_cargo() { dev_scan "~/.cargo/registry" "${CARGO_PATHS[@]}"; }
 clean_cargo() { local p; for p in "${CARGO_PATHS[@]}"; do empty_dir "$p"; done; }
 details_cargo() { detail_paths "${CARGO_PATHS[@]}"; }
+
+# Nix (only when it is installed): generations of your own profiles older than 30 days — new Nix
+# keeps them in ~/.local/state/nix/profiles, older setups in /nix/var/nix/profiles/per-user — and
+# the store paths they leave behind. As your user: nix-collect-garbage without root never touches
+# another user's profiles or store paths, and the generation in use always stays.
+NIX_KEEP_DAYS=30
+nix_profile_dirs() { # → the user's Nix profile folders, one per line
+  printf '%s\n' "$HOME/.local/state/nix/profiles" "/nix/var/nix/profiles/per-user/${USER:-$(id -un)}"
+}
+nix_freed_bytes() { # → bytes nix-collect-garbage would free (dry run, capped at 30 s); 0 when it can't be measured
+  local line
+  line=$(LC_ALL=C timeout 30 nix-collect-garbage --delete-older-than "${NIX_KEEP_DAYS}d" --dry-run 2>/dev/null |
+    grep 'freed' | tail -n 1) || return 0
+  [[ $line =~ ([0-9]+(\.[0-9]+)?)[[:space:]]?([KMGT])?i?B ]] || { echo 0; return; }
+  LC_ALL=C numfmt --from=iec "${BASH_REMATCH[1]}${BASH_REMATCH[3]}" 2>/dev/null || echo 0
+}
+scan_nix_garbage() {
+  have nix-collect-garbage || return 1
+  local d dirs=()
+  while IFS= read -r d; do [[ -d $d ]] && dirs+=("$d"); done < <(nix_profile_dirs)
+  ((${#dirs[@]})) || return 1
+  SCAN_BYTES=$(nix_freed_bytes)
+  SCAN_NOTE="${dirs[0]/#$HOME/\~}"
+  ((SCAN_BYTES > 0)) || return 2
+}
+clean_nix_garbage() { run nix-collect-garbage --delete-older-than "${NIX_KEEP_DAYS}d"; }
+details_nix_garbage() {
+  local d
+  while IFS= read -r d; do [[ -d $d ]] && detail_paths "$d"; done < <(nix_profile_dirs)
+  return 0
+}
 
 GRADLE_PATHS=("$HOME/.gradle/caches")
 ITEM_RUNNING[gradle]="Gradle"
@@ -3920,6 +3979,16 @@ env_home_pathsv _p RUSTUP_HOME tmp "$HOME/.rustup/tmp"
 reg_cache_item rustup_downloads dev "rustup downloads" 1 \
   "Leftover rustup downloads and temp files. Your installed toolchains are kept." \
   "$_p" "rustup"
+# ruff, mypy and pytest keep their cache in the project (.ruff_cache, .mypy_cache, .pytest_cache);
+# only a tool told to keep one in your home gets one of these folders
+reg_cache_item python_tool_caches dev "Python tool caches" 1 \
+  "ruff, mypy and pytest caches under ~/.cache, where a tool was configured to keep one." \
+  "$HOME/.cache/ruff
+$HOME/.cache/mypy
+$HOME/.cache/pytest"
+reg_cache_item jupyter_cache dev "Jupyter cache" 1 \
+  "Jupyter's cached data (~/.cache/jupyter). Notebooks, settings and lab workspaces are kept." \
+  "$HOME/.cache/jupyter" "jupyter"
 reg_cache_item browser_test_cache dev "Playwright, Puppeteer & Cypress browsers" 0 \
   "Browsers downloaded for test tools (~/.cache/ms-playwright, puppeteer, Cypress). Re-downloaded on next install or test run." \
   "$HOME/.cache/ms-playwright
