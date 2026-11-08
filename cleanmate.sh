@@ -1101,6 +1101,10 @@ reg docker_containers dev "Docker: stopped containers"      0 "Containers that a
 reg docker_images dev   "Docker: unused images"             0 "Images no container uses. They are pulled again when needed."
 reg docker_volumes dev  "Docker: unused volumes"            0 "Volumes no container uses — they may hold databases or other data. Review before removing!"
 reg podman       dev    "Podman: stopped containers & dangling images" 0 "podman system prune: stopped containers, untagged image layers and unused networks. Volumes and tagged images are kept."
+reg podman_images dev   "Podman: unused images"             0 "Images no container uses. They are pulled again when needed."
+reg podman_build dev    "Podman: build cache"               0 "Build cache. Safe to remove; the next build is slower once."
+reg podman_volumes dev  "Podman: unused volumes"            0 "Volumes no container uses — they may hold databases or other data. Review before removing!"
+reg docker_offline dev  "Docker: not reachable"             0 "Docker is installed but its daemon isn't running, or this user may not talk to it. Nothing is deleted here; the row says the fix."
 
 for _id in apt_cache packagekit_cache orphans residual journal old_logs big_logs crash coredump snap_old old_kernels; do ITEM_ROOT[$_id]=1; done
 unset _id
@@ -1109,7 +1113,7 @@ declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 
 # items deleted for good whose contents may be someone's data (a database in a volume, files written
 # inside a container): an unattended clean (--clean --yes, --auto) leaves them even when ticked; only
 # `--json clean ID` naming them, or a clean the user confirms, removes them
-declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1)
+declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1 [podman_volumes]=1)
 # items automatic cleaning (--auto) never cleans, even when ticked: it never empties a Trash or resets a
 # search index behind your back, and you pick which projects to rebuild, images, runtimes, Unity editors,
 # SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
@@ -1188,6 +1192,10 @@ why docker_containers delete      "Docker's stopped containers (docker container
 why docker_images     regenerated "Docker's images (docker image prune -a)" "Images a container uses, even a stopped one"
 why docker_volumes    delete      "Docker's volumes (docker volume prune)" "Volumes a container uses, even a stopped one"
 why podman            delete      "Podman's containers and images (podman system prune)" "Running containers, volumes and tagged images"
+why podman_images     regenerated "Podman's images (podman image prune -a)" "Images a container uses, even a stopped one"
+why podman_build      regenerated "Podman's build cache (podman builder prune)"
+why podman_volumes    delete      "Podman's volumes (podman volume prune)" "Volumes a container uses, even a stopped one"
+why docker_offline    delete      "Nothing: the row only explains why the Docker items are hidden and names the fix"
 
 # ── detail helpers ──
 
@@ -6370,7 +6378,40 @@ clean_entries_vscode_old_extensions() { # encoded folders (json_clean_entries on
 # "1.5GB" (or "1,5 GB" from a tool that follows a decimal-comma language) → bytes, whatever the language
 si_to_bytes() { local v=${1%B}; v=${v/k/K}; LC_ALL=C numfmt --from=si "${v/,/.}" 2>/dev/null || echo 0; }
 # Docker: one item per kind of leftover, sized from `docker system df`.
-docker_ok() { have docker && timeout 5 docker info >/dev/null 2>&1; }
+# Docker's state for this run, asked once: ok, missing (no docker command), daemon (installed but the
+# daemon isn't running) or denied (the daemon's socket isn't ours — the user isn't in the docker group).
+# `docker info` runs at most once per run, not once per Docker item.
+DOCKER_STATE=""
+docker_state() {
+  [[ -n $DOCKER_STATE ]] && { printf '%s\n' "$DOCKER_STATE"; return; }
+  # The state is also shared through a file: the scan's item workers are subshells, but a worker that
+  # starts after the daemon came up (or the clean in another run of the same second) must not ask again.
+  local f="$SESSION_TMP/docker-state"
+  if [[ -s $f ]]; then DOCKER_STATE=$(<"$f"); printf '%s\n' "$DOCKER_STATE"; return; fi
+  if ! have docker; then DOCKER_STATE=missing
+  else
+    local err sock
+    err=$(timeout 5 docker info 2>&1 >/dev/null) # the one probe: empty = reachable
+    if [[ -z $err ]]; then DOCKER_STATE=ok; else
+      for sock in /var/run/docker.sock /run/docker.sock "${DOCKER_HOST#unix://}"; do
+        [[ -S $sock && ! -r $sock ]] && DOCKER_STATE=denied
+      done
+      [[ $err == *permission\ denied* ]] && DOCKER_STATE=denied
+      DOCKER_STATE=${DOCKER_STATE:-daemon}
+    fi
+    printf '%s\n' "$DOCKER_STATE" >"$f" 2>/dev/null || true
+  fi
+  printf '%s\n' "$DOCKER_STATE"
+}
+docker_ok() { docker_state >/dev/null; [[ $DOCKER_STATE == ok ]]; }
+docker_fix_hint() { # the fix, for the state that is not ok
+  docker_state >/dev/null
+  if [[ $DOCKER_STATE == denied ]]; then
+    printf '%s\n' "add your user to the docker group: sudo usermod -aG docker \$USER, then sign out and back in"
+  else
+    printf '%s\n' "start it with: sudo systemctl start docker"
+  fi
+}
 docker_reclaimable() { # TYPE (Images, Containers, Local Volumes, Build Cache) → bytes
   local t r
   while IFS=$'\t' read -r t r; do
@@ -6485,6 +6526,27 @@ docker_unused_volumes() { # volumes no container uses, biggest first, as entries
 entries_docker_volumes() { docker_ok && docker_local || return 1; docker_unused_volumes; }
 clean_entries_docker_volumes() { local v rc=0; for v; do run docker volume rm "$v" || rc=1; done; return "$rc"; }
 
+# Installed but out of reach: the row stands in for the hidden Docker items and says why they are hidden
+# and what fixes it. Nothing is ever cleaned here, and the daemon is never started for the user.
+scan_docker_offline() {
+  docker_state >/dev/null
+  local s=$DOCKER_STATE
+  [[ $s == daemon || $s == denied ]] || return 1
+  SCAN_BYTES=0
+  if [[ $s == denied ]]; then
+    SCAN_NOTE="this user can't talk to the Docker daemon; join the docker group: sudo usermod -aG docker \$USER, then sign out and back in"
+  else
+    SCAN_NOTE="the Docker daemon isn't running; start it with: sudo systemctl start docker"
+  fi
+  return 2
+}
+precheck_docker_offline() {
+  warn "Skipping ${ITEM_LABEL[docker_offline]}: $(docker_fix_hint)"
+  return 1
+}
+clean_docker_offline() { return 1; }
+details_docker_offline() { detail_paths /var/run/docker.sock; return 0; }
+
 scan_docker_containers() {
   docker_ok || return 1
   local n
@@ -6573,7 +6635,19 @@ details_conda() { conda_archives | detail_files 30; }
 
 # Podman: like `docker system prune`, without volumes or tagged images. Only asked when
 # you've used it: `podman info` creates its storage folders, and a scan must change nothing.
-podman_ok() { have podman && [[ -d ${XDG_DATA_HOME:-$HOME/.local/share}/containers ]] && timeout 5 podman info >/dev/null 2>&1; }
+PODMAN_OK=""
+podman_ok() { # asked once per run: the four Podman items share the answer (also through a state file)
+  [[ -n $PODMAN_OK ]] && return $PODMAN_OK
+  local f="$SESSION_TMP/podman-ok"
+  if [[ -e $f ]]; then PODMAN_OK=1; return 1; fi
+  if have podman && [[ -d ${XDG_DATA_HOME:-$HOME/.local/share}/containers ]] && timeout 5 podman info >/dev/null 2>&1; then
+    PODMAN_OK=0
+  else
+    PODMAN_OK=1
+    : >"$f" 2>/dev/null || true
+    return 1
+  fi
+}
 scan_podman() {
   podman_ok || return 1
   local sizes v b=0 c
@@ -6589,6 +6663,35 @@ details_podman() {
   podman ps -a -f status=exited -f status=created --format '  {{.Names}}  ({{.Image}}) — {{.Status}}' 2>/dev/null
   return 0
 }
+
+# The rest of what Docker's items cover, for Podman: sized from `podman system df` (the same table shape),
+# each entry its own row in the desktop app, volumes treated as data like Docker's.
+podman_reclaimable() { # TYPE (Images, Build Cache, Local Volumes) → bytes
+  local t r
+  while IFS=$'\t' read -r t r; do
+    [[ $t == "$1" ]] && si_to_bytes "${r%% *}" && return
+  done < <(timeout 5 podman system df --format '{{.Type}}\t{{.Reclaimable}}' 2>/dev/null)
+  echo 0
+}
+scan_podman_images() {
+  podman_ok || return 1
+  podman_scan "$(podman_reclaimable Images)" "not used by any container"
+}
+scan_podman_build() { podman_ok || return 1; podman_scan "$(podman_reclaimable "Build Cache")" "Build cache"; }
+scan_podman_volumes() { podman_ok || return 1; podman_scan "$(podman_reclaimable "Local Volumes")" "may contain data"; }
+podman_scan() { # BYTES NOTE — hidden when nothing is reclaimable
+  SCAN_BYTES=${1:-0} SCAN_NOTE=$2
+  ((SCAN_BYTES > 0)) || return 2
+}
+clean_podman_images() { run podman image prune -a -f; }
+clean_podman_build() { run podman builder prune -a -f; }
+clean_podman_volumes() { run podman volume prune -f; }
+# Build cache has no per-row listing in podman (docker's comes from buildx): cleaned as a whole.
+entries_podman_images() { podman_ok || return 1; podman images --format '{{.Size}}\t{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -v '<none>' | detail_files 40; return 0; }
+entries_podman_volumes() { podman_ok || return 1; podman volume ls --format '{{.Name}}' 2>/dev/null | detail_files 40; return 0; }
+details_podman_images() { entries_podman_images; }
+details_podman_build() { timeout 5 podman system df 2>/dev/null | sed 's/^/  /'; return 0; }
+details_podman_volumes() { podman volume ls --format '  {{.Name}}  {{.Driver}}' 2>/dev/null; return 0; }
 
 # ── AI models: one item per downloaded model ──
 #
@@ -7204,6 +7307,10 @@ scan_collect() { # FILE — the results a worker wrote (only whole lines: one cu
 # by category, junk first, biggest first), SCAN_MS and SCAN_COUNT.
 scan_items() { # CATEGORY...
   SCANNED=() SCAN_CATS=("$@") SCAN_IDS=() SCAN_GOT=() SCAN_START=() SCAN_DONE=0
+  # Docker's state is asked once here and exported: the item workers run in subshells, and each asking
+  # the daemon itself would mean one `docker info` per Docker item.
+  [[ -n $DOCKER_STATE ]] || docker_state >/dev/null
+  export DOCKER_STATE
   local found=() id cat tmp t0 now pending first=0 k h i json_last=-1 wait_n=0 watch="" reaped light=()
   local -a w_ids=() w_pid=() w_done=()
   local -A live=() cat_n=()
@@ -7848,6 +7955,9 @@ scan_report() { # --scan
   plain_results
   found_total
   printf '\n  %s●%s = cleaned by --clean (%s)\n' "$GREEN" "$NC" "$(human "$SELECTED_TOTAL")"
+  docker_state >/dev/null
+  [[ $DOCKER_STATE == daemon || $DOCKER_STATE == denied ]] &&
+    warn "Docker is installed but unreachable ($(docker_fix_hint)) — its items are hidden."
   scan_timing_line
 }
 

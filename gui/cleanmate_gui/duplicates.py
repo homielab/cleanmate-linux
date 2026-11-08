@@ -49,6 +49,10 @@ def dupes_notes(info):
     if why.get("unreadable"):
         notes.append(ngettext("{n} file skipped: it can't be read",
                               "{n} files skipped: they can't be read", why["unreadable"]))
+    if info.get("no_loader"):
+        notes.append(ngettext("{n} photo skipped: this system has no loader for it — install heif-gdk-pixbuf / webp-pixbuf-loader",
+                              "{n} photos skipped: this system has no loader for them — install heif-gdk-pixbuf / webp-pixbuf-loader",
+                              info["no_loader"]))
     return notes + skipped_notes({"other_drives": info.get("other_drives")})
 
 
@@ -340,6 +344,7 @@ class DuplicatesPage(Gtk.Box):
     def search_photos(self, gen):
         """Never clean folders from the engine's settings, then list, read and group the photos on a thread."""
         exclusions = []
+        stats = {}  # filled by work() (formats without a loader), read by finished()
         folder = self.folder
 
         def on_setting(e):
@@ -363,7 +368,7 @@ class DuplicatesPage(Gtk.Box):
 
             groups, failure = None, None
             try:
-                photos = similar.find_photos(folder, exclusions, cancellable.is_cancelled)
+                photos = similar.find_photos(folder, exclusions, cancellable.is_cancelled, stats=stats)
                 GLib.idle_add(show_progress, 0, len(photos))
                 read = similar.hash_photos(photos, cancellable.is_cancelled, progress, cache=similar.cache_file())
                 groups = similar.group_photos(read, cancellable.is_cancelled)
@@ -393,7 +398,7 @@ class DuplicatesPage(Gtk.Box):
             found = found or []
             self.groups = found[:similar.GROUPS_LIMIT]
             self.found = len(found)
-            self.info = {}
+            self.info = {"no_loader": stats.get("no_loader", 0)}
             self.selected = set()
             self.show_results()
             return False

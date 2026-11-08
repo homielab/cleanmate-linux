@@ -260,5 +260,25 @@ class HashCacheTest(unittest.TestCase):
                                                             "similar-hashes.tsv"))
 
 
+class NoLoaderStats(unittest.TestCase):
+    """The count of photos whose format this system cannot read (no GdkPixbuf loader)."""
+
+    def test_counts_photos_this_system_cannot_read(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        def blob(kind, size=24 << 10):
+            with open(os.path.join(d, kind), "wb") as f:
+                f.write(bytes(size))
+        blob("keep.jpg")
+        blob("skip.heic")
+        blob("skip.webp")
+        blob("note.txt")
+        stats = {}
+        found = similar.find_photos(d, extensions={"jpg"}, stats=stats)
+        self.assertEqual([os.path.basename(p["path"]) for p in found], ["keep.jpg"])
+        self.assertEqual(stats.get("no_loader"), 2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

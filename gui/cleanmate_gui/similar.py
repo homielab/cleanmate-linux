@@ -51,10 +51,13 @@ def excluded(path, exclusions):
     return any(path == ex or path.startswith(ex.rstrip("/") + "/") for ex in exclusions)
 
 
-def find_photos(folder, exclusions=(), cancelled=lambda: False, min_bytes=MIN_BYTES, extensions=None):
+def find_photos(folder, exclusions=(), cancelled=lambda: False, min_bytes=MIN_BYTES, extensions=None, stats=None):
     """Photos under folder: [{"path", "bytes", "mtime"}]. Leaves out hidden folders, Never clean folders,
-    photo manager libraries, links, hard links to a photo already listed and names that aren't UTF-8."""
+    photo manager libraries, links, hard links to a photo already listed and names that aren't UTF-8.
+    `stats`, when given, gets "no_loader": how many files have a known photo extension this system's GdkPixbuf
+    cannot read (HEIC/WebP/AVIF without its loader) — reported to the user, never silently dropped."""
     extensions = readable_extensions() if extensions is None else extensions
+    no_loader_for = PHOTO_EXTENSIONS - extensions
     folder = os.path.abspath(folder)
     if excluded(folder, exclusions):
         return []
@@ -67,7 +70,10 @@ def find_photos(folder, exclusions=(), cancelled=lambda: False, min_bytes=MIN_BY
             continue
         dirs[:] = sorted(d for d in dirs if not d.startswith(".") and not excluded(os.path.join(top, d), exclusions))
         for name in sorted(files):
-            if name.rpartition(".")[2].lower() not in extensions or "." not in name:
+            ext = name.rpartition(".")[2].lower()
+            if "." not in name or ext not in extensions:
+                if stats is not None and ext in no_loader_for:
+                    stats["no_loader"] = stats.get("no_loader", 0) + 1
                 continue
             path = os.path.join(top, name)
             try:

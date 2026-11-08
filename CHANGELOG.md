@@ -7,6 +7,11 @@ All notable changes are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Smart Scan stops staying silent about Docker it cannot reach: when the daemon isn't running or your user isn't in the `docker` group, one row names which and shows the fix instead of hiding every Docker item.
+- Podman gets the same per-item coverage as Docker: unused images, build cache and unused volumes, sized from `podman system df`, with volumes treated as data that is never cleaned unattended.
+- Similar Photos says how many photos it skipped for lack of a GdkPixbuf loader and names the packages to install (`heif-gdk-pixbuf`, `webp-pixbuf-loader`, now recommended by the package).
+
+### Added
 
 - Developer Junk finds four more caches: the Go module cache (`go env GOMODCACHE`), Nix's old generations, the ruff/mypy/pytest caches under `~/.cache` and the Jupyter cache.
 

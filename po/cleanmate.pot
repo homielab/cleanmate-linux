@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-07 20:40+0000\n"
+"POT-Creation-Date: 2026-11-08 10:59+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -43,7 +43,7 @@ msgid ""
 "and no user name or personal file path is included."
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:86 gui/cleanmate_gui/duplicates.py:681
+#: gui/cleanmate_gui/bugreport.py:86 gui/cleanmate_gui/duplicates.py:686
 #: gui/cleanmate_gui/largefiles.py:462 gui/cleanmate_gui/maintenance.py:264
 #: gui/cleanmate_gui/scanpage.py:941 gui/cleanmate_gui/scanpage.py:1164
 #: gui/cleanmate_gui/settings.py:537 gui/cleanmate_gui/spacelens.py:651
@@ -98,215 +98,226 @@ msgid_plural "{n} files skipped: they can't be read"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:126
+#: gui/cleanmate_gui/duplicates.py:53
+#, python-brace-format
+msgid ""
+"{n} photo skipped: this system has no loader for it — install heif-gdk-"
+"pixbuf / webp-pixbuf-loader"
+msgid_plural ""
+"{n} photos skipped: this system has no loader for them — install heif-gdk-"
+"pixbuf / webp-pixbuf-loader"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/duplicates.py:130
 msgid "Identical Files"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:126 gui/cleanmate_gui/duplicates.py:229
+#: gui/cleanmate_gui/duplicates.py:130 gui/cleanmate_gui/duplicates.py:233
 #: gui/cleanmate_gui/trashed.py:30
 msgid "Similar Photos"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:134
+#: gui/cleanmate_gui/duplicates.py:138
 msgid "Smallest file size to compare"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:141 gui/cleanmate_gui/largefiles.py:115
+#: gui/cleanmate_gui/duplicates.py:145 gui/cleanmate_gui/largefiles.py:115
 msgid "Folder to search (also a drive)"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:147 gui/cleanmate_gui/largefiles.py:120
+#: gui/cleanmate_gui/duplicates.py:151 gui/cleanmate_gui/largefiles.py:120
 msgid "At least"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:147 gui/cleanmate_gui/largefiles.py:120
+#: gui/cleanmate_gui/duplicates.py:151 gui/cleanmate_gui/largefiles.py:120
 msgid "In"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:159 gui/cleanmate_gui/largefiles.py:131
+#: gui/cleanmate_gui/duplicates.py:163 gui/cleanmate_gui/largefiles.py:131
 msgid "Search"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:164 gui/cleanmate_gui/largefiles.py:137
+#: gui/cleanmate_gui/duplicates.py:168 gui/cleanmate_gui/largefiles.py:137
 #: gui/cleanmate_gui/scanpage.py:119 gui/cleanmate_gui/spacelens.py:146
 msgid "Stop"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:169 gui/cleanmate_gui/largefiles.py:140
+#: gui/cleanmate_gui/duplicates.py:173 gui/cleanmate_gui/largefiles.py:140
 msgid "Searching…"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:171 gui/cleanmate_gui/duplicates.py:236
+#: gui/cleanmate_gui/duplicates.py:175 gui/cleanmate_gui/duplicates.py:240
 msgid "No duplicates found"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:172 gui/cleanmate_gui/duplicates.py:238
-#: gui/cleanmate_gui/duplicates.py:433
+#: gui/cleanmate_gui/duplicates.py:176 gui/cleanmate_gui/duplicates.py:242
+#: gui/cleanmate_gui/duplicates.py:438
 msgid "Try a smaller size or another folder."
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:174 gui/cleanmate_gui/largefiles.py:145
+#: gui/cleanmate_gui/duplicates.py:178 gui/cleanmate_gui/largefiles.py:145
 msgid "The search failed"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:202 gui/cleanmate_gui/duplicates.py:682
+#: gui/cleanmate_gui/duplicates.py:206 gui/cleanmate_gui/duplicates.py:687
 #: gui/cleanmate_gui/largefiles.py:167 gui/cleanmate_gui/largefiles.py:463
 #: gui/cleanmate_gui/spacelens.py:173 gui/cleanmate_gui/spacelens.py:652
 #: gui/cleanmate_gui/uninstaller.py:318 gui/cleanmate_gui/uninstaller.py:354
 msgid "Move to Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:205 gui/cleanmate_gui/largefiles.py:170
+#: gui/cleanmate_gui/duplicates.py:209 gui/cleanmate_gui/largefiles.py:170
 msgid "Search again"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:230
+#: gui/cleanmate_gui/duplicates.py:234
 msgid ""
 "Find photos that look alike — resized or re-saved copies, edits, shots taken "
 "one after another — keep the best of each and move the others to the Trash. "
 "You can undo it. Your photos are read on this computer only."
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:236
+#: gui/cleanmate_gui/duplicates.py:240
 msgid "No similar photos found"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:237 gui/cleanmate_gui/duplicates.py:433
+#: gui/cleanmate_gui/duplicates.py:241 gui/cleanmate_gui/duplicates.py:438
 msgid "Try another folder."
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:263 gui/cleanmate_gui/largefiles.py:178
+#: gui/cleanmate_gui/duplicates.py:267 gui/cleanmate_gui/largefiles.py:178
 msgid "Folder to search"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:297
+#: gui/cleanmate_gui/duplicates.py:301
 msgid "Listing files…"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:313
+#: gui/cleanmate_gui/duplicates.py:317
 #, python-brace-format
 msgid "Comparing {done} of {total} files of the same size…"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:314
+#: gui/cleanmate_gui/duplicates.py:318
 #, python-brace-format
 msgid "Checking {done} of {total} likely duplicates…"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:378
+#: gui/cleanmate_gui/duplicates.py:383
 #, python-brace-format
 msgid "Reading {done} of {n} photo…"
 msgid_plural "Reading {done} of {n} photos…"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:441
+#: gui/cleanmate_gui/duplicates.py:446
 #, python-brace-format
 msgid "{n} group of similar photos"
 msgid_plural "{n} groups of similar photos"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:442
+#: gui/cleanmate_gui/duplicates.py:447
 #, python-brace-format
 msgid "{n} group of duplicates"
 msgid_plural "{n} groups of duplicates"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:444
+#: gui/cleanmate_gui/duplicates.py:449
 #, python-brace-format
 msgid "{size} can be freed by keeping the suggested photo of each, in {folder}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:445
+#: gui/cleanmate_gui/duplicates.py:450
 #, python-brace-format
 msgid "{size} can be freed by keeping one copy of each, in {folder}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:448 gui/cleanmate_gui/largefiles.py:313
+#: gui/cleanmate_gui/duplicates.py:453 gui/cleanmate_gui/largefiles.py:313
 #: gui/cleanmate_gui/spacelens.py:447
 #, python-brace-format
 msgid "the {n} biggest of {found}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:454
+#: gui/cleanmate_gui/duplicates.py:459
 msgid "Select automatically"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:455
+#: gui/cleanmate_gui/duplicates.py:460
 msgid "Tick every photo except the suggested one of each group"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:456
+#: gui/cleanmate_gui/duplicates.py:461
 msgid "Tick every copy except the oldest one of each group"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:499 gui/cleanmate_gui/duplicates.py:603
+#: gui/cleanmate_gui/duplicates.py:504 gui/cleanmate_gui/duplicates.py:608
 msgid "Every photo is selected: none would be kept"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:500 gui/cleanmate_gui/duplicates.py:604
+#: gui/cleanmate_gui/duplicates.py:505 gui/cleanmate_gui/duplicates.py:609
 msgid "Every copy is selected: none would be kept"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:550
+#: gui/cleanmate_gui/duplicates.py:555
 #, python-brace-format
 msgid "{width} × {height} · {size} · {folder}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:568
+#: gui/cleanmate_gui/duplicates.py:573
 msgid "Move this photo to the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:571
+#: gui/cleanmate_gui/duplicates.py:576
 #, python-brace-format
 msgid "Oldest · modified {date}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:571
+#: gui/cleanmate_gui/duplicates.py:576
 #, python-brace-format
 msgid "Modified {date}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:572
+#: gui/cleanmate_gui/duplicates.py:577
 msgid "Move this copy to the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:583
+#: gui/cleanmate_gui/duplicates.py:588
 msgid "Suggested"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:584
+#: gui/cleanmate_gui/duplicates.py:589
 msgid "Suggested to keep: the most pixels, then the biggest file"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:592 gui/cleanmate_gui/largefiles.py:389
+#: gui/cleanmate_gui/duplicates.py:597 gui/cleanmate_gui/largefiles.py:389
 msgid "Never Clean Its Folder"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:606
+#: gui/cleanmate_gui/duplicates.py:611
 #, python-brace-format
 msgid "{n} photo, {k} selected"
 msgid_plural "{n} photos, {k} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:608
+#: gui/cleanmate_gui/duplicates.py:613
 #, python-brace-format
 msgid "{n} copy of {size}, {k} selected"
 msgid_plural "{n} copies of {size}, {k} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:648 gui/cleanmate_gui/largefiles.py:413
+#: gui/cleanmate_gui/duplicates.py:653 gui/cleanmate_gui/largefiles.py:413
 #, python-brace-format
 msgid "Selected <b>{size}</b> in {n} file"
 msgid_plural "Selected <b>{size}</b> in {n} files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:661
+#: gui/cleanmate_gui/duplicates.py:666
 #, python-brace-format
 msgid "Every photo of {n} group is selected: none of its photos would be kept."
 msgid_plural ""
@@ -314,7 +325,7 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:664
+#: gui/cleanmate_gui/duplicates.py:669
 #, python-brace-format
 msgid "Every copy of {n} file is selected: none of its copies would be kept."
 msgid_plural ""
@@ -322,20 +333,20 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:675 gui/cleanmate_gui/largefiles.py:456
+#: gui/cleanmate_gui/duplicates.py:680 gui/cleanmate_gui/largefiles.py:456
 #: gui/cleanmate_gui/spacelens.py:645 gui/cleanmate_gui/uninstaller.py:576
 #, python-brace-format
 msgid "… and {n} more"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:677 gui/cleanmate_gui/largefiles.py:458
+#: gui/cleanmate_gui/duplicates.py:682 gui/cleanmate_gui/largefiles.py:458
 #, python-brace-format
 msgid "Move {n} file to the Trash?"
 msgid_plural "Move {n} files to the Trash?"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:678 gui/cleanmate_gui/largefiles.py:459
+#: gui/cleanmate_gui/duplicates.py:683 gui/cleanmate_gui/largefiles.py:459
 #: gui/cleanmate_gui/spacelens.py:648
 #, python-brace-format
 msgid ""
@@ -343,26 +354,26 @@ msgid ""
 "later."
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:722 gui/cleanmate_gui/largefiles.py:502
+#: gui/cleanmate_gui/duplicates.py:727 gui/cleanmate_gui/largefiles.py:502
 #, python-brace-format
 msgid "Dry run: {n} file ({size}) would be moved to the Trash"
 msgid_plural "Dry run: {n} files ({size}) would be moved to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:726 gui/cleanmate_gui/largefiles.py:506
+#: gui/cleanmate_gui/duplicates.py:731 gui/cleanmate_gui/largefiles.py:506
 #, python-brace-format
 msgid "Moved {n} file ({size}) to the Trash"
 msgid_plural "Moved {n} files ({size}) to the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:727 gui/cleanmate_gui/largefiles.py:507
+#: gui/cleanmate_gui/duplicates.py:732 gui/cleanmate_gui/largefiles.py:507
 #: gui/cleanmate_gui/spacelens.py:698
 msgid "Nothing was moved"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:729 gui/cleanmate_gui/largefiles.py:509
+#: gui/cleanmate_gui/duplicates.py:734 gui/cleanmate_gui/largefiles.py:509
 #: gui/cleanmate_gui/spacelens.py:700
 #, python-brace-format
 msgid "{n} could not be moved: {reason}"
@@ -370,7 +381,7 @@ msgid_plural "{n} could not be moved: {reason}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/duplicates.py:733 gui/cleanmate_gui/findbar.py:98
+#: gui/cleanmate_gui/duplicates.py:738 gui/cleanmate_gui/findbar.py:98
 #: gui/cleanmate_gui/largefiles.py:513 gui/cleanmate_gui/scanpage.py:642
 #: gui/cleanmate_gui/scanpage.py:749 gui/cleanmate_gui/scanpage.py:1077
 #: gui/cleanmate_gui/scanpage.py:1133 gui/cleanmate_gui/spacelens.py:704
@@ -378,14 +389,14 @@ msgstr[1] ""
 msgid "Undo"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:771 gui/cleanmate_gui/largefiles.py:549
+#: gui/cleanmate_gui/duplicates.py:776 gui/cleanmate_gui/largefiles.py:549
 #: gui/cleanmate_gui/scanpage.py:1229 gui/cleanmate_gui/spacelens.py:737
 #: gui/cleanmate_gui/uninstaller.py:891
 #, python-brace-format
 msgid "Put back {back}, {failed} could not be restored: {reason}"
 msgstr ""
 
-#: gui/cleanmate_gui/duplicates.py:774 gui/cleanmate_gui/largefiles.py:552
+#: gui/cleanmate_gui/duplicates.py:779 gui/cleanmate_gui/largefiles.py:552
 #, python-brace-format
 msgid "Put back {n} file from the Trash"
 msgid_plural "Put back {n} files from the Trash"
@@ -957,59 +968,75 @@ msgid "close it first: the Flatpak can't see if it's open"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:219
+msgid "the Docker daemon isn't running"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:220
+msgid "this user can't talk to the Docker daemon"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:221
+msgid "join the docker group: sudo usermod -aG docker $USER, then sign out and back in"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:223
+msgid "start it with: sudo systemctl start docker"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:221
 #, python-brace-format
 msgid "get it back with: ollama pull {ref}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:260 gui/cleanmate_gui/i18n.py:261
+#: gui/cleanmate_gui/i18n.py:262 gui/cleanmate_gui/i18n.py:263
 #, python-brace-format
 msgid "{days} days old"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:262 gui/cleanmate_gui/i18n.py:263
+#: gui/cleanmate_gui/i18n.py:264 gui/cleanmate_gui/i18n.py:265
 #, python-brace-format
 msgid "untouched for {days} days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:264
+#: gui/cleanmate_gui/i18n.py:266
 #, python-brace-format
 msgid "{days} days idle"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:265
+#: gui/cleanmate_gui/i18n.py:267
 msgid "(running, skipped)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:266
+#: gui/cleanmate_gui/i18n.py:268
 msgid "← running (kept)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:267
+#: gui/cleanmate_gui/i18n.py:269
 msgid "← kept as a fallback"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:268
+#: gui/cleanmate_gui/i18n.py:270
 msgid "← will be removed: "
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:269
+#: gui/cleanmate_gui/i18n.py:271
 #, python-brace-format
 msgid "(revision {revision})"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:270
+#: gui/cleanmate_gui/i18n.py:272
 msgid "(your installation)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:271
+#: gui/cleanmate_gui/i18n.py:273
 msgid "(system installation)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:272
+#: gui/cleanmate_gui/i18n.py:274
 msgid "Largest archived journal files:"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:274
+#: gui/cleanmate_gui/i18n.py:276
 #, python-brace-format
 msgid "Archived and active journals take up {size} in the file system."
 msgstr ""
@@ -5321,7 +5348,7 @@ msgstr ""
 msgid "Containers that are running"
 msgstr ""
 
-#. docker_containers why, docker_volumes why
+#. docker_containers why, docker_volumes why, podman_volumes why
 msgid ""
 "Unattended cleaning (automatic, or cm --clean --yes): it may hold your data"
 msgstr ""
@@ -5330,7 +5357,7 @@ msgstr ""
 msgid "Docker: unused images"
 msgstr ""
 
-#. docker_images description
+#. docker_images description, podman_images description
 msgid "Images no container uses. They are pulled again when needed."
 msgstr ""
 
@@ -5338,7 +5365,7 @@ msgstr ""
 msgid "Docker's images (docker image prune -a)"
 msgstr ""
 
-#. docker_images why
+#. docker_images why, podman_images why
 msgid "Images a container uses, even a stopped one"
 msgstr ""
 
@@ -5346,7 +5373,7 @@ msgstr ""
 msgid "Docker: unused volumes"
 msgstr ""
 
-#. docker_volumes description
+#. docker_volumes description, podman_volumes description
 msgid ""
 "Volumes no container uses — they may hold databases or other data. Review "
 "before removing!"
@@ -5356,7 +5383,7 @@ msgstr ""
 msgid "Docker's volumes (docker volume prune)"
 msgstr ""
 
-#. docker_volumes why
+#. docker_volumes why, podman_volumes why
 msgid "Volumes a container uses, even a stopped one"
 msgstr ""
 
@@ -5376,6 +5403,50 @@ msgstr ""
 
 #. podman why
 msgid "Running containers, volumes and tagged images"
+msgstr ""
+
+#. podman_images label
+msgid "Podman: unused images"
+msgstr ""
+
+#. podman_images why
+msgid "Podman's images (podman image prune -a)"
+msgstr ""
+
+#. podman_build label
+msgid "Podman: build cache"
+msgstr ""
+
+#. podman_build description
+msgid "Build cache. Safe to remove; the next build is slower once."
+msgstr ""
+
+#. podman_build why
+msgid "Podman's build cache (podman builder prune)"
+msgstr ""
+
+#. podman_volumes label
+msgid "Podman: unused volumes"
+msgstr ""
+
+#. podman_volumes why
+msgid "Podman's volumes (podman volume prune)"
+msgstr ""
+
+#. docker_offline label
+msgid "Docker: not reachable"
+msgstr ""
+
+#. docker_offline description
+msgid ""
+"Docker is installed but its daemon isn't running, or this user may not talk "
+"to it. Nothing is deleted here; the row says the fix."
+msgstr ""
+
+#. docker_offline why
+msgid ""
+"Nothing: the row only explains why the Docker items are hidden and names the "
+"fix"
 msgstr ""
 
 #. game_launcher_caches label

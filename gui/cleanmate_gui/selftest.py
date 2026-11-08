@@ -781,7 +781,7 @@ def similar_photos_test(win, report, wait, finish):
                "Stop ends a photo search at once")
         real_find = similar.find_photos
 
-        def broken(*_a):
+        def broken(*_a, **_kw):
             raise OSError("disk went away")
 
         similar.find_photos = broken

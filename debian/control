@@ -28,7 +28,7 @@ Depends: ${misc:Depends},
          gir1.2-gtk-4.0,
          gir1.2-adw-1 (>= 1.5),
          pkexec | policykit-1
-Recommends: curl | wget, libglib2.0-bin, libnotify-bin, desktop-file-utils, sqlite3, gir1.2-gstreamer-1.0
+Recommends: curl | wget, libglib2.0-bin, libnotify-bin, desktop-file-utils, sqlite3, gir1.2-gstreamer-1.0, heif-gdk-pixbuf, webp-pixbuf-loader
 Description: free up disk space and keep Ubuntu tidy
  CleanMate finds caches, old logs, leftovers from removed packages,
  developer and AI tool caches, and more, and removes them safely after you

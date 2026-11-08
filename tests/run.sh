@@ -88,6 +88,7 @@ cm() { # run the app non-interactively inside the fake home (in English unless T
     ${CLEANMATE_MOUNTS:+CLEANMATE_MOUNTS=$CLEANMATE_MOUNTS} \
     ${CLEANMATE_SYSROOT:+CLEANMATE_SYSROOT=$CLEANMATE_SYSROOT} \
     ${CLEANMATE_PROC:+CLEANMATE_PROC=$CLEANMATE_PROC} \
+    ${CLEANMATE_TEST_DOCKER:+CLEANMATE_TEST_DOCKER=$CLEANMATE_TEST_DOCKER} \
     CLEANMATE_POWER="${CLEANMATE_POWER:-$WORK/no-power}" ${CLEANMATE_TIMER:+CLEANMATE_TIMER=$CLEANMATE_TIMER} \
     ${CLEANMATE_TMP_DIRS:+CLEANMATE_TMP_DIRS=$CLEANMATE_TMP_DIRS} \
     ${TEST_SNAP:+SNAP=$TEST_SNAP} \
@@ -1243,7 +1244,7 @@ EOF
   assert_contains "$(<"$log")" "volume prune"
   # data_loss marks exactly these two
   out=$(cm --json items | grep '"data_loss":true' | grep -o '"id":"[a-z_]*"' | LC_ALL=C sort | paste -sd' ' -)
-  assert_eq "$out" '"id":"docker_containers" "id":"docker_volumes"' "--json items: data_loss on volumes and containers only"
+  assert_eq "$out" '"id":"docker_containers" "id":"docker_volumes" "id":"podman_volumes"' "--json items: data_loss on volumes and containers only"
   out=$(cm --json items)
   [[ $(grep -c '"data_loss":' <<<"$out") == $(grep -c '"event":"item"' <<<"$out") ]] && ok_ "every item says data_loss" || fail "an item lacks data_loss"
   out=$(cm --json scan --only dev)
@@ -5038,6 +5039,95 @@ test_build_tool_caches() {
   assert_missing "$h/mine/o/ok" # zig's own cache folder under a custom ZIG_GLOBAL_CACHE_DIR
 }
 
+# Docker that is installed but out of reach: one locked row that says why and names the fix; Podman gets the
+# same per-item coverage as Docker (unused images, build cache, volumes as data).
+test_docker_offline_and_podman_items() {
+  fresh_home
+  local h=$HOME_DIR out bin=$WORK/ctbin log=$WORK/ct.log
+  mkdir -p "$bin" "$h/.local/share/containers"
+  cat >"$bin/docker" <<EOF
+#!/bin/sh
+printf '%s\n' "docker \$*" >> "$log"
+if [ "\$1" = info ]; then
+  if [ "\$CLEANMATE_TEST_DOCKER" = denied ]; then
+    printf 'permission denied while trying to connect to the Docker daemon socket' >&2
+    exit 1
+  fi
+  if [ "\$CLEANMATE_TEST_DOCKER" = daemon ]; then
+    printf 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?' >&2
+    exit 1
+  fi
+  exit 0
+fi
+if [ "\$1" = system ] && [ "\$2" = df ]; then printf 'Images\t2.00MB\nBuild Cache\t1.00MB\nLocal Volumes\t3.00MB\n'; exit 0; fi
+if [ "\$1" = images ]; then printf 'abc123\n'; exit 0; fi
+if [ "\$1" = ps ]; then printf 'deadone\n'; exit 0; fi
+if [ "\$1" = volume ] && [ "\$2" = ls ]; then printf 'datalvol\n'; exit 0; fi
+if [ "\$1" = version ]; then printf '1.51 1.51\n'; exit 0; fi
+exit 0
+EOF
+  cat >"$bin/podman" <<EOF
+#!/bin/sh
+printf '%s\n' "podman \$*" >> "$log"
+if [ "\$1" = info ]; then exit 0; fi
+if [ "\$1" = system ] && [ "\$2" = df ]; then printf 'Images\t2.00MB\nBuild Cache\t1.00MB\nLocal Volumes\t3.00MB\n'; exit 0; fi
+if [ "\$1" = images ]; then printf 'def456\n'; exit 0; fi
+if [ "\$1" = ps ] && [ "\$2" = -aq ]; then printf 'oldone\n'; exit 0; fi
+if [ "\$1" = volume ] && [ "\$2" = ls ]; then printf 'datavol\n'; exit 0; fi
+exit 0
+EOF
+  chmod 755 "$bin/docker" "$bin/podman"
+  : >"$log"
+  select_only docker_offline podman_images podman_build podman_volumes podman
+
+  # permission denied: the Docker items hide, one row says why and names the group fix; one docker info per run
+  out=$(CLEANMATE_TEST_DOCKER=denied BASE_PATH="$bin:$BASE_PATH" cm --json scan --only dev | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and ("docker" in e["id"] or "podman" in e["id"]): print(e["id"], e["bytes"], e["note"])')
+  assert_contains "$out" "docker_offline 0 this user can't talk to the Docker daemon; join the docker group: sudo usermod -aG docker \$USER"
+  [[ $out != *"docker_images"* ]] && ok_ "denied: Docker items hidden" || fail "docker_images listed without a working daemon"
+  assert_contains "$out" "podman_images 2000000 not used by any container"
+  assert_contains "$out" "podman_build 1000000 Build cache"
+  assert_contains "$out" "podman_volumes 3000000 may contain data"
+  [[ $(grep -c '^docker info' "$log") -eq 1 ]] && ok_ "docker info ran once per run" || fail "docker info ran $(grep -c '^docker info' "$log") times: $(tr '
+' '|' < "$log")"
+
+  # the terminal report names the state and the fix, and the clean-side skip does too
+  out=$(CLEANMATE_TEST_DOCKER=denied BASE_PATH="$bin:$BASE_PATH" cm --scan --only dev 2>&1)
+  assert_contains "$out" "usermod -aG docker"
+  # a ticked offline row cleans nothing (0 bytes, the daemon state is the reason it is listed)
+  select_only docker_offline
+  out=$(CLEANMATE_TEST_DOCKER=denied BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev 2>&1 </dev/null)
+  assert_contains "$out" "Docker: not reachable"
+  out=$(CLEANMATE_TEST_DOCKER=daemon BASE_PATH="$bin:$BASE_PATH" cm --scan --only dev 2>&1)
+  assert_contains "$out" "systemctl start docker"
+
+  # daemon down: a different reason
+  : >"$log"
+  out=$(CLEANMATE_TEST_DOCKER=daemon BASE_PATH="$bin:$BASE_PATH" cm --json scan --only dev | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and e["id"] == "docker_offline": print(e["note"])')
+  assert_contains "$out" "the Docker daemon isn't running; start it with: sudo systemctl start docker"
+
+  # no docker at all: no row, and Podman keeps its three items
+  : >"$log"
+  out=$(BASE_PATH="$(path_without docker)" cm --json scan --only dev | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "item" and "docker" in e["id"]: print(e["id"])')
+  [[ $out != *docker_offline* ]] && ok_ "no docker: no offline row" || fail "docker_offline listed without docker"
+
+  # Podman cleans images, build cache and (never unattended) volumes
+  : >"$log"
+  select_only podman_images podman_build podman_volumes podman
+  BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
+  grep -Fxq 'podman image prune -a -f' "$log" && ok_ "podman images cleaned" || fail "no podman image prune: $(tail -3 "$log")"
+  grep -Fxq 'podman builder prune -a -f' "$log" && ok_ "podman build cache cleaned" || fail "no podman builder prune"
+  grep -Fxq 'podman volume prune -f' "$log" && fail "podman volume prune ran unattended" || ok_ "volumes skipped unattended (may hold data)"
+}
+
 # The Go module cache (go env GOMODCACHE, locked while go or gopls runs), Nix's old generations
 # (user profiles only, sized from a dry-run GC), the Python tool caches and the Jupyter cache.
 test_go_modcache_nix_and_python_tool_caches() {
@@ -6853,6 +6943,8 @@ notes = {
     "2 dangling images, 1 stopped container": "2 image lơ lửng, 1 container đã dừng",
     "1.2 GB in total": "tổng cộng 1.2 GB",
     "get it back with: ollama pull llama3:8b": "lấy lại bằng: ollama pull llama3:8b",
+    "the Docker daemon isn't running": "daemon Docker chưa chạy",
+    "this user can't talk to the Docker daemon": "người dùng này không nói được với daemon Docker",
     "not used by any container": "không container nào dùng",
     "BuildKit cache": "Bộ nhớ đệm BuildKit",
     "scan timed out": "quét quá thời gian",

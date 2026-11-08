@@ -543,7 +543,7 @@ msgstr ""
 msgid "Docker's build cache (docker builder prune)"
 msgstr ""
 
-#. docker_build why, ai_misc_cache why
+#. docker_build why, podman_build why, docker_offline why, ai_misc_cache why
 msgid "No rule of its own; Settings › Never clean still applies"
 msgstr ""
 
@@ -563,7 +563,7 @@ msgstr ""
 msgid "Containers that are running"
 msgstr ""
 
-#. docker_containers why, docker_volumes why
+#. docker_containers why, docker_volumes why, podman_volumes why
 msgid "Unattended cleaning (automatic, or cm --clean --yes): it may hold your data"
 msgstr ""
 
@@ -571,7 +571,7 @@ msgstr ""
 msgid "Docker: unused images"
 msgstr ""
 
-#. docker_images description
+#. docker_images description, podman_images description
 msgid "Images no container uses. They are pulled again when needed."
 msgstr ""
 
@@ -579,7 +579,7 @@ msgstr ""
 msgid "Docker's images (docker image prune -a)"
 msgstr ""
 
-#. docker_images why
+#. docker_images why, podman_images why
 msgid "Images a container uses, even a stopped one"
 msgstr ""
 
@@ -587,7 +587,7 @@ msgstr ""
 msgid "Docker: unused volumes"
 msgstr ""
 
-#. docker_volumes description
+#. docker_volumes description, podman_volumes description
 msgid "Volumes no container uses — they may hold databases or other data. Review before removing!"
 msgstr ""
 
@@ -595,7 +595,7 @@ msgstr ""
 msgid "Docker's volumes (docker volume prune)"
 msgstr ""
 
-#. docker_volumes why
+#. docker_volumes why, podman_volumes why
 msgid "Volumes a container uses, even a stopped one"
 msgstr ""
 
@@ -613,6 +613,46 @@ msgstr ""
 
 #. podman why
 msgid "Running containers, volumes and tagged images"
+msgstr ""
+
+#. podman_images label
+msgid "Podman: unused images"
+msgstr ""
+
+#. podman_images why
+msgid "Podman's images (podman image prune -a)"
+msgstr ""
+
+#. podman_build label
+msgid "Podman: build cache"
+msgstr ""
+
+#. podman_build description
+msgid "Build cache. Safe to remove; the next build is slower once."
+msgstr ""
+
+#. podman_build why
+msgid "Podman's build cache (podman builder prune)"
+msgstr ""
+
+#. podman_volumes label
+msgid "Podman: unused volumes"
+msgstr ""
+
+#. podman_volumes why
+msgid "Podman's volumes (podman volume prune)"
+msgstr ""
+
+#. docker_offline label
+msgid "Docker: not reachable"
+msgstr ""
+
+#. docker_offline description
+msgid "Docker is installed but its daemon isn't running, or this user may not talk to it. Nothing is deleted here; the row says the fix."
+msgstr ""
+
+#. docker_offline why
+msgid "Nothing: the row only explains why the Docker items are hidden and names the fix"
 msgstr ""
 
 #. game_launcher_caches label
