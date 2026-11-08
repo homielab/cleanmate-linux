@@ -11911,8 +11911,8 @@ json_main() { # SUBCOMMAND ARGS…
       scan_items "${cats[@]}"
       for id in "${SCANNED[@]}"; do json_item "$id" scanned; done
       found_total
-      printf '{"event":"done","ms":%d,"durationMs":%d,"total_bytes":%d,"locations":%d,"stopped":%s}\n' \
-        "$SCAN_MS" "$SCAN_MS" "$FOUND_TOTAL" "$SCAN_COUNT" "$( ((SCAN_STOP)) && echo true || echo false)" ;;
+      printf '{"event":"done","ms":%d,"durationMs":%d,"total_bytes":%d,"locations":%d,"timeLimit":%d,"stopped":%s}\n' \
+        "$SCAN_MS" "$SCAN_MS" "$FOUND_TOTAL" "$SCAN_COUNT" "$SCAN_TIMEOUT" "$( ((SCAN_STOP)) && echo true || echo false)" ;;
     details)
       id=${1:-}
       [[ -n ${ITEM_CAT[$id]:-} ]] || { json_error unknown_item "Unknown item: $id" id "$id"; return 2; }
@@ -12340,10 +12340,36 @@ json_lens() { # [--path DIR] [--limit N] — DIR's files and folders with their 
   [[ $mnt == "$dir" && $dsize =~ ^[0-9]+$ && $dused =~ ^[0-9]+$ ]] && disk=",\"disk_size\":$dsize,\"disk_used\":$dused"
   tmp=$(mktemp -p "$SESSION_TMP") || return 1
   err=$(mktemp -p "$SESSION_TMP") || { rm -f "$tmp"; return 1; }
-  while IFS=$'\t' read -r -d '' n p; do count[$p]=$n; done < <(du -0 -x -a -D --inodes --max-depth=1 -- "$dir" 2>/dev/null)
-  # never sudo: what you can't read is counted apart (English errors, so they can be read back)
-  LC_ALL=C.UTF-8 du -0 -x -a -D -b --max-depth=1 -- "$dir" 2>"$err" >"$tmp"
+  # ONE walk for both the bytes and the entry counts: two du passes would stat the whole tree twice.
+  # find's errors are reworded to du's, so the unreadable-folder counting below is shared with it.
+  # Per depth-1 child: its subtree's bytes and its unique-inode count (hard links once, like du --inodes);
+  # the folder itself: everything under it. The path prefix goes through the environment (awk -v eats
+  # backslashes); the aggregates are `count<TAB>path` records, written as lines and NUL-separated after.
+  local walk
+  walk=$(mktemp -p "$SESSION_TMP") || return 1
+  LC_ALL=C.UTF-8 find -H "$dir" -xdev -printf '%D:%i\t%s\t%P\n' 2>"$err" >"$walk"
+  LC_ALL=C.UTF-8 sed -E "s/^find: [‘']([^’']*)[’']: /du: cannot access '\\1': /" "$err" >"$err.f" && mv "$err.f" "$err"
   lens_unreadable unread "$dir" "$err"
+  LENS_PRE=$dir/ awk -F'\t' -v lens_b="$tmp.b" -v lens_c="$tmp.c" '
+    { s = $2 + 0
+      rest = substr($0, index($0, "\t") + 1)
+      p = substr(rest, index(rest, "\t") + 1)
+      if (p == "") { rb += s; if (!(seen[$1]++)) rc += 1; next }
+      child = p; i = index(child, "/")
+      child = i ? substr(child, 1, i - 1) : child
+      cb[child] += s
+      rb += s
+      if (!(seen[$1]++)) { cc[child] += 1; rc += 1 }
+      next }
+    END { pre = substr(ENVIRON["LENS_PRE"], 1, length(ENVIRON["LENS_PRE"]) - 1)
+          printf "%d\t%s\n", rb, pre > lens_b
+          for (c in cb) printf "%d\t%s/%s\n", cb[c], pre, c > lens_b
+          printf "%d\t%s\n", rc, pre > lens_c
+          for (c in cc) printf "%d\t%s/%s\n", cc[c], pre, c > lens_c }' "$walk"
+  rm -f "$walk"
+  tr '\n' '\0' <"$tmp.b" >"$tmp"; rm -f "$tmp.b"
+  while IFS=$'\t' read -r -d '' n p; do count[$p]=$n; done < <(tr '\n' '\0' <"$tmp.c")
+  rm -f "$tmp.c"
   found=$(($(tr -cd '\0' <"$tmp" | wc -c) - 1)) # every entry; du's last line is the folder itself
   ((found >= 0)) || found=0
   lens_mounts "$dir" "$dsrc" >>"$tmp" # disks mounted inside: listed, not in the folder's total

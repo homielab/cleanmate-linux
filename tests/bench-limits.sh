@@ -4,3 +4,4 @@
 # shellcheck disable=SC2034 # read by tests/bench-scan.sh
 SCAN_FIRST_MAX=20
 SCAN_AGAIN_MAX=10
+LENS_MAX=20

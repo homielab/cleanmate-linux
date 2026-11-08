@@ -73,7 +73,16 @@ if [[ -n ${BENCH_LIMITS:-} ]]; then
   over_limit() { awk -v v="$2" -v max="$3" 'BEGIN { exit !(v > max) }' && { echo "SLOW: $1 took ${2} s, the limit is ${3} s ($BENCH_LIMITS)"; over=1; }; } # WHAT SECONDS MAX
   over_limit "median first scan" "$m1" "$SCAN_FIRST_MAX" || true
   over_limit "median scan again" "$m2" "$SCAN_AGAIN_MAX" || true
+  lens=$(_lens_time)
+  over_limit "lens /" "$lens" "$LENS_MAX" || true
 fi
+
+_lens_time() { # seconds one --json lens of / takes (the walk the app's Space Lens waits for)
+  local t0
+  t0=${EPOCHREALTIME/[.,]/}
+  run bash "$SCRIPT" --json lens --path / >/dev/null
+  secs $((${EPOCHREALTIME/[.,]/} - t0))
+}
 
 forget
 echo "slowest items, first:"

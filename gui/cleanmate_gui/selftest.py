@@ -2331,6 +2331,21 @@ def overview_test(win, report, wait, finish):
         shutil.rmtree(sandbox, ignore_errors=True)
         bug_report_test(win, report, wait, finish)
 
+    from .overview import outside_size_note, outside_text
+    from .scanpage import unfinished_description
+    fake_row = {"kind": "timeshift", "bytes": None, "path": "/timeshift/snapshots", "count": 2,
+                "note": "delete old ones in Timeshift — never by hand"}
+    row_title, row_subtitle = outside_text(fake_row)
+    report(row_title == ngettext("Timeshift: {n} snapshot", "Timeshift: {n} snapshots", 2) and
+           outside_size_note(fake_row) == _("Measuring its size needs administrator rights") and
+           "needs sudo" not in row_subtitle,
+           "a Timeshift row without a measurable size says what it needs")
+    report(outside_size_note(dict(fake_row, bytes=5 << 30)) is None,
+           "a measurable Timeshift row shows its size")
+    report("120" in unfinished_description(120) and unfinished_description(None) == _(
+        "These checks took too long and were stopped, so what they hold isn't listed or counted."),
+           "the Not finished note names the scan's time limit")
+
     def first():
         report("system" in page.data and page.stack.get_visible_child_name() == "results",
                f"System Overview shows this computer ({len(page.data.get('disk', []))} disks)")

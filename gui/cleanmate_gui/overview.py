@@ -385,6 +385,11 @@ OUTSIDE_ICONS = {"reserved": "drive-harddisk-symbolic", "swapfile": "media-flash
                  "timeshift": "document-open-recent-symbolic"}
 
 
+def outside_size_note(e):
+    """The size column's text for a row whose bytes can't be read (needs administrator rights); None otherwise."""
+    return None if e["bytes"] is not None else _("Measuring its size needs administrator rights")
+
+
 def outside_text(e):
     """Title and subtitle of a row in "Space outside your folders"."""
     kind, path = e["kind"], e["path"]
@@ -699,8 +704,9 @@ class OverviewPage(Gtk.Box):
             row = plain_row(Adw.ActionRow, title=title, subtitle=subtitle, css_classes=["item-row"])
             row.add_prefix(Gtk.Image(icon_name=OUTSIDE_ICONS.get(e["kind"], "drive-harddisk-symbolic"),
                                      pixel_size=24))
-            if e["bytes"] is None:
-                row.add_suffix(Gtk.Label(label="?", width_chars=9, xalign=1, css_classes=["numeric", "dim-label"],
+            note = outside_size_note(e)
+            if note is not None:
+                row.add_suffix(Gtk.Label(label=note, width_chars=9, xalign=1, css_classes=["numeric", "dim-label"],
                                          tooltip_text=_("Measuring its size needs administrator rights")))
             else:
                 for widget in size_widgets(e["bytes"], biggest):

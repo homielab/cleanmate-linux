@@ -6,6 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Space Lens walks each folder once instead of twice (bytes and entry counts from one pass), and counts entries only for the rows it shows — the `lens /` benchmark is part of the limits now.
+- The Overview's "Space outside your folders" says "needs administrator rights" next to a Timeshift row it can't measure, and the "Not finished" group names the scan's time limit (120 s) instead of just "too long".
+
 ### Added
 - Smart Scan stops staying silent about Docker it cannot reach: when the daemon isn't running or your user isn't in the `docker` group, one row names which and shows the fix instead of hiding every Docker item.
 - Podman gets the same per-item coverage as Docker: unused images, build cache and unused volumes, sized from `podman system df`, with volumes treated as data that is never cleaned unattended.

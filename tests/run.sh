@@ -2901,6 +2901,33 @@ for l in sys.stdin:
   assert_exists "$big/Deeper/Deepest/a.bin"
 }
 
+# Space Lens walks the tree ONCE (one find, no du): the same entries, bytes and counts as before.
+test_json_lens_walks_once() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local out bin=$WORK/lensbin log=$WORK/lens.log big=$HOME_DIR/Big
+  mkdir -p "$bin" "$big/Deeper"
+  truncate -s 2M "$big/Deeper/a.bin"; truncate -s 1M "$HOME_DIR/movie.mkv"
+  cat >"$bin/du" <<EOF
+#!/bin/sh
+printf 'du %s\n' "\$*" >> "$log"
+exec /usr/bin/du "\$@"
+EOF
+  cat >"$bin/find" <<EOF
+#!/bin/sh
+printf 'find %s\n' "\$*" >> "$log"
+exec /usr/bin/find "\$@"
+EOF
+  chmod 755 "$bin/du" "$bin/find"
+  : >"$log"
+  out=$(BASE_PATH="$bin:$BASE_PATH" cm --json lens --limit 5 | lens_entries)
+  assert_contains "$out" "dir 2 true Big"
+  assert_contains "$out" "file 1 true movie.mkv"
+  [[ $(grep -c '^find ' "$log") -eq 1 ]] && ok_ "one find walk" || fail "find ran $(grep -c '^find ' "$log") times"
+  [[ $(grep -c '^du ' "$log") -eq 0 ]] && ok_ "no du in the lens walk" || fail "du ran: $(grep '^du ' "$log")"
+}
+
+
 # Space Lens outside your home folder (/, /var, other disks): view only, each with the reason the app shows;
 # folders you can't read are counted apart (never sudo); disks mounted inside are listed with their use
 test_json_lens_whole_disk() {

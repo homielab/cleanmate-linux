@@ -44,6 +44,13 @@ def size_widgets(n, biggest):
     return bar, size
 
 
+def unfinished_description(limit):
+    """The "Not finished" group's description: why the checks stopped, with the scan's own time limit."""
+    return _("The scan stops every check at {limit}s: these took longer, so what they hold isn't listed or "
+             "counted.").format(limit=limit) if limit else _(
+        "These checks took too long and were stopped, so what they hold isn't listed or counted.")
+
+
 class ScanPage(Gtk.Box):
     """Scan some categories, review the results, clean the selection."""
 
@@ -431,8 +438,8 @@ class ScanPage(Gtk.Box):
 
     def unfinished_group(self, items):
         """The items the scan cut off at its time limit: a warning each and Scan Again, never "clean"."""
-        group = Adw.PreferencesGroup(title=_("Not finished"), description=_(
-            "These checks took too long and were stopped, so what they hold isn't listed or counted."))
+        group = Adw.PreferencesGroup(title=_("Not finished"), description=unfinished_description(
+            self.scan_info.get("timeLimit")))
         again = Gtk.Button(label=_("Scan Again"), valign=Gtk.Align.CENTER)
         again.connect("clicked", lambda *_a: self.scan(keep_summary=True))
         group.set_header_suffix(again)
