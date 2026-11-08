@@ -18,6 +18,7 @@ All notable changes are listed here. The format follows
 
 ### Fixed
 
+- The System Overview works again on systems where awk is mawk (Ubuntu ≤ 22.04): memory and disk sizes above ~2 GB or 2 TB no longer come back in scientific notation or clipped, which broke the numbers and stopped the overview short.
 - The desktop app no longer crashes on systems without `python3-gi-cairo`: the Overview shows a note instead of the charts, and `cm --gui` says what to install.
 - The welcome steps fill the whole dialog again instead of shrinking to a narrow column in the middle.
 - Automatic cleaning tries again within the hour if it fails or your laptop sleeps, tells you if it still can't finish, and *Settings* shows its last run.

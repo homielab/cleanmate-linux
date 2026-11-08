@@ -1818,6 +1818,11 @@ test_json_clean_splits_trash_and_disks() {
   printf '#!/bin/sh\necho "     Avail Mounted on"\nfor a; do case $a in -*) ;; /) echo " 1000 /" ;; *) echo " 2000 /mnt/my home" ;; esac; done\n' \
     >"$HOME_DIR/.local/bin/df"
   chmod +x "$HOME_DIR/.local/bin/df"
+  # RAM above 10 GB: mawk (Ubuntu ≤ 22.04) prints such numbers as "1.25998e+10" unless the engine
+  # asks for %.0f, and no part of the overview may depend on the runner's real memory
+  printf '#!/bin/sh\necho "               total        used        free      shared  buff/cache   available"\necho "Mem:      12599800000  3000000000  6000000000           0  3599800000  9599800000"\necho "Swap:      2000000000           0  2000000000"\n' \
+    >"$HOME_DIR/.local/bin/free"
+  chmod +x "$HOME_DIR/.local/bin/free"
   local check='import sys, json
 tasks = {}
 for l in sys.stdin:

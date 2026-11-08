@@ -210,7 +210,7 @@ size_bar() { # VAR BYTES MAX WIDTH — proportional bar coloured by size
 refresh_sysinfo() {
   local size used avail total mavail
   read -r size used avail < <(df -B1 --output=size,used,avail "$SYS_DISK" | tail -n1)
-  read -r total mavail < <(free -b | awk '/^Mem:/ {print $2, $7}')
+  read -r total mavail < <(free -b | awk '/^Mem:/ {printf "%.0f %.0f\n", $2, $7}')
   SYS_DISK_PCT=$((used * 100 / size)) SYS_DISK_FREE=$(human "$avail")
   SYS_MEM_PCT=$(((total - mavail) * 100 / total)) SYS_MEM_FREE=$(human "$mavail")
 }
@@ -704,8 +704,10 @@ du_sumv() { # VAR PATH… → VAR = total bytes of the existing paths given
   return "$__p"
 }
 
-sum_lines() { awk '{s += $1} END {printf "%d\n", s}'; }
-count_sum() { awk '{s += $1} END {printf "%d %d\n", NR, s}'; } # sizes on stdin → "COUNT BYTES"
+# %.0f, not %d: mawk's %d clamps at 2^31 and a bare print falls back to %.6g, which writes big
+# numbers as "1.26e+10" — shell arithmetic and bash printf %d can't read either of those.
+sum_lines() { awk '{s += $1} END {printf "%.0f\n", s}'; }
+count_sum() { awk '{s += $1} END {printf "%.0f %.0f\n", NR, s}'; } # sizes on stdin → "COUNT BYTES"
 
 pluralv() { # VAR N WORD → "1 file" / "3 files" / "2 entries" into VAR
   if (($2 == 1)); then printf -v "$1" '%d %s' "$2" "$3"
@@ -1308,7 +1310,7 @@ clean_orphans() {
 details_orphans() {
   orphan_list
   ((ORPHAN_N)) || return 0
-  printf '%s\n' "${ORPHAN_SIZES[@]}" | awk -F'\t' '$2 != "" {print $1 * 1024 "\t" $2}' | detail_files 200
+  printf '%s\n' "${ORPHAN_SIZES[@]}" | awk -F'\t' '$2 != "" {printf "%.0f\t%s\n", $1 * 1024, $2}' | detail_files 200
 }
 
 # Bootloader packages are skipped: their purge scripts can remove boot configuration.
@@ -1337,7 +1339,7 @@ scan_journal() {
   cutoff=$((EPOCHSECONDS - JOURNAL_KEEP_DAYS * 86400))
   read -r total archived old < <(journal_files | awk -F'\t' -v c="$cutoff" '
     {t += $1; if ($3 ~ /@|~$/) {a += $1; if ($2 < c) o += $1}}
-    END {printf "%d %d %d\n", t, a, o}')
+    END {printf "%.0f %.0f %.0f\n", t, a, o}')
   extra=$((total - old - JOURNAL_KEEP_BYTES)); ((extra < 0)) && extra=0
   SCAN_BYTES=$((old + extra)); ((SCAN_BYTES > archived)) && SCAN_BYTES=$archived
   SCAN_NOTE="$(human "$total") in total"
@@ -1347,7 +1349,7 @@ clean_journal() { run_root journalctl --vacuum-time="${JOURNAL_KEEP_DAYS}d" --va
 details_journal() {
   journalctl --disk-usage 2>/dev/null | sed 's/^/  /'
   printf '\n  %sLargest archived journal files:%s\n' "$BOLD" "$NC"
-  journal_files | awk -F'\t' '$3 ~ /@|~$/ {print $1 "\t" $4}' | detail_files 15
+  journal_files | awk -F'\t' '$3 ~ /@|~$/ {printf "%.0f\t%s\n", $1, $4}' | detail_files 15
 }
 
 # Rotated logs only: compressed, numbered (syslog.1) or *.old, untouched for an hour.
@@ -3391,7 +3393,7 @@ clean_app_cache() {
 }
 details_app_cache() { # grouped per application folder
   app_cache_find -printf '%s\t%P\n' |
-    awk -F'\t' -v h="$HOME" '{split($2, a, "/"); s[a[1]] += $1} END {for (k in s) print s[k] "\t" h "/.cache/" k}' |
+    awk -F'\t' -v h="$HOME" '{split($2, a, "/"); s[a[1]] += $1} END {for (k in s) printf "%.0f\t%s\n", s[k], h "/.cache/" k}' |
     detail_files 30
 }
 
@@ -7130,7 +7132,7 @@ fs_avail() { # free bytes on the filesystems holding / and $HOME
 
 fs_avails() { # "MOUNT<tab>FREE BYTES" for the filesystem holding / and, when it is another one, the one holding $HOME
   df -B1 --output=avail,target "$SYS_DISK" "$HOME" 2>/dev/null |
-    awk 'NR > 1 { t = $0; sub(/^[ \t]*[0-9]+[ \t]+/, "", t); if (t != "" && !seen[t]++) printf "%s\t%d\n", t, $1 }'
+    awk 'NR > 1 { t = $0; sub(/^[ \t]*[0-9]+[ \t]+/, "", t); if (t != "" && !seen[t]++) printf "%s\t%.0f\n", t, $1 }'
 }
 
 progress_bar() { # VAR DONE TOTAL WIDTH
@@ -9551,16 +9553,16 @@ version_report() { # `--version`: the version, then the system details to paste 
 disk_rows() { # → mount<TAB>size<TAB>used<TAB>avail<TAB>fstype<TAB>device per real filesystem (the Flatpak: home's only)
   if ((FLATPAK)); then
     df -B1 --output=target,size,used,avail,fstype,source "$HOME" 2>/dev/null |
-      awk 'NR > 1 && $2 > 0 {print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6}'
+      awk 'NR > 1 && $2 > 0 {printf "%s\t%.0f\t%.0f\t%.0f\t%s\t%s\n", $1, $2, $3, $4, $5, $6}'
     return 0
   fi
   df -B1 --output=target,size,used,avail,fstype,source -x tmpfs -x devtmpfs -x squashfs -x overlay -x efivarfs 2>/dev/null |
-    awk 'NR > 1 && $2 > 0 {print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6}'
+    awk 'NR > 1 && $2 > 0 {printf "%s\t%.0f\t%.0f\t%.0f\t%s\t%s\n", $1, $2, $3, $4, $5, $6}'
 }
 
 mem_facts() { # → OV_RAM_TOTAL OV_RAM_AVAIL OV_SWAP_TOTAL OV_SWAP_USED (bytes)
   read -r OV_RAM_TOTAL OV_RAM_AVAIL OV_SWAP_TOTAL OV_SWAP_USED < <(free -b 2>/dev/null |
-    awk '/^Mem:/ {t = $2; a = $7} /^Swap:/ {st = $2; su = $3} END {print t + 0, a + 0, st + 0, su + 0}')
+    awk '/^Mem:/ {t = $2; a = $7} /^Swap:/ {st = $2; su = $3} END {printf "%.0f %.0f %.0f %.0f\n", t, a, st, su}')
 }
 
 overview_lines() {
