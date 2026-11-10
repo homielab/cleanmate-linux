@@ -138,7 +138,7 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
-    <release version="2.5.0" date="2026-11-11">
+    <release version="2.5.1" date="2026-11-11">
       <description>
         <p>Quicker rescans, more caches found, and a Smart Scan that tells you what it couldn't reach.</p>
         <ul>

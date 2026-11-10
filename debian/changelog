@@ -1,3 +1,9 @@
+cleanmate (2.5.1-0ppa1) noble; urgency=medium
+
+  * New upstream release. See CHANGELOG.md.
+
+ -- HomieLab <contact@homielab.com>  Wed, 11 Nov 2026 06:00:00 +0700
+
 cleanmate (2.5.0-0ppa1) noble; urgency=medium
 
   * New upstream release. See CHANGELOG.md.

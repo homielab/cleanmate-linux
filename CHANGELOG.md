@@ -6,7 +6,9 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
-## [2.5.0] - 2026-11-11
+## [2.5.1] - 2026-11-11
+
+First full release of the 2.5 series; 2.5.0 reached only the PPA.
 
 ### Added
 - Smart Scan stops staying silent about Docker it cannot reach: when the daemon isn't running or your user isn't in the `docker` group, one row names which and shows the fix.
@@ -146,7 +148,7 @@ First public release of CleanMate for Linux.
 
 - Install from the PPA, the `.deb` on GitHub, snap or the install script.
 
-[2.5.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.5.0
+[2.5.1]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.5.1
 [2.4.1]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.4.1
 [2.3.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.3.0
 [2.2.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.2.0
