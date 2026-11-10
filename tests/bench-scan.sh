@@ -67,6 +67,13 @@ done
 m1=$(med "${f1[@]}") m2=$(med "${f2[@]}")
 row median "$m1" "$m2"
 over=0
+_lens_time() { # seconds one --json lens of / takes (the walk the app's Space Lens waits for)
+  local t0
+  t0=${EPOCHREALTIME/[.,]/}
+  run bash "$SCRIPT" --json lens --path / >/dev/null
+  secs $((${EPOCHREALTIME/[.,]/} - t0))
+}
+
 if [[ -n ${BENCH_LIMITS:-} ]]; then
   # shellcheck source=bench-limits.sh
   source "$BENCH_LIMITS"
@@ -76,13 +83,6 @@ if [[ -n ${BENCH_LIMITS:-} ]]; then
   lens=$(_lens_time)
   over_limit "lens /" "$lens" "$LENS_MAX" || true
 fi
-
-_lens_time() { # seconds one --json lens of / takes (the walk the app's Space Lens waits for)
-  local t0
-  t0=${EPOCHREALTIME/[.,]/}
-  run bash "$SCRIPT" --json lens --path / >/dev/null
-  secs $((${EPOCHREALTIME/[.,]/} - t0))
-}
 
 forget
 echo "slowest items, first:"

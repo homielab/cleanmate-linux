@@ -780,10 +780,10 @@ test_dry_run_changes_nothing() {
   printf 'secret\n' >"$HOME_DIR/.bash_history"
   old "$HOME_DIR/.claude/cache/c.bin"
   in_app 'printf "%s=1\n" "${ITEM_IDS[@]}"' >"$HOME_DIR/.config/cleanmate/selection" # everything on
-  # compare every file (size + mtime); the app's own state and GLib's dconf cache don't count
-  before=$(cd "$HOME_DIR" && find . \( -path ./.local/state -o -path ./.cache/dconf \) -prune -o -type f -printf '%p %s %T@\n' | sort)
+  # compare every file (size + mtime); the app's own state, GLib's dconf cache and go's telemetry don't count
+  before=$(cd "$HOME_DIR" && find . \( -path ./.local/state -o -path ./.cache/dconf -o -path ./.config/go \) -prune -o -type f -printf '%p %s %T@\n' | sort)
   cm --clean --yes --dry-run --only user,browser,apps,ai,dev,privacy >/dev/null 2>&1 </dev/null
-  after=$(cd "$HOME_DIR" && find . \( -path ./.local/state -o -path ./.cache/dconf \) -prune -o -type f -printf '%p %s %T@\n' | sort)
+  after=$(cd "$HOME_DIR" && find . \( -path ./.local/state -o -path ./.cache/dconf -o -path ./.config/go \) -prune -o -type f -printf '%p %s %T@\n' | sort)
   assert_eq "$after" "$before" "file tree unchanged by --dry-run"
 }
 
