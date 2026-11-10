@@ -138,6 +138,18 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="2.5.0" date="2026-11-11">
+      <description>
+        <p>Quicker rescans, more caches found, and a Smart Scan that tells you what it couldn't reach.</p>
+        <ul>
+          <li>Rescans after a clean take a blink; Similar Photos remembers what it read</li>
+          <li>Go, Nix, ruff, mypy, pytest and Jupyter caches, and Podman like Docker</li>
+          <li>Docker out of reach? Smart Scan says why and how to fix it</li>
+          <li>Automatic cleaning retries and shows its last run</li>
+          <li>No more crash without python3-gi-cairo; welcome steps fill the dialog</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.4.1" date="2026-11-06">
       <description>
         <p>Similar Photos, Moved to the Trash, Space Lens for the whole disk and a more honest Smart Scan.</p>

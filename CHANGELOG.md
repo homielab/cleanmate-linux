@@ -6,32 +6,27 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
-### Changed
-- Space Lens walks each folder once instead of twice (bytes and entry counts from one pass), and counts entries only for the rows it shows — the `lens /` benchmark is part of the limits now.
-- The Overview's "Space outside your folders" says "needs administrator rights" next to a Timeshift row it can't measure, and the "Not finished" group names the scan's time limit (120 s) instead of just "too long".
+## [2.5.0] - 2026-11-11
 
 ### Added
-- Smart Scan stops staying silent about Docker it cannot reach: when the daemon isn't running or your user isn't in the `docker` group, one row names which and shows the fix instead of hiding every Docker item.
-- Podman gets the same per-item coverage as Docker: unused images, build cache and unused volumes, sized from `podman system df`, with volumes treated as data that is never cleaned unattended.
-- Similar Photos says how many photos it skipped for lack of a GdkPixbuf loader and names the packages to install (`heif-gdk-pixbuf`, `webp-pixbuf-loader`, now recommended by the package).
-
-### Added
-
-- Developer Junk finds four more caches: the Go module cache (`go env GOMODCACHE`), Nix's old generations, the ruff/mypy/pytest caches under `~/.cache` and the Jupyter cache.
+- Smart Scan stops staying silent about Docker it cannot reach: when the daemon isn't running or your user isn't in the `docker` group, one row names which and shows the fix.
+- Podman gets the same coverage as Docker: unused images, build cache and unused volumes. Volumes are data and are never cleaned unattended.
+- Developer Junk finds four more caches: the Go module cache, Nix's old generations, the ruff/mypy/pytest caches under `~/.cache` and the Jupyter cache.
+- Similar Photos says how many photos it skipped for lack of a loader and names the packages to install (`heif-gdk-pixbuf`, `webp-pixbuf-loader`, now recommended).
+- *Settings* shows when automatic cleaning last ran and how much it freed.
 
 ### Changed
-
-- After a clean, Smart Scan and Privacy check only what you just cleaned, so the results are back in a blink.
-- An item under **Not finished** has **Rescan This Item**: check just that one again, the rest stay put.
-- **Similar Photos** remembers the photos it already read, so searching again takes seconds instead of minutes.
+- After a clean, Smart Scan and Privacy check only what you just cleaned, so results are back in a blink. An item under **Not finished** has **Rescan This Item**.
+- Similar Photos remembers the photos it already read, so searching again takes seconds instead of minutes.
+- Space Lens opens faster, and the Overview says "needs administrator rights" next to a Timeshift row it can't measure and names the scan's time limit (120 s).
 
 ### Fixed
-
-- The System Overview works again on systems where awk is mawk (Ubuntu ≤ 22.04): memory and disk sizes above ~2 GB or 2 TB no longer come back in scientific notation or clipped, which broke the numbers and stopped the overview short.
 - The desktop app no longer crashes on systems without `python3-gi-cairo`: the Overview shows a note instead of the charts, and `cm --gui` says what to install.
-- The welcome steps fill the whole dialog again instead of shrinking to a narrow column in the middle.
-- Automatic cleaning tries again within the hour if it fails or your laptop sleeps, tells you if it still can't finish, and *Settings* shows its last run.
+- The welcome steps fill the whole dialog again instead of shrinking to a narrow column.
+- The System Overview works again on Ubuntu 22.04 and older: big memory and disk sizes no longer break the numbers.
+- Automatic cleaning tries again within the hour if it fails or your laptop sleeps, and tells you if it still can't finish.
 - The low disk alert now reaches you in the Flatpak too: CleanMate warns you when you open it.
+- Freed space after cleaning thumbnails counts only the thumbnails, not the folders that stay.
 
 ## [2.4.1] — 2026-11-06
 
@@ -151,6 +146,7 @@ First public release of CleanMate for Linux.
 
 - Install from the PPA, the `.deb` on GitHub, snap or the install script.
 
+[2.5.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.5.0
 [2.4.1]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.4.1
 [2.3.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.3.0
 [2.2.0]: https://github.com/homielab/cleanmate-linux/releases/tag/v2.2.0

@@ -19,7 +19,7 @@
 set -o pipefail
 shopt -s extglob
 
-VERSION="2.4.1"
+VERSION="2.5.0"
 MOUSE=1
 DRY_RUN=0
 MODE=menu
