@@ -1,0 +1,31 @@
+name: Snap
+
+# Builds the snap only when its recipe changes; every release builds it again (release.yml).
+on:
+  push:
+    branches: [main]
+    paths: ["snap/**", ".github/workflows/snap.yml"]
+  pull_request:
+    paths: ["snap/**", ".github/workflows/snap.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  snap:
+    name: Snap build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: snapcore/action-build@v1
+        id: build
+      - name: Install the snap and run it
+        run: |
+          sudo snap install --classic --dangerous ${{ steps.build.outputs.snap }}
+          cleanmate --version

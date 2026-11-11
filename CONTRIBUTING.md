@@ -129,7 +129,7 @@ home, the real system): the first scan with nothing cached and a repeat scan, th
 on their own, and checks the unused packages against `apt-get -s autoremove`. Run it as an ordinary
 user on a machine with many packages; `CLEANMATE_SCRIPT=old.sh` times another copy.
 With `BENCH_LIMITS=tests/bench-limits.sh` it fails when a median is over the limits there; the
-Benchmark workflow (`.github/workflows/bench.yml`) runs it that way weekly and on demand.
+Benchmark workflow (`.github/workflows/bench.yml`) runs it that way on demand (`gh workflow run bench.yml`).
 `tests/bench-dupes.sh [COUNT [ROUNDS [SIZE_BYTES]]]` times Duplicates on a throwaway folder of 20,000
 files of one size (300 KB; sparse, so little disk), every one read: a tenth are copies, the rest differ
 at the start or only at the end. It prints the median and a checksum of the groups found, which must
@@ -225,8 +225,9 @@ checks the Vietnamese ones).
 ## Releasing
 
 Bump `VERSION` in `cleanmate.sh` and `snap/snapcraft.yaml`, update
-`CHANGELOG.md` and the metainfo release notes, merge to `main`, push a `vX.Y.Z` tag — CI tests,
-builds the `.deb` and creates the GitHub release with the `.deb` and the snap.
+`CHANGELOG.md` and the metainfo release notes, merge to `main`, push `main` and a `vX.Y.Z` tag — the release waits for CI on that commit
+(it doesn't rerun the tests; red CI → no release), builds the `.deb` and creates the GitHub release
+with the `.deb` and the snap. The snap is otherwise built only when `snap/` changes (`snap.yml`).
 Once CleanMate is on Flathub, the Flathub bot opens a pull request in `flathub/com.homielab.CleanMate`
 for the new tag; copy its `tag` and `commit` into `packaging/flathub/com.homielab.CleanMate.yml`
 ([packaging/flathub/README.md](packaging/flathub/README.md)).

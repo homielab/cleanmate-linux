@@ -19,6 +19,7 @@ jobs:
   lint:
     name: flatpak-builder-lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Manifest and AppStream metadata (Flathub's checks)
@@ -30,6 +31,7 @@ jobs:
   build:
     name: Build, install and run
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
       options: --privileged

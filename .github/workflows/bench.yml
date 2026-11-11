@@ -1,9 +1,8 @@
 name: Benchmark
 
-# Smart Scan speed on a fixed machine (a GitHub ubuntu-24.04 runner): weekly and on demand, not on every push.
+# Smart Scan speed on a fixed machine (a GitHub ubuntu-24.04 runner), on demand:
+#   gh workflow run bench.yml
 on:
-  schedule:
-    - cron: "17 4 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -13,6 +12,7 @@ jobs:
   scan:
     name: Smart Scan time
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Scan benchmark (fails over the limits in tests/bench-limits.sh)

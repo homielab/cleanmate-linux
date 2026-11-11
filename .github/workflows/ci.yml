@@ -22,6 +22,7 @@ jobs:
   lint:
     name: ShellCheck
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Install ShellCheck ${{ env.SHELLCHECK_VERSION }} (pinned, not the runner's)
@@ -54,6 +55,7 @@ jobs:
         include:
           - { os: ubuntu-24.04, locale: vi_VN.UTF-8 de_DE.UTF-8 }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install pyte (terminal emulator for the TUI smoke test)
@@ -78,6 +80,7 @@ jobs:
   ppa:
     name: PPA package (every series)
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -98,19 +101,3 @@ jobs:
           sudo apt-get install -y -qq ./build/cleanmate_*_all.deb
           cm --version
 
-  snap:
-    name: Snap build
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: snapcore/action-build@v1
-        id: build
-      - name: Install the snap and run it
-        run: |
-          sudo snap install --classic --dangerous ${{ steps.build.outputs.snap }}
-          cleanmate --version
-      - uses: actions/upload-artifact@v7
-        with:
-          name: snap
-          path: ${{ steps.build.outputs.snap }}
-          retention-days: 3
