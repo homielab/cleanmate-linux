@@ -6,6 +6,9 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- CleanMate never deletes or moves to the Trash your SSH and GPG keys, keyrings, password store, or your Documents, Desktop, Downloads, Pictures, Music and Videos folders themselves, and every permanent delete now respects your Never clean list.
+
 ## [2.5.1] - 2026-11-11
 
 First full release of the 2.5 series; 2.5.0 reached only the PPA.

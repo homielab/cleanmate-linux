@@ -716,16 +716,66 @@ pluralv() { # VAR N WORD → "1 file" / "3 files" / "2 entries" into VAR
 }
 plural() { local __p; pluralv __p "$1" "$2"; printf '%s' "$__p"; }
 
+# Folders in your home nothing may delete: secrets (whole tree) and your own folders (the folder
+# itself and the folders above it; what's inside them can still be cleaned or moved to the Trash).
+PROTECTED_TREES=() PROTECTED_DIRS=()
+protected_home() { # → PROTECTED_TREES, PROTECTED_DIRS (once)
+  ((${#PROTECTED_TREES[@]})) && return 0
+  local h t d k line f=${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs
+  local -A ud=([DOCUMENTS]=Documents [DESKTOP]=Desktop [PICTURES]=Pictures [MUSIC]=Music [VIDEOS]=Videos
+    [DOWNLOAD]=Downloads)
+  h=$(realpath -m -- "$HOME")
+  for t in .ssh .gnupg .local/share/keyrings .password-store; do PROTECTED_TREES+=("$h/$t"); done
+  for k in "${!ud[@]}"; do ud[$k]=$HOME/${ud[$k]}; done
+  if [[ -r $f ]]; then
+    while IFS= read -r line || [[ -n $line ]]; do
+      [[ $line =~ ^XDG_([A-Z]+)_DIR=\"(.*)\"$ && -n ${ud[${BASH_REMATCH[1]}]+set} ]] || continue
+      d=${BASH_REMATCH[2]} k=${BASH_REMATCH[1]}
+      d=${d/#\$HOME/$HOME}
+      [[ $d == /* && $d != "$HOME" && $d != "$HOME/" ]] && ud[$k]=$d # $HOME = turned off
+    done <"$f"
+  fi
+  for d in "${ud[@]}"; do
+    d=$(realpath -m -- "$d")
+    while [[ $d == /?* && $d != "$h" ]]; do PROTECTED_DIRS+=("$d"); d=${d%/*}; done
+  done
+}
+
 is_protected() {
-  local p
+  local p e
   p=$(realpath -m -- "$1")
   [[ $p == /* ]] || return 0
   case $p in
     / | /bin | /boot | /dev | /etc | /home | /lib | /lib32 | /lib64 | /opt | /proc | /root | \
       /sbin | /srv | /sys | /usr | /usr/* | /var | /var/lib | "$HOME" | "$HOME/.config" | \
       "$HOME/.local" | "$HOME/.local/share") return 0 ;;
+    /var/lib/*) [[ $p == /var/lib/*/* ]] || return 0 ;; # a program's whole state folder
   esac
+  protected_home
+  for e in "${PROTECTED_TREES[@]}"; do [[ $p == "$e" || $p == "$e"/* ]] && return 0; done
+  for e in "${PROTECTED_DIRS[@]}"; do [[ $p == "$e" ]] && return 0; done
   return 1
+}
+
+# The one way to delete a folder or file for good: never a protected path, never one you
+# excluded in Settings (Never clean), and --dry-run is honoured. Returns 1 if any was refused or failed.
+safe_rm() { # PATH…
+  local p rc=0
+  for p; do
+    [[ $p == /* ]] || p=$PWD/$p
+    if is_protected "$p"; then err "Refusing to touch protected path: $p"; rc=1; continue; fi
+    if ((${#EXCLUDES[@]})) && touches_exclusion "$(realpath -m -s -- "$p")"; then
+      err "Excluded in Settings (Never clean): $p"; rc=1; continue
+    fi
+    run rm -rf -- "$p" || rc=1
+  done
+  return "$rc"
+}
+
+# Scratch folders this run made under SESSION_TMP: not your files, so no checks and no --dry-run.
+tmp_rm() { # PATH
+  [[ -n ${SESSION_TMP:-} && ($1 == "$SESSION_TMP" || $1 == "$SESSION_TMP"/*) ]] || return 1
+  command rm -rf -- "$1"
 }
 
 empty_dir() { # [--root] DIR — delete the contents of DIR, keep DIR itself
@@ -734,6 +784,9 @@ empty_dir() { # [--root] DIR — delete the contents of DIR, keep DIR itself
   local d=$1
   [[ -d $d ]] || return 0
   if is_protected "$d"; then err "Refusing to touch protected path: $d"; return 1; fi
+  if ((${#EXCLUDES[@]})) && touches_exclusion "$(realpath -m -s -- "$d")"; then
+    err "Excluded in Settings (Never clean): $d"; return 1
+  fi
   if ((as_root)); then run_root find "$d" -mindepth 1 -delete
   else run find "$d" -mindepth 1 -delete; fi
 }
@@ -3042,7 +3095,7 @@ list_clean() {
   local p
   while IFS= read -r p; do
     ai_safe_path "$p" || continue # checked again right before deleting
-    run rm -rf -- "$p"
+    safe_rm "$p"
   done < <(list_paths "$1")
 }
 
@@ -3551,7 +3604,7 @@ clean_node_modules() {
     nm_is_stale "$d" || continue # re-check: the project may have been used since the scan
     is_protected "$d" && continue
     touches_exclusion "$(realpath -m -s -- "$d")" && continue # excluded since the scan
-    run rm -rf -- "$d"
+    safe_rm "$d"
   done <"$NM_LIST"
 }
 details_node_modules() { [[ -f $NM_LIST ]] && detail_files 100 <"$NM_LIST"; }
@@ -4621,8 +4674,7 @@ delete_runtimes() { # INDEX… of OR_DIR
   local i d rc=0
   for i; do
     d=${OR_DIR[i]}
-    is_protected "$d" && { err "Refusing to touch protected path: $d"; rc=1; continue; }
-    run rm -rf -- "$d" || rc=1
+    safe_rm "$d" || rc=1
   done
   return "$rc"
 }
@@ -4984,8 +5036,7 @@ precheck_old_runtimes_asdf_mise() {
 delete_asdf_mise_old() { # INDEX… of AM_DIR
   local i rc=0
   for i; do
-    is_protected "${AM_DIR[i]}" && { err "Refusing to touch protected path: ${AM_DIR[i]}"; rc=1; continue; }
-    run rm -rf -- "${AM_DIR[i]}" || rc=1
+    safe_rm "${AM_DIR[i]}" || rc=1
   done
   return "$rc"
 }
@@ -5193,8 +5244,7 @@ precheck_unity_old_editors() {
 delete_unity_old_editors() { # INDEX… of UE_DIR
   local i rc=0
   for i; do
-    is_protected "${UE_DIR[i]}" && { err "Refusing to touch protected path: ${UE_DIR[i]}"; rc=1; continue; }
-    run rm -rf -- "${UE_DIR[i]}" || rc=1
+    safe_rm "${UE_DIR[i]}" || rc=1
   done
   return "$rc"
 }
@@ -5325,8 +5375,7 @@ delete_vagrant_old_boxes() { # INDEX… of VB_DIR; empty arch and version folder
   local i d rc=0
   for i; do
     d=${VB_DIR[i]}
-    is_protected "$d" && { err "Refusing to touch protected path: $d"; rc=1; continue; }
-    run rm -rf -- "$d" || { rc=1; continue; }
+    safe_rm "$d" || { rc=1; continue; }
     ((DRY_RUN)) || { rmdir -- "${d%/*}" 2>/dev/null && rmdir -- "${d%/*/*}" 2>/dev/null; } || true
   done
   return "$rc"
@@ -5516,8 +5565,7 @@ delete_android_images() { # INDEX… of AI_DIR
   local i d rc=0
   for i; do
     d=${AI_DIR[i]}
-    is_protected "$d" && { err "Refusing to touch protected path: $d"; rc=1; continue; }
-    run rm -rf -- "$d" || { rc=1; continue; }
+    safe_rm "$d" || { rc=1; continue; }
     ((DRY_RUN)) || rmdir -- "${d%/*}" "${d%/*/*}" 2>/dev/null # <tag> and <android-N> once empty
   done
   return "$rc"
@@ -5700,8 +5748,7 @@ precheck_android_sdk_old() { # a build or the SDK Manager may be using the versi
 delete_android_sdk_old() { # INDEX… of SO_DIR
   local i rc=0
   for i; do
-    is_protected "${SO_DIR[i]}" && { err "Refusing to touch protected path: ${SO_DIR[i]}"; rc=1; continue; }
-    run rm -rf -- "${SO_DIR[i]}" || rc=1
+    safe_rm "${SO_DIR[i]}" || rc=1
   done
   return "$rc"
 }
@@ -5796,8 +5843,7 @@ precheck_android_avd_snapshots() {
 delete_avd_snapshots() { # INDEX… of AS_DIR
   local i rc=0
   for i; do
-    is_protected "${AS_DIR[i]}" && { err "Refusing to touch protected path: ${AS_DIR[i]}"; rc=1; continue; }
-    run rm -rf -- "${AS_DIR[i]}" || rc=1
+    safe_rm "${AS_DIR[i]}" || rc=1
   done
   return "$rc"
 }
@@ -6004,8 +6050,7 @@ precheck_game_runners_old() {
 delete_game_runners_old() { # INDEX… of GR_DIR
   local i rc=0
   for i; do
-    is_protected "${GR_DIR[i]}" && { err "Refusing to touch protected path: ${GR_DIR[i]}"; rc=1; continue; }
-    run rm -rf -- "${GR_DIR[i]}" || rc=1
+    safe_rm "${GR_DIR[i]}" || rc=1
   done
   return "$rc"
 }
@@ -6327,8 +6372,7 @@ delete_editor_extensions() { # INDEX… of EX_ID — delete their old version fo
   for i; do
     while IFS= read -r d; do
       [[ ${d##*/} =~ $EDITOR_EXT_RE && -d $d && ! -L $d ]] && runtime_dir "${d%/*}" >/dev/null || continue
-      is_protected "$d" && { err "Refusing to touch protected path: $d"; rc=1; continue; }
-      run rm -rf -- "$d" || rc=1
+      safe_rm "$d" || rc=1
     done <<<"${EX_DIRS[i]}"
   done
   return "$rc"
@@ -6775,7 +6819,7 @@ model_clean() {
     ollama) run ollama rm "$ref" ;;
     *)
       model_safe_path "$ref" || { err "Not a model folder, skipped: $ref"; return 1; }
-      run rm -rf -- "$ref" ;;
+      safe_rm "$ref" ;;
   esac
 }
 model_details() {
@@ -6940,7 +6984,7 @@ clean_entries_ai_model_caches() { # encoded paths (json_clean_entries only passe
     for i in "${!MC_PATH[@]}"; do
       [[ $(urlencode_path "${MC_PATH[i]}") == "$id" ]] || continue
       ai_safe_path "${MC_PATH[i]}" || continue
-      run rm -rf -- "${MC_PATH[i]}" || rc=1
+      safe_rm "${MC_PATH[i]}" || rc=1
     done
   done
   return "$rc"
@@ -7355,7 +7399,7 @@ scan_items() { # CATEGORY...
       draw_scan_frame "$SCAN_DONE" "${#SCAN_IDS[@]}" "$pending"
       if read_key 0.1 && [[ $KEY == q || $KEY == esc ]]; then
         for k in "${!w_ids[@]}"; do [[ -n ${w_done[k]:-} ]] || kill_tree "${w_pid[k]}"; done
-        rm -rf "$tmp"
+        tmp_rm "$tmp"
         SCANNED=()
         toast "${YELLOW}!${NC} Scan cancelled."
         return 130
@@ -7403,7 +7447,7 @@ scan_items() { # CATEGORY...
     fi
     found+=("$id")
   done
-  rm -rf "$tmp"
+  tmp_rm "$tmp"
 
   # categories in the order given, then found before clean, then biggest first (ties: by ID)
   i=0
@@ -10445,11 +10489,11 @@ find_duplicates() { # MIN_MB DIR...
   ui_busy "Looking for duplicates in $where…" $!
   r=$?
   UI_BUSY_STATUS=""
-  ((r == 0)) || { rm -rf "$tmp"; return; }
+  ((r == 0)) || { tmp_rm "$tmp"; return; }
   D_SIZE=() D_HASH=() D_MT=() D_PATH=()
   while IFS=$'\t' read -r a b c d; do D_SIZE+=("$a") D_HASH+=("$b") D_MT+=("$c") D_PATH+=("$d"); done <"$out"
   [[ -f $out.notes ]] && mapfile -t DUP_NOTES <"$out.notes"
-  rm -rf "$tmp"
+  tmp_rm "$tmp"
   if ((${#D_PATH[@]} == 0)); then
     where=""
     ((${#DUP_NOTES[@]})) && printf -v where ' · %s' "${DUP_NOTES[@]}"
@@ -11079,7 +11123,7 @@ install_app_files() { # ROOT — copy the desktop app and the icon into place
   local root=$1 svg="$1/data/icons/hicolor/scalable/apps/$APP_ID.svg"
   if [[ -f $root/gui/cleanmate-gui && $root/gui != "$GUI_HOME" ]]; then
     mkdir -p "$GUI_HOME" && cp -r -- "$root/gui/cleanmate-gui" "$root/gui/cleanmate_gui" "$GUI_HOME/" &&
-      find "$GUI_HOME" -name __pycache__ -prune -exec rm -rf {} +
+      find "$GUI_HOME" -depth \( -name __pycache__ -o -path '*/__pycache__/*' \) -delete
   fi
   if [[ -f $svg ]]; then
     mkdir -p "${ICON_FILE%/*}" && cp -- "$svg" "$ICON_FILE"
@@ -11198,11 +11242,11 @@ cli_uninstall() { # --uninstall: remove commands, launcher, timer; optionally se
     run rm -f -- "$f" && ok "Removed ${f/#$HOME/\~}"
   done
   if [[ -d $GUI_HOME && $GUI_HOME == */cleanmate/gui ]]; then
-    run rm -rf -- "$GUI_HOME" && ok "Removed the desktop app"
+    safe_rm "$GUI_HOME" && ok "Removed the desktop app"
   fi
   ((DRY_RUN)) || { have systemctl && systemctl --user daemon-reload 2>/dev/null; }
   if confirm "Also delete your settings, remembered selections and logs?"; then
-    run rm -rf -- "${PREF_FILE%/*}" "$LOG_DIR" "$CACHE_DIR" && ok "Removed settings and logs"
+    safe_rm "${PREF_FILE%/*}" "$LOG_DIR" "$CACHE_DIR" && ok "Removed settings and logs"
   fi
   printf '\n  Goodbye 👋  (this copy of the script itself was left in place)\n'
 }
@@ -13560,7 +13604,7 @@ on_interrupt() { # stop every background job and its children (they ignore SIGIN
 }
 
 SESSION_TMP=$(mktemp -d -t cleanmate.XXXXXX) || exit 1
-trap 'rm -rf "$SESSION_TMP"' EXIT
+trap 'tmp_rm "$SESSION_TMP"' EXIT
 trap 'on_interrupt' INT TERM
 
 load_kv "$STATS_FILE" STATS '^[0-9]+$'
@@ -13595,7 +13639,7 @@ if ((EUID == 0)); then
   confirm "Continue anyway? (Recommended: run as your user, sudo is requested when needed)" || exit 1
 fi
 
-trap 'ui_stop; rm -rf "$SESSION_TMP"' EXIT
+trap 'ui_stop; tmp_rm "$SESSION_TMP"' EXIT
 refresh_sysinfo
 update_check_bg
 ui_start

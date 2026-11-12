@@ -76,8 +76,12 @@ registration) or in a scan uses the helpers that set a variable instead of print
 
 Rules of thumb:
 
-- **Delete only through the helpers** — `run`, `run_root`, `empty_dir`, `move_to_trash` — so
-  `--dry-run`, the protected-path checks and the activity log keep working.
+- **Delete only through the helpers** — `safe_rm` (for good), `empty_dir`, `move_to_trash`, or
+  `run` / `run_root` for a tool's own clean command — so `--dry-run`, the protected-path and
+  Never clean checks and the activity log keep working. `rm -rf` anywhere else fails the tests.
+  `is_protected` refuses system folders, `/var/lib/<program>`, `~/.ssh`, `~/.gnupg`, keyrings,
+  `~/.password-store`, and your Documents, Desktop, Downloads, Pictures, Music and Videos folders
+  themselves (from `user-dirs.dirs`) with the folders above them.
 - **Prefer the tool's own cleanup command** (`npm cache clean`, `docker image prune`, …).
 - **Be conservative.** Personal data starts unselected; anything a running app might use gets a
   `precheck_ID`, plus a `lockedby_ID` that prints the running program, so a scan can show the

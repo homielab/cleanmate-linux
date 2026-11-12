@@ -211,6 +211,39 @@ test_protected_paths() {
   in_app "is_protected '$HOME_DIR/.cache/thing'" && fail "~/.cache/thing should be allowed" || ok_ "allowed: ~/.cache/thing"
 }
 
+# Secrets, your own folders (also where user-dirs.dirs moves them, and the folders above) and a
+# program's state in /var/lib are never deleted or trashed; what's inside your folders still can be,
+# and a folder you excluded in Settings is refused the same way.
+test_safe_rm_refuses_protected_and_excluded() {
+  fresh_home
+  local h=$HOME_DIR p out
+  mkdir -p "$h/.config" "$h/Data/Docs" "$h/.ssh" "$h/Documents/old" "$h/.cache/junk" "$h/kept"
+  printf 'XDG_DOCUMENTS_DIR="$HOME/Data/Docs"\nXDG_MUSIC_DIR="$HOME"\n' >"$h/.config/user-dirs.dirs"
+  printf 'k\n' >"$h/.ssh/id_ed25519"
+  for p in "$h/.ssh" "$h/.ssh/id_ed25519" "$h/.gnupg/private-keys-v1.d" "$h/.local/share/keyrings/login.keyring" \
+    "$h/.password-store/mail.gpg" "$h/Data/Docs" "$h/Data" "$h/Desktop" "$h/Pictures" "$h/Videos" "$h/Music" \
+    /var/lib/dpkg /var/lib/snapd /etc /boot; do
+    in_app "is_protected '$p'" && ok_ "protected: $p" || fail "should be protected: $p"
+  done
+  for p in "$h/Data/Docs/old.pdf" "$h/Documents" "$h/Pictures/a.jpg" /var/lib/systemd/coredump "$h/.cache/junk"; do
+    in_app "is_protected '$p'" && fail "should be allowed: $p" || ok_ "allowed: $p"
+  done
+  printf '%s\n' "$h/kept" >"$h/.config/cleanmate/exclude"
+  out=$(in_app "load_exclusions; safe_rm '$h/.ssh' '$h/.cache/junk'; echo rc=\$?; safe_rm '$h/kept'; echo rc=\$?
+    move_to_trash '$h/.ssh/id_ed25519'; echo rc=\$?; move_to_trash '$h/kept'; echo rc=\$?; empty_dir '$h/kept'; echo rc=\$?" 2>&1)
+  assert_contains "$out" "Refusing to touch protected path: $h/.ssh"
+  assert_contains "$out" "Excluded in Settings (Never clean): $h/kept"
+  assert_eq "$(grep -c '^rc=1$' <<<"$out")" 5 "every refusal returns 1"
+  assert_exists "$h/.ssh/id_ed25519"; assert_exists "$h/kept"; assert_missing "$h/.cache/junk"
+}
+
+# Every permanent delete goes through safe_rm (scratch folders of the run through tmp_rm).
+test_no_direct_rm_rf() {
+  local hits
+  hits=$(awk '/^(safe_rm|tmp_rm)\(\) \{/ {f = 1} f && /^}/ {f = 0; next} !f && /rm -rf/ {print FNR": "$0}' "$SCRIPT")
+  [[ -z $hits ]] && ok_ "no rm -rf outside safe_rm" || fail "rm -rf outside safe_rm:"$'\n'"$hits"
+}
+
 test_scan_report() {
   fresh_home
   local out
@@ -3641,7 +3674,7 @@ for l in sys.stdin:
   out=$(cm --json lens --path "$d/Projects" | python3 -c "$tasks")
   assert_eq "$out" $'keep False True\na*b True False\ndone False' "an excluded folder is view only"
   out=$(cm --json lens | python3 -c "$tasks")
-  assert_contains "$out" "Projects False True"; assert_contains "$out" "Videos True False"
+  assert_contains "$out" "Projects False True"; assert_contains "$out" "Videos False False" # your own folder: its files can go, not the folder
   assert_contains "$(cm --json lens --path "$keep" | python3 -c "$tasks")" $'data.bin False True'
   assert_contains "$(cm --json lens --path "$keep" | python3 -c "$tasks")" "done True"
   out=$(user_cm --json trash --home-only "$keep/data.bin" "$d/Projects" | python3 -c "$tasks")

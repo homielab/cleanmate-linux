@@ -390,7 +390,7 @@ def space_lens_test(win, report, wait, finish):
     from .spacelens import mount_of, reason_text
     sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
     home = os.path.join(sandbox, "home")
-    projects, videos = os.path.join(home, "Projects"), os.path.join(home, "Videos")
+    projects, videos = os.path.join(home, "Projects"), os.path.join(home, "Movies")
     app, build = os.path.join(projects, "App"), os.path.join(projects, "App", "Build")
     os.makedirs(build)
     os.makedirs(videos)
@@ -425,7 +425,7 @@ def space_lens_test(win, report, wait, finish):
         wait(idle, listed, 60, "Space Lens list")
 
     def listed():
-        report(names() == ["Projects", "Videos", "todo.txt"], f"home listed biggest first: {names()}")
+        report(names() == ["Projects", "Movies", "todo.txt"], f"home listed biggest first: {names()}")
         page.rows[projects].activate()
         wait(lambda: idle() and page.folder == projects, level1, 60, "open Projects")
 
@@ -449,7 +449,7 @@ def space_lens_test(win, report, wait, finish):
         wait(lambda: idle() and page.folder == home, back_home, 60, "path bar")
 
     def back_home():
-        report(names() == ["Projects", "Videos", "todo.txt"] and not page.up_button.get_sensitive(),
+        report(names() == ["Projects", "Movies", "todo.txt"] and not page.up_button.get_sensitive(),
                "the path bar goes back to the start")
         page.set_root(sandbox)
         wait(lambda: idle() and page.folder == sandbox, outside, 60, "outside home")
@@ -490,7 +490,7 @@ def space_lens_test(win, report, wait, finish):
         wait(idle, dry_trashed, 60, "dry-run trash")
 
     def dry_trashed():
-        report(os.path.isdir(videos) and "Videos" in names(), "dry run: the folder stays")
+        report(os.path.isdir(videos) and "Movies" in names(), "dry run: the folder stays")
         if os.geteuid() == 0:
             report(True, "Trash and Undo skipped: the engine refuses them as root")
             return to_drive()
@@ -500,17 +500,17 @@ def space_lens_test(win, report, wait, finish):
         wait(idle, trashed, 60, "trash")
 
     def trashed():
-        in_trash = os.path.join(home, ".local", "share", "Trash", "files", "Videos")
+        in_trash = os.path.join(home, ".local", "share", "Trash", "files", "Movies")
         report(not os.path.exists(videos) and os.path.isdir(in_trash) and names() == ["Projects", "todo.txt"],
                "Move to Trash moves the folder and measures again")
         if not page.undo_toast:
             report(False, "no Undo toast after moving to the Trash")
             return done()
         page.undo_toast.emit("button-clicked")
-        wait(lambda: idle() and os.path.isdir(videos) and "Videos" in names(), undone, 60, "undo")
+        wait(lambda: idle() and os.path.isdir(videos) and "Movies" in names(), undone, 60, "undo")
 
     def undone():
-        report(os.path.isfile(os.path.join(videos, "film.mkv")) and names() == ["Projects", "Videos", "todo.txt"],
+        report(os.path.isfile(os.path.join(videos, "film.mkv")) and names() == ["Projects", "Movies", "todo.txt"],
                "Undo from the toast puts the folder back where it was")
         to_drive()
 
