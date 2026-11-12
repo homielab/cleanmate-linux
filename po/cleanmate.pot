@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 15:56+0000\n"
+"POT-Creation-Date: 2026-11-12 16:11+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -922,130 +922,146 @@ msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:208
 #, python-brace-format
-msgid "{count} with entries"
+msgid "{count}, {unused} unused for {days}+ days"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:209
 #, python-brace-format
-msgid "{count} that no longer exist"
+msgid "{count} with entries"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:210
 #, python-brace-format
-msgid "{count} not your default"
+msgid "{count} that no longer exist"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:211
 #, python-brace-format
-msgid "{count} not pinned, not the newest"
+msgid "{count} not your default"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:212
 #, python-brace-format
-msgid "{count} no AVD uses"
+msgid "{count} not pinned, not the newest"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:213
 #, python-brace-format
-msgid "{count} replaced by a newer one"
+msgid "{count} no AVD uses"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:214
 #, python-brace-format
-msgid "{count} — may contain data"
+msgid "{count} replaced by a newer one"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:215
 #, python-brace-format
-msgid "{count} kept"
+msgid "{count} — may contain data"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:217
+#: gui/cleanmate_gui/i18n.py:216
 #, python-brace-format
-msgid "{size} in total"
+msgid "{count} kept"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:218
 #, python-brace-format
-msgid "skipped while running: {names}"
+msgid "{size} in total"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:219
-msgid "close it first: the Flatpak can't see if it's open"
+#, python-brace-format
+msgid "skipped while running: {names}"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:220
-msgid "the Docker daemon isn't running"
+msgid "close it first: the Flatpak can't see if it's open"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:221
+msgid "the Docker daemon isn't running"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:222
 msgid "this user can't talk to the Docker daemon"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:223
+#: gui/cleanmate_gui/i18n.py:224
 msgid ""
 "join the docker group: sudo usermod -aG docker $USER, then sign out and back "
 "in"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:224
+#: gui/cleanmate_gui/i18n.py:225
 msgid "start it with: sudo systemctl start docker"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:225
+#: gui/cleanmate_gui/i18n.py:226
 #, python-brace-format
 msgid "get it back with: ollama pull {ref}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:266 gui/cleanmate_gui/i18n.py:267
+#: gui/cleanmate_gui/i18n.py:267 gui/cleanmate_gui/i18n.py:268
 #, python-brace-format
 msgid "{days} days old"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:268 gui/cleanmate_gui/i18n.py:269
+#: gui/cleanmate_gui/i18n.py:269 gui/cleanmate_gui/i18n.py:270
 #, python-brace-format
 msgid "untouched for {days} days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:270
+#: gui/cleanmate_gui/i18n.py:271
 #, python-brace-format
 msgid "{days} days idle"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:271
-msgid "(running, skipped)"
-msgstr ""
-
 #: gui/cleanmate_gui/i18n.py:272
-msgid "← running (kept)"
-msgstr ""
+#, python-brace-format
+msgid "last used {n} day ago"
+msgid_plural "last used {n} days ago"
+msgstr[0] ""
+msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:273
-msgid "← kept as a fallback"
+#: gui/cleanmate_gui/i18n.py:273 gui/cleanmate_gui/uninstaller.py:50
+msgid "used today"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:274
-msgid "← will be removed: "
+msgid "(running, skipped)"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:275
+msgid "← running (kept)"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:276
+msgid "← kept as a fallback"
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:277
+msgid "← will be removed: "
+msgstr ""
+
+#: gui/cleanmate_gui/i18n.py:278
 #, python-brace-format
 msgid "(revision {revision})"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:276
+#: gui/cleanmate_gui/i18n.py:279
 msgid "(your installation)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:277
+#: gui/cleanmate_gui/i18n.py:280
 msgid "(system installation)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:278
+#: gui/cleanmate_gui/i18n.py:281
 msgid "Largest archived journal files:"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:280
+#: gui/cleanmate_gui/i18n.py:283
 #, python-brace-format
 msgid "Archived and active journals take up {size} in the file system."
 msgstr ""
@@ -1461,7 +1477,7 @@ msgstr ""
 msgid "Monthly"
 msgstr ""
 
-#: gui/cleanmate_gui/messages.py:50 gui/cleanmate_gui/overview.py:579
+#: gui/cleanmate_gui/messages.py:50 gui/cleanmate_gui/overview.py:600
 #: gui/cleanmate_gui/startup.py:176
 msgid "System"
 msgstr ""
@@ -2035,7 +2051,7 @@ msgstr ""
 msgid "{size} in the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:390 gui/cleanmate_gui/overview.py:710
+#: gui/cleanmate_gui/overview.py:390 gui/cleanmate_gui/overview.py:731
 msgid "Measuring its size needs administrator rights"
 msgstr ""
 
@@ -2204,197 +2220,216 @@ msgstr ""
 msgid "Find the junk you can clean safely"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:580
+#: gui/cleanmate_gui/overview.py:579
+msgid "Suggestions"
+msgstr ""
+
+#: gui/cleanmate_gui/overview.py:585
+#, python-brace-format
+msgid "{n} AI model not used for 90+ days"
+msgid_plural "{n} AI models not used for 90+ days"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/overview.py:588 gui/cleanmate_gui/overview.py:590
+msgid "Review"
+msgstr ""
+
+#: gui/cleanmate_gui/overview.py:589
+msgid "Run Smart Scan and look at the AI models"
+msgstr ""
+
+#: gui/cleanmate_gui/overview.py:601
 #, python-brace-format
 msgid "{n} apt package"
 msgid_plural "{n} apt packages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:582
+#: gui/cleanmate_gui/overview.py:603
 #, python-brace-format
 msgid "{n} snap"
 msgid_plural "{n} snaps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:584
+#: gui/cleanmate_gui/overview.py:605
 #, python-brace-format
 msgid "{n} flatpak"
 msgid_plural "{n} flatpaks"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:586
+#: gui/cleanmate_gui/overview.py:607
 msgid "Operating system"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:586 gui/cleanmate_gui/overview.py:590
+#: gui/cleanmate_gui/overview.py:607 gui/cleanmate_gui/overview.py:611
 msgid "unknown"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:587
+#: gui/cleanmate_gui/overview.py:608
 msgid "Kernel"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:588
+#: gui/cleanmate_gui/overview.py:609
 msgid "Uptime"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:589
+#: gui/cleanmate_gui/overview.py:610
 msgid "Processor"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:589
+#: gui/cleanmate_gui/overview.py:610
 #, python-brace-format
 msgid "{cpu} ({n} thread)"
 msgid_plural "{cpu} ({n} threads)"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:591
+#: gui/cleanmate_gui/overview.py:612
 msgid "Packages"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:595
+#: gui/cleanmate_gui/overview.py:616
 msgid "Storage"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:597
+#: gui/cleanmate_gui/overview.py:618
 msgid "No disks found."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:600
+#: gui/cleanmate_gui/overview.py:621
 #, python-brace-format
 msgid "Almost full · {used} of {size} used · {free} free · {fstype}"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:601
+#: gui/cleanmate_gui/overview.py:622
 #, python-brace-format
 msgid "{used} of {size} used · {free} free · {fstype}"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:609
+#: gui/cleanmate_gui/overview.py:630
 msgid "Free space over time"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:611
+#: gui/cleanmate_gui/overview.py:632
 msgid ""
 "Free space on / is recorded once a day while you use CleanMate; the chart "
 "shows here after a few days."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:625
+#: gui/cleanmate_gui/overview.py:646
 msgid "Memory"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:627
+#: gui/cleanmate_gui/overview.py:648
 msgid "RAM"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:627
+#: gui/cleanmate_gui/overview.py:648
 #, python-brace-format
 msgid "{used} of {size} in use · {free} available"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:631 gui/cleanmate_gui/overview.py:635
+#: gui/cleanmate_gui/overview.py:652 gui/cleanmate_gui/overview.py:656
 msgid "Swap"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:631
+#: gui/cleanmate_gui/overview.py:652
 #, python-brace-format
 msgid "{used} of {size} in use"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:635
+#: gui/cleanmate_gui/overview.py:656
 msgid "none"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:639
+#: gui/cleanmate_gui/overview.py:660
 msgid "Freed by CleanMate"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:641
+#: gui/cleanmate_gui/overview.py:662
 msgid "Shows here after your first cleanup."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:646
+#: gui/cleanmate_gui/overview.py:667
 msgid "No cleanups in the last 30 days."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:653 gui/cleanmate_gui/overview.py:717
+#: gui/cleanmate_gui/overview.py:674 gui/cleanmate_gui/overview.py:738
 msgid "Largest folders in your home"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:655 gui/cleanmate_gui/overview.py:681
+#: gui/cleanmate_gui/overview.py:676 gui/cleanmate_gui/overview.py:702
 msgid "Space outside your folders"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:657 gui/cleanmate_gui/spacelens.py:149
+#: gui/cleanmate_gui/overview.py:678 gui/cleanmate_gui/spacelens.py:149
 msgid "Measuring…"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:663
+#: gui/cleanmate_gui/overview.py:684
 msgid "System protection"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:664
+#: gui/cleanmate_gui/overview.py:685
 msgid ""
 "Read only: CleanMate doesn't change these. To turn one on, run the command "
 "shown in a terminal."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:667
+#: gui/cleanmate_gui/overview.py:688
 msgid "Couldn't read the system's protection."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:682
+#: gui/cleanmate_gui/overview.py:703
 msgid ""
 "In use, but in none of your folders. Shown for information: each is a "
 "choice, not junk."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:687
+#: gui/cleanmate_gui/overview.py:708
 msgid "No Timeshift snapshots, swap file or reserved space found."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:690
+#: gui/cleanmate_gui/overview.py:711
 msgid "Outside your home folder"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:691
+#: gui/cleanmate_gui/overview.py:712
 msgid "Apps, system files, logs, snaps and Docker on the system disk (/)"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:695
+#: gui/cleanmate_gui/overview.py:716
 msgid "View in Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:696
+#: gui/cleanmate_gui/overview.py:717
 msgid "See what takes the space, folder by folder"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:720
+#: gui/cleanmate_gui/overview.py:741
 msgid "Couldn't measure your home folder."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:722
+#: gui/cleanmate_gui/overview.py:743
 msgid "Your home folder is empty."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:724
+#: gui/cleanmate_gui/overview.py:745
 msgid "Click a folder to explore it in Space Lens."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:730
+#: gui/cleanmate_gui/overview.py:751
 msgid "Open in Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:756 gui/cleanmate_gui/overview.py:757
+#: gui/cleanmate_gui/overview.py:777 gui/cleanmate_gui/overview.py:778
 msgid "Copy the command"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:766
+#: gui/cleanmate_gui/overview.py:787
 msgid "Command copied. Paste it in a terminal to run it."
 msgstr ""
 
@@ -3965,10 +4000,6 @@ msgstr ""
 
 #: gui/cleanmate_gui/uninstaller.py:47
 msgid "last use unknown"
-msgstr ""
-
-#: gui/cleanmate_gui/uninstaller.py:50
-msgid "used today"
 msgstr ""
 
 #: gui/cleanmate_gui/uninstaller.py:52
@@ -6656,4 +6687,28 @@ msgstr ""
 
 #. ai_model_caches why
 msgid "A model a program has open"
+msgstr ""
+
+#. local_models label
+msgid "AI app models"
+msgstr ""
+
+#. local_models description
+msgid ""
+"Models downloaded by llama.cpp, Jan, GPT4All and ComfyUI, each on its own "
+"with when it was last used. Moved to the Trash; download one again to use "
+"it. A model of an app that is running, or a file a program has open, is "
+"skipped."
+msgstr ""
+
+#. local_models why
+msgid "Models of an app that is running"
+msgstr ""
+
+#. local_models why
+msgid "Files a program has open"
+msgstr ""
+
+#. local_models why
+msgid "Unfinished downloads and the apps' settings"
 msgstr ""

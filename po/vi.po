@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: CleanMate\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 15:56+0000\n"
+"POT-Creation-Date: 2026-11-12 16:11+0000\n"
 "PO-Revision-Date: 2026-10-30 17:00+0700\n"
 "Last-Translator: HomieLab <contact@homielab.com>\n"
 "Language-Team: Vietnamese\n"
@@ -891,67 +891,72 @@ msgstr "{count} không dùng từ {days}+ ngày"
 
 #: gui/cleanmate_gui/i18n.py:208
 #, python-brace-format
+msgid "{count}, {unused} unused for {days}+ days"
+msgstr "{count}, {unused} không dùng trên {days} ngày"
+
+#: gui/cleanmate_gui/i18n.py:209
+#, python-brace-format
 msgid "{count} with entries"
 msgstr "{count} có mục"
 
-#: gui/cleanmate_gui/i18n.py:209
+#: gui/cleanmate_gui/i18n.py:210
 #, python-brace-format
 msgid "{count} that no longer exist"
 msgstr "{count} không còn tồn tại"
 
-#: gui/cleanmate_gui/i18n.py:210
+#: gui/cleanmate_gui/i18n.py:211
 #, python-brace-format
 msgid "{count} not your default"
 msgstr "{count} không phải bản mặc định"
 
-#: gui/cleanmate_gui/i18n.py:211
+#: gui/cleanmate_gui/i18n.py:212
 #, python-brace-format
 msgid "{count} not pinned, not the newest"
 msgstr "{count} không được ghim, không phải bản mới nhất"
 
-#: gui/cleanmate_gui/i18n.py:212
+#: gui/cleanmate_gui/i18n.py:213
 #, python-brace-format
 msgid "{count} no AVD uses"
 msgstr "{count} không AVD nào dùng"
 
-#: gui/cleanmate_gui/i18n.py:213
+#: gui/cleanmate_gui/i18n.py:214
 #, python-brace-format
 msgid "{count} replaced by a newer one"
 msgstr "{count} đã có bản mới hơn"
 
-#: gui/cleanmate_gui/i18n.py:214
+#: gui/cleanmate_gui/i18n.py:215
 #, python-brace-format
 msgid "{count} — may contain data"
 msgstr "{count} — có thể chứa dữ liệu"
 
-#: gui/cleanmate_gui/i18n.py:215
+#: gui/cleanmate_gui/i18n.py:216
 #, python-brace-format
 msgid "{count} kept"
 msgstr "giữ {count}"
 
-#: gui/cleanmate_gui/i18n.py:217
+#: gui/cleanmate_gui/i18n.py:218
 #, python-brace-format
 msgid "{size} in total"
 msgstr "tổng cộng {size}"
 
-#: gui/cleanmate_gui/i18n.py:218
+#: gui/cleanmate_gui/i18n.py:219
 #, python-brace-format
 msgid "skipped while running: {names}"
 msgstr "bỏ qua vì đang chạy: {names}"
 
-#: gui/cleanmate_gui/i18n.py:219
+#: gui/cleanmate_gui/i18n.py:220
 msgid "close it first: the Flatpak can't see if it's open"
 msgstr "hãy đóng nó trước: bản Flatpak không biết nó có đang mở không"
 
-#: gui/cleanmate_gui/i18n.py:220
+#: gui/cleanmate_gui/i18n.py:221
 msgid "the Docker daemon isn't running"
 msgstr "daemon Docker chưa chạy"
 
-#: gui/cleanmate_gui/i18n.py:221
+#: gui/cleanmate_gui/i18n.py:222
 msgid "this user can't talk to the Docker daemon"
 msgstr "người dùng này không nói được với daemon Docker"
 
-#: gui/cleanmate_gui/i18n.py:223
+#: gui/cleanmate_gui/i18n.py:224
 msgid ""
 "join the docker group: sudo usermod -aG docker $USER, then sign out and back "
 "in"
@@ -959,64 +964,74 @@ msgstr ""
 "tham gia nhóm docker: sudo usermod -aG docker $USER, rồi đăng xuất và đăng "
 "nhập lại"
 
-#: gui/cleanmate_gui/i18n.py:224
+#: gui/cleanmate_gui/i18n.py:225
 msgid "start it with: sudo systemctl start docker"
 msgstr "khởi động nó bằng: sudo systemctl start docker"
 
-#: gui/cleanmate_gui/i18n.py:225
+#: gui/cleanmate_gui/i18n.py:226
 #, python-brace-format
 msgid "get it back with: ollama pull {ref}"
 msgstr "lấy lại bằng: ollama pull {ref}"
 
-#: gui/cleanmate_gui/i18n.py:266 gui/cleanmate_gui/i18n.py:267
+#: gui/cleanmate_gui/i18n.py:267 gui/cleanmate_gui/i18n.py:268
 #, python-brace-format
 msgid "{days} days old"
 msgstr "cũ {days} ngày"
 
-#: gui/cleanmate_gui/i18n.py:268 gui/cleanmate_gui/i18n.py:269
+#: gui/cleanmate_gui/i18n.py:269 gui/cleanmate_gui/i18n.py:270
 #, python-brace-format
 msgid "untouched for {days} days"
 msgstr "không đụng tới {days} ngày"
 
-#: gui/cleanmate_gui/i18n.py:270
+#: gui/cleanmate_gui/i18n.py:271
 #, python-brace-format
 msgid "{days} days idle"
 msgstr "không dùng {days} ngày"
 
-#: gui/cleanmate_gui/i18n.py:271
+#: gui/cleanmate_gui/i18n.py:272
+#, python-brace-format
+msgid "last used {n} day ago"
+msgid_plural "last used {n} days ago"
+msgstr[0] "dùng lần cuối {n} ngày trước"
+
+#: gui/cleanmate_gui/i18n.py:273 gui/cleanmate_gui/uninstaller.py:50
+msgid "used today"
+msgstr "dùng hôm nay"
+
+#: gui/cleanmate_gui/i18n.py:274
 msgid "(running, skipped)"
 msgstr "(đang chạy, bỏ qua)"
 
-#: gui/cleanmate_gui/i18n.py:272
+#: gui/cleanmate_gui/i18n.py:275
 msgid "← running (kept)"
 msgstr "← đang chạy (giữ lại)"
 
-#: gui/cleanmate_gui/i18n.py:273
+#: gui/cleanmate_gui/i18n.py:276
 msgid "← kept as a fallback"
 msgstr "← giữ làm dự phòng"
 
-#: gui/cleanmate_gui/i18n.py:274
+#: gui/cleanmate_gui/i18n.py:277
 msgid "← will be removed: "
 msgstr "← sẽ bị xoá: "
 
-#: gui/cleanmate_gui/i18n.py:275
+#: gui/cleanmate_gui/i18n.py:278
 #, python-brace-format
 msgid "(revision {revision})"
 msgstr "(bản {revision})"
 
-#: gui/cleanmate_gui/i18n.py:276
+#: gui/cleanmate_gui/i18n.py:279
 msgid "(your installation)"
 msgstr "(kho cài đặt của bạn)"
 
-#: gui/cleanmate_gui/i18n.py:277
+#: gui/cleanmate_gui/i18n.py:280
 msgid "(system installation)"
 msgstr "(kho cài đặt của hệ thống)"
 
-#: gui/cleanmate_gui/i18n.py:278
+#: gui/cleanmate_gui/i18n.py:281
 msgid "Largest archived journal files:"
 msgstr "Tệp journal lưu trữ lớn nhất:"
 
-#: gui/cleanmate_gui/i18n.py:280
+#: gui/cleanmate_gui/i18n.py:283
 #, python-brace-format
 msgid "Archived and active journals take up {size} in the file system."
 msgstr "Journal lưu trữ và đang dùng chiếm {size} trên hệ thống tệp."
@@ -1437,7 +1452,7 @@ msgstr "Hằng tuần"
 msgid "Monthly"
 msgstr "Hằng tháng"
 
-#: gui/cleanmate_gui/messages.py:50 gui/cleanmate_gui/overview.py:579
+#: gui/cleanmate_gui/messages.py:50 gui/cleanmate_gui/overview.py:600
 #: gui/cleanmate_gui/startup.py:176
 msgid "System"
 msgstr "Hệ thống"
@@ -2022,7 +2037,7 @@ msgstr "Lần gần nhất · {date}"
 msgid "{size} in the Trash"
 msgstr "{size} đang trong Thùng rác"
 
-#: gui/cleanmate_gui/overview.py:390 gui/cleanmate_gui/overview.py:710
+#: gui/cleanmate_gui/overview.py:390 gui/cleanmate_gui/overview.py:731
 msgid "Measuring its size needs administrator rights"
 msgstr "Cần quyền quản trị để đo dung lượng"
 
@@ -2196,79 +2211,97 @@ msgstr "Chạy Quét thông minh"
 msgid "Find the junk you can clean safely"
 msgstr "Tìm rác có thể dọn an toàn"
 
-#: gui/cleanmate_gui/overview.py:580
+#: gui/cleanmate_gui/overview.py:579
+msgid "Suggestions"
+msgstr "Gợi ý"
+
+#: gui/cleanmate_gui/overview.py:585
+#, python-brace-format
+msgid "{n} AI model not used for 90+ days"
+msgid_plural "{n} AI models not used for 90+ days"
+msgstr[0] "{n} mô hình AI không dùng trên 90 ngày"
+
+#: gui/cleanmate_gui/overview.py:588 gui/cleanmate_gui/overview.py:590
+msgid "Review"
+msgstr "Xem lại"
+
+#: gui/cleanmate_gui/overview.py:589
+msgid "Run Smart Scan and look at the AI models"
+msgstr "Chạy Quét thông minh và xem các mô hình AI"
+
+#: gui/cleanmate_gui/overview.py:601
 #, python-brace-format
 msgid "{n} apt package"
 msgid_plural "{n} apt packages"
 msgstr[0] "{n} gói apt"
 
-#: gui/cleanmate_gui/overview.py:582
+#: gui/cleanmate_gui/overview.py:603
 #, python-brace-format
 msgid "{n} snap"
 msgid_plural "{n} snaps"
 msgstr[0] "{n} snap"
 
-#: gui/cleanmate_gui/overview.py:584
+#: gui/cleanmate_gui/overview.py:605
 #, python-brace-format
 msgid "{n} flatpak"
 msgid_plural "{n} flatpaks"
 msgstr[0] "{n} flatpak"
 
-#: gui/cleanmate_gui/overview.py:586
+#: gui/cleanmate_gui/overview.py:607
 msgid "Operating system"
 msgstr "Hệ điều hành"
 
-#: gui/cleanmate_gui/overview.py:586 gui/cleanmate_gui/overview.py:590
+#: gui/cleanmate_gui/overview.py:607 gui/cleanmate_gui/overview.py:611
 msgid "unknown"
 msgstr "không rõ"
 
-#: gui/cleanmate_gui/overview.py:587
+#: gui/cleanmate_gui/overview.py:608
 msgid "Kernel"
 msgstr "Kernel"
 
-#: gui/cleanmate_gui/overview.py:588
+#: gui/cleanmate_gui/overview.py:609
 msgid "Uptime"
 msgstr "Thời gian chạy"
 
-#: gui/cleanmate_gui/overview.py:589
+#: gui/cleanmate_gui/overview.py:610
 msgid "Processor"
 msgstr "Bộ xử lý"
 
-#: gui/cleanmate_gui/overview.py:589
+#: gui/cleanmate_gui/overview.py:610
 #, python-brace-format
 msgid "{cpu} ({n} thread)"
 msgid_plural "{cpu} ({n} threads)"
 msgstr[0] "{cpu} ({n} luồng)"
 
 #
-#: gui/cleanmate_gui/overview.py:591
+#: gui/cleanmate_gui/overview.py:612
 msgid "Packages"
 msgstr "Gói"
 
-#: gui/cleanmate_gui/overview.py:595
+#: gui/cleanmate_gui/overview.py:616
 msgid "Storage"
 msgstr "Ổ đĩa"
 
 #
-#: gui/cleanmate_gui/overview.py:597
+#: gui/cleanmate_gui/overview.py:618
 msgid "No disks found."
 msgstr "Không tìm thấy ổ đĩa nào."
 
-#: gui/cleanmate_gui/overview.py:600
+#: gui/cleanmate_gui/overview.py:621
 #, python-brace-format
 msgid "Almost full · {used} of {size} used · {free} free · {fstype}"
 msgstr "Sắp đầy · đã dùng {used} / {size} · còn trống {free} · {fstype}"
 
-#: gui/cleanmate_gui/overview.py:601
+#: gui/cleanmate_gui/overview.py:622
 #, python-brace-format
 msgid "{used} of {size} used · {free} free · {fstype}"
 msgstr "Đã dùng {used} / {size} · còn trống {free} · {fstype}"
 
-#: gui/cleanmate_gui/overview.py:609
+#: gui/cleanmate_gui/overview.py:630
 msgid "Free space over time"
 msgstr "Ổ trống theo thời gian"
 
-#: gui/cleanmate_gui/overview.py:611
+#: gui/cleanmate_gui/overview.py:632
 msgid ""
 "Free space on / is recorded once a day while you use CleanMate; the chart "
 "shows here after a few days."
@@ -2276,62 +2309,62 @@ msgstr ""
 "Dung lượng trống của / được ghi mỗi ngày một lần khi bạn dùng CleanMate; "
 "biểu đồ sẽ hiện ở đây sau vài ngày."
 
-#: gui/cleanmate_gui/overview.py:625
+#: gui/cleanmate_gui/overview.py:646
 msgid "Memory"
 msgstr "Bộ nhớ"
 
-#: gui/cleanmate_gui/overview.py:627
+#: gui/cleanmate_gui/overview.py:648
 msgid "RAM"
 msgstr "RAM"
 
-#: gui/cleanmate_gui/overview.py:627
+#: gui/cleanmate_gui/overview.py:648
 #, python-brace-format
 msgid "{used} of {size} in use · {free} available"
 msgstr "Đang dùng {used} / {size} · còn {free}"
 
-#: gui/cleanmate_gui/overview.py:631 gui/cleanmate_gui/overview.py:635
+#: gui/cleanmate_gui/overview.py:652 gui/cleanmate_gui/overview.py:656
 msgid "Swap"
 msgstr "Swap"
 
-#: gui/cleanmate_gui/overview.py:631
+#: gui/cleanmate_gui/overview.py:652
 #, python-brace-format
 msgid "{used} of {size} in use"
 msgstr "Đang dùng {used} / {size}"
 
-#: gui/cleanmate_gui/overview.py:635
+#: gui/cleanmate_gui/overview.py:656
 msgid "none"
 msgstr "không có"
 
 #
-#: gui/cleanmate_gui/overview.py:639
+#: gui/cleanmate_gui/overview.py:660
 msgid "Freed by CleanMate"
 msgstr "CleanMate đã giải phóng"
 
-#: gui/cleanmate_gui/overview.py:641
+#: gui/cleanmate_gui/overview.py:662
 msgid "Shows here after your first cleanup."
 msgstr "Hiện ở đây sau lần dọn dẹp đầu tiên."
 
-#: gui/cleanmate_gui/overview.py:646
+#: gui/cleanmate_gui/overview.py:667
 msgid "No cleanups in the last 30 days."
 msgstr "Không có lần dọn nào trong 30 ngày qua."
 
-#: gui/cleanmate_gui/overview.py:653 gui/cleanmate_gui/overview.py:717
+#: gui/cleanmate_gui/overview.py:674 gui/cleanmate_gui/overview.py:738
 msgid "Largest folders in your home"
 msgstr "Thư mục lớn nhất trong thư mục riêng"
 
-#: gui/cleanmate_gui/overview.py:655 gui/cleanmate_gui/overview.py:681
+#: gui/cleanmate_gui/overview.py:676 gui/cleanmate_gui/overview.py:702
 msgid "Space outside your folders"
 msgstr "Ngoài thư mục của bạn"
 
-#: gui/cleanmate_gui/overview.py:657 gui/cleanmate_gui/spacelens.py:149
+#: gui/cleanmate_gui/overview.py:678 gui/cleanmate_gui/spacelens.py:149
 msgid "Measuring…"
 msgstr "Đang đo…"
 
-#: gui/cleanmate_gui/overview.py:663
+#: gui/cleanmate_gui/overview.py:684
 msgid "System protection"
 msgstr "Bảo vệ hệ thống"
 
-#: gui/cleanmate_gui/overview.py:664
+#: gui/cleanmate_gui/overview.py:685
 msgid ""
 "Read only: CleanMate doesn't change these. To turn one on, run the command "
 "shown in a terminal."
@@ -2339,11 +2372,11 @@ msgstr ""
 "Chỉ xem: CleanMate không thay đổi các mục này. Để bật một mục, chạy lệnh "
 "hiện bên dưới trong terminal."
 
-#: gui/cleanmate_gui/overview.py:667
+#: gui/cleanmate_gui/overview.py:688
 msgid "Couldn't read the system's protection."
 msgstr "Không đọc được trạng thái bảo vệ của hệ thống."
 
-#: gui/cleanmate_gui/overview.py:682
+#: gui/cleanmate_gui/overview.py:703
 msgid ""
 "In use, but in none of your folders. Shown for information: each is a "
 "choice, not junk."
@@ -2351,47 +2384,47 @@ msgstr ""
 "Đang dùng nhưng không nằm trong thư mục nào của bạn. Chỉ để xem: mỗi mục là "
 "một lựa chọn, không phải rác."
 
-#: gui/cleanmate_gui/overview.py:687
+#: gui/cleanmate_gui/overview.py:708
 msgid "No Timeshift snapshots, swap file or reserved space found."
 msgstr "Không có bản chụp Timeshift, tệp swap hay dung lượng dành riêng."
 
-#: gui/cleanmate_gui/overview.py:690
+#: gui/cleanmate_gui/overview.py:711
 msgid "Outside your home folder"
 msgstr "Ngoài thư mục riêng"
 
-#: gui/cleanmate_gui/overview.py:691
+#: gui/cleanmate_gui/overview.py:712
 msgid "Apps, system files, logs, snaps and Docker on the system disk (/)"
 msgstr "Ứng dụng, tệp hệ thống, nhật ký, snap và Docker trên ổ hệ thống (/)"
 
-#: gui/cleanmate_gui/overview.py:695
+#: gui/cleanmate_gui/overview.py:716
 msgid "View in Space Lens"
 msgstr "Xem trong Space Lens"
 
-#: gui/cleanmate_gui/overview.py:696
+#: gui/cleanmate_gui/overview.py:717
 msgid "See what takes the space, folder by folder"
 msgstr "Xem thứ gì chiếm chỗ, từng thư mục một"
 
-#: gui/cleanmate_gui/overview.py:720
+#: gui/cleanmate_gui/overview.py:741
 msgid "Couldn't measure your home folder."
 msgstr "Không đo được thư mục riêng."
 
-#: gui/cleanmate_gui/overview.py:722
+#: gui/cleanmate_gui/overview.py:743
 msgid "Your home folder is empty."
 msgstr "Thư mục riêng của bạn trống."
 
-#: gui/cleanmate_gui/overview.py:724
+#: gui/cleanmate_gui/overview.py:745
 msgid "Click a folder to explore it in Space Lens."
 msgstr "Bấm vào một thư mục để xem nó trong Space Lens."
 
-#: gui/cleanmate_gui/overview.py:730
+#: gui/cleanmate_gui/overview.py:751
 msgid "Open in Space Lens"
 msgstr "Mở trong Space Lens"
 
-#: gui/cleanmate_gui/overview.py:756 gui/cleanmate_gui/overview.py:757
+#: gui/cleanmate_gui/overview.py:777 gui/cleanmate_gui/overview.py:778
 msgid "Copy the command"
 msgstr "Sao chép lệnh"
 
-#: gui/cleanmate_gui/overview.py:766
+#: gui/cleanmate_gui/overview.py:787
 msgid "Command copied. Paste it in a terminal to run it."
 msgstr "Đã sao chép lệnh. Dán vào terminal để chạy."
 
@@ -3990,10 +4023,6 @@ msgstr "Snap này không còn được cài"
 msgid "last use unknown"
 msgstr "Không rõ"
 
-#: gui/cleanmate_gui/uninstaller.py:50
-msgid "used today"
-msgstr "dùng hôm nay"
-
 #: gui/cleanmate_gui/uninstaller.py:52
 #, python-brace-format
 msgid "used {n} day ago"
@@ -5300,9 +5329,9 @@ msgstr ""
 "tệp dự án tạo ra nó: target/ của Cargo và Maven, build/ và .gradle/ của "
 "Gradle và Android, .dart_tool/ và build/ của Flutter, .build/ của SwiftPM, "
 "bộ nhớ đệm của Next.js, Nuxt, SvelteKit, Angular và Turbo, .stack-work/ và "
-"dist-newstyle/ của Haskell, _build/ và deps/ của Elixir, bộ nhớ đệm Zig, ."
-"venv/ của Python, Pods/ của CocoaPods và .terraform/providers, modules của "
-"Terraform. Chuyển vào Thùng rác; công cụ build của dự án sẽ tạo lại."
+"dist-newstyle/ của Haskell, _build/ và deps/ của Elixir, bộ nhớ đệm "
+"Zig, .venv/ của Python, Pods/ của CocoaPods và .terraform/providers, modules "
+"của Terraform. Chuyển vào Thùng rác; công cụ build của dự án sẽ tạo lại."
 
 #. stale_build_dirs why
 msgid "Build folders next to the project file that makes them"
@@ -6101,8 +6130,8 @@ msgid ""
 "Undo snapshots of opencode sessions older than {0} days. Sessions in "
 "opencode.db are kept."
 msgstr ""
-"Snapshot hoàn tác của phiên opencode cũ hơn {0} ngày. Phiên trong opencode."
-"db được giữ."
+"Snapshot hoàn tác của phiên opencode cũ hơn {0} ngày. Phiên trong "
+"opencode.db được giữ."
 
 #. ai_cursor_cache label
 msgid "Cursor — cache & logs"
@@ -6399,13 +6428,13 @@ msgstr "Bộ nhớ đệm minikube"
 
 #. minikube_cache description
 msgid ""
-"ISO images, preloaded Kubernetes images and binaries minikube downloaded (~/."
-"minikube/cache). Downloaded again on the next start; your clusters, profiles "
-"and certificates are kept."
+"ISO images, preloaded Kubernetes images and binaries minikube downloaded "
+"(~/.minikube/cache). Downloaded again on the next start; your clusters, "
+"profiles and certificates are kept."
 msgstr ""
-"Ảnh ISO, ảnh Kubernetes tải sẵn và tệp chương trình minikube đã tải (~/."
-"minikube/cache). Tải lại ở lần khởi động sau; cụm, profile và chứng chỉ của "
-"bạn được giữ nguyên."
+"Ảnh ISO, ảnh Kubernetes tải sẵn và tệp chương trình minikube đã tải "
+"(~/.minikube/cache). Tải lại ở lần khởi động sau; cụm, profile và chứng chỉ "
+"của bạn được giữ nguyên."
 
 #. helm_cache label
 msgid "Helm cache"
@@ -6430,8 +6459,8 @@ msgid ""
 "and built again when needed; installed GHC versions, tools and settings are "
 "kept."
 msgstr ""
-"Gói đã tải của cabal (~/.cabal/packages, ~/.cache/cabal/packages), Stack (~/."
-"stack/pantry, snapshots) và ghcup (~/.ghcup/cache). Tải và build lại khi "
+"Gói đã tải của cabal (~/.cabal/packages, ~/.cache/cabal/packages), Stack "
+"(~/.stack/pantry, snapshots) và ghcup (~/.ghcup/cache). Tải và build lại khi "
 "cần; các bản GHC đã cài, công cụ và cài đặt được giữ nguyên."
 
 #. scala_cache label
@@ -6444,8 +6473,8 @@ msgid ""
 "cache, ~/.sbt/boot). Downloaded again on the next build; ~/.ivy2/local and "
 "your sbt settings are kept."
 msgstr ""
-"Thư viện Coursier, Ivy và sbt đã tải (~/.cache/coursier, ~/.ivy2/cache, ~/."
-"sbt/boot). Tải lại ở lần build sau; ~/.ivy2/local và cài đặt sbt của bạn "
+"Thư viện Coursier, Ivy và sbt đã tải (~/.cache/coursier, ~/.ivy2/cache, "
+"~/.sbt/boot). Tải lại ở lần build sau; ~/.ivy2/local và cài đặt sbt của bạn "
 "được giữ nguyên."
 
 #. opam_cache label
@@ -6466,9 +6495,9 @@ msgstr "Bộ nhớ đệm Composer"
 
 #. composer_cache description
 msgid ""
-"PHP packages and metadata Composer downloaded (~/.cache/composer, ~/."
-"composer/cache, COMPOSER_CACHE_DIR). Downloaded again by composer install; "
-"your global packages and settings are kept."
+"PHP packages and metadata Composer downloaded (~/.cache/composer, "
+"~/.composer/cache, COMPOSER_CACHE_DIR). Downloaded again by composer "
+"install; your global packages and settings are kept."
 msgstr ""
 "Gói PHP và siêu dữ liệu Composer đã tải (~/.cache/composer, ~/.composer/"
 "cache, COMPOSER_CACHE_DIR). Tải lại khi chạy composer install; gói toàn cục "
@@ -6719,8 +6748,9 @@ msgid ""
 "Deleted; install one again from Unity Hub. Close Unity and Unity Hub first."
 msgstr ""
 "Các phiên bản Unity Editor do Unity Hub cài, thường {0}–{1} GB mỗi bản, trừ "
-"bản mới nhất và các bản dự án của bạn dùng (ProjectSettings/ProjectVersion."
-"txt). Xoá hẳn; cài lại từ Unity Hub. Hãy đóng Unity và Unity Hub trước."
+"bản mới nhất và các bản dự án của bạn dùng (ProjectSettings/"
+"ProjectVersion.txt). Xoá hẳn; cài lại từ Unity Hub. Hãy đóng Unity và Unity "
+"Hub trước."
 
 #. unity_old_editors why
 msgid "The folders Unity Hub installs editors in"
@@ -7005,17 +7035,44 @@ msgstr "Model đã tải của PyTorch, Whisper & Keras"
 
 #. ai_model_caches description
 msgid ""
-"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded (~/."
-"cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when a "
-"program needs one. A model in use is skipped."
+"Models PyTorch Hub, Whisper, sentence-transformers and Keras downloaded "
+"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Deleted; downloaded again when "
+"a program needs one. A model in use is skipped."
 msgstr ""
-"Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải (~/."
-"cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi chương "
-"trình cần. Model đang dùng được bỏ qua."
+"Model mà PyTorch Hub, Whisper, sentence-transformers và Keras đã tải "
+"(~/.cache/torch, ~/.cache/whisper, ~/.keras). Bị xoá; được tải lại khi "
+"chương trình cần. Model đang dùng được bỏ qua."
 
 #. ai_model_caches why
 msgid "A model a program has open"
 msgstr "Model một chương trình đang mở"
+
+#. local_models label
+msgid "AI app models"
+msgstr "Mô hình của ứng dụng AI"
+
+#. local_models description
+msgid ""
+"Models downloaded by llama.cpp, Jan, GPT4All and ComfyUI, each on its own "
+"with when it was last used. Moved to the Trash; download one again to use "
+"it. A model of an app that is running, or a file a program has open, is "
+"skipped."
+msgstr ""
+"Mô hình llama.cpp, Jan, GPT4All và ComfyUI đã tải, mỗi mô hình một dòng kèm "
+"lần dùng cuối. Chuyển vào Thùng rác; tải lại khi cần dùng. Mô hình của ứng "
+"dụng đang chạy, hoặc tệp một chương trình đang mở, được bỏ qua."
+
+#. local_models why
+msgid "Models of an app that is running"
+msgstr "Mô hình của ứng dụng đang chạy"
+
+#. local_models why
+msgid "Files a program has open"
+msgstr "Tệp một chương trình đang mở"
+
+#. local_models why
+msgid "Unfinished downloads and the apps' settings"
+msgstr "Tệp đang tải dở và cài đặt của các ứng dụng"
 
 #~ msgid "Start"
 #~ msgstr "Bắt đầu"
@@ -7055,10 +7112,10 @@ msgstr "Model một chương trình đang mở"
 #~ "to the Trash; rebuilt by cargo build, pip/uv install, pod install or "
 #~ "terraform init."
 #~ msgstr ""
-#~ "Thư mục Cargo target/, Python .venv/, CocoaPods Pods/ và Terraform ."
-#~ "terraform/providers, modules của các dự án không đụng tới hơn {0} ngày. "
-#~ "Chuyển vào Thùng rác; tạo lại bằng cargo build, pip/uv install, pod "
-#~ "install hoặc terraform init."
+#~ "Thư mục Cargo target/, Python .venv/, CocoaPods Pods/ và "
+#~ "Terraform .terraform/providers, modules của các dự án không đụng tới hơn "
+#~ "{0} ngày. Chuyển vào Thùng rác; tạo lại bằng cargo build, pip/uv install, "
+#~ "pod install hoặc terraform init."
 
 #~ msgid ""
 #~ "Notify when free space drops below this percentage, checked with "

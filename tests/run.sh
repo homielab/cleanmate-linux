@@ -111,7 +111,7 @@ user_cm() { # like cm; as root it runs as nobody, who owns the fake home for the
 }
 
 in_app() { # run bash code with the script's functions loaded (sourced, nothing starts)
-  env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG="${TEST_LANG:-C.UTF-8}" bash -c "source \"\$1\"; $1" _ "$SCRIPT"
+  env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG="${TEST_LANG:-C.UTF-8}" ${CLEANMATE_PROC:+CLEANMATE_PROC=$CLEANMATE_PROC} bash -c "source \"\$1\"; $1" _ "$SCRIPT"
 }
 
 select_only() { # ID... — selection file with exactly these items switched on
@@ -4725,6 +4725,7 @@ test_ai_models_are_separate_and_never_remembered() {
   out=$(user_cm --json clean "$lms7" 2>&1); assert_contains "$out" '"state":"ok"'
   assert_missing "$lms/pub/llm-7b"
   assert_exists "$lms/pub"
+  assert_exists "$HOME_DIR/.local/share/Trash/files/llm-7b" # LM Studio models go to the Trash
   in_app 'model_safe_path "$HOME/.cache/huggingface/hub"' && fail "the hub itself is not a model" || ok_ "hub refused"
   in_app 'model_safe_path "$HOME/.lmstudio/models/pub"' && fail "a publisher folder is not a model" || ok_ "publisher refused"
   # regression: a symlinked "publisher" (models/mine → ~) must never turn home folders into models
@@ -6472,6 +6473,70 @@ for l in sys.stdin:
   unset -f details cmd_has
 }
 
+test_local_models() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out enc f CLEANMATE_PROC=$WORK/lmproc # a fake process table: other tests run programs meanwhile
+  local ll=$h/.cache/llama.cpp jan=$h/.local/share/Jan/data/models g4=$h/.local/share/nomic.ai/GPT4All cf=$h/ComfyUI/models
+  local labels='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["label"], "on" if e["selected"] else "off")
+    elif e["event"] == "item": print(e["id"], e["status"], e["note"], e["selected"], e["entries"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e.get("freed", ""))'
+  details() { user_cm --json details local_models | python3 -c "$labels" | LC_ALL=C sort | paste -sd'|' -; }
+  mkdir -p "$CLEANMATE_PROC"
+  assert_eq "$(user_cm --json scan --only models | grep local_models)" "" "no models: not shown"
+  assert_contains "$(cm --json items)" '"id":"local_models"'
+  sized "$ll/big.gguf" 30000; sized "$ll/big.gguf.etag" 10; sized "$ll/big.gguf.json" 10
+  sized "$ll/part.gguf.downloadInProgress" 500; sized "$h/outside.gguf" 800; ln -s "$h/outside.gguf" "$ll/link.gguf"
+  sized "$jan/llama3/model.gguf" 2000; sized "$jan/llama3/model.yml" 20; sized "$jan/notes/readme.txt" 50
+  sized "$g4/mistral.gguf" 15000; sized "$g4/incomplete-foo.gguf" 700
+  sized "$cf/checkpoints/a.safetensors" 1000; sized "$cf/checkpoints/readme.md" 10
+  touch -d '3 days ago' "$ll/big.gguf.etag" "$jan/llama3" "$jan/llama3"/* "$g4/mistral.gguf" "$cf/checkpoints/a.safetensors"
+  touch -d '200 days ago' "$ll/big.gguf"
+  out=$(user_cm --json scan --only models | grep '"id":"local_models"' | python3 -c "$labels")
+  assert_eq "$out" "local_models found 4 models, 1 unused for 90+ days False True" "found, not ticked, one by one"
+  assert_eq "$(details)" "a (ComfyUI) · last used 3 days ago off|big (llama.cpp) · last used 200 days ago off|llama3 (Jan) · last used 3 days ago off|mistral (GPT4All) · last used 3 days ago off" \
+    "one row per model; unfinished downloads, a folder without a model, a symlink and non-weight files are left out"
+  # an app that runs: all its models are left out
+  proc_stub "$CLEANMATE_PROC" 4242 /usr/bin/llama-server -m x
+  assert_eq "$(details | grep -c 'llama.cpp')" "0" "llama.cpp running: its models are skipped"
+  assert_contains "$(details)" "mistral (GPT4All)"
+  rm -r "$CLEANMATE_PROC/4242"
+  assert_contains "$(details)" "big (llama.cpp)"
+  # automatic cleaning leaves them alone even when ticked
+  select_only local_models
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  for f in "$ll/big.gguf" "$jan/llama3" "$g4/mistral.gguf" "$cf/checkpoints/a.safetensors"; do assert_exists "$f"; done
+  # one model: to the Trash with the notes llama.cpp keeps next to it
+  enc=$(in_app "urlencode_path '$ll/big.gguf'")
+  assert_eq "$(user_cm --json clean local_models --entries "$enc" | python3 -c "$labels")" "ok 30000" "one model (its notes are not counted)"
+  assert_missing "$ll/big.gguf"; assert_missing "$ll/big.gguf.etag"; assert_missing "$ll/big.gguf.json"
+  assert_exists "$h/.local/share/Trash/files/big.gguf"; assert_exists "$h/.local/share/Trash/files/big.gguf.etag"
+  assert_exists "$ll/part.gguf.downloadInProgress"; assert_exists "$ll/link.gguf"
+  enc=$(in_app "urlencode_path '$jan/llama3'")
+  assert_contains "$(in_app "clean_entries_local_models '$enc'")" $'@@undo\tllama3\t'
+  assert_missing "$jan/llama3"; assert_exists "$jan/notes"; assert_exists "$g4/mistral.gguf"
+  assert_exists "$g4/incomplete-foo.gguf"; assert_exists "$cf/checkpoints/a.safetensors"
+  unset -f details
+}
+
+test_local_models_settings_folders() {
+  fresh_home
+  local h=$HOME_DIR own=$HOME_DIR/AI out CLEANMATE_PROC=$WORK/lmproc2
+  mkdir -p "$CLEANMATE_PROC"
+  sized "$own/models/m1/w.gguf" 100; sized "$own/GPT/g.gguf" 100; sized "$own/comfy/models/loras/l.safetensors" 100
+  mkdir -p "$h/.config/Jan" "$h/.config/nomic.ai" "$h/.config/ComfyUI"
+  printf '{"data_folder": "%s"}\n' "$own" >"$h/.config/Jan/settings.json"
+  printf '[General]\nmodelPath="%s/GPT/"\n' "$own" >"$h/.config/nomic.ai/GPT4All.ini"
+  printf '{"basePath": "%s/comfy"}\n' "$own" >"$h/.config/ComfyUI/config.json"
+  out=$(in_app 'local_models; printf "%s\n" "${LM_LABEL[@]}"' | sed 's/ · .*//' | LC_ALL=C sort | paste -sd'|' -)
+  assert_eq "$out" "g (GPT4All)|l (ComfyUI)|m1 (Jan)" "the folders chosen in the apps' settings are read"
+  printf '{"data_folder": "/etc"}\n' >"$h/.config/Jan/settings.json"
+  assert_eq "$(in_app 'lm_roots' | grep -c '/etc')" "0" "a folder outside your home is not read"
+}
+
 test_old_unity_editor_versions_and_caches() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -6834,6 +6899,27 @@ done 1 0 0" "TRIM streams its output, then the result"
   out=$(in_app 'have() { return 0; }; DRY_RUN=1 JOURNAL_KEEP_MB=120 SESSION_TMP=$(mktemp -d); json_main maintain journal_limit on; rm -r "$SESSION_TMP"' | python3 -c "$ev")
   assert_contains "$out" "SystemMaxUse=%sM"
   assert_contains "$out" "journal_cap ok would run"
+}
+
+test_overview_model_suggestion() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local CLEANMATE_PROC=$WORK/lmproc3 # a fake process table: other tests run llama.cpp meanwhile
+  mkdir -p "$CLEANMATE_PROC"
+  local h=$HOME_DIR sug='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "suggestion": print(e["kind"], e["count"], e["bytes"], e["days"])'
+  sized "$h/.cache/llama.cpp/new.gguf" 1000
+  touch -d '10 days ago' "$h/.cache/llama.cpp/new.gguf"
+  assert_eq "$(cm --json overview | python3 -c "$sug")" "" "models used lately: no suggestion"
+  assert_eq "$(in_app stale_models_lines)" "" "nothing to say on the terminal Overview either"
+  sized "$h/.lmstudio/models/pub/old-7b/w.gguf" 2000
+  touch -d '120 days ago' "$h/.lmstudio/models/pub/old-7b/w.gguf"
+  sized "$h/.cache/llama.cpp/old.gguf" 3000
+  touch -d '100 days ago' "$h/.cache/llama.cpp/old.gguf"
+  assert_eq "$(cm --json overview | python3 -c "$sug" | cut -d' ' -f1,2,4)" "stale_models 2 120" "one unused llama.cpp model and one LM Studio model"
+  assert_contains "$(in_app stale_models_lines)" "2 AI models not used for 90+ days"
 }
 
 test_json_overview() {

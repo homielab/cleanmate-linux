@@ -1163,7 +1163,7 @@ for _id in apt_cache packagekit_cache orphans residual journal old_logs big_logs
 unset _id
 # items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
 declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1 [jetbrains_old_versions]=1
-  [desktop_vms]=1)
+  [desktop_vms]=1 [local_models]=1)
 # items deleted for good whose contents may be someone's data (a database in a volume, files written
 # inside a container): an unattended clean (--clean --yes, --auto) leaves them even when ticked; only
 # `--json clean ID` naming them, or a clean the user confirms, removes them
@@ -1173,7 +1173,7 @@ declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1 [podman_volu
 # SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
 declare -A AUTO_NEVER=([trash]=1 [trash_drives]=1 [tracker_index]=1 [baloo_index]=1 [stale_build_dirs]=1
   [android_images]=1 [android_avd_snapshots]=1 [android_sdk_old]=1 [game_runners_old]=1 [old_runtimes]=1
-  [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [jetbrains_old_versions]=1 [desktop_vms]=1
+  [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [jetbrains_old_versions]=1 [desktop_vms]=1 [local_models]=1
   [vscode_old_extensions]=1 [nix_garbage]=1)
 # items whose scan only looks at a few folders (test, du) and runs no other tool that
 # could hang: a scan runs them in a few shared processes, one after the other, since a
@@ -5444,7 +5444,7 @@ vm_cmdlines() { # → VM_PROCS: the command lines of the running processes, one 
   VM_PROCS=""
   for f in "$PROC_DIR"/[0-9]*/cmdline; do
     line=""
-    while IFS= read -r -d '' a; do line+=" $a"; done <"$f" 2>/dev/null
+    { while IFS= read -r -d '' a; do line+=" $a"; done <"$f"; } 2>/dev/null
     [[ $line == *" --entries "* ]] && continue # this very command, naming the machine it cleans
     [[ -n $line ]] && VM_PROCS+=$line$'\n'
   done
@@ -6902,7 +6902,7 @@ details_podman_volumes() { podman volume ls --format '  {{.Name}}  {{.Driver}}' 
 # an item of its own: never pre-selected, never cleaned by automatic cleaning
 # (it cleans only user, developer and AI cache junk), and a tick is not remembered for the
 # next scan (ITEM_ONCE). Ollama models are removed with `ollama rm` because
-# models share layers; Hugging Face and LM Studio models are folders.
+# models share layers; Hugging Face models are folders, deleted; LM Studio models are folders too, moved to the Trash.
 
 declare -A ITEM_ONCE=() MODEL_KIND=() MODEL_REF=()
 HF_HUB=${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}
@@ -6978,6 +6978,13 @@ model_clean() {
     ollama) run ollama rm "$ref" ;;
     *)
       model_safe_path "$ref" || { err "Not a model folder, skipped: $ref"; return 1; }
+      if [[ ${MODEL_KIND[$1]} == lms ]]; then # LM Studio models are yours to download again: the Trash, with undo
+        local d rc=0
+        UNDO_BATCH=()
+        move_to_trash "$ref" || rc=1
+        for d in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$d"; done
+        return "$rc"
+      fi
       safe_rm "$ref" ;;
   esac
 }
@@ -7004,8 +7011,10 @@ reg_model_item() { # KIND REF LABEL DESCRIPTION
   while [[ -n ${ITEM_CAT[$id]:-} ]]; do id+=_; done
   reg "$id" models "$3" 0 "$4"
   MODEL_KIND[$id]=$1 MODEL_REF[$id]=$2 ITEM_ONCE[$id]=1
-  if [[ $1 == ollama ]]; then why "$id" delete "Ollama's model store (ollama rm)"; else why "$id" delete "$2"; fi
-  [[ $1 == lms ]] && ITEM_RUNNING[$id]="LM Studio"
+  if [[ $1 == ollama ]]; then why "$id" delete "Ollama's model store (ollama rm)"
+  elif [[ $1 == lms ]]; then why "$id" trash "$2"
+  else why "$id" delete "$2"; fi
+  [[ $1 == lms ]] && ITEM_RUNNING[$id]="LM Studio" ITEM_TRASH[$id]=1
   ITEM_AFTER[$id]="Download it again to use it"
   eval "scan_$id() { model_scan $id; }
         clean_$id() { model_clean $id; }
@@ -7168,12 +7177,206 @@ discover_models() {
       model_safe_path "$m" || continue
       name=${m#"$d"/}
       reg_model_item lms "$m" "LM Studio — $name" \
-        "A model downloaded in LM Studio. Download it again from LM Studio's Discover tab."
+        "A model downloaded in LM Studio. Moved to the Trash; download it again from LM Studio's Discover tab."
     done
   done
   return 0
 }
 discover_models
+
+# Models of AI apps, one row each, with when it was last used (the newest access or change of its
+# file): llama.cpp (~/.cache/llama.cpp or LLAMA_CACHE: .gguf files), Jan (~/jan/models, ~/.local/share/Jan
+# and the data folder in its settings: model folders), GPT4All (~/.local/share/nomic.ai/GPT4All or the
+# modelPath in its settings) and ComfyUI (models/ of ~/ComfyUI, ~/comfy/ComfyUI and the basePath in its
+# config). Only files are read: no app is started. A model of an app that runs now is left out, so is a
+# file a program has open. Not ticked, never cleaned by --auto, moved to the Trash (undo from the terminal
+# app); a llama.cpp model takes its .etag and .json notes along, and the apps' settings stay. LM Studio's
+# models are items of their own (reg_model_item lms) and go to the Trash too.
+reg local_models models "AI app models" 0 "Models downloaded by llama.cpp, Jan, GPT4All and ComfyUI, each on its own with when it was last used. Moved to the Trash; download one again to use it. A model of an app that is running, or a file a program has open, is skipped."
+why local_models trash "~/.cache/llama.cpp, ~/jan, ~/.local/share/Jan, ~/.local/share/nomic.ai/GPT4All, ComfyUI/models" "Models of an app that is running" "Files a program has open" "Unfinished downloads and the apps' settings"
+ITEM_ONCE[local_models]=1
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_local_models='^/[A-Za-z0-9/._~%-]+$' # the model's file or folder, percent-encoded (urlencode_path)
+LM_IDLE_DAYS=90
+
+lm_conf_path() { # FILE KEY → the absolute path in a JSON settings file, when it is a string
+  local f=$1 v=""
+  [[ -f $f && ! -L $f ]] || return 0 # only read, never written
+  if have jq; then
+    v=$(jq -r --arg k "$2" 'if type == "object" and (.[$k] | type) == "string" then .[$k] else empty end' -- "$f" 2>/dev/null)
+  elif have python3; then
+    v=$(python3 -I -c 'import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+v = d.get(sys.argv[2]) if isinstance(d, dict) else None
+if isinstance(v, str): print(v)' "$f" "$2" 2>/dev/null)
+  else
+    return 0
+  fi
+  v=${v%/}
+  [[ $v == /?* && $v != *$'\n'* ]] && printf '%s\n' "$v"
+  return 0
+}
+lm_in_home() { [[ $1 == "$HOME"/* && $1 != *[[:cntrl:]]* && $1 != */../* && $1 != */.. ]]; }
+lm_roots() { # → APP<TAB>KIND<TAB>ROOT, a line for each place a model store may be
+  local data=${XDG_DATA_HOME:-$HOME/.local/share} conf=${XDG_CONFIG_HOME:-$HOME/.config} cache=${XDG_CACHE_HOME:-$HOME/.cache} v r
+  printf 'llama.cpp\tllama\t%s\n' "${LLAMA_CACHE:-$cache/llama.cpp}"
+  for r in "$HOME/jan/models" "$data/Jan/data/models" "$data/Jan/data/llamacpp/models"; do printf 'Jan\tjan\t%s\n' "$r"; done
+  v=$(lm_conf_path "$conf/Jan/settings.json" data_folder | head -n 1)
+  if [[ -n $v ]] && lm_in_home "$v"; then
+    printf 'Jan\tjan\t%s\n' "$v/models" "$v/llamacpp/models"
+  fi
+  v=$(grep -m 1 '^modelPath=' -- "$conf/nomic.ai/GPT4All.ini" 2>/dev/null)
+  v=${v#modelPath=} v=${v//\"/} v=${v%/}
+  if [[ $v == /?* ]] && lm_in_home "$v"; then r=$v; else r=$data/nomic.ai/GPT4All; fi
+  printf 'GPT4All\tgpt4all\t%s\n' "$r"
+  v=$(lm_conf_path "$conf/ComfyUI/config.json" basePath | head -n 1)
+  for r in "$HOME/ComfyUI" "$HOME/comfy/ComfyUI" "$v"; do
+    [[ -n $r ]] && lm_in_home "$r" && printf 'ComfyUI\tcomfy\t%s\n' "$r/models"
+  done
+}
+lm_last_used() { # PATH → the newest access or change time (epoch seconds) of a file, or of the files in a folder
+  local t
+  t=$(find "$1" -type f -printf '%A@\n%T@\n' 2>/dev/null | LC_ALL=C sort -rn | head -n 1)
+  printf '%s' "${t%%.*}"
+}
+local_models() { # → LM_PATH (file or folder) / LM_BYTES / LM_LABEL "NAME (APP) · last used N days ago" / LM_DAYS / LM_APP, biggest first
+  local now app kind root p d f e n t b days label open="" cand=() rows=() procs
+  local -A seen=() runs=()
+  LM_PATH=() LM_BYTES=() LM_LABEL=() LM_DAYS=() LM_APP=()
+  printf -v now '%(%s)T' -1
+  while IFS=$'\t' read -r app kind root; do
+    lm_in_home "$root" && [[ -d $root && ! -L $root ]] || continue
+    case $kind in
+      llama) for p in "$root"/*.gguf; do cand+=("$p"$'\t'"$app"$'\t'"$root"); done ;;
+      gpt4all) for p in "$root"/*.gguf "$root"/*.bin; do [[ ${p##*/} == incomplete-* ]] || cand+=("$p"$'\t'"$app"$'\t'"$root"); done ;;
+      jan)
+        for d in "$root"/*/; do
+          d=${d%/}
+          [[ -d $d && ! -L $d ]] || continue
+          f=$(find "$d" -maxdepth 2 -name '*.gguf' -print -quit 2>/dev/null)
+          [[ -n $f ]] && cand+=("$d"$'\t'"$app"$'\t'"$root")
+        done ;;
+      comfy)
+        while IFS= read -r -d '' p; do cand+=("$p"$'\t'"$app"$'\t'"$root"); done < <(find "$root" -mindepth 1 -maxdepth 3 -type f \
+          \( -iname '*.safetensors' -o -iname '*.ckpt' -o -iname '*.pt' -o -iname '*.pth' -o -iname '*.bin' -o -iname '*.gguf' \
+          -o -iname '*.sft' -o -iname '*.onnx' \) -print0 2>/dev/null) ;;
+    esac
+  done < <(lm_roots)
+  ((${#cand[@]})) || return 0
+  vm_cmdlines
+  procs=${VM_PROCS,,}
+  grep -Eq 'llama-(server|cli|run)|/llama( |$)' <<<"$procs" && runs[llama.cpp]=1
+  grep -Eq '(^|[/ ])jan( |$)|jan\.ai' <<<"$procs" && runs[Jan]=1
+  [[ $procs == *gpt4all* ]] && runs[GPT4All]=1
+  [[ $procs == *comfyui* ]] && runs[ComfyUI]=1
+  open_filesv open
+  for e in "${cand[@]}"; do
+    IFS=$'\t' read -r p app root <<<"$e"
+    [[ $p == "$HOME"/* && $p != *[[:cntrl:]]* && ! -L $p && -e $p && -z ${seen[$p]:-} ]] || continue
+    seen[$p]=1
+    [[ -n ${runs[$app]:-} ]] && continue
+    [[ $app == ComfyUI && $VM_PROCS == *"${root%/models}"* ]] && continue
+    touches_exclusion "$p" && continue
+    is_protected "$p" && continue
+    open_under "$open" "$p" && continue
+    t=$(lm_last_used "$p")
+    [[ $t =~ ^[0-9]+$ ]] || continue
+    days=$(((now - t) / 86400))
+    ((days < 0)) && days=0
+    n=${p##*/}
+    [[ -f $p ]] && n=${n%.*}
+    if ((days == 0)); then label="$n ($app) · used today"
+    else label="$n ($app) · last used $days days ago"; fi
+    b=$(du -sb -- "$p" 2>/dev/null | cut -f1)
+    rows+=("${b:-0}"$'\t'"$p"$'\t'"$label"$'\t'"$days"$'\t'"$app")
+  done
+  ((${#rows[@]})) || return 0
+  while IFS=$'\t' read -r b p label days app; do
+    LM_BYTES+=("$b") LM_PATH+=("$p") LM_LABEL+=("$label") LM_DAYS+=("$days") LM_APP+=("$app")
+  done < <(printf '%s\n' "${rows[@]}" | LC_ALL=C sort -t $'\t' -k1,1nr -k3,3)
+  return 0
+}
+trash_local_models() { # INDEX… of LM_PATH — to the Trash; @@undo lines let the terminal app undo it
+  local i d s rc=0
+  UNDO_BATCH=()
+  for i; do
+    move_to_trash "${LM_PATH[i]}" || { rc=1; continue; }
+    if [[ ${LM_APP[i]} == llama.cpp ]]; then # the notes llama.cpp keeps next to the file
+      for s in .etag .json; do
+        [[ -f ${LM_PATH[i]}$s && ! -L ${LM_PATH[i]}$s ]] && { move_to_trash "${LM_PATH[i]}$s" || rc=1; }
+      done
+    fi
+  done
+  for d in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$d"; done
+  return "$rc"
+}
+scan_local_models() {
+  local b any=0 a k=0 d
+  while IFS=$'\t' read -r _ _ a; do [[ -d $a ]] && any=1; done < <(lm_roots)
+  ((any)) || return 1
+  local_models
+  ((${#LM_PATH[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${LM_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  for d in "${LM_DAYS[@]}"; do ((d >= LM_IDLE_DAYS)) && k=$((k + 1)); done
+  SCAN_NOTE=$(plural ${#LM_PATH[@]} model)
+  ((k)) && SCAN_NOTE+=", $k unused for ${LM_IDLE_DAYS}+ days"
+  return 0
+}
+clean_local_models() {
+  local_models
+  ((${#LM_PATH[@]})) || return 0
+  trash_local_models "${!LM_PATH[@]}"
+}
+details_local_models() {
+  local i
+  local_models
+  for i in "${!LM_PATH[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${LM_BYTES[i]}")" "$(human "${LM_BYTES[i]}")" "$NC" "${LM_LABEL[i]}" "${LM_PATH[i]/#$HOME/\~}"
+  done
+}
+entries_local_models() {
+  local i
+  local_models
+  for i in "${!LM_PATH[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${LM_PATH[i]}")" "${LM_BYTES[i]}" "${LM_LABEL[i]}"
+  done
+}
+clean_entries_local_models() { # encoded files and folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  local_models
+  for id; do
+    for i in "${!LM_PATH[@]}"; do [[ $(urlencode_path "${LM_PATH[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  trash_local_models "${pick[@]}"
+}
+
+stale_models_summary() { # → COUNT<TAB>BYTES<TAB>MAXDAYS of the models unused for LM_IDLE_DAYS or more; nothing when there are none
+  local i d m t b now n=0 bytes=0 max=0 days
+  printf -v now '%(%s)T' -1
+  local_models
+  for i in "${!LM_PATH[@]}"; do
+    ((LM_DAYS[i] >= LM_IDLE_DAYS)) || continue
+    n=$((n + 1)) bytes=$((bytes + LM_BYTES[i]))
+    ((LM_DAYS[i] > max)) && max=${LM_DAYS[i]}
+  done
+  for d in "${LMS_DIRS[@]}"; do # LM Studio: <store>/<publisher>/<model>
+    for m in "$d"/*/*/; do
+      m=${m%/}
+      model_safe_path "$m" || continue
+      t=$(lm_last_used "$m")
+      [[ $t =~ ^[0-9]+$ ]] || continue
+      days=$(((now - t) / 86400))
+      ((days >= LM_IDLE_DAYS)) || continue
+      b=$(du -sb -- "$m" 2>/dev/null | cut -f1)
+      n=$((n + 1)) bytes=$((bytes + ${b:-0}))
+      ((days > max)) && max=$days
+    done
+  done
+  ((n)) && printf '%d\t%d\t%d\n' "$n" "$bytes" "$max"
+  return 0
+}
 
 # ── the Flatpak's limits ──
 # Hidden: items that need root (apt, journal, /var/log, kernels, snaps) or what the sandbox can't
@@ -9896,6 +10099,7 @@ overview_lines() {
 
   disk_history_lines
   hidden_space_lines
+  stale_models_lines
 
   printf '\n  %sLargest folders in your home%s\n' "$BOLD" "$NC"
   while IFS=$'\t' read -r -d '' b p; do
@@ -9978,6 +10182,15 @@ hidden_space_lines() {
   printf '%s\n' "${rows[@]}" | while IFS=$'\t' read -r name b note; do
     printf '  %-30s %9s  %s%s%s\n' "$name" "$( ((b > 0)) && human "$b" || echo "?")" "$DIM" "$note" "$NC"
   done
+}
+
+stale_models_lines() {
+  local n b d
+  IFS=$'\t' read -r n b d < <(stale_models_summary)
+  [[ -n $n ]] || return 0
+  printf '\n  %sSuggestions%s\n' "$BOLD" "$NC"
+  printf '  %s not used for %s+ days — %s. Run Smart Scan › AI models to review them.\n' \
+    "$(plural "$n" "AI model")" "$LM_IDLE_DAYS" "$(human "$b")"
 }
 
 # System protection, read only: the firewall, AppArmor, automatic security
@@ -13527,6 +13740,8 @@ json_overview() {
     json_str jd "$a"
     printf '{"event":"protection","id":"%s","state":"%s","reason":"%s","command":%s}\n' "$t" "$s" "$u" "$jd"
   done < <(protection_rows)
+  IFS=$'\t' read -r n b d < <(stale_models_summary)
+  [[ -n $n ]] && printf '{"event":"suggestion","kind":"stale_models","count":%d,"bytes":%d,"days":%d}\n' "$n" "$b" "$d"
   record_disk_usage # opening the app counts as a use, like a scan in the terminal app
   json_history
   # the slow part last (du), so the app shows everything above meanwhile

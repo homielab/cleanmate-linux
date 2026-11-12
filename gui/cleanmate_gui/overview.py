@@ -492,7 +492,7 @@ class OverviewPage(Gtk.Box):
     def load(self):
         if self.running:
             return
-        data = {"disk": [], "outside": [], "protection": []}
+        data = {"disk": [], "outside": [], "protection": [], "suggestion": []}
         if not self.data:
             self.stack.set_visible_child_name("loading")
         self.refresh_button.set_sensitive(False)
@@ -510,7 +510,7 @@ class OverviewPage(Gtk.Box):
             self.first_before_folders = "top_dirs" not in data
 
         def on_event(e):
-            if e["event"] in ("disk", "outside", "protection"):
+            if e["event"] in ("disk", "outside", "protection", "suggestion"):
                 data[e["event"]].append(e)
             else:
                 data[e["event"]] = e
@@ -574,6 +574,27 @@ class OverviewPage(Gtk.Box):
         self.rows["smart"] = row
         scan.add(row)
         self.results.append(scan)
+
+        if d.get("suggestion"):
+            suggestions = Adw.PreferencesGroup(title=_("Suggestions"))
+            for e in d["suggestion"]:
+                if e.get("kind") != "stale_models":
+                    continue
+                row = plain_row(
+                    Adw.ActionRow, css_classes=["item-row"], subtitle=human(e["bytes"]),
+                    title=ngettext("{n} AI model not used for 90+ days", "{n} AI models not used for 90+ days",
+                                   e["count"]))
+                row.add_prefix(Gtk.Image(icon_name="applications-science-symbolic", pixel_size=32))
+                button = named(Gtk.Button(label=_("Review"), valign=Gtk.Align.CENTER, css_classes=["pill"],
+                                          tooltip_text=_("Run Smart Scan and look at the AI models")),
+                               _("Review"))
+                button.connect("clicked", lambda _b: self.window.start_smart_scan())
+                row.add_suffix(button)
+                row.set_activatable_widget(button)
+                self.rows["suggestion:" + e["kind"]] = row
+                suggestions.add(row)
+            self.groups["suggestions"] = suggestions
+            self.results.append(suggestions)
 
         s = d["system"]
         system = Adw.PreferencesGroup(title=_("System"))

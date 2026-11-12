@@ -1630,3 +1630,23 @@ msgstr ""
 msgid "A model a program has open"
 msgstr ""
 
+#. local_models label
+msgid "AI app models"
+msgstr ""
+
+#. local_models description
+msgid "Models downloaded by llama.cpp, Jan, GPT4All and ComfyUI, each on its own with when it was last used. Moved to the Trash; download one again to use it. A model of an app that is running, or a file a program has open, is skipped."
+msgstr ""
+
+#. local_models why
+msgid "Models of an app that is running"
+msgstr ""
+
+#. local_models why
+msgid "Files a program has open"
+msgstr ""
+
+#. local_models why
+msgid "Unfinished downloads and the apps' settings"
+msgstr ""
+
