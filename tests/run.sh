@@ -6409,6 +6409,69 @@ for l in sys.stdin:
   unset -f details
 }
 
+test_desktop_vms() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local h=$HOME_DIR out enc fed deb win vbd pids=() sizes
+  local img=$h/.local/share/gnome-boxes/images lv=$h/.local/share/libvirt/images q=$h/.config/libvirt/qemu
+  local uuid=11111111-1111-1111-1111-111111111111
+  local labels='import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "entry": print(e["label"], e["bytes"], "on" if e["selected"] else "off")
+    elif e["event"] == "item": print(e["id"], e["status"], e["note"], e["selected"], e["entries"])
+    elif e["event"] == "task" and e["state"] != "run": print(e["state"], e.get("freed", ""))'
+  details() { user_cm --json details desktop_vms | python3 -c "$labels" | paste -sd'|' -; }
+  cmd_has() { tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null | grep -qF -- "$2"; }
+  assert_eq "$(user_cm --json scan --only dev | grep desktop_vms)" "" "no virtual machines: not shown"
+  assert_contains "$(cm --json items)" '"id":"desktop_vms"'
+  # GNOME Boxes (named by its domain file's title), virt-manager's folder, a disk elsewhere in your home, VirtualBox
+  fed=$img/fedora deb=$lv/debian.qcow2 win=$h/vms/win.qcow2 vbd="$h/VirtualBox VMs/Win 11"
+  sized "$fed" 3000; sized "$deb" 2000; sized "$win" 4000; sized "$img/recent" 1000
+  sized "$vbd/Win 11.vdi" 5000; sized "$vbd/Logs/VBox.log" 100
+  printf '<?xml version="1.0"?>\n<VirtualBox>\n  <Machine uuid="{%s}" name="Win 11" OSType="Windows11_64">\n' "$uuid" >"$vbd/Win 11.vbox"
+  mkdir -p "$q"
+  printf "<domain type='qemu'>\n  <name>box-1</name>\n  <title>Fedora 40</title>\n  <devices>\n    <disk type='file' device='disk'>\n      <source file='%s'/>\n    </disk>\n    <disk type='file' device='cdrom'>\n      <source file='%s/installer.iso'/>\n    </disk>\n  </devices>\n</domain>\n" "$fed" "$h/vms" >"$q/box-1.xml"
+  printf '<domain type="kvm"><name>win10</name><devices><disk type="file" device="disk"><source file="%s"/></disk></devices></domain>' "$win" >"$q/win10.xml"
+  printf "<domain type='kvm'><name>system-vm</name><devices><disk type='file' device='disk'><source file='/var/lib/libvirt/images/x.qcow2'/></disk></devices></domain>" >"$q/system-vm.xml"
+  sized "$h/vms/installer.iso" 500
+  TZ=UTC touch -d '200 days ago' "$fed" "$deb" "$win" "$h/vms/installer.iso" "$vbd" "$vbd"/* "$vbd/Logs"/*
+  sizes="$(tbytes "$vbd") 4000 3000 2000"
+  out=$(user_cm --json scan --only dev | grep '"id":"desktop_vms"' | python3 -c "$labels")
+  assert_eq "$out" "desktop_vms found 4 machines idle for 90+ days False True" "found, not ticked, one by one"
+  assert_eq "$(details)" "Win 11 (VirtualBox) · 200 days idle ${sizes%% *} off|win10 (virt-manager) · 200 days idle 4000 off|Fedora 40 (GNOME Boxes) · 200 days idle 3000 off|debian.qcow2 (virt-manager) · 200 days idle 2000 off" \
+    "names, apps and sizes, biggest first; the recent image, the system's libvirt disk and the installer image are left out"
+  # a machine that runs is left out: by its disk path, or by its name or uuid
+  bash -c 'exec -a "$1" sleep 300' _ "qemu-system-x86_64 -drive file=$fed" & pids+=($!)
+  bash -c 'exec -a "$1" sleep 300' _ "VBoxHeadless --comment Win 11 --startvm $uuid" & pids+=($!)
+  wait_for 5 "the test qemu process" cmd_has "${pids[0]}" "file=$fed"
+  wait_for 5 "the test VBoxHeadless process" cmd_has "${pids[1]}" "$uuid"
+  assert_eq "$(details | tr '|' '\n' | cut -d' ' -f1 | paste -sd' ' -)" "win10 debian.qcow2" "running machines skipped"
+  kill "${pids[@]}" 2>/dev/null; wait "${pids[@]}" 2>/dev/null
+  bash -c 'exec -a "$1" sleep 300' _ "VBoxHeadless --comment Win 11 --startvm other" & pids=($!)
+  wait_for 5 "the test VBoxHeadless process" cmd_has "${pids[0]}" "--startvm other"
+  assert_eq "$(details | grep -c 'Win 11')" "0" "running by its name alone: skipped"
+  kill "${pids[@]}" 2>/dev/null; wait "${pids[@]}" 2>/dev/null
+  assert_contains "$(details)" "Win 11 (VirtualBox)"
+  # automatic cleaning leaves them alone even when ticked
+  select_only desktop_vms
+  user_cm --auto >/dev/null 2>&1 </dev/null
+  assert_exists "$fed"; assert_exists "$deb"; assert_exists "$win"; assert_exists "$vbd/Win 11.vdi"
+  # one machine: to the Trash, and back
+  enc=$(in_app "urlencode_path '$deb'")
+  assert_eq "$(user_cm --json clean desktop_vms --entries "$enc" | python3 -c "$labels")" "ok 2000" "one machine"
+  assert_missing "$deb"; assert_exists "$h/.local/share/Trash/files/debian.qcow2"
+  assert_eq "$(user_cm --json restore debian.qcow2 | python3 -c "$labels")" "ok 0" "restore puts it back"
+  assert_exists "$deb"
+  out=$(user_cm --json clean desktop_vms | python3 -c "$labels")
+  assert_eq "$out" "ok $((${sizes%% *} + 4000 + 3000 + 2000))" "the rest"
+  for f in fedora debian.qcow2 win.qcow2 "Win 11"; do assert_exists "$h/.local/share/Trash/files/$f"; done
+  for f in "$fed" "$deb" "$win" "$vbd"; do assert_missing "$f"; done
+  assert_exists "$img/recent"; assert_exists "$h/vms/installer.iso"
+  for f in box-1 win10 system-vm; do assert_exists "$q/$f.xml"; done
+  unset -f details cmd_has
+}
+
 test_old_unity_editor_versions_and_caches() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -7024,6 +7087,7 @@ notes = {
     "2 projects that no longer exist": "2 dự án không còn tồn tại",
     "40 files in ~/.cache": "40 tệp trong ~/.cache",
     "3 projects idle for 90+ days": "3 dự án không dùng từ 90+ ngày",
+    "2 machines idle for 90+ days": "2 máy không dùng từ 90+ ngày",
     "2 versions not your default; skipped while running: Node 20, Python 3.11":
         "2 phiên bản không phải bản mặc định; bỏ qua vì đang chạy: Node 20, Python 3.11",
     "3 versions not pinned, not the newest; skipped while running: node 18.0.0 (mise)":
@@ -7072,6 +7136,7 @@ details = {
     "SDK Platform 34 · 120 days old": "SDK Platform 34 · cũ 120 ngày",
     "Photos/ · untouched for 120 days": "Photos/ · không đụng tới 120 ngày",
     "~/code/api — target/, .venv/ · 120 days idle": "~/code/api — target/, .venv/ · không dùng 120 ngày",
+    "Fedora 40 (GNOME Boxes) · 200 days idle": "Fedora 40 (GNOME Boxes) · không dùng 200 ngày",
     "             Node 18  (running, skipped)": "             Node 18  (đang chạy, bỏ qua)",
     "ms-python.python · VS Code  (2 versions)": "ms-python.python · VS Code  (2 phiên bản)",
     "  6.8.0-45  ← running (kept)": "  6.8.0-45  ← đang chạy (giữ lại)",

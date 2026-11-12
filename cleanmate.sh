@@ -1162,7 +1162,8 @@ reg docker_offline dev  "Docker: not reachable"             0 "Docker is install
 for _id in apt_cache packagekit_cache orphans residual journal old_logs big_logs crash coredump snap_old old_kernels; do ITEM_ROOT[$_id]=1; done
 unset _id
 # items cleaned by moving them to your Trash (Undo puts them back); everything else is deleted for good
-declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1 [jetbrains_old_versions]=1)
+declare -A ITEM_TRASH=([old_installers]=1 [old_downloads]=1 [old_screenshots]=1 [abandoned_downloads]=1 [stale_build_dirs]=1 [vscode_stale_workspaces]=1 [jetbrains_old_versions]=1
+  [desktop_vms]=1)
 # items deleted for good whose contents may be someone's data (a database in a volume, files written
 # inside a container): an unattended clean (--clean --yes, --auto) leaves them even when ticked; only
 # `--json clean ID` naming them, or a clean the user confirms, removes them
@@ -1172,7 +1173,7 @@ declare -A ITEM_DATA_LOSS=([docker_volumes]=1 [docker_containers]=1 [podman_volu
 # SDK components, Proton/Wine or extension versions to download again and IDE versions to let go
 declare -A AUTO_NEVER=([trash]=1 [trash_drives]=1 [tracker_index]=1 [baloo_index]=1 [stale_build_dirs]=1
   [android_images]=1 [android_avd_snapshots]=1 [android_sdk_old]=1 [game_runners_old]=1 [old_runtimes]=1
-  [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [jetbrains_old_versions]=1
+  [old_runtimes_asdf_mise]=1 [unity_old_editors]=1 [vagrant_old_boxes]=1 [jetbrains_old_versions]=1 [desktop_vms]=1
   [vscode_old_extensions]=1 [nix_garbage]=1)
 # items whose scan only looks at a few folders (test, du) and runs no other tool that
 # could hang: a scan runs them in a few shared processes, one after the other, since a
@@ -5417,6 +5418,164 @@ clean_entries_vagrant_old_boxes() { # encoded provider folders (json_clean_entri
   done
   ((${#pick[@]})) || return 0
   delete_vagrant_old_boxes "${pick[@]}"
+}
+
+# Unused virtual machines, one row each: disk images of GNOME Boxes (~/.local/share/gnome-boxes/images, or
+# the Flatpak's), of virt-manager's user session (~/.local/share/libvirt/images) and the disks the domain
+# files in ~/.config/libvirt/qemu name when they are inside your home, and VirtualBox machine folders
+# (~/VirtualBox VMs, plus those VirtualBox.xml registers). A machine not changed for VM_IDLE_DAYS (90) is
+# offered; one that runs now is left out (a process whose command line holds its path, name or uuid).
+# Only files are read: virsh and VBoxManage are never run, /var/lib/libvirt is never looked at. Not ticked,
+# moved to the Trash with everything inside (undo from the terminal app); domain files stay.
+reg desktop_vms dev "Unused virtual machines" 0 "Virtual machines of GNOME Boxes, virt-manager (your user's libvirt) and VirtualBox not started for 90+ days, each on its own. Moved to the Trash with everything inside the machine: its files, apps and settings. Running machines are skipped; the system's libvirt (/var/lib/libvirt) is never touched."
+why desktop_vms trash "~/.local/share/gnome-boxes/images, ~/.local/share/libvirt/images, ~/VirtualBox VMs" "Machines started in the last 90 days" "Running machines" "Everything in /var/lib/libvirt"
+# shellcheck disable=SC2034 # read through ${!re_var} in json_pick_entries
+ENTRY_RE_desktop_vms='^/[A-Za-z0-9/._~%-]+$' # the machine's file or folder, percent-encoded (urlencode_path)
+VM_IDLE_DAYS=90
+
+vm_sources() { # → the folders and files desktop_vms reads, one per line
+  local d=${XDG_DATA_HOME:-$HOME/.local/share} c=${XDG_CONFIG_HOME:-$HOME/.config}
+  printf '%s\n' "$d/gnome-boxes/images" "$HOME/.var/app/org.gnome.Boxes/data/gnome-boxes/images" "$d/libvirt/images" \
+    "$c/libvirt/qemu" "$HOME/.var/app/org.gnome.Boxes/config/libvirt/qemu" "$HOME/VirtualBox VMs" \
+    "$c/VirtualBox/VirtualBox.xml" "$HOME/.VirtualBox/VirtualBox.xml"
+}
+vm_cmdlines() { # → VM_PROCS: the command lines of the running processes, one per line
+  local f a line
+  VM_PROCS=""
+  for f in "$PROC_DIR"/[0-9]*/cmdline; do
+    line=""
+    while IFS= read -r -d '' a; do line+=" $a"; done <"$f" 2>/dev/null
+    [[ $line == *" --entries "* ]] && continue # this very command, naming the machine it cleans
+    [[ -n $line ]] && VM_PROCS+=$line$'\n'
+  done
+}
+vm_mtime() { # PATH → the newest change of it and, for a folder, of what is directly in it (epoch seconds)
+  local t
+  t=$(find "$1" -maxdepth 1 -printf '%T@\n' 2>/dev/null | LC_ALL=C sort -rn | head -n 1)
+  printf '%s' "${t%%.*}"
+}
+desktop_vms() { # → DV_PATH (file or folder) / DV_BYTES / DV_LABEL "NAME (APP) · N days idle", biggest first
+  local data=${XDG_DATA_HOME:-$HOME/.local/share} conf=${XDG_CONFIG_HOME:-$HOME/.config} now
+  local f x chunk d p n u app m cp=() ca=() keep=() idle=() sizes=() i b label row re_src re_title re_name
+  local -A seen=() nm=() vbx=()
+  DV_PATH=() DV_BYTES=() DV_LABEL=()
+  printf -v now '%(%s)T' -1
+  re_src="<source[^>]*[[:space:]]file=['\"]([^'\"]+)['\"]"
+  re_title='<title>([^<]+)</title>'
+  re_name='<name>([^<]+)</name>'
+  # libvirt domain files: the name (a title wins) and the disks they use
+  for f in "$conf"/libvirt/qemu/*.xml "$HOME"/.var/app/org.gnome.Boxes/config/libvirt/qemu/*.xml; do
+    [[ -f $f && ! -L $f && -r $f ]] || continue
+    (($(stat -c %s -- "$f") <= 1048576)) || continue
+    x=$(<"$f") n=""
+    if [[ $x =~ $re_title ]]; then n=${BASH_REMATCH[1]}; elif [[ $x =~ $re_name ]]; then n=${BASH_REMATCH[1]}; fi
+    app="virt-manager"
+    [[ $f == *gnome-boxes* || $f == *org.gnome.Boxes* ]] && app="GNOME Boxes"
+    while [[ $x == *"</disk>"* ]]; do
+      chunk=${x%%</disk>*} x=${x#*</disk>} chunk=${chunk##*<disk}
+      [[ $chunk =~ device=[\'\"]disk[\'\"] && $chunk =~ $re_src ]] || continue
+      p=${BASH_REMATCH[1]}
+      [[ -n $n ]] && nm[$p]=$n
+      cp+=("$p")
+      if [[ $p == *gnome-boxes* || $p == *org.gnome.Boxes* ]]; then ca+=("GNOME Boxes"); else ca+=("$app"); fi
+    done
+  done
+  for d in "$data/gnome-boxes/images" "$HOME/.var/app/org.gnome.Boxes/data/gnome-boxes/images"; do
+    for p in "$d"/*; do cp+=("$p") ca+=("GNOME Boxes"); done
+  done
+  for p in "$data/libvirt/images"/*; do cp+=("$p") ca+=("virt-manager"); done
+  for i in "${!cp[@]}"; do
+    p=${cp[i]}
+    [[ $p == "$HOME"/* && $p != *[[:cntrl:]]* && -f $p && ! -L $p && -z ${seen[$p]:-} ]] || continue
+    seen[$p]=1
+    touches_exclusion "$p" && continue
+    keep+=("$p"$'\t'"${nm[$p]:-${p##*/}}"$'\t'"${ca[i]}"$'\t')
+  done
+  # VirtualBox: the folders under ~/VirtualBox VMs and those VirtualBox.xml registers (<name>/<name>.vbox)
+  for p in "$HOME/VirtualBox VMs"/*/; do vbx[${p%/}]=1; done
+  for f in "$conf/VirtualBox/VirtualBox.xml" "$HOME/.VirtualBox/VirtualBox.xml"; do
+    [[ -f $f && ! -L $f && -r $f ]] || continue
+    while IFS= read -r x; do
+      [[ $x =~ src=\"([^\"]+)\" ]] || continue
+      p=${BASH_REMATCH[1]}
+      [[ $p == "$HOME"/*/*.vbox && $p != *[[:cntrl:]]* ]] || continue
+      d=${p%/*}
+      [[ ${p##*/} == "${d##*/}.vbox" ]] && vbx[$d]=1
+    done < <(grep -h '<MachineEntry' -- "$f" 2>/dev/null)
+  done
+  for d in "${!vbx[@]}"; do
+    [[ $d == "$HOME"/* && $d != *[[:cntrl:]]* && -d $d && ! -L $d && -z ${seen[$d]:-} ]] || continue
+    f=$(compgen -G "$d/*.vbox" | head -n 1)
+    [[ -n $f ]] || continue
+    seen[$d]=1
+    touches_exclusion "$d" && continue
+    n=${d##*/} u=""
+    x=$(grep -m 1 '<Machine ' -- "$f" 2>/dev/null)
+    [[ $x =~ [[:space:]]name=\"([^\"]+)\" ]] && n=${BASH_REMATCH[1]}
+    [[ $x =~ uuid=\"\{?([^\"}]+)\}?\" ]] && u=${BASH_REMATCH[1]}
+    keep+=("$d"$'\t'"$n"$'\t'"VirtualBox"$'\t'"$u")
+  done
+  ((${#keep[@]})) || return 0
+  vm_cmdlines
+  for row in "${keep[@]}"; do
+    IFS=$'\t' read -r p n app u <<<"$row"
+    m=$(vm_mtime "$p")
+    [[ $m =~ ^[0-9]+$ ]] && ((now - m >= VM_IDLE_DAYS * 86400)) || continue
+    [[ $VM_PROCS == *"$p"* ]] && continue
+    [[ -n $u && $VM_PROCS == *"$u"* ]] && continue
+    [[ $app == VirtualBox && ($VM_PROCS == *"--startvm $n"* || $VM_PROCS == *"--comment $n"*) ]] && continue
+    idle+=("$p"$'\t'"$n ($app) · $(((now - m) / 86400)) days idle")
+  done
+  ((${#idle[@]})) || return 0
+  mapfile -t sizes < <(printf '%s\n' "${idle[@]%%$'\t'*}" | sized_paths desktop_vms own_bytes)
+  while IFS=$'\t' read -r b p label; do
+    DV_BYTES+=("$b") DV_PATH+=("$p") DV_LABEL+=("$label")
+  done < <(for i in "${!idle[@]}"; do printf '%s\t%s\n' "${sizes[i]:-0}" "${idle[i]}"; done | LC_ALL=C sort -t $'\t' -k1,1nr -k3,3)
+}
+trash_desktop_vms() { # INDEX… of DV_PATH — to the Trash; @@undo lines let the terminal app undo it
+  local i d rc=0
+  UNDO_BATCH=()
+  for i; do move_to_trash "${DV_PATH[i]}" || rc=1; done
+  for d in "${UNDO_BATCH[@]}"; do printf '@@undo\t%s\n' "$d"; done
+  return "$rc"
+}
+scan_desktop_vms() {
+  local b any=0 s
+  while IFS= read -r s; do [[ -e $s ]] && any=1; done < <(vm_sources)
+  ((any)) || return 1
+  desktop_vms
+  ((${#DV_PATH[@]})) || return 2
+  SCAN_BYTES=0
+  for b in "${DV_BYTES[@]}"; do SCAN_BYTES=$((SCAN_BYTES + b)); done
+  SCAN_NOTE="$(plural ${#DV_PATH[@]} machine) idle for ${VM_IDLE_DAYS}+ days"
+}
+clean_desktop_vms() {
+  desktop_vms
+  ((${#DV_PATH[@]})) || return 0
+  trash_desktop_vms "${!DV_PATH[@]}"
+}
+details_desktop_vms() {
+  local i
+  desktop_vms
+  for i in "${!DV_PATH[@]}"; do
+    printf '  %s%10s%s  %s  %s\n' "$(size_color "${DV_BYTES[i]}")" "$(human "${DV_BYTES[i]}")" "$NC" "${DV_LABEL[i]}" "${DV_PATH[i]/#$HOME/\~}"
+  done
+}
+entries_desktop_vms() {
+  local i
+  desktop_vms
+  for i in "${!DV_PATH[@]}"; do
+    printf '%s\t%s\t0\t%s\n' "$(urlencode_path "${DV_PATH[i]}")" "${DV_BYTES[i]}" "${DV_LABEL[i]}"
+  done
+}
+clean_entries_desktop_vms() { # encoded files and folders (json_clean_entries only passes ones listed now)
+  local i id pick=()
+  desktop_vms
+  for id; do
+    for i in "${!DV_PATH[@]}"; do [[ $(urlencode_path "${DV_PATH[i]}") == "$id" ]] && pick+=("$i"); done
+  done
+  ((${#pick[@]})) || return 0
+  trash_desktop_vms "${pick[@]}"
 }
 
 # Unity's caches, downloaded or built again when a project needs them: ~/.cache/unity3d (the editor's

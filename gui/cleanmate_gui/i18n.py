@@ -153,6 +153,7 @@ _COUNTS = {
     "download": lambda n: ngettext("{n} download", "{n} downloads", n),
     "disabled revision": lambda n: ngettext("{n} disabled revision", "{n} disabled revisions", n),
     "version": lambda n: ngettext("{n} version", "{n} versions", n),
+    "machine": lambda n: ngettext("{n} machine", "{n} machines", n),
     "drive": lambda n: ngettext("{n} drive", "{n} drives", n),
     "list": lambda n: ngettext("{n} list", "{n} lists", n),
     "history list": lambda n: ngettext("{n} history list", "{n} history lists", n),

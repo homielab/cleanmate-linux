@@ -1450,6 +1450,28 @@ msgstr ""
 msgid "Versions your machines use"
 msgstr ""
 
+#. desktop_vms label
+msgid "Unused virtual machines"
+msgstr ""
+
+#. desktop_vms description
+#, python-brace-format
+msgid "Virtual machines of GNOME Boxes, virt-manager (your user's libvirt) and VirtualBox not started for {0}+ days, each on its own. Moved to the Trash with everything inside the machine: its files, apps and settings. Running machines are skipped; the system's libvirt (/var/lib/libvirt) is never touched."
+msgstr ""
+
+#. desktop_vms why
+#, python-brace-format
+msgid "Machines started in the last {0} days"
+msgstr ""
+
+#. desktop_vms why
+msgid "Running machines"
+msgstr ""
+
+#. desktop_vms why
+msgid "Everything in /var/lib/libvirt"
+msgstr ""
+
 #. unity_caches label
 msgid "Unity caches"
 msgstr ""

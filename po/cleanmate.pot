@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-08 16:29+0000\n"
+"POT-Creation-Date: 2026-11-12 15:56+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -139,7 +139,7 @@ msgid "Search"
 msgstr ""
 
 #: gui/cleanmate_gui/duplicates.py:168 gui/cleanmate_gui/largefiles.py:137
-#: gui/cleanmate_gui/scanpage.py:119 gui/cleanmate_gui/spacelens.py:146
+#: gui/cleanmate_gui/scanpage.py:126 gui/cleanmate_gui/spacelens.py:146
 msgid "Stop"
 msgstr ""
 
@@ -502,12 +502,12 @@ msgstr ""
 msgid "Details copied"
 msgstr ""
 
-#: gui/cleanmate_gui/findbar.py:28 gui/cleanmate_gui/scanpage.py:134
+#: gui/cleanmate_gui/findbar.py:28 gui/cleanmate_gui/scanpage.py:141
 #: gui/cleanmate_gui/window.py:315
 msgid "Search results"
 msgstr ""
 
-#: gui/cleanmate_gui/findbar.py:40 gui/cleanmate_gui/scanpage.py:171
+#: gui/cleanmate_gui/findbar.py:40 gui/cleanmate_gui/scanpage.py:178
 msgid "Search results (Ctrl+F)"
 msgstr ""
 
@@ -520,7 +520,7 @@ msgstr ""
 msgid "More"
 msgstr ""
 
-#: gui/cleanmate_gui/findbar.py:93 gui/cleanmate_gui/scanpage.py:205
+#: gui/cleanmate_gui/findbar.py:93 gui/cleanmate_gui/scanpage.py:212
 #: gui/cleanmate_gui/scanpage.py:644 gui/cleanmate_gui/scanpage.py:745
 #: gui/cleanmate_gui/settings.py:501
 #, python-brace-format
@@ -711,332 +711,341 @@ msgstr[1] ""
 
 #: gui/cleanmate_gui/i18n.py:156
 #, python-brace-format
+msgid "{n} machine"
+msgid_plural "{n} machines"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gui/cleanmate_gui/i18n.py:157
+#, python-brace-format
 msgid "{n} drive"
 msgid_plural "{n} drives"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:157
+#: gui/cleanmate_gui/i18n.py:158
 #, python-brace-format
 msgid "{n} list"
 msgid_plural "{n} lists"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:158
+#: gui/cleanmate_gui/i18n.py:159
 #, python-brace-format
 msgid "{n} history list"
 msgid_plural "{n} history lists"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:159
+#: gui/cleanmate_gui/i18n.py:160
 #, python-brace-format
 msgid "{n} image"
 msgid_plural "{n} images"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:160
+#: gui/cleanmate_gui/i18n.py:161
 #, python-brace-format
 msgid "{n} dangling image"
 msgid_plural "{n} dangling images"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:161
+#: gui/cleanmate_gui/i18n.py:162
 #, python-brace-format
 msgid "{n} container"
 msgid_plural "{n} containers"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:162
+#: gui/cleanmate_gui/i18n.py:163
 #, python-brace-format
 msgid "{n} stopped container"
 msgid_plural "{n} stopped containers"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:163
+#: gui/cleanmate_gui/i18n.py:164
 #, python-brace-format
 msgid "{n} volume"
 msgid_plural "{n} volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:164
+#: gui/cleanmate_gui/i18n.py:165
 #, python-brace-format
 msgid "{n} anonymous volume"
 msgid_plural "{n} anonymous volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:165
+#: gui/cleanmate_gui/i18n.py:166
 #, python-brace-format
 msgid "{n} named volume"
 msgid_plural "{n} named volumes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:166
+#: gui/cleanmate_gui/i18n.py:167
 #, python-brace-format
 msgid "{n} AVD"
 msgid_plural "{n} AVDs"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:167
+#: gui/cleanmate_gui/i18n.py:168
 #, python-brace-format
 msgid "{n} snapshot"
 msgid_plural "{n} snapshots"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:168
+#: gui/cleanmate_gui/i18n.py:169
 #, python-brace-format
 msgid "{n} session"
 msgid_plural "{n} sessions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:169
+#: gui/cleanmate_gui/i18n.py:170
 #, python-brace-format
 msgid "{n} model"
 msgid_plural "{n} models"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:170
+#: gui/cleanmate_gui/i18n.py:171
 #, python-brace-format
 msgid "{n} report"
 msgid_plural "{n} reports"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:171
+#: gui/cleanmate_gui/i18n.py:172
 #, python-brace-format
 msgid "{n} dump"
 msgid_plural "{n} dumps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:172
+#: gui/cleanmate_gui/i18n.py:173
 #, python-brace-format
 msgid "{n} command"
 msgid_plural "{n} commands"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:173
+#: gui/cleanmate_gui/i18n.py:174
 #, python-brace-format
 msgid "{n} entry"
 msgid_plural "{n} entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:174
+#: gui/cleanmate_gui/i18n.py:175
 #, python-brace-format
 msgid "{n} remembered choice"
 msgid_plural "{n} remembered choices"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:175
+#: gui/cleanmate_gui/i18n.py:176
 #, python-brace-format
 msgid "{n} history entry"
 msgid_plural "{n} history entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:176
+#: gui/cleanmate_gui/i18n.py:177
 #, python-brace-format
 msgid "{n} cookie"
 msgid_plural "{n} cookies"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:177
+#: gui/cleanmate_gui/i18n.py:178
 #, python-brace-format
 msgid "{n} unused runtime"
 msgid_plural "{n} unused runtimes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/i18n.py:197
+#: gui/cleanmate_gui/i18n.py:198
 #, python-brace-format
 msgid "{count} in /var/log"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:198
+#: gui/cleanmate_gui/i18n.py:199
 #, python-brace-format
 msgid "{count} in ~/.cache"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:199
+#: gui/cleanmate_gui/i18n.py:200
 #, python-brace-format
 msgid "{count} in {count2}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:200
+#: gui/cleanmate_gui/i18n.py:201
 #, python-brace-format
 msgid "{count} on {count2}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:201
+#: gui/cleanmate_gui/i18n.py:202
 #, python-brace-format
 msgid "{count}, {count2}, {count3}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:202
+#: gui/cleanmate_gui/i18n.py:203
 #, python-brace-format
 msgid "{count}, {count2}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:203
+#: gui/cleanmate_gui/i18n.py:204
 #, python-brace-format
 msgid "{count} still configured"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:204
+#: gui/cleanmate_gui/i18n.py:205
 #, python-brace-format
 msgid "{count} older than {days} days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:205
+#: gui/cleanmate_gui/i18n.py:206
 #, python-brace-format
 msgid "{count} untouched for {days}+ days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:206
+#: gui/cleanmate_gui/i18n.py:207
 #, python-brace-format
 msgid "{count} idle for {days}+ days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:207
+#: gui/cleanmate_gui/i18n.py:208
 #, python-brace-format
 msgid "{count} with entries"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:208
+#: gui/cleanmate_gui/i18n.py:209
 #, python-brace-format
 msgid "{count} that no longer exist"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:209
+#: gui/cleanmate_gui/i18n.py:210
 #, python-brace-format
 msgid "{count} not your default"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:210
+#: gui/cleanmate_gui/i18n.py:211
 #, python-brace-format
 msgid "{count} not pinned, not the newest"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:211
+#: gui/cleanmate_gui/i18n.py:212
 #, python-brace-format
 msgid "{count} no AVD uses"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:212
+#: gui/cleanmate_gui/i18n.py:213
 #, python-brace-format
 msgid "{count} replaced by a newer one"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:213
+#: gui/cleanmate_gui/i18n.py:214
 #, python-brace-format
 msgid "{count} — may contain data"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:214
+#: gui/cleanmate_gui/i18n.py:215
 #, python-brace-format
 msgid "{count} kept"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:216
+#: gui/cleanmate_gui/i18n.py:217
 #, python-brace-format
 msgid "{size} in total"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:217
+#: gui/cleanmate_gui/i18n.py:218
 #, python-brace-format
 msgid "skipped while running: {names}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:218
+#: gui/cleanmate_gui/i18n.py:219
 msgid "close it first: the Flatpak can't see if it's open"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:219
+#: gui/cleanmate_gui/i18n.py:220
 msgid "the Docker daemon isn't running"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:220
+#: gui/cleanmate_gui/i18n.py:221
 msgid "this user can't talk to the Docker daemon"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:221
-msgid "join the docker group: sudo usermod -aG docker $USER, then sign out and back in"
+#: gui/cleanmate_gui/i18n.py:223
+msgid ""
+"join the docker group: sudo usermod -aG docker $USER, then sign out and back "
+"in"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:223
+#: gui/cleanmate_gui/i18n.py:224
 msgid "start it with: sudo systemctl start docker"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:221
+#: gui/cleanmate_gui/i18n.py:225
 #, python-brace-format
 msgid "get it back with: ollama pull {ref}"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:262 gui/cleanmate_gui/i18n.py:263
+#: gui/cleanmate_gui/i18n.py:266 gui/cleanmate_gui/i18n.py:267
 #, python-brace-format
 msgid "{days} days old"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:264 gui/cleanmate_gui/i18n.py:265
+#: gui/cleanmate_gui/i18n.py:268 gui/cleanmate_gui/i18n.py:269
 #, python-brace-format
 msgid "untouched for {days} days"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:266
+#: gui/cleanmate_gui/i18n.py:270
 #, python-brace-format
 msgid "{days} days idle"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:267
+#: gui/cleanmate_gui/i18n.py:271
 msgid "(running, skipped)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:268
+#: gui/cleanmate_gui/i18n.py:272
 msgid "← running (kept)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:269
+#: gui/cleanmate_gui/i18n.py:273
 msgid "← kept as a fallback"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:270
+#: gui/cleanmate_gui/i18n.py:274
 msgid "← will be removed: "
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:271
+#: gui/cleanmate_gui/i18n.py:275
 #, python-brace-format
 msgid "(revision {revision})"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:272
+#: gui/cleanmate_gui/i18n.py:276
 msgid "(your installation)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:273
+#: gui/cleanmate_gui/i18n.py:277
 msgid "(system installation)"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:274
+#: gui/cleanmate_gui/i18n.py:278
 msgid "Largest archived journal files:"
 msgstr ""
 
-#: gui/cleanmate_gui/i18n.py:276
+#: gui/cleanmate_gui/i18n.py:280
 #, python-brace-format
 msgid "Archived and active journals take up {size} in the file system."
 msgstr ""
@@ -1204,7 +1213,7 @@ msgstr ""
 msgid "Choose another kind to see the other files."
 msgstr ""
 
-#: gui/cleanmate_gui/largefiles.py:344 gui/cleanmate_gui/scanpage.py:402
+#: gui/cleanmate_gui/largefiles.py:344 gui/cleanmate_gui/scanpage.py:409
 #: gui/cleanmate_gui/spacelens.py:457 gui/cleanmate_gui/trashed.py:196
 msgid "All"
 msgstr ""
@@ -2424,119 +2433,132 @@ msgstr ""
 msgid "Named volume — may hold data"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:88
+#: gui/cleanmate_gui/scanpage.py:49
+#, python-brace-format
+msgid ""
+"The scan stops every check at {limit}s: these took longer, so what they hold "
+"isn't listed or counted."
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:51
+msgid ""
+"These checks took too long and were stopped, so what they hold isn't listed "
+"or counted."
+msgstr ""
+
+#: gui/cleanmate_gui/scanpage.py:95
 msgid ""
 "System files are out of the Flatpak's reach: the package cache, system logs "
 "and old kernels need the .deb version."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:90
+#: gui/cleanmate_gui/scanpage.py:97
 msgid "Learn More"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:99
+#: gui/cleanmate_gui/scanpage.py:106
 msgid "Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:107
+#: gui/cleanmate_gui/scanpage.py:114
 msgid "Turn On"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:110
+#: gui/cleanmate_gui/scanpage.py:117
 msgid "This group is turned off in Settings, so Smart Scan leaves it out."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:120
+#: gui/cleanmate_gui/scanpage.py:127
 msgid "Stop and show what was checked so far"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:123
+#: gui/cleanmate_gui/scanpage.py:130
 msgid "Scanning…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:127
+#: gui/cleanmate_gui/scanpage.py:134
 msgid "The scan failed"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:163 gui/cleanmate_gui/scanpage.py:949
+#: gui/cleanmate_gui/scanpage.py:170 gui/cleanmate_gui/scanpage.py:949
 msgid "Clear"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:163 gui/cleanmate_gui/scanpage.py:949
+#: gui/cleanmate_gui/scanpage.py:170 gui/cleanmate_gui/scanpage.py:949
 msgid "Clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:167
+#: gui/cleanmate_gui/scanpage.py:174
 msgid "Scan again"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:243
+#: gui/cleanmate_gui/scanpage.py:250
 msgid "Starting…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:253
+#: gui/cleanmate_gui/scanpage.py:260
 #, python-brace-format
 msgid "Checking {name}…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:266 gui/cleanmate_gui/scanpage.py:363
+#: gui/cleanmate_gui/scanpage.py:273 gui/cleanmate_gui/scanpage.py:370
 msgid "Scan stopped"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:320
+#: gui/cleanmate_gui/scanpage.py:327
 msgid "Stopping…"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:352
+#: gui/cleanmate_gui/scanpage.py:359
 #, python-brace-format
 msgid "{n} location scanned in {secs}s"
 msgid_plural "{n} locations scanned in {secs}s"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:355
+#: gui/cleanmate_gui/scanpage.py:362
 #, python-brace-format
 msgid "{n} history list with entries"
 msgid_plural "{n} history lists with entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:356
+#: gui/cleanmate_gui/scanpage.py:363
 msgid "Nothing to clear"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:357
+#: gui/cleanmate_gui/scanpage.py:364
 msgid "Pick what to clear — nothing happens until you confirm."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:359
+#: gui/cleanmate_gui/scanpage.py:366
 #, python-brace-format
 msgid "{size} of junk found in {n} item"
 msgid_plural "{size} of junk found in {n} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:363 gui/cleanmate_gui/scanpage.py:365
+#: gui/cleanmate_gui/scanpage.py:370 gui/cleanmate_gui/scanpage.py:372
 msgid "Nothing worth removing was found in what was checked."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:365
+#: gui/cleanmate_gui/scanpage.py:372
 msgid "The scan didn't finish"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:368
+#: gui/cleanmate_gui/scanpage.py:375
 msgid "Your system is clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:368
+#: gui/cleanmate_gui/scanpage.py:375
 msgid "Nothing worth removing was found."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:374
+#: gui/cleanmate_gui/scanpage.py:381
 msgid "The scan was stopped: items it hadn't checked yet are not listed."
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:378
+#: gui/cleanmate_gui/scanpage.py:385
 #, python-brace-format
 msgid ""
 "{n} item took too long to check: it may still hold junk. Scan again to check "
@@ -2547,40 +2569,27 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:403
+#: gui/cleanmate_gui/scanpage.py:410
 msgid "Select or deselect the whole group"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:413
+#: gui/cleanmate_gui/scanpage.py:420
 #, python-brace-format
 msgid "{n} more item is clean"
 msgid_plural "{n} more items are clean"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/scanpage.py:416
+#: gui/cleanmate_gui/scanpage.py:423
 msgid "clean"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:423 gui/cleanmate_gui/trashed.py:206
+#: gui/cleanmate_gui/scanpage.py:430 gui/cleanmate_gui/trashed.py:206
 msgid "No results"
 msgstr ""
 
-#: gui/cleanmate_gui/scanpage.py:424
+#: gui/cleanmate_gui/scanpage.py:431
 msgid "Nothing found matches your search."
-msgstr ""
-
-#: gui/cleanmate_gui/scanpage.py:434
-#, python-brace-format
-msgid ""
-"The scan stops every check at {limit}s: these took longer, so what they hold "
-"isn't listed or counted."
-msgstr ""
-
-#: gui/cleanmate_gui/scanpage.py:436
-msgid ""
-"These checks took too long and were stopped, so what they hold isn't listed "
-"or counted."
 msgstr ""
 
 #: gui/cleanmate_gui/scanpage.py:441
@@ -6428,6 +6437,33 @@ msgstr ""
 
 #. vagrant_old_boxes why
 msgid "Versions your machines use"
+msgstr ""
+
+#. desktop_vms label
+msgid "Unused virtual machines"
+msgstr ""
+
+#. desktop_vms description
+#, python-brace-format
+msgid ""
+"Virtual machines of GNOME Boxes, virt-manager (your user's libvirt) and "
+"VirtualBox not started for {0}+ days, each on its own. Moved to the Trash "
+"with everything inside the machine: its files, apps and settings. Running "
+"machines are skipped; the system's libvirt (/var/lib/libvirt) is never "
+"touched."
+msgstr ""
+
+#. desktop_vms why
+#, python-brace-format
+msgid "Machines started in the last {0} days"
+msgstr ""
+
+#. desktop_vms why
+msgid "Running machines"
+msgstr ""
+
+#. desktop_vms why
+msgid "Everything in /var/lib/libvirt"
 msgstr ""
 
 #. unity_caches label
