@@ -879,35 +879,70 @@ test_install_never_shadows_another_cm() {
   assert_contains "$out" "Start it any time with: cleanmate"
 }
 
+# cm --update installs only files that match the release's SHA256SUMS; any failure keeps the old version.
 test_update_flow() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   command -v curl >/dev/null || command -v wget >/dev/null || { SKIPPED="neither curl nor wget installed"; return; }
   fresh_home
-  local www=$WORK/www port srv out
-  mkdir -p "$www"
-  sed 's/^VERSION="[0-9.]*"$/VERSION="99.0.0"/' "$SCRIPT" >"$www/new.sh"
-  printf '<html>404</html>\n' >"$www/bad.sh"
+  local www=$WORK/www port srv out rc d gui=$HOME_DIR/.local/share/cleanmate/gui
+  mkdir -p "$www/good"
+  OUT="$www/good" "$ROOT/packaging/build-update-assets.sh" >/dev/null
+  sed 's/^VERSION="[0-9.]*"$/VERSION="99.0.0"/' "$SCRIPT" >"$www/good/cleanmate.sh"
+  (cd "$www/good" && sha256sum cleanmate.sh cleanmate-app.tar.gz >SHA256SUMS)
+  for d in badsum nosums noapp badapp notsh; do cp -r "$www/good" "$www/$d"; done
+  printf '%064d  cleanmate.sh\n' 0 >"$www/badsum/SHA256SUMS"; grep app "$www/good/SHA256SUMS" >>"$www/badsum/SHA256SUMS"
+  rm "$www/nosums/SHA256SUMS" "$www/noapp/cleanmate-app.tar.gz"
+  printf 'changed' >>"$www/badapp/cleanmate-app.tar.gz"
+  printf '<html>404</html>\n' >"$www/notsh/cleanmate.sh"
   port=$((20000 + RANDOM % 20000))
   (cd "$www" && exec python3 -m http.server "$port" --bind 127.0.0.1) >/dev/null 2>&1 &
   srv=$!
   wait_for 10 "the test web server on port $port" port_open "$port"
   cm --install >/dev/null 2>&1
-
-  out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/bad.sh" cm --update 2>&1 </dev/null)
-  assert_contains "$out" "doesn't look like CleanMate"
-  out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/missing.sh" cm --update 2>&1 </dev/null)
-  assert_contains "$out" "No published version"
+  assert_exists "$gui/cleanmate-gui"
+  touch "$gui/old-marker"
+  upd() { # DIR → out, rc
+    out=$(printf 'y\n' | CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/$1/cleanmate.sh" cm --update 2>&1); rc=$?
+  }
+  still_old() { # WHY
+    assert_eq "$rc" 1 "$1: exits 1"
+    assert_eq "$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" bash "$HOME_DIR/.local/bin/cleanmate" --version | head -n 1)" \
+      "cleanmate $(sed -n 's/^VERSION="\([0-9.]*\)"$/\1/p' "$SCRIPT")" "$1: old script kept"
+    assert_exists "$gui/old-marker"; assert_exists "$gui/cleanmate-gui"
+  }
+  upd notsh; assert_contains "$out" "doesn't look like CleanMate"; still_old "not a script"
+  upd badsum; assert_contains "$out" "doesn't match the release's checksum"; still_old "wrong checksum"
+  upd nosums; assert_contains "$out" "Couldn't get the release's SHA256SUMS"; still_old "no SHA256SUMS"
+  upd noapp; assert_contains "$out" "Couldn't download the desktop app"; still_old "app download fails"
+  upd badapp; assert_contains "$out" "desktop app download doesn't match"; still_old "app checksum wrong"
+  upd missing; assert_contains "$out" "No published version"
   out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:9/x.sh" cm --update 2>&1 </dev/null)
   assert_contains "$out" "Could not reach"
-  out=$(printf 'y\n' | CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/new.sh" cm --update 2>&1)
-  assert_contains "$out" "Updated to 99.0.0"
+  [[ -z $(find "$HOME_DIR/.local" -name '*.new.*' -o -name '*.old.*') ]] && ok_ "no staged leftovers" || fail "staged leftovers"
+
+  upd good
+  assert_contains "$out" "Updated to 99.0.0"; assert_eq "$rc" 0 "good update exits 0"
   assert_eq "$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" bash "$HOME_DIR/.local/bin/cleanmate" --version | head -n 1)" \
     "cleanmate 99.0.0" "installed copy updated"
+  assert_missing "$gui/old-marker"; assert_exists "$gui/cleanmate_gui/window.py"
   assert_eq "$(readlink "$HOME_DIR/.local/bin/cm")" "cleanmate" "cm link survives the update"
-  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/new.sh" \
+  [[ -z $(find "$HOME_DIR/.local" -name '*.new.*' -o -name '*.old.*') ]] && ok_ "no staged leftovers after the update" || fail "staged leftovers"
+  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/good/cleanmate.sh" \
     bash "$HOME_DIR/.local/bin/cleanmate" --update 2>&1 </dev/null)
   assert_contains "$out" "up to date"
   kill "$srv" 2>/dev/null
+}
+
+# The release's SHA256SUMS covers the files cm --update downloads, in sha256sum -c format.
+test_update_assets_checksums() {
+  local out=$WORK/dist
+  mkdir -p "$out"; printf 'deb' >"$out/cleanmate_1_all.deb"
+  OUT="$out" "$ROOT/packaging/build-update-assets.sh" >/dev/null || fail "build-update-assets.sh failed"
+  (cd "$out" && sha256sum -c --quiet SHA256SUMS) && ok_ "SHA256SUMS verifies" || fail "SHA256SUMS doesn't verify"
+  assert_eq "$(cut -d' ' -f3 "$out/SHA256SUMS" | paste -sd' ' -)" "cleanmate.sh cleanmate-app.tar.gz cleanmate_1_all.deb" "files in SHA256SUMS"
+  local list; list=$(tar -tzf "$out/cleanmate-app.tar.gz")
+  grep -qx 'cleanmate-app/gui/cleanmate-gui' <<<"$list" && ok_ "app tarball has gui/" || fail "no gui/ in the tarball"
+  ! grep -q __pycache__ <<<"$list" && ok_ "no caches in the tarball" || fail "__pycache__ in the tarball"
 }
 
 test_trash_and_undo() {

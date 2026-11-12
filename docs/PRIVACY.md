@@ -23,8 +23,8 @@ Only to get CleanMate itself, from GitHub:
 
 | When | Request | Can I turn it off? |
 |---|---|---|
-| Once a day while you use the app | Reads the latest version number from `raw.githubusercontent.com` | Yes — *Settings → Daily update check*, or `CLEANMATE_NO_UPDATE_CHECK=1`. Never happens when installed as a package. |
-| `cm --update` or *Check for updates now* | Downloads the new version from GitHub | Only when you ask |
+| Once a day while you use the app | Reads the latest version number from the GitHub release (`github.com`) | Yes — *Settings → Daily update check*, or `CLEANMATE_NO_UPDATE_CHECK=1`. Never happens when installed as a package. |
+| `cm --update` or *Check for updates now* | Downloads the new version and its `SHA256SUMS` from the GitHub release; installs only when the checksums match | Only when you ask |
 | `--install` (script installed on its own) | Downloads the desktop app and icon from GitHub | Only when you ask |
 
 *Report a Bug…* (desktop app) and *Suggest a Feature…* only open a GitHub page in your browser; nothing

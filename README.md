@@ -237,7 +237,7 @@ date; remove it with `sudo apt remove cleanmate`.
 **Installed with the script:**
 
 ```bash
-cm --update       # shows your version and the latest, asks, updates the app and icon
+cm --update       # shows your version and the latest, asks, updates the app and icon (only when they match the release's SHA256SUMS)
 cm --uninstall    # removes cm, the desktop app and the Show Apps entry; asks about settings
 ```
 

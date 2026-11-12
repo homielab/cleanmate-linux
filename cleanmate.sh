@@ -11100,11 +11100,12 @@ json_check() { # [KIND…] — the same checks for the desktop app: one "check" 
 # them next to the script; a script downloaded on its own fetches them from GitHub.
 BUNDLE_URL=${CLEANMATE_BUNDLE_URL:-https://github.com/$UPDATE_REPO/archive/refs/heads/$UPDATE_BRANCH.tar.gz}
 
-bundle_fetch() { # → BUNDLE_ROOT: the app files from GitHub (fails quietly when offline)
-  local dir top
+bundle_fetch() { # [URL [SHA256]] → BUNDLE_ROOT: the app files from GitHub (fails quietly when offline)
+  local dir top url=${1:-$BUNDLE_URL} sum=${2:-}
   have tar || return 1
   dir=$(mktemp -d -p "$SESSION_TMP") || return 1
-  fetch "$BUNDLE_URL" "$dir/app.tar.gz" || return 1
+  fetch "$url" "$dir/app.tar.gz" || return 1
+  [[ -z $sum || $(file_sha256 "$dir/app.tar.gz") == "$sum" ]] || { BUNDLE_BAD=1; return 1; }
   tar -xzf "$dir/app.tar.gz" -C "$dir" --wildcards '*/gui/*' '*/data/*' 2>/dev/null || return 1
   for top in "$dir"/*/; do
     [[ -f $top/gui/cleanmate-gui && -d $top/gui/cleanmate_gui ]] && { BUNDLE_ROOT=${top%/}; return 0; }
@@ -11418,12 +11419,15 @@ recent_menu() {
 
 # ───────────────────────────── updates ──────────────────────────────────────
 #
-# The latest version is the VERSION line of the script on the default branch.
-# A download is only used if it is really this script and passes `bash -n`;
-# it replaces the installed copy atomically (write next to it, then rename),
-# so a copy that is currently running is never corrupted.
+# Updates come from the latest GitHub release: cleanmate.sh, cleanmate-app.tar.gz (gui/ + data/) and
+# SHA256SUMS, all attached by release.yml. A file is only installed when its sha256 matches SHA256SUMS
+# (and the script is really this script and passes `bash -n`). Everything is downloaded and staged
+# first, then the desktop app and the script are swapped in by rename, so a failed or tampered
+# download leaves the installed copy as it was and a running copy is never corrupted.
 
-UPDATE_URL=${CLEANMATE_UPDATE_URL:-https://raw.githubusercontent.com/$UPDATE_REPO/$UPDATE_BRANCH/cleanmate.sh}
+UPDATE_URL=${CLEANMATE_UPDATE_URL:-https://github.com/$UPDATE_REPO/releases/latest/download/cleanmate.sh}
+UPDATE_SUMS_URL="${UPDATE_URL%/*}/SHA256SUMS"           # next to the script, so mirrors and tests work too
+UPDATE_APP_URL="${UPDATE_URL%/*}/cleanmate-app.tar.gz"
 UPDATE_STATE="$LOG_DIR/update-check" # "<epoch>\t<latest version>"
 UPDATE_LATEST=""
 
@@ -11435,6 +11439,12 @@ fetch() { # URL OUT → 0 ok, 22 not found / server error, 127 no downloader, ot
   elif have wget; then wget -q -T 20 -O "$2" -- "$1" 2>/dev/null; rc=$?; ((rc == 8)) && rc=22
   else return 127; fi
   return "$rc"
+}
+
+file_sha256() { sha256sum -- "$1" 2>/dev/null | cut -d' ' -f1; }
+
+release_sum() { # NAME → its sha256 from UPDATE_SUMS (sha256sum format: "<hex>  NAME" or "<hex> *NAME")
+  awk -v n="$1" '($2 == n || $2 == "*" n) && $1 ~ /^[0-9a-f]{64}$/ {print $1; exit}' "$UPDATE_SUMS" 2>/dev/null
 }
 
 script_version() { sed -n 's/^VERSION="\([0-9][0-9.]*\)"$/\1/p' "$1" 2>/dev/null | head -n 1; }
@@ -11492,25 +11502,79 @@ update_download() { # → UPDATE_FILE, UPDATE_NEW; 0 newer available, 1 error (U
     return 1
   fi
   mkdir -p "$LOG_DIR" && printf '%s\t%s\n' "$EPOCHSECONDS" "$UPDATE_NEW" >"$UPDATE_STATE"
-  if version_gt "$UPDATE_NEW" "$VERSION"; then return 0; fi
-  UPDATE_MSG="You're up to date (version $VERSION)."
-  UPDATE_LATEST=""
-  return 2
+  if ! version_gt "$UPDATE_NEW" "$VERSION"; then
+    UPDATE_MSG="You're up to date (version $VERSION)."
+    UPDATE_LATEST=""
+    return 2
+  fi
+  update_verify
 }
 
-update_apply() { # install UPDATE_FILE over the installed copy (or this file) → UPDATE_MSG
-  local target=$SELF
+update_verify() { # the script must match the release's SHA256SUMS → UPDATE_SUMS; 1 + UPDATE_MSG when not
+  local want
+  have sha256sum || { UPDATE_MSG="Install coreutils (sha256sum) to check the download — not installing it."; return 1; }
+  UPDATE_SUMS=$(mktemp -p "$SESSION_TMP")
+  if ! fetch "$UPDATE_SUMS_URL" "$UPDATE_SUMS" || [[ ! -s $UPDATE_SUMS ]]; then
+    UPDATE_MSG="Couldn't get the release's SHA256SUMS to check the download — not installing it."
+    return 1
+  fi
+  want=$(release_sum cleanmate.sh)
+  if [[ -z $want ]]; then
+    UPDATE_MSG="SHA256SUMS has no checksum for cleanmate.sh — not installing it."
+    return 1
+  fi
+  if [[ $(file_sha256 "$UPDATE_FILE") != "$want" ]]; then
+    UPDATE_MSG="The download doesn't match the release's checksum (damaged or changed) — not installing it."
+    return 1
+  fi
+  return 0
+}
+
+update_apply() { # install UPDATE_FILE (+ the desktop app) over the installed copy (or this file) → UPDATE_MSG
+  local target=$SELF app=0 want new_gui old_gui
   [[ -x $BIN_PATH ]] && target=$BIN_PATH
   if [[ ! -f $target || ! -w ${target%/*} ]]; then UPDATE_MSG="Can't write ${target/#$HOME/\~}."; return 1; fi
   if ((DRY_RUN)); then UPDATE_MSG="[dry-run] Would update ${target/#$HOME/\~} to $UPDATE_NEW"; return 0; fi
-  cp -- "$UPDATE_FILE" "$target.new.$$" && chmod 755 "$target.new.$$" && mv -f -- "$target.new.$$" "$target" || {
-    rm -f -- "$target.new.$$"; UPDATE_MSG="Update failed while writing ${target/#$HOME/\~}."; return 1
-  }
+  # 1. download and check everything before touching the installed copy
+  if [[ -d $GUI_HOME || -f $ICON_FILE ]]; then # keep the desktop app in step
+    app=1 BUNDLE_BAD=0
+    want=$(release_sum cleanmate-app.tar.gz)
+    if [[ -z $want ]]; then UPDATE_MSG="SHA256SUMS has no checksum for the desktop app — not updating."; return 1; fi
+    if ! bundle_fetch "$UPDATE_APP_URL" "$want"; then
+      if ((BUNDLE_BAD)); then UPDATE_MSG="The desktop app download doesn't match the release's checksum — not updating."
+      else UPDATE_MSG="Couldn't download the desktop app — not updating; your version is unchanged."; fi
+      return 1
+    fi
+  fi
+  # 2. stage both next to where they go
+  new_gui="$GUI_HOME.new.$$" old_gui="$GUI_HOME.old.$$"
+  if ! cp -- "$UPDATE_FILE" "$target.new.$$" || ! chmod 755 "$target.new.$$" ||
+    { ((app)) && [[ -f $BUNDLE_ROOT/gui/cleanmate-gui ]] && ! { mkdir -p "$new_gui" &&
+      cp -r -- "$BUNDLE_ROOT/gui/cleanmate-gui" "$BUNDLE_ROOT/gui/cleanmate_gui" "$new_gui/"; }; }; then
+    rm -f -- "$target.new.$$"; [[ -d $new_gui ]] && safe_rm "$new_gui"
+    UPDATE_MSG="Update failed while writing ${target/#$HOME/\~}; your version is unchanged."; return 1
+  fi
+  # 3. swap: the desktop app first, then the script; a failed script swap puts the old app back
+  if [[ -d $new_gui ]]; then
+    [[ -d $GUI_HOME ]] && { mv -- "$GUI_HOME" "$old_gui" || old_gui=""; }
+    if ! mv -- "$new_gui" "$GUI_HOME"; then
+      [[ -n $old_gui && -d $old_gui ]] && mv -- "$old_gui" "$GUI_HOME"
+      rm -f -- "$target.new.$$"; safe_rm "$new_gui"
+      UPDATE_MSG="Update failed while writing the desktop app; your version is unchanged."; return 1
+    fi
+  fi
+  if ! mv -f -- "$target.new.$$" "$target"; then
+    if [[ -n $old_gui && -d $old_gui ]]; then safe_rm "$GUI_HOME" && mv -- "$old_gui" "$GUI_HOME"; fi
+    rm -f -- "$target.new.$$"
+    UPDATE_MSG="Update failed while writing ${target/#$HOME/\~}; your version is unchanged."; return 1
+  fi
+  [[ -n $old_gui && -d $old_gui ]] && safe_rm "$old_gui"
+  if ((app)) && [[ -f $BUNDLE_ROOT/data/icons/hicolor/scalable/apps/$APP_ID.svg ]]; then # the icon
+    mkdir -p "${ICON_FILE%/*}" && cp -- "$BUNDLE_ROOT/data/icons/hicolor/scalable/apps/$APP_ID.svg" "$ICON_FILE" &&
+      touch "${ICON_FILE%/scalable/*}" 2>/dev/null
+  fi
   log "Updated from $VERSION to $UPDATE_NEW ($target)"
   UPDATE_LATEST="" UPDATE_DONE=$UPDATE_NEW
-  if [[ -d $GUI_HOME || -f $ICON_FILE ]] && bundle_fetch; then # keep the desktop app in step
-    install_app_files "$BUNDLE_ROOT"
-  fi
   UPDATE_MSG="Updated to $UPDATE_NEW — restart cm to use it."
 }
 

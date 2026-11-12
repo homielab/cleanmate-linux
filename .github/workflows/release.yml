@@ -1,7 +1,7 @@
 name: Release
 
 # Push a tag like v1.0.0 (its commit on main) → CI on that commit must pass, the .deb is built, and a GitHub Release
-# is created with the .deb and the changelog notes attached. The same tag also
+# is created with the .deb, the files `cm --update` installs (script, app tarball, SHA256SUMS) and the changelog notes. The same tag also
 # starts ppa.yml (Launchpad PPA upload).
 on:
   push:
@@ -37,6 +37,10 @@ jobs:
       - name: Build the .deb
         run: packaging/build-deb.sh
 
+      # `cm --update` installs these only when they match SHA256SUMS
+      - name: Update files and SHA256SUMS
+        run: packaging/build-update-assets.sh
+
       # The tagged commit is on main, so CI (tests, ShellCheck, store metadata, packages)
       # already runs on it: wait for that run instead of testing twice. Red → no release.
       - name: CI passed on this commit
@@ -60,7 +64,7 @@ jobs:
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.deb --title "CleanMate ${GITHUB_REF_NAME#v}" --notes-file notes.md
+        run: gh release create "$GITHUB_REF_NAME" dist/*.deb dist/cleanmate.sh dist/cleanmate-app.tar.gz dist/SHA256SUMS --title "CleanMate ${GITHUB_REF_NAME#v}" --notes-file notes.md
 
   # Publishes to the Snap Store (= Ubuntu App Center). Skipped until the
   # SNAPCRAFT_STORE_CREDENTIALS secret is set (snapcraft export-login).
