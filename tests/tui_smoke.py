@@ -6,7 +6,18 @@ never prints an error. Self-contained: a throwaway HOME, and `sudo`/`pkexec`
 stubs that always fail, so the screens are the same on every machine. Works as
 an ordinary user and as root. Needs the `pyte` module (pip install pyte).
 """
-import fcntl, os, pty, re, select, shutil, signal, struct, sys, tempfile, termios, time
+import fcntl
+import os
+import pty
+import re
+import select
+import shutil
+import signal
+import struct
+import sys
+import tempfile
+import termios
+import time
 
 import pyte
 

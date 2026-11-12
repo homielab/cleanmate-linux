@@ -1306,7 +1306,7 @@ def uninstaller_test(win, report, wait, finish):
     def ai_listed():
         ai = next(i for i, a in page.apps.items() if a["kind"] == "appimage")
         a = page.apps[ai]
-        report(a["name"] == "Zqnote" and a["bytes"] == 2000 and [l["path"] for l in a["leftovers"]] == [ai_data]
+        report(a["name"] == "Zqnote" and a["bytes"] == 2000 and [lo["path"] for lo in a["leftovers"]] == [ai_data]
                and page.rows[ai].get_subtitle().startswith("AppImage"),
                f"an AppImage app is listed with its size and folder: {a['name']}, {a['bytes']}, {a['leftovers']}")
         for i in list(page.selected):  # Spotify, skipped before, is still ticked

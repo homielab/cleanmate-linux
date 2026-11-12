@@ -109,8 +109,9 @@ python3 tests/similar_test.py   # Similar Photos: hashes and grouping on generat
 python3 tests/preview_test.py   # thumbnails and video frames of the file pages (python3-gi; videos also gir1.2-gstreamer-1.0)
 python3 tests/messages_test.py  # every code the engine sends has a text in the desktop app, in Vietnamese too
 LC_ALL=vi_VN.UTF-8 tests/run.sh   # same, in a language with a decimal comma (also de_DE.UTF-8; needs `sudo locale-gen vi_VN.UTF-8`). CI runs both on the tests that format or sort numbers and texts
-shellcheck -S warning -x cleanmate.sh tests/run.sh tests/bench-*.sh packaging/*.sh packaging/flathub/build.sh po/*.sh   # CI pins ShellCheck 0.11.0
+shellcheck -S warning -x cleanmate.sh tests/run.sh tests/bench-*.sh packaging/*.sh packaging/flathub/*.sh po/*.sh   # CI pins ShellCheck 0.11.0
 python3 -m py_compile gui/cleanmate-gui $(find gui tests -name '*.py')
+uvx ruff check gui gui/cleanmate-gui tests   # errors and real bugs only (ruff.toml)
 bash cleanmate.sh --dry-run   # try it for real without deleting anything
 ```
 
@@ -235,3 +236,5 @@ with the `.deb` and the snap. The snap is otherwise built only when `snap/` chan
 Once CleanMate is on Flathub, the Flathub bot opens a pull request in `flathub/com.homielab.CleanMate`
 for the new tag; copy its `tag` and `commit` into `packaging/flathub/com.homielab.CleanMate.yml`
 ([packaging/flathub/README.md](packaging/flathub/README.md)).
+After tagging, run `packaging/flathub/pin.sh vX.Y.Z` and commit the result: the manifest must build the
+latest release (`test_flathub_manifest_pinned` fails otherwise).

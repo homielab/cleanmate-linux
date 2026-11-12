@@ -110,7 +110,7 @@ def _static():
         "Electron app": _("Electron app"),
         "not used by any container": _("not used by any container"),
         "BuildKit cache": _("BuildKit cache"),
-        "scan timed out": _("scan timed out"),
+        "scan timed out ({0} s), not counted": _("scan timed out ({0} s), not counted"),  # the engine sends the number
         "needs sqlite3": _("needs sqlite3"),
         "install sqlite3 to count entries": _("install sqlite3 to count entries"),
     }

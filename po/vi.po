@@ -584,8 +584,9 @@ msgid "BuildKit cache"
 msgstr "Bộ nhớ đệm BuildKit"
 
 #: gui/cleanmate_gui/i18n.py:113
-msgid "scan timed out"
-msgstr "quét quá thời gian"
+#, python-brace-format
+msgid "scan timed out ({0} s), not counted"
+msgstr "quét quá thời gian ({0} giây), chưa tính"
 
 #: gui/cleanmate_gui/i18n.py:114
 msgid "needs sqlite3"

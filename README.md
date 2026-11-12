@@ -32,13 +32,18 @@ bash cleanmate.sh --install
 ```
 
 That adds the app to *Show Apps* and the `cm` command to your terminal, all inside your home
-folder. On Ubuntu 22.04 the app grid opens the terminal app (the desktop app needs 24.04+).
+folder.
 Run like this (or from a git clone), the desktop app needs its packages once:
 `sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1` — `cm --gui` says
 when one is missing.
 This copy (like one run from a git clone) lives in a folder you can change, so the desktop app
 never asks for your password with it: items that need root show *Needs CleanMate installed from a
 package*. Clean them with `sudo cm`, or install from the PPA or the `.deb`.
+
+| Ubuntu | How to install | What you get |
+|---|---|---|
+| 24.04 LTS, 26.04 LTS, 26.10 | PPA or `.deb` | desktop app + terminal app `cm` |
+| 22.04 and older | `bash cleanmate.sh --install` | terminal app (TUI) and script; the desktop app needs GTK 4 + libadwaita 1.5 |
 
 **Other ways**
 

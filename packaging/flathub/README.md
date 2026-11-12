@@ -16,6 +16,10 @@ flatpak run com.homielab.CleanMate --scan   # the engine, in the sandbox
 `build.sh` copies the manifest to `dist/flatpak/` with this folder as the source, so you test your
 changes, not the last tag. Remove it with `flatpak uninstall --user com.homielab.CleanMate`.
 
+## After a release
+
+Run `packaging/flathub/pin.sh vX.Y.Z` after tagging and commit the result: it sets `tag` and `commit` in the manifest.
+
 ## Lint
 
 Flathub runs the same checks on every pull request:

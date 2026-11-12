@@ -182,6 +182,51 @@ test_help_and_version() {
   assert_contains "$h" "github.com/homielab/cleanmate-linux"
 }
 
+# the Flatpak manifest builds the release this script says it is (packaging/flathub/pin.sh sets it)
+test_flathub_manifest_pinned() {
+  local m=$ROOT/packaging/flathub/com.homielab.CleanMate.yml tag commit version want
+  tag=$(sed -n 's/^ *tag: *\(v[0-9.]*\).*/\1/p' "$m")
+  commit=$(sed -n 's/^ *commit: *\([0-9a-f]\{40\}\).*/\1/p' "$m")
+  version=$(sed -n 's/^VERSION="\([0-9.]*\)"$/\1/p' "$SCRIPT" | head -n 1)
+  [[ -n $tag && -n $commit && -n $version ]] || { fail "no tag, commit or VERSION found"; return; }
+  if want=$(git -C "$ROOT" rev-parse -q --verify "refs/tags/v$version^{commit}" 2>/dev/null); then
+    if [[ $tag == "v$version" ]]; then ok_ "manifest builds v$version"
+    else fail "packaging/flathub: manifest builds $tag, release is v$version: run packaging/flathub/pin.sh v$version"; fi
+    assert_eq "$commit" "$want" "manifest commit is the one v$version names"
+  elif want=$(git -C "$ROOT" rev-parse -q --verify "refs/tags/$tag^{commit}" 2>/dev/null); then
+    assert_eq "$commit" "$want" "manifest commit is the one $tag names (v$version is not tagged yet)"
+  else
+    SKIPPED="no git tags here to compare the manifest with"
+  fi
+}
+
+# an item that runs past the scan's time limit is not shown as clean: plain output says so, --json calls it a timeout
+test_scan_timeout_not_shown_clean() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  local bin out line js
+  fresh_home
+  bin=$HOME_DIR/bin
+  mkdir -p "$bin"
+  sed 's/^SCAN_TIMEOUT=120$/SCAN_TIMEOUT=2/' "$SCRIPT" >"$WORK/short-timeout.sh"
+  grep -q '^SCAN_TIMEOUT=2$' "$WORK/short-timeout.sh" || { fail "SCAN_TIMEOUT line not found"; return; }
+  printf '#!/bin/sh\nexec sleep 30\n' >"$bin/snap" # Old Snap revisions hangs
+  chmod +x "$bin/snap"
+  local run=(env -i HOME="$HOME_DIR" PATH="$bin:$BASE_PATH" LANG=C.UTF-8 TERM=dumb CLEANMATE_NO_UPDATE_CHECK=1)
+  out=$(timeout 60 "${run[@]}" bash "$WORK/short-timeout.sh" --only system --scan 2>/dev/null)
+  line=$(grep -F "Old Snap revisions" <<<"$out" | head -n 1)
+  assert_contains "$line" "timed out (2 s), not counted"
+  assert_contains "$line" "!"
+  [[ $line == *"✓"* ]] && fail "a timed-out item shows ✓: $line" || ok_ "no ✓ on the timed-out line"
+  js=$(timeout 60 "${run[@]}" bash "$WORK/short-timeout.sh" --json --only system scan 2>/dev/null |
+    python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e.get("event") == "item" and e["id"] == "snap_old":
+        print(e["status"], e["note"])')
+  assert_eq "$js" "timeout scan timed out (2 s), not counted" "--json: status timeout with the limit in the note"
+  rm "$WORK/short-timeout.sh"
+}
+
 test_human_sizes_match_numfmt() {
   fresh_home
   local b mine theirs
@@ -4292,7 +4337,7 @@ test_gui_imports_have_packages() {
   # The desktop app must never die for the lack of a Debian package: every GI namespace it imports
   # (`from gi.repository …`, `gi.require_version`, `gi.require_foreign`) has to be named in
   # debian/control. python3-gi-cairo was missing and the app died at its first Overview chart.
-  # The map is what Ubuntu 24.04 ships; Gst (video thumbnails, imported lazily) may sit in Recommends.
+  # The map is what Ubuntu 24.04 ships; Gst (video thumbnails, imported lazily) and cairo (Overview charts; the page copes without) may sit in Recommends.
   local -A pkg=(
     [Gtk]=gir1.2-gtk-4.0 [Gdk]=gir1.2-gtk-4.0 [Gsk]=gir1.2-gtk-4.0 [Adw]=gir1.2-adw-1
     [Pango]=gir1.2-pango-1.0 [GdkPixbuf]=gir1.2-gdkpixbuf-2.0
@@ -4317,8 +4362,8 @@ test_gui_imports_have_packages() {
     p=${pkg[$ns]:-}
     if [[ -z $p ]]; then
       bad+="   the GUI imports $ns: map it to its Debian package in test_gui_imports_have_packages"$'\n'
-    elif [[ $ns == Gst ]]; then
-      in_field "$p" "$deps $recs" || bad+="   $ns needs $p: not in debian/control Depends or Recommends"$'\n'
+    elif [[ $ns == Gst || $ns == cairo ]]; then
+      in_field "$p" "$deps, $recs" || bad+="   $ns needs $p: not in debian/control Depends or Recommends"$'\n'
     elif ! in_field "$p" "$deps"; then
       bad+="   $ns needs $p: not in debian/control Depends"$'\n'
     fi
@@ -7192,7 +7237,7 @@ notes = {
     "this user can't talk to the Docker daemon": "người dùng này không nói được với daemon Docker",
     "not used by any container": "không container nào dùng",
     "BuildKit cache": "Bộ nhớ đệm BuildKit",
-    "scan timed out": "quét quá thời gian",
+    "scan timed out (120 s), not counted": "quét quá thời gian (120 giây), chưa tính",
     "3 disabled revisions": "3 bản đã tắt",
     "3 history entries, 2 cookies, 1 download": "3 mục lịch sử, 2 cookie, 1 tệp tải về",
     "needs sqlite3": "cần sqlite3",

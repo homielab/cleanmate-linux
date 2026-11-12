@@ -7797,7 +7797,7 @@ scan_items() { # CATEGORY...
     # stopped before its scan ended: left out, it was never checked
     [[ -z ${SCAN_GOT[$id]} ]] && ((SCAN_STOP)) && continue
     # timed out: from its start to the time limit (0 if it never started)
-    [[ -n ${SCAN_GOT[$id]} ]] || RES_RC[$id]=3 RES_BYTES[$id]=0 RES_LOCK[$id]="" RES_NOTE[$id]="scan timed out" \
+    [[ -n ${SCAN_GOT[$id]} ]] || RES_RC[$id]=3 RES_BYTES[$id]=0 RES_LOCK[$id]="" RES_NOTE[$id]="scan timed out ($SCAN_TIMEOUT s), not counted" \
       RES_MS[$id]=$((${SCAN_START[$id]:+now - SCAN_START[$id]}+0))
     ((RES_RC[$id] == 1)) && continue
     humanv h "${RES_BYTES[$id]}"
@@ -7857,9 +7857,13 @@ plain_results() {
       last=$cat
     fi
     ((++i))
+    if ((RES_RC[$id] == 3)); then # ran out of time: not checked to the end, so not shown as clean
+      printf '  %s%2d)  !  %-34s %10s  %s%s\n' "$YELLOW" "$i" "${ITEM_LABEL[$id]}" "" "${RES_NOTE[$id]}" "$NC"
+      continue
+    fi
     if ((RES_RC[$id] != 0)); then
       printf '  %s%2d)  ✓  %-34s %10s  %s%s\n' "$DIM" "$i" "${ITEM_LABEL[$id]}" "" \
-        "$( ((RES_RC[$id] == 3)) || [[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == old_runtimes_asdf_mise || $id == unity_old_editors || $id == vagrant_old_boxes || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
+        "$([[ ( $id == old_installers || $id == old_downloads || $id == old_runtimes || $id == old_runtimes_asdf_mise || $id == unity_old_editors || $id == vagrant_old_boxes || $id == jetbrains_old_versions || $id == vscode_old_extensions ) && -n ${RES_NOTE[$id]} ]] && echo "${RES_NOTE[$id]}" || echo clean)" "$NC"
       continue
     fi
     if ((SEL[$id])); then box="${GREEN}[x]${NC}"; else box="${DIM}[ ]${NC}"; fi
@@ -7945,10 +7949,11 @@ review_row() {
       fitv nt "$nt" "$RV_NW"
       if ((RES_RC[$id] != 0)); then
         printf -v sz '%9s' ""
-        local st="clean"; ((RES_RC[$id] == 3)) && st="timed out"
+        local st="clean" mk="✓" tint=$DIM
+        ((RES_RC[$id] == 3)) && st=${RES_NOTE[$id]} mk="!" tint=$YELLOW # ran out of time: not shown as clean
         fitv nt "$st" "$RV_NW"
         repeatv barv ' ' $((RV_BW ? RV_BW + 1 : 0))
-        fl "   ${DIM}✓ $lbl $barv$sz  $nt${NC}"
+        fl "   ${tint}$mk $lbl $barv$sz  $nt${NC}"
         return
       fi
       (($2)) && mark="${ACCENT}▸${NC} " lbl="${BOLD}$lbl${NC}"

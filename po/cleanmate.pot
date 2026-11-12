@@ -583,7 +583,8 @@ msgid "BuildKit cache"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:113
-msgid "scan timed out"
+#, python-brace-format
+msgid "scan timed out ({0} s), not counted"
 msgstr ""
 
 #: gui/cleanmate_gui/i18n.py:114

@@ -474,12 +474,12 @@ class UninstallerPage(Gtk.Box):
 
     def chosen(self):
         apps = [a for a in self.sorted_apps() if a["id"] in self.selected and not self.held(a)]  # in the list's order
-        folders = [l for a in apps for l in a["leftovers"] if l["path"] in self.left_selected]
+        folders = [lo for a in apps for lo in a["leftovers"] if lo["path"] in self.left_selected]
         return apps, folders
 
     def update_summary(self):
         apps, folders = self.chosen()
-        size = sum(a["bytes"] for a in apps) + sum(l["bytes"] for l in folders)
+        size = sum(a["bytes"] for a in apps) + sum(lo["bytes"] for lo in folders)
         text = ngettext("Selected <b>{size}</b> in {n} app", "Selected <b>{size}</b> in {n} apps", len(apps),
                         size=human(size))
         if folders:
@@ -503,14 +503,14 @@ class UninstallerPage(Gtk.Box):
         if len(apps) < 2:
             return
         apps = sorted(apps, key=lambda a: a["name"].lower())
-        sizes = {a["id"]: a["bytes"] + sum(l["bytes"] for l in a["leftovers"] if l["path"] in self.left_selected)
+        sizes = {a["id"]: a["bytes"] + sum(lo["bytes"] for lo in a["leftovers"] if lo["path"] in self.left_selected)
                  for a in apps}
         group = Adw.PreferencesGroup(
             title=ngettext("{n} app selected", "{n} apps selected", len(apps)),
             description=_("Removed together: one confirmation, and your password once for apt and Snap apps."))
         biggest = max(sizes.values()) or 1
         for a in apps:
-            folders = [l for l in a["leftovers"] if l["path"] in self.left_selected]
+            folders = [lo for lo in a["leftovers"] if lo["path"] in self.left_selected]
             if folders:
                 note = ngettext("{n} folder to the Trash", "{n} folders to the Trash", len(folders))
             elif a["leftovers"]:
@@ -586,7 +586,7 @@ class UninstallerPage(Gtk.Box):
         if folders:
             body.append(ngettext("{n} folder ({size}) will go to the Trash — you can undo that.",
                                  "{n} folders ({size}) will go to the Trash — you can undo that.", len(folders),
-                                 size=human(sum(l["bytes"] for l in folders))))
+                                 size=human(sum(lo["bytes"] for lo in folders))))
         else:
             body.append(_("Your folders in your home are kept."))
         if any(a["kind"] == "appimage" and a["id"] not in running for a in apps):
@@ -699,8 +699,8 @@ class UninstallerPage(Gtk.Box):
             run(root_ids, trash_leftovers, as_root=not dry)
 
         def trash_leftovers():
-            paths = [l["path"] for a in apps if a["id"] in removed for l in a["leftovers"]
-                     if l["path"] in self.left_selected]
+            paths = [lo["path"] for a in apps if a["id"] in removed for lo in a["leftovers"]
+                     if lo["path"] in self.left_selected]
             if not paths:
                 return finish({}, 0)
             moved, done = {}, []
