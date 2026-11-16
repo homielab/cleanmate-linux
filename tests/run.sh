@@ -157,7 +157,12 @@ runs_exe() { # PID EXE — PID runs EXE
   # shellcheck disable=SC2016
   proc_check "$1" '[[ $(readlink "/proc/$1/exe") == "$2" ]]' "$(realpath "$2")"
 }
-not_running() { ! kill -0 "$1" 2>/dev/null; } # PID
+not_running() { # PID — gone, or ended and not collected yet (a zombie: where nothing reaps orphans, as in a container)
+  local stat
+  kill -0 "$1" 2>/dev/null || return 0
+  stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 0
+  [[ ${stat##*) } == Z* ]]
+}
 port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; } # PORT — something listens there
 
 ok_() { ((VERBOSE)) && printf '    %s✔ %s%s\n' "$D" "$*" "$N"; return 0; }

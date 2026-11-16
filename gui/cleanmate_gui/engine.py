@@ -46,6 +46,7 @@ FLATPAK_LIMITS_URL = ("https://github.com/homielab/cleanmate-linux/blob/main/pac
 # the last lines the engine wrote to stderr, kept for the error page and the bug report
 STDERR_LINES = 20
 STDERR_GRACE_MS = 300  # after a failed run, how long to wait for its last stderr lines
+STDERR_BLOCK = 4096  # bytes asked from stderr at a time
 # pkexec's own exit statuses: the password dialog was dismissed (126), not authorized or no dialog (127)
 PKEXEC_DISMISSED, PKEXEC_REFUSED = 126, 127
 # a run that needed root and was never started: this copy of the engine isn't root's (root_owned)
@@ -134,6 +135,8 @@ class Run(Gio.Cancellable):
     report (a scan then lists the items it got to)."""
     proc = None
     stderr = ()  # the last STDERR_LINES lines the engine wrote to stderr
+    stderr_open = True  # the engine (or a child it left running) still has stderr open
+    stderr_reads = 0  # how many times a read of stderr came back
     command = ""  # the engine command: scan, clean, large …
     writes = False  # it changes something on the disk (WRITING)
 
@@ -216,7 +219,8 @@ class Engine:
             GLib.idle_add(on_done, False, -1)
             return cancellable
         stream = Gio.DataInputStream.new(proc.get_stdout_pipe())
-        errors = Gio.DataInputStream.new(proc.get_stderr_pipe())
+        errors = proc.get_stderr_pipe()
+        pending = bytearray()  # stderr read so far that no newline has ended yet
         tail = deque(maxlen=STDERR_LINES)
         cancellable.proc = proc
         cancellable.stderr = tail
@@ -242,6 +246,7 @@ class Engine:
                 return
             failed = status != 0 and not cancellable.is_cancelled()
             if failed:
+                keep_error_lines(last=True)
                 applog.write(f"cm --json {cancellable.command}: exit status {status}\n" + "\n".join(tail))
                 call(on_event, {"event": "failed", "status": status, "stderr": list(tail)})
             call(on_done, status == 0, status)
@@ -274,19 +279,29 @@ class Engine:
             else:
                 GLib.timeout_add(STDERR_GRACE_MS, lambda: end() and False)
 
-        def got_error_line(s, result):  # bytes: a stray non-UTF-8 line must not stop the reading (and the engine)
+        def keep_error_lines(last=False):
+            """Move the whole lines read so far to the tail; with LAST, also what follows the last newline."""
+            *lines, rest = bytes(pending).split(b"\n")
+            pending[:] = b"" if last else rest
+            for line in lines + ([rest] if last else []):
+                text = line.decode("utf-8", "replace").strip()  # a stray non-UTF-8 line must not stop the reading
+                if text:
+                    tail.append(text)
+
+        def got_errors(s, result):  # blocks of bytes, not lines: only an empty block says the engine closed stderr
+            cancellable.stderr_reads += 1
             try:
-                line, _len = s.read_line_finish(result)
+                data = s.read_bytes_finish(result).get_data()
             except GLib.Error:
-                line = None
-            if line is None:
-                state["stderr_open"] = False
+                data = None
+            if not data:  # closed, cancelled or failed: nothing more to read
+                keep_error_lines(last=True)
+                state["stderr_open"] = cancellable.stderr_open = False
                 end()
                 return
-            text = bytes(line).decode("utf-8", "replace").rstrip()
-            if text.strip():
-                tail.append(text)
-            s.read_line_async(GLib.PRIORITY_DEFAULT, err_cancel, got_error_line)
+            pending.extend(data)
+            keep_error_lines()
+            s.read_bytes_async(STDERR_BLOCK, GLib.PRIORITY_DEFAULT, err_cancel, got_errors)
 
         def got_line(s, result):
             try:
@@ -308,7 +323,7 @@ class Engine:
             s.read_line_async(GLib.PRIORITY_DEFAULT, cancellable, got_line)
 
         stream.read_line_async(GLib.PRIORITY_DEFAULT, cancellable, got_line)
-        errors.read_line_async(GLib.PRIORITY_DEFAULT, err_cancel, got_error_line)
+        errors.read_bytes_async(STDERR_BLOCK, GLib.PRIORITY_DEFAULT, err_cancel, got_errors)
         return cancellable
 
     # ── convenience wrappers ──

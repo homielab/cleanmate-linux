@@ -2588,8 +2588,32 @@ def robustness_test(win, report, wait, finish):
         events, ended = run(fake("exits.sh", "echo '{\"event\":\"item\"}'\nexit 3\n"))
         wait(lambda: ended, lambda: (
             report(ended == [(False, 3)] and [e["status"] for e in events if e["event"] == "failed"] == [3],
-                   f"an engine that exits halfway ends the run as failed ({events}, {ended})"), raises()),
+                   f"an engine that exits halfway ends the run as failed ({events}, {ended})"), closes_stderr()),
              20, "the exit without done")
+
+    def closes_stderr():
+        # stderr closed long before the engine ends: its end is read once, not again and again until the exit
+        go = os.path.join(sandbox, "go")
+        engine = fake("closes.sh", "echo 'first line' >&2\nprintf 'no newline' >&2\nexec 2>&-\n"
+                      f"echo '{{\"event\":\"item\"}}'\nuntil [ -e '{go}' ]; do sleep 0.05; done\n"
+                      "echo '{\"event\":\"item\"}'\nexit 3\n")
+        events, ended = [], []
+        run_ = engine.run(["scan"], events.append, lambda ok, status: ended.append((ok, status)))
+        reads = []
+
+        def closed():
+            reads.append(run_.stderr_reads)
+            open(go, "w").close()
+            wait(lambda: ended, check, 20, "the engine that closed stderr to end")
+
+        def check():
+            failed = [e for e in events if e["event"] == "failed"]
+            report(run_.stderr_reads == reads[0] and ended == [(False, 3)] and len(events) == 3
+                   and [e["stderr"] for e in failed] == [["first line", "no newline"]],
+                   "an engine that closes stderr early is read to its end once, the run still ends with its last "
+                   f"lines ({reads[0]} reads then, {run_.stderr_reads} at the end, {ended}, {failed})")
+            raises()
+        wait(lambda: not run_.stderr_open and len(events) == 1, closed, 20, "the engine to close stderr")
 
     def raises():
         engine = fake("raises.sh", "for i in $(seq 2000); do echo '{\"event\":\"item\",\"id\":\"x\"}'; done\nexec sleep 30\n")
@@ -2777,8 +2801,9 @@ def bug_report_test(win, report, wait, finish):
 
     def too_long(notice, long_body, copied):
         n = len(opened)
-        notice.emit("response", "open")
-        notice.force_close()
+        # the button itself, as a click does: libadwaita 1.9 answers a dialog closed after a hand-made
+        # "response" a second time
+        next(w for w in walk(notice) if isinstance(w, Gtk.Button) and w.get_label() == _("Open GitHub")).emit("clicked")
         report(copied == long_body and len(opened) == n + 1
                and opened[-1] == B.REPO_URL + "/issues/new?template=bug_report.yml",
                "a report too long for a link is copied and the empty bug template opens")
