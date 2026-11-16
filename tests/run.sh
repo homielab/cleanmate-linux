@@ -4344,6 +4344,7 @@ test_gui_imports_have_packages() {
     [GLib]=gir1.2-glib-2.0 [Gio]=gir1.2-glib-2.0 [GObject]=gir1.2-glib-2.0 [GioUnix]=gir1.2-glib-2.0
     [Gst]=gir1.2-gstreamer-1.0
     [cairo]=python3-gi-cairo # gi.require_foreign("cairo"): the cairo.Context converter
+    [Graphene]=gir1.2-graphene-1.0 # the rectangle of the test draw that checks the converter
   )
   local joined deps recs
   joined=$(sed -e ':a' -e 'N' -e '$!ba' -e 's/\n[[:space:]]\+/ /g' debian/control)
@@ -4369,6 +4370,44 @@ test_gui_imports_have_packages() {
     fi
   done
   [[ -z $bad ]] || { printf '%s' "$bad"; fail "the GUI's imports and debian/control disagree"; }
+}
+
+test_gui_overview_without_cairo_bridge() {
+  # System Overview on a system without python3-gi-cairo (python3-cairo may be there): PyGObject can't
+  # hand GTK's cairo.Context to a draw callback ("Couldn't find foreign struct converter for
+  # 'cairo.Context'"). The page shows a note where each chart would be and renders. The bridge is
+  # hidden from Python here, so this runs the same with and without the package installed.
+  command -v gtk4-broadwayd >/dev/null || { SKIPPED="gtk4-broadwayd not installed (package libgtk-4-bin)"; return; }
+  local py="" c
+  for c in python3 /usr/bin/python3; do
+    "$c" -c 'import gi; gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_version()) >= (1, 5)' 2>/dev/null &&
+      { py=$c; break; }
+  done
+  [[ -n $py ]] || { SKIPPED="GTK 4 + libadwaita 1.5 not available"; return; }
+  fresh_home
+  local out srv display=$((100 + RANDOM % 40)) rt=$WORK/runtime
+  mkdir -p "$rt" && chmod 700 "$rt"
+  XDG_RUNTIME_DIR=$rt gtk4-broadwayd ":$display" >/dev/null 2>&1 &
+  srv=$!
+  broadway_up() { compgen -G "$rt/broadway*.socket" >/dev/null; }
+  wait_for 10 "the Broadway display server" broadway_up
+  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" LANG=C.UTF-8 XDG_RUNTIME_DIR="$rt" CLEANMATE_SELFTEST_ONLY=overview \
+    GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" timeout 120 "$py" -c '
+import runpy, sys
+sys.modules["gi._gi_cairo"] = None  # what Python finds without python3-gi-cairo: no such module
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name="__main__")' "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
+  kill "$srv" 2>/dev/null
+  ((VERBOSE)) && grep -E 'SELFTEST|cleanmate-gui:' <<<"$out" | sed 's/^/      | /'
+  assert_contains "$out" "SELFTEST done"
+  [[ $out == *"foreign struct converter"* ]] &&
+    { fail "the Overview hit the missing cairo converter"; grep -n -B3 'foreign struct converter' <<<"$out" | head -12 | sed 's/^/      | /'; }
+  [[ $out == *Traceback* ]] && { fail "the app printed a traceback"; grep -n -A6 Traceback <<<"$out" | head -14 | sed 's/^/      | /'; }
+  [[ $out == *"SELFTEST FAIL"* ]] && { fail "GUI self-test reported a failure"; grep 'SELFTEST FAIL' <<<"$out" | sed 's/^/      | /'; }
+  assert_contains "$out" "the Overview charts need python3-gi-cairo"
+  assert_contains "$out" "a note stands where each chart would be (2 of 2)"
+  assert_contains "$out" "the Overview rendered without the cairo bridge"
 }
 
 test_gui_selftest() {
@@ -4413,7 +4452,11 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
     [[ $out == *"foreign struct converter"* ]] &&
       { fail "a chart hit the missing cairo converter"; grep -n 'foreign struct converter' <<<"$out" | head -3 | sed 's/^/      | /'; }
     [[ $out == *"SELFTEST FAIL"* ]] && { fail "GUI self-test reported a failure"; grep 'SELFTEST FAIL' <<<"$out" | sed 's/^/      | /'; }
-    assert_contains "$out" "the Overview charts drew to snapshots"
+    if "$py" -c 'import gi; gi.require_foreign("cairo")' 2>/dev/null; then
+      assert_contains "$out" "the Overview charts drew to snapshots"
+    else # no python3-gi-cairo here: the page must cope, with notes where the charts would be
+      assert_contains "$out" "the Overview rendered without the cairo bridge"
+    fi
     assert_contains "$out" "the charts stay hidden"
     assert_contains "$out" "step 1 fills the dialog"
     assert_contains "$out" "dry-run clean finished"

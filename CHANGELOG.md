@@ -18,6 +18,9 @@ All notable changes are listed here. The format follows
 - CleanMate never deletes or moves to the Trash your SSH and GPG keys, keyrings, password store, or your Documents, Desktop, Downloads, Pictures, Music and Videos folders themselves, and every permanent delete now respects your Never clean list.
 - `cm --update` installs a new version only when the script and the desktop app match the release's published SHA256SUMS; a damaged, changed or half-finished download leaves your installed version untouched and exits with an error. Updates now come from the latest GitHub release instead of the main branch.
 
+### Fixed
+- System Overview no longer fails when the cairo bridge for Python (`python3-gi-cairo`) is missing or doesn't work, also when `python3-cairo` alone is installed: a note stands where each chart would be. The `.deb` from GitHub now recommends the package, so the charts show after a normal install.
+
 ## [2.5.1] - 2026-11-11
 
 First full release of the 2.5 series; 2.5.0 reached only the PPA.

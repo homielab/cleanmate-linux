@@ -33,19 +33,29 @@ ANIMATION_MS = 600  # the Freed numbers count up and the bars grow this long
 _charts_ok = None  # None until the first chart asks; remembered for the whole session
 
 
+def cairo_bridge_works():
+    """Ask GTK for a cairo.Context, the way it hands one to a draw callback. Raises when PyGObject can't
+    convert it: `python3-gi-cairo` missing (also with `python3-cairo` installed), or one that doesn't load."""
+    import gi
+    gi.require_foreign("cairo")
+    from gi.repository import Graphene
+    cr = Gtk.Snapshot().append_cairo(Graphene.Rect().init(0, 0, 1, 1))
+    cr.rectangle(0, 0, 1, 1)
+
+
 def charts_ok():
     """True when PyGObject can hand a cairo.Context to a draw callback: the `python3-gi-cairo` package.
     Without it the charts are left out (a note shows instead) and the app keeps working."""
     global _charts_ok
     if _charts_ok is None:
         try:
-            import gi
-            gi.require_foreign("cairo")
+            cairo_bridge_works()
             _charts_ok = True
-        except Exception as error:  # not installed, or present without its cairo bridge
+        except Exception as error:  # not installed, or present without a working cairo bridge
             _charts_ok = False
+            why = type(error).__name__ if isinstance(error, TypeError) else error  # TypeError: GTK's own wording
             print(f"cleanmate-gui: the Overview charts need python3-gi-cairo "
-                  f"(install it with: sudo apt install python3-gi-cairo): {error}", file=sys.stderr, flush=True)
+                  f"(install it with: sudo apt install python3-gi-cairo): {why}", file=sys.stderr, flush=True)
     return _charts_ok
 
 
@@ -141,7 +151,8 @@ class HistoryChart(Gtk.DrawingArea):
                          margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
         self.points = points[-HISTORY_POINTS:]
         self.hover = None
-        self.set_draw_func(guarded_draw(self.draw))
+        if charts_ok():  # without the cairo bridge GTK can't call a draw func at all: draw nothing
+            self.set_draw_func(guarded_draw(self.draw))
         self.connect("query-tooltip", self.on_query_tooltip)
         motion = Gtk.EventControllerMotion()
         motion.connect("motion", lambda _c, x, _y: self.set_hover(self.index_at(x)))
@@ -220,7 +231,8 @@ class FreedByDayChart(Gtk.DrawingArea):
         self.days = days  # [{"date", "bytes", "cleanups"}], oldest first
         self.hover = None
         self.progress = 1.0  # share of each bar's height, while they grow
-        self.set_draw_func(guarded_draw(self.draw))
+        if charts_ok():  # without the cairo bridge GTK can't call a draw func at all: draw nothing
+            self.set_draw_func(guarded_draw(self.draw))
         self.connect("query-tooltip", self.on_query_tooltip)
         motion = Gtk.EventControllerMotion()
         motion.connect("motion", lambda _c, x, _y: self.set_hover(self.index_at(x)))

@@ -97,6 +97,9 @@ def run(app, win):
         print("SELFTEST done", flush=True)
         app.quit()
 
+    if ONLY == "overview":
+        return overview_test(win, report, wait, finish)
+
     def check_item_texts():
         """Item names and descriptions in the app's language; untranslated ones are listed, not failed."""
         texts = [(e["id"], f, e[f]) for e in page.items.values() for f in ("label", "description") if e[f]]
@@ -686,6 +689,7 @@ def duplicates_test(win, report, wait, finish):
 # Measured 130-210 ms in Docker on a Mac; a person notices a freeze from about half a second.
 # Shared CI runners stall for a few hundred ms now and then; a real hang is seconds, so CI gets more room.
 MAX_PAUSE_MS = int(os.environ.get("CLEANMATE_SELFTEST_MAX_PAUSE_MS") or 500)
+ONLY = os.environ.get("CLEANMATE_SELFTEST_ONLY") or ""  # "overview": only the System Overview checks
 
 
 def similar_photos_test(win, report, wait, finish):
@@ -2329,8 +2333,12 @@ def overview_test(win, report, wait, finish):
     def done():
         page.engine = real_engine
         shutil.rmtree(sandbox, ignore_errors=True)
+        if ONLY == "overview":
+            return finish()
         bug_report_test(win, report, wait, finish)
 
+    from . import overview as O
+    bridge = O.charts_ok()  # False on a system without python3-gi-cairo: the chart checks become note checks
     from .overview import outside_size_note, outside_text
     from .scanpage import unfinished_description
     fake_row = {"kind": "timeshift", "bytes": None, "path": "/timeshift/snapshots", "count": 2,
@@ -2460,7 +2468,7 @@ def overview_test(win, report, wait, finish):
         report(trash == {"freed30": in_trash, "lifetime": in_trash, "last": in_trash},
                f"what the cleanups moved to the Trash is shown apart under each number ({trash})")
         days = freed.chart.days if freed.chart else []
-        report(len(days) == 30 and [i for i, d in enumerate(days) if d["cleanups"]] == [28]
+        report(not bridge or len(days) == 30 and [i for i, d in enumerate(days) if d["cleanups"]] == [28]
                and human(2147483648) in freed.chart.day_text(28) and freed.chart.day_text(0) != freed.chart.day_text(28)
                and freed.chart.bars(300, 120)[28] is not None and freed.chart.bars(300, 120)[0] is None,
                "freed per day: 30 days, a bar for yesterday's cleanup with its date and size")
@@ -2471,7 +2479,6 @@ def overview_test(win, report, wait, finish):
         settings.set_property("gtk-enable-animations", was)
         report(not still.animated and still.numbers["lifetime"][0].get_label() == human(2147483648),
                "with animations off the Freed numbers show their value at once")
-        from . import overview as O
         O._charts_ok = False  # what a system without python3-gi-cairo sees
         page.refresh_button.emit("clicked")
         wait(lambda: idle() and page.freed is not None and "top:" + videos in page.rows, without_charts, 60,
@@ -2491,8 +2498,7 @@ def overview_test(win, report, wait, finish):
                 stack.append(c)
                 c = c.get_next_sibling()
         report(len(labels) == 2, f"a note stands where each chart would be ({len(labels)} of 2)")
-        from . import overview as O
-        O._charts_ok = True  # this machine has the package: back to the charts
+        O._charts_ok = bridge  # back to what this machine has
         page.refresh_button.emit("clicked")
         wait(lambda: idle() and page.freed is not None and "top:" + videos in page.rows, refreshed_again, 60,
              "second refresh")
@@ -2500,6 +2506,10 @@ def overview_test(win, report, wait, finish):
     def refreshed_again():
         report(not page.freed.animated and page.freed.numbers["freed30"][0].get_label() == human(2147483648),
                "Refresh doesn't count up again")
+        if not bridge:  # nothing to draw here: the whole page still has to render without the converter error
+            report(page.chart is None and page.freed.chart is None,
+                   "no cairo bridge on this system: notes instead of charts")
+            return screenshot(page, os.path.join(sandbox, "overview.png"), then=drawn)
         chart = page.chart
         report(chart is not None and [p["avail"] for p in chart.points] == [9000000000, 7000000000, 5000000000]
                and human(7000000000) in chart.point_text(1), "free-space history: a chart of three days with a "
@@ -2512,7 +2522,10 @@ def overview_test(win, report, wait, finish):
     def drawn():
         # rendering a chart hands the draw func a real cairo.Context: without the converter the app dies
         # right here, so this check is what makes a missing python3-gi-cairo visible on CI
-        report(len(chart_drawn) == 2, "the Overview charts drew to snapshots (a missing converter dies here)")
+        if bridge:
+            report(len(chart_drawn) == 2, "the Overview charts drew to snapshots (a missing converter dies here)")
+        else:
+            report(True, "the Overview rendered without the cairo bridge")
         page.rows["top:" + videos].activate()
         lens = win.pages["lens"]
         wait(lambda: lens.running is None and lens.folder == videos, lambda: opened(lens), 60, "Space Lens folder")
