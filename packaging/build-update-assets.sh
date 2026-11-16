@@ -3,7 +3,8 @@
 # Lay out what `cm --update` downloads from a GitHub release, in OUT (default dist/):
 #   cleanmate.sh            the script
 #   cleanmate-app.tar.gz    the desktop app and icon (cleanmate-app/gui, cleanmate-app/data)
-#   SHA256SUMS              sha256 of those two and of every .deb already in OUT
+#   SHA256SUMS              sha256 of those two and of every .deb and .AppImage already in OUT
+#                           (an AppImage updates itself to the release's image, checked against it)
 #
 #   packaging/build-update-assets.sh
 #
@@ -21,5 +22,5 @@ tar -C "$ROOT" --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 \
 
 cd "$OUT"
 shopt -s nullglob
-sha256sum cleanmate.sh cleanmate-app.tar.gz ./*.deb | sed 's,  \./,  ,' >SHA256SUMS
+sha256sum cleanmate.sh cleanmate-app.tar.gz ./*.deb ./*.AppImage | sed 's,  \./,  ,' >SHA256SUMS
 cat SHA256SUMS

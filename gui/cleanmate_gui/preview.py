@@ -15,7 +15,7 @@ import gi
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
 
 from .a11y import named
-from . import applog, similar
+from . import applog, bundle, similar
 from .i18n import _
 
 THUMB = 40  # px, the picture at the start of a file row
@@ -48,9 +48,12 @@ _GST, _GST_LOCK = None, threading.Lock()
 
 
 def gstreamer():
-    """The GStreamer module, or None when this system has no GStreamer for Python (videos then get an icon)."""
+    """The GStreamer module, or None when this system has no GStreamer for Python (videos then get an icon).
+    Never in the AppImage: the computer's GStreamer would be loaded next to the image's own GLib."""
     global _GST
     with _GST_LOCK:
+        if _GST is None and bundle.ACTIVE:
+            _GST = False
         if _GST is None:
             try:
                 gi.require_version("Gst", "1.0")

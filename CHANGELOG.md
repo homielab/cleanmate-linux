@@ -7,6 +7,7 @@ All notable changes are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- CleanMate now comes as an AppImage: download one file from Releases and run it — no `sudo`, nothing to install. It brings its own Python, GTK 4 and libadwaita (Ubuntu 24.04 or newer, x86_64) and updates itself with `--update`.
 - AI Models lists each llama.cpp, Jan, GPT4All and ComfyUI model on its own with when you last used it, and the Overview suggests a review when models haven't been used for 90 days. Not pre-selected; a model goes to the Trash, and models of a running app are skipped.
 - Developer Junk lists virtual machines of GNOME Boxes, virt-manager and VirtualBox you haven't started for 90 days, one row per machine with its size. Not pre-selected; a machine goes to the Trash whole, and running machines are skipped.
 

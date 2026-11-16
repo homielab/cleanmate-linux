@@ -44,12 +44,27 @@ package*. Clean them with `sudo cm`, or install from the PPA or the `.deb`.
 |---|---|---|
 | 24.04 LTS, 26.04 LTS, 26.10 | PPA or `.deb` | desktop app + terminal app `cm` |
 | 22.04 and older | `bash cleanmate.sh --install` | terminal app (TUI) and script; the desktop app needs GTK 4 + libadwaita 1.5 |
+| 24.04 or newer without `sudo`, other distributions | AppImage | desktop app + terminal app `cm`, nothing to install |
 
 **Other ways**
 
 - **Package:** download `cleanmate_<version>_all.deb` from
   [Releases](https://github.com/homielab/cleanmate-linux/releases), double-click it (App Center)
   or `sudo apt install ./cleanmate_*_all.deb`.
+- **AppImage** (no `sudo`, no packages to install): download `CleanMate-<version>-x86_64.AppImage` from
+  [Releases](https://github.com/homielab/cleanmate-linux/releases/latest), then
+
+  ```bash
+  chmod +x CleanMate-*-x86_64.AppImage
+  ./CleanMate-*-x86_64.AppImage              # the desktop app (or double-click the file)
+  ./CleanMate-*-x86_64.AppImage cm           # the terminal app; any option works too: --scan, --clean, --dry-run …
+  ./CleanMate-*-x86_64.AppImage --install    # adds CleanMate to Show Apps and the cm command, both starting this file
+  ```
+
+  It carries its own Python, GTK 4 and libadwaita. Needs a 64-bit Intel/AMD computer with glibc 2.39 or
+  newer: Ubuntu 24.04, Debian 13, Fedora 40 and later. No FUSE (some containers and servers)? Add
+  `--appimage-extract-and-run` as the first option. Keep the file where it is after `--install` (moved
+  it? run `--install` again). Items with a 🔒 need the PPA or the `.deb`, or `sudo cm`.
 - **Just try it:** `bash cleanmate.sh --dry-run` — everything works, nothing is deleted.
 - **Flatpak:** not on Flathub yet (it will be submitted after a release); build it now with
   `packaging/flathub/build.sh`. It cleans your home
@@ -157,7 +172,7 @@ notifies you once: *"Couldn't finish automatic cleaning"*. *Settings → Automat
 last ran and what it freed, or why it failed. In the desktop app it's in *Settings* in the main
 menu (Ctrl+,); both apps share the same settings. The timer runs the installed `cleanmate`: `/usr/bin/cleanmate`
 from the PPA or the `.deb`, `/snap/bin/cleanmate` from the snap (so it keeps working after the snap updates), or the
-copy `cm --install` made. A git clone that isn't installed is run from where it is, and you're asked to install the
+copy `cm --install` made; the AppImage's timer runs the `.AppImage` file itself. A git clone that isn't installed is run from where it is, and you're asked to install the
 launcher so the timer survives moving or deleting the clone.
 
 *Settings → Scan groups* turns a whole group off (say, Developer Junk on a machine you don't code on):
@@ -245,6 +260,11 @@ date; remove it with `sudo apt remove cleanmate`.
 cm --update       # shows your version and the latest, asks, updates the app and icon (only when they match the release's SHA256SUMS)
 cm --uninstall    # removes cm, the desktop app and the Show Apps entry; asks about settings
 ```
+
+**The AppImage:** `./CleanMate-*.AppImage --update` (or `cm --update` after `--install`) downloads the new
+AppImage, checks it against the release's `SHA256SUMS` and puts it in place of your file; the app you have
+open keeps running until you restart it. If the file can't be replaced, it tells you where to download the
+new one.
 
 The app also checks for a new version once a day (one request to GitHub; nothing about you is
 sent) and shows **⬆ Update** in the menu — turn it off in *Settings → Daily update check*.

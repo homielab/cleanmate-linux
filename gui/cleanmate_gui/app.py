@@ -9,7 +9,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
-from . import applog, messages, welcome  # noqa: E402
+from . import applog, bundle, messages, welcome  # noqa: E402
 from .engine import Engine  # noqa: E402
 from .i18n import _  # noqa: E402
 
@@ -57,6 +57,7 @@ class App(Adw.Application):
         quit_action.connect("activate", lambda *_: self.close_windows())
         self.add_action(quit_action)
         self.set_accels_for_action("app.quit", ["<Control>q"])
+        bundle.leave()  # the AppImage: from here on, what the app starts sees the computer's own environment
 
     def do_shutdown(self):
         self.engine.stop_all()  # whatever way it quits, no engine run goes on without the app
@@ -64,7 +65,10 @@ class App(Adw.Application):
 
     @staticmethod
     def relaunch_argv():
-        """The command that started this app (`cm --gui` runs `python3 …/cleanmate-gui --engine …`)."""
+        """The command that started this app (`cm --gui` runs `python3 …/cleanmate-gui --engine …`; the
+        AppImage, its own starter)."""
+        if bundle.LAUNCHER:
+            return [bundle.LAUNCHER, *sys.argv[1:]]
         return [sys.executable or "/usr/bin/python3", os.path.abspath(sys.argv[0]), *sys.argv[1:]]
 
     def close_windows(self):

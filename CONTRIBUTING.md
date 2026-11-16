@@ -147,6 +147,14 @@ one and points out a new one). `packaging/build-source.sh -us -uc` builds them u
 `dist/ppa/` (`SERIES=noble` for one), each versioned `<debian/changelog version>~<series>`; never write a series
 name into `debian/changelog` by hand.
 
+The AppImage (x86_64) holds the engine, the desktop app and its own Python, GTK 4 and libadwaita, copied
+from the system that builds it. `packaging/build-appimage.sh --docker` builds it in a fresh `ubuntu:24.04`
+container (the oldest system it supports) into `dist/`; `packaging/test-appimage.sh` then runs it in a
+container without Python or GTK, as an ordinary user: the terminal app, the engine's JSON and the desktop
+app's self-test. A new GObject namespace or image format in `gui/` → add its typelib to `TYPELIBS` in the
+build script. In the image the engine knows it by `APPDIR` + `APPIMAGE`: `--install`, the timers and
+`--update` use the `.AppImage` file, never its mount (`test_appimage_install_timer_update`).
+
 ## Desktop app
 
 ```bash
@@ -231,8 +239,8 @@ checks the Vietnamese ones).
 
 Bump `VERSION` in `cleanmate.sh` and `snap/snapcraft.yaml`, update
 `CHANGELOG.md` and the metainfo release notes, merge to `main`, push `main` and a `vX.Y.Z` tag — the release waits for CI on that commit
-(it doesn't rerun the tests; red CI → no release), builds the `.deb` and creates the GitHub release
-with the `.deb` and the snap. The snap is otherwise built only when `snap/` changes (`snap.yml`).
+(it doesn't rerun the tests; red CI → no release), builds the `.deb` and the AppImage (tried in a clean container first) and creates the GitHub release
+with the `.deb`, the AppImage and the snap. The snap is otherwise built only when `snap/` changes (`snap.yml`).
 Once CleanMate is on Flathub, the Flathub bot opens a pull request in `flathub/com.homielab.CleanMate`
 for the new tag; copy its `tag` and `commit` into `packaging/flathub/com.homielab.CleanMate.yml`
 ([packaging/flathub/README.md](packaging/flathub/README.md)).

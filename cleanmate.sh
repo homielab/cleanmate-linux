@@ -9957,6 +9957,7 @@ sr_install() { # → SR_INSTALL: how this copy was installed
   local v
   if [[ -n ${SNAP:-} ]]; then SR_INSTALL="snap${SNAP_REVISION:+ (revision $SNAP_REVISION)}"
   elif ((FLATPAK)); then SR_INSTALL="Flatpak${FLATPAK_ID:+ ($FLATPAK_ID)}"
+  elif ((APPIMG)); then SR_INSTALL="AppImage"
   elif packaged; then # the PPA's versions end in -0ppaN; the GitHub Releases .deb is the bare version
     v=$(dpkg-query -W -f '${Version}' cleanmate 2>/dev/null)
     if [[ $v == *ppa* ]]; then SR_INSTALL="PPA ($v)"; else SR_INSTALL=".deb package${v:+ ($v)}"; fi
@@ -10944,6 +10945,14 @@ APP_ID="com.homielab.CleanMate" # also the desktop app's GApplication id — GNO
 APP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/applications/$APP_ID.desktop"
 ICON_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/$APP_ID.svg"
 SELF=$(realpath -- "${BASH_SOURCE[0]}" 2>/dev/null || echo "$0")
+# The AppImage (packaging/build-appimage.sh): this script is usr/bin/cleanmate in a read-only image that is
+# mounted at a new path on every start ($APPDIR). The file you downloaded ($APPIMAGE) is the only path
+# that stays: `--install`, the timers and `--update` use it, never the mount.
+APPIMG=0 APPIMG_FILE=""
+if [[ -n ${APPDIR:-} && $SELF -ef $APPDIR/usr/bin/cleanmate ]]; then
+  APPIMG=1
+  [[ -f ${APPIMAGE:-} ]] && APPIMG_FILE=$APPIMAGE
+fi
 declare -A CFG=()
 
 # The numbers in the settings file: KEY → "MIN MAX DEFAULT". The terminal app's Settings and
@@ -11216,8 +11225,10 @@ schedule_get() { # → off | daily | weekly | monthly
 
 timer_exev() { # VAR → the command the systemd user timers run: a stable path, never a snap revision
   # snap: /snap/bin/<name> (SELF is /snap/cleanmate/<revision>/…, gone after a few refreshes);
+  # AppImage: the image file (SELF is inside its mount, gone when it closes);
   # .deb/PPA: this copy (/usr/bin/cleanmate); else the copy `cm --install` made, or this one
   if [[ -n ${SNAP:-} ]]; then printf -v "$1" '%s' "/snap/bin/${SNAP_INSTANCE_NAME:-cleanmate}"
+  elif [[ -n $APPIMG_FILE ]]; then printf -v "$1" '%s' "$APPIMG_FILE"
   elif packaged || [[ ! -x $BIN_PATH ]]; then printf -v "$1" '%s' "$SELF"
   else printf -v "$1" '%s' "$BIN_PATH"; fi
 }
@@ -11244,9 +11255,9 @@ schedule_units() { # SCHEDULE EXE — write the cleaning timer and its service
 }
 
 schedule_repoint() { # a packaged copy's cleaning timer written by another version or for another path (an old snap
-  # revision), or no longer matching Settings › Run even on battery: write it again
+  # revision, an AppImage you moved), or no longer matching Settings › Run even on battery: write it again
   local exe sched s=$SYSTEMD_USER_DIR/cleanmate.service
-  [[ -f $s ]] && packaged && user_timers && ((!DRY_RUN && EUID != 0)) || return 0
+  [[ -f $s ]] && { packaged || [[ -n $APPIMG_FILE ]]; } && user_timers && ((!DRY_RUN && EUID != 0)) || return 0
   sched=$(schedule_get); [[ $sched != off ]] || return 0
   timer_exev exe
   [[ $(<"$s") == "$(schedule_service_text "$exe")" &&
@@ -11289,7 +11300,7 @@ schedule_set() { # off | daily | weekly | monthly
   systemctl --user daemon-reload &&
     systemctl --user enable --now cleanmate.timer >/dev/null 2>&1 ||
     { toast "${RED}✘${NC} Could not enable the systemd timer."; SCHED_CODE=timer_failed; return 1; }
-  if [[ $exe == "$BIN_PATH" ]] || packaged; then
+  if [[ $exe == "$BIN_PATH" || $exe == "$APPIMG_FILE" ]] || packaged; then
     toast "${GREEN}✔${NC} Automatic cleaning: $1$( ((AUTO_ON_BATTERY)) || echo ", only when plugged in")."; SCHED_CODE=schedule_on
   else # a copy in a clone or a download folder: moving or deleting it breaks the timer
     toast "${GREEN}✔${NC} Automatic cleaning: $1 — runs ${exe/#$HOME/\~}; install the launcher so moving it won't break this."
@@ -11510,10 +11521,57 @@ install_app_files() { # ROOT — copy the desktop app and the icon into place
   return 0
 }
 
+desktop_quote() { # TEXT → it as one quoted argument of a desktop entry's Exec line
+  local t=$1
+  t=${t//\\/\\\\} t=${t//\"/\\\"} t=${t//\`/\\\`} t=${t//\$/\\\$} t=${t//%/%%}
+  printf '"%s"' "$t"
+}
+
+do_install_appimage() { # the AppImage: cleanmate and cm are links to the image, the app-grid entry opens it
+  local other icon=user-trash-full svg="$APPDIR/usr/share/icons/hicolor/scalable/apps/$APP_ID.svg" exe
+  if [[ -z $APPIMG_FILE ]]; then
+    INSTALL_LOG+=("${RED}✘${NC} Run the .AppImage file itself with --install (this copy was unpacked from it).")
+    return 1
+  fi
+  if ((DRY_RUN)); then
+    INSTALL_LOG+=("${MAGENTA}[dry-run]${NC} Would link ${BIN_PATH/#$HOME/\~} and ${ALIAS_PATH/#$HOME/\~} to ${APPIMG_FILE/#$HOME/\~} and add an app-grid entry")
+    return 0
+  fi
+  mkdir -p "${BIN_PATH%/*}" "${APP_FILE%/*}" || return 1
+  ln -sfn -- "$APPIMG_FILE" "$BIN_PATH" || { INSTALL_LOG+=("${RED}✘${NC} Could not write ${BIN_PATH/#$HOME/\~}"); return 1; }
+  INSTALL_LOG+=("${GREEN}✔${NC} ${BOLD}cleanmate${NC} $VERSION now starts ${APPIMG_FILE/#$HOME/\~} — keep the file there"
+    "  (moved it? run it with --install again)")
+  other=$(command -v cm 2>/dev/null)
+  if [[ -L $ALIAS_PATH || ! -e $ALIAS_PATH ]] && [[ -z $other || $other == "$ALIAS_PATH" ]]; then
+    ln -sfn cleanmate "$ALIAS_PATH" && INSTALL_LOG+=("${GREEN}✔${NC} Shorthand: ${BOLD}cm${NC}") INSTALL_CMD=cm
+  else
+    INSTALL_LOG+=("${YELLOW}!${NC} Skipped the ${BOLD}cm${NC} shorthand: ${other:-$ALIAS_PATH} already exists")
+  fi
+  if [[ -f $svg ]] && mkdir -p "${ICON_FILE%/*}" && cp -- "$svg" "$ICON_FILE"; then
+    touch "${ICON_FILE%/scalable/*}" 2>/dev/null
+    icon=$APP_ID
+  fi
+  exe=$(desktop_quote "$APPIMG_FILE")
+  printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=CleanMate" \
+    "Comment=Free up disk space and keep Ubuntu tidy" "Exec=$exe" "Icon=$icon" \
+    "Terminal=false" "Categories=GTK;System;" "Keywords=clean;disk;space;junk;cache;duplicates;cm;" \
+    "StartupNotify=true" "StartupWMClass=$APP_ID" "Actions=terminal;" "" \
+    "[Desktop Action terminal]" "Name=Open in Terminal" "Exec=x-terminal-emulator -e $exe cm" >"$APP_FILE"
+  have update-desktop-database && update-desktop-database "${APP_FILE%/*}" >/dev/null 2>&1
+  INSTALL_LOG+=("${GREEN}✔${NC} Added “CleanMate” to your app grid (desktop app)")
+  return 0
+}
+
 do_install() { # copy to ~/.local/bin, add the `cm` shorthand and an app-grid entry → INSTALL_LOG
   INSTALL_LOG=() INSTALL_CMD=cleanmate
   local bindir=${BIN_PATH%/*}
   bindir=${bindir/#$HOME/\~}
+  if ((APPIMG)); then
+    do_install_appimage || return 1
+    ((DRY_RUN)) && return 0
+    do_install_finish "$bindir"
+    return 0
+  fi
   if [[ ! -f $SELF || $SELF == /dev/* || $SELF == /proc/* ]]; then
     INSTALL_LOG+=("${RED}✘${NC} Download the script to a file first, then run it with --install.")
     return 1
@@ -11568,15 +11626,19 @@ do_install() { # copy to ~/.local/bin, add the `cm` shorthand and an app-grid en
   fi
   have update-desktop-database && update-desktop-database "${APP_FILE%/*}" >/dev/null 2>&1
   INSTALL_LOG+=("${GREEN}✔${NC} Added “CleanMate” to your app grid$( ((gui)) && echo " (desktop app)")")
+  do_install_finish "$bindir"
+  return 0
+}
+
+do_install_finish() { # BINDIR — the timers follow the installed copy; say when BINDIR isn't in PATH
   local sched; sched=$(schedule_get)
   [[ $sched != off ]] && schedule_set "$sched" # point the timer at the installed copy
   check_timer_sync # the low disk alert and scan reminder's daily check, also at the installed copy
   case ":$PATH:" in
     *":${BIN_PATH%/*}:"* | *":${BIN_PATH%/*}/:"*) ;; # with or without a trailing slash
-    *) INSTALL_LOG+=("${YELLOW}!${NC} $bindir is not in your PATH yet — log out and back in, or run:"
+    *) INSTALL_LOG+=("${YELLOW}!${NC} $1 is not in your PATH yet — log out and back in, or run:"
          "    export PATH=\"\$HOME/.local/bin:\$PATH\"") ;;
   esac
-  return 0
 }
 
 install_launcher() { # Settings → Install app launcher
@@ -11626,7 +11688,8 @@ cli_uninstall() { # --uninstall: remove commands, launcher, timer; optionally se
   if confirm "Also delete your settings, remembered selections and logs?"; then
     safe_rm "${PREF_FILE%/*}" "$LOG_DIR" "$CACHE_DIR" && ok "Removed settings and logs"
   fi
-  printf '\n  Goodbye 👋  (this copy of the script itself was left in place)\n'
+  if ((APPIMG)); then printf '\n  Goodbye 👋  (the AppImage file itself was left in place)\n'
+  else printf '\n  Goodbye 👋  (this copy of the script itself was left in place)\n'; fi
 }
 
 edit_number() { # KEY PROMPT — a number within the key's range (SETTING_RANGE)
@@ -11810,10 +11873,10 @@ UPDATE_LATEST=""
 
 update_configured() { [[ -n ${CLEANMATE_UPDATE_URL:-} || $UPDATE_REPO == */* ]]; } # CLEANMATE_UPDATE_URL: mirrors, forks, tests
 
-fetch() { # URL OUT → 0 ok, 22 not found / server error, 127 no downloader, other = network
-  local rc
-  if have curl; then curl -fsSL --max-time 20 -o "$2" -- "$1" 2>/dev/null; rc=$?
-  elif have wget; then wget -q -T 20 -O "$2" -- "$1" 2>/dev/null; rc=$?; ((rc == 8)) && rc=22
+fetch() { # URL OUT [SECONDS] → 0 ok, 22 not found / server error, 127 no downloader, other = network
+  local rc max=${3:-20}
+  if have curl; then curl -fsSL --connect-timeout 20 --max-time "$max" -o "$2" -- "$1" 2>/dev/null; rc=$?
+  elif have wget; then timeout "$max" wget -q -T 20 -O "$2" -- "$1" 2>/dev/null; rc=$?; ((rc == 8)) && rc=22
   else return 127; fi
   return "$rc"
 }
@@ -11907,8 +11970,49 @@ update_verify() { # the script must match the release's SHA256SUMS → UPDATE_SU
   return 0
 }
 
+# The AppImage is one read-only file: nothing inside it is replaced. The new image is downloaded next to
+# yours, checked against the release's SHA256SUMS and renamed over it; the running one keeps working (it
+# holds the old file open) until you restart. Where that can't be done, the message says where to get it.
+UPDATE_IMAGE_SECONDS=900 # the longest the image's download may take
+
+update_apply_appimage() { # → UPDATE_MSG
+  local name target=$APPIMG_FILE want new rc where="https://github.com/$UPDATE_REPO/releases/latest"
+  name="CleanMate-$UPDATE_NEW-$(uname -m).AppImage"
+  want=$(release_sum "$name")
+  if [[ -z $want ]]; then UPDATE_MSG="Version $UPDATE_NEW has no AppImage for this computer ($name) — see $where"; return 1; fi
+  if [[ -z $target || ! -w ${target%/*} ]]; then
+    UPDATE_MSG="Can't replace ${target:-this unpacked copy} — download $name from $where"; return 1
+  fi
+  if ((DRY_RUN)); then UPDATE_MSG="[dry-run] Would replace ${target/#$HOME/\~} with $name"; return 0; fi
+  new="$target.new.$$"
+  if ((UI_ACTIVE)); then
+    (fetch "${UPDATE_URL%/*}/$name" "$new" "$UPDATE_IMAGE_SECONDS"; echo $? >"$UPDATE_FILE.rc") &
+    UI_BUSY_TITLE="Updates"
+    if ui_busy "Downloading version $UPDATE_NEW…" $!; then rc=$(<"$UPDATE_FILE.rc"); else rc=1; fi
+  else
+    printf '  Downloading %s…\n' "$name"
+    fetch "${UPDATE_URL%/*}/$name" "$new" "$UPDATE_IMAGE_SECONDS"; rc=$?
+  fi
+  if ((rc != 0)) || [[ ! -s $new ]]; then
+    rm -f -- "$new"
+    UPDATE_MSG="Couldn't download $name — your version is unchanged. Get it from $where"; return 1
+  fi
+  if [[ $(file_sha256 "$new") != "$want" ]]; then
+    rm -f -- "$new"
+    UPDATE_MSG="The download doesn't match the release's checksum (damaged or changed) — not installing it."; return 1
+  fi
+  if ! chmod 755 "$new" || ! mv -f -- "$new" "$target"; then
+    rm -f -- "$new"
+    UPDATE_MSG="Update failed while writing ${target/#$HOME/\~}; your version is unchanged."; return 1
+  fi
+  log "Updated from $VERSION to $UPDATE_NEW ($target)"
+  UPDATE_LATEST="" UPDATE_DONE=$UPDATE_NEW
+  UPDATE_MSG="Updated to $UPDATE_NEW — restart CleanMate to use it."
+}
+
 update_apply() { # install UPDATE_FILE (+ the desktop app) over the installed copy (or this file) → UPDATE_MSG
   local target=$SELF app=0 want new_gui old_gui
+  if ((APPIMG)); then update_apply_appimage; return; fi
   [[ -x $BIN_PATH ]] && target=$BIN_PATH
   if [[ ! -f $target || ! -w ${target%/*} ]]; then UPDATE_MSG="Can't write ${target/#$HOME/\~}."; return 1; fi
   if ((DRY_RUN)); then UPDATE_MSG="[dry-run] Would update ${target/#$HOME/\~} to $UPDATE_NEW"; return 0; fi
@@ -13801,7 +13905,7 @@ pkg_update_hint() { # how this copy gets updates
 
 gui_dir() { # where the desktop app lives: next to this script (a clone), installed, or packaged
   local d dirs=("$(dirname "$SELF")/gui" "$GUI_HOME" "$PKG_SHARE/gui")
-  ((FLATPAK)) && dirs=("$PKG_SHARE/gui") # never a copy `cm --install` put in your home
+  ((FLATPAK || APPIMG)) && dirs=("$PKG_SHARE/gui") # never a copy `cm --install` put in your home
   for d in "${dirs[@]}"; do
     [[ -f $d/cleanmate-gui && -d $d/cleanmate_gui ]] && { printf '%s\n' "$d"; return 0; }
   done
@@ -13827,6 +13931,11 @@ launch_gui() {
     err "The desktop app isn't installed. Get it from $REPO_URL (folder gui/) and run --install from there."
     return 1
   fi
+  local extra=()
+  ((DRY_RUN)) && extra=(--dry-run)
+  if ((APPIMG)); then # its own Python, GTK 4 and libadwaita: nothing to install
+    exec "$APPDIR/usr/bin/cleanmate-gui" --engine "$SELF" "${extra[@]}"
+  fi
   if ! gui_supported; then
     err "The desktop app needs GTK 4 + libadwaita 1.5 (Ubuntu 24.04 or newer). Install them with:"
     err "    sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1"
@@ -13836,8 +13945,6 @@ launch_gui() {
   if ! gui_cairo_supported; then # the app still opens: the Overview shows a note instead of the charts
     err "The Overview charts need python3-gi-cairo. Install it with: sudo apt install python3-gi-cairo"
   fi
-  local extra=()
-  ((DRY_RUN)) && extra=(--dry-run)
   exec python3 "$dir/cleanmate-gui" --engine "$SELF" "${extra[@]}"
 }
 

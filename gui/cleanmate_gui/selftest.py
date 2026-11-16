@@ -16,7 +16,7 @@ import time
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
-from . import i18n
+from . import bundle, i18n
 from . import preview
 from . import uninstaller as U
 from .i18n import _, ngettext
@@ -1536,7 +1536,8 @@ def settings_test(win, report, wait, finish):
     def restarted():
         del app.spawn, app.quit
         argv = started[0] if started else []
-        report(len(started) == 1 and argv[1:2] == [os.path.abspath(sys.argv[0])] and argv[2:] == sys.argv[1:],
+        head = [bundle.LAUNCHER] if bundle.LAUNCHER else argv[:1] + [os.path.abspath(sys.argv[0])]  # the AppImage's starter
+        report(len(started) == 1 and argv == head + sys.argv[1:],
                "Restart starts CleanMate again with the same arguments, then quits")
         page.rows["language"].set_selected(0)
         wait(idle, language_back, 30, "language back")

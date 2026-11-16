@@ -92,6 +92,7 @@ cm() { # run the app non-interactively inside the fake home (in English unless T
     CLEANMATE_POWER="${CLEANMATE_POWER:-$WORK/no-power}" ${CLEANMATE_TIMER:+CLEANMATE_TIMER=$CLEANMATE_TIMER} \
     ${CLEANMATE_TMP_DIRS:+CLEANMATE_TMP_DIRS=$CLEANMATE_TMP_DIRS} \
     ${TEST_SNAP:+SNAP=$TEST_SNAP} \
+    ${TEST_APPDIR:+"APPDIR=$TEST_APPDIR"} ${TEST_APPIMAGE:+"APPIMAGE=$TEST_APPIMAGE"} \
     ${container:+container=$container} bash "$SCRIPT" "$@"
 }
 
@@ -986,13 +987,109 @@ test_update_flow() {
 # The release's SHA256SUMS covers the files cm --update downloads, in sha256sum -c format.
 test_update_assets_checksums() {
   local out=$WORK/dist
-  mkdir -p "$out"; printf 'deb' >"$out/cleanmate_1_all.deb"
+  mkdir -p "$out"; printf 'deb' >"$out/cleanmate_1_all.deb"; printf 'image' >"$out/CleanMate-1-x86_64.AppImage"
   OUT="$out" "$ROOT/packaging/build-update-assets.sh" >/dev/null || fail "build-update-assets.sh failed"
   (cd "$out" && sha256sum -c --quiet SHA256SUMS) && ok_ "SHA256SUMS verifies" || fail "SHA256SUMS doesn't verify"
-  assert_eq "$(cut -d' ' -f3 "$out/SHA256SUMS" | paste -sd' ' -)" "cleanmate.sh cleanmate-app.tar.gz cleanmate_1_all.deb" "files in SHA256SUMS"
+  assert_eq "$(cut -d' ' -f3 "$out/SHA256SUMS" | paste -sd' ' -)" "cleanmate.sh cleanmate-app.tar.gz cleanmate_1_all.deb CleanMate-1-x86_64.AppImage" "files in SHA256SUMS"
   local list; list=$(tar -tzf "$out/cleanmate-app.tar.gz")
   grep -qx 'cleanmate-app/gui/cleanmate-gui' <<<"$list" && ok_ "app tarball has gui/" || fail "no gui/ in the tarball"
   ! grep -q __pycache__ <<<"$list" && ok_ "no caches in the tarball" || fail "__pycache__ in the tarball"
+}
+
+# The AppImage: the engine runs from a read-only mount ($APPDIR) that changes at every start; the
+# file you downloaded ($APPIMAGE) is what --install, the timers and --update use.
+test_appimage_install_timer_update() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  command -v curl >/dev/null || command -v wget >/dev/null || { SKIPPED="neither curl nor wget installed"; return; }
+  fresh_home
+  local out rc port srv d www=$WORK/www mount=$WORK/mount/.mount_CleanMabc123 bin=$HOME_DIR/.local/bin
+  local u=$HOME_DIR/.config/systemd/user desktop=$HOME_DIR/.local/share/applications/com.homielab.CleanMate.desktop
+  local arch; arch=$(uname -m)
+  local img="$HOME_DIR/My Apps/CleanMate-$arch.AppImage" moved="$HOME_DIR/CleanMate-$arch.AppImage" new=CleanMate-99.0.0-$arch.AppImage
+  mkdir -p "$mount/usr/bin" "$mount/usr/share/icons/hicolor/scalable/apps" "$HOME_DIR/My Apps" "$bin"
+  cp "$SCRIPT" "$mount/usr/bin/cleanmate"
+  cp "$ROOT/data/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg" "$mount/usr/share/icons/hicolor/scalable/apps/"
+  chmod -R a+rX "$WORK/mount"; chmod 755 "$mount/usr/bin/cleanmate"
+  printf 'old image\n' >"$img"; chmod 755 "$img"
+  printf '%s\n' '#!/bin/sh' 'shift; mkdir -p "$HOME/enabled"' \
+    'case $1 in is-enabled) test -e "$HOME/enabled/$3" ;; enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac' \
+    >"$bin/systemctl"
+  chmod +x "$bin/systemctl"
+  image_cm() { # IMAGE ARG… — the engine as the AppImage at IMAGE starts it ("" = unpacked, no image file)
+    local SCRIPT=$mount/usr/bin/cleanmate TEST_APPDIR=$mount TEST_APPIMAGE=$1; shift
+    if ((EUID == 0)); then
+      chown -R 65534:65534 "$HOME_DIR"
+      local AS_USER=(setpriv --reuid=65534 --regid=65534 --clear-groups)
+    fi
+    cm "$@"
+  }
+  no_mount_path() { # WHAT — nothing written in the home names the mount
+    if grep -rqF -- "$mount" "$HOME_DIR/.local" "$HOME_DIR/.config" 2>/dev/null || [[ $(readlink "$bin/cleanmate") == "$mount"* ]]; then
+      fail "$1 points into the mount: $(grep -rlF -- "$mount" "$HOME_DIR/.local" "$HOME_DIR/.config" | head -3)"
+    else ok_ "$1: nothing points into the mount"; fi
+  }
+
+  assert_contains "$(image_cm "$img" --version)" "Installed with: AppImage"
+  # --install: links to the image file, an app-grid entry that opens it
+  out=$(image_cm "$img" --install 2>&1)
+  assert_eq "$(readlink "$bin/cleanmate")" "$img" "cleanmate is a link to the image file"
+  assert_eq "$(readlink "$bin/cm")" "cleanmate" "cm points to cleanmate"
+  assert_contains "$(<"$desktop")" "Exec=\"$img\""
+  assert_exists "$HOME_DIR/.local/share/icons/hicolor/scalable/apps/com.homielab.CleanMate.svg"
+  if command -v desktop-file-validate >/dev/null; then
+    desktop-file-validate "$desktop" >/dev/null && ok_ "launcher is valid" || fail "invalid launcher: $(desktop-file-validate "$desktop")"
+  fi
+  no_mount_path "--install"
+  out=$(image_cm "" --install 2>&1); rc=$?
+  assert_eq "$rc" 1 "an unpacked copy can't be installed"; assert_contains "$out" "Run the .AppImage file itself"
+
+  # the timers run the image file; a moved image is followed when the app next starts
+  out=$(image_cm "$img" --json settings-set schedule weekly)
+  assert_contains "$out" '"code":"schedule_on"'
+  assert_eq "$(grep '^ExecStart=' "$u/cleanmate.service")" "ExecStart=\"$img\" --auto" "the timer runs the image file"
+  no_mount_path "the timer"
+  mv "$img" "$moved"; img=$moved
+  image_cm "$img" --json check >/dev/null
+  assert_eq "$(grep '^ExecStart=' "$u/cleanmate.service")" "ExecStart=\"$img\" --auto" "a moved image's timer is repointed"
+  no_mount_path "the repointed timer"
+  image_cm "$img" --install >/dev/null 2>&1 # the links and the app-grid entry follow when you install again
+  assert_eq "$(readlink "$bin/cleanmate")" "$img" "installing again links to the moved image"
+  assert_contains "$(<"$desktop")" "Exec=\"$img\""
+
+  # --update: the new image replaces the file after its checksum matches; the mount is never written
+  mkdir -p "$www/good"
+  sed 's/^VERSION="[0-9.]*"$/VERSION="99.0.0"/' "$SCRIPT" >"$www/good/cleanmate.sh"
+  printf 'new image\n' >"$www/good/$new"
+  (cd "$www/good" && sha256sum cleanmate.sh "$new" >SHA256SUMS)
+  for d in badsum noimage; do cp -r "$www/good" "$www/$d"; done
+  printf 'changed\n' >>"$www/badsum/$new"
+  rm "$www/noimage/$new"; (cd "$www/noimage" && sha256sum cleanmate.sh >SHA256SUMS)
+  port=$((20000 + RANDOM % 20000))
+  (cd "$www" && exec python3 -m http.server "$port" --bind 127.0.0.1) >/dev/null 2>&1 &
+  srv=$!
+  wait_for 10 "the test web server on port $port" port_open "$port"
+  upd() { # DIR IMAGE → out, rc
+    out=$(printf 'y\n' | CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/$1/cleanmate.sh" image_cm "$2" --update 2>&1); rc=$?
+  }
+  still_old() { # WHY
+    assert_eq "$rc" 1 "$1: exits 1"
+    assert_eq "$(<"$img")" "old image" "$1: the image is unchanged"
+    [[ -z $(find "$HOME_DIR" -name '*.new.*') ]] && ok_ "$1: no staged leftovers" || fail "$1: staged leftovers"
+  }
+  upd badsum "$img"; assert_contains "$out" "doesn't match the release's checksum"; still_old "wrong checksum"
+  upd noimage "$img"; assert_contains "$out" "has no AppImage for this computer"; assert_contains "$out" "/releases/latest"
+  still_old "no image in the release"
+  upd good ""; assert_contains "$out" "download $new from https://"; still_old "an unpacked copy"
+  out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/good/cleanmate.sh" image_cm "$img" --dry-run --update 2>&1 <<<y)
+  assert_contains "$out" "Would replace"; assert_eq "$(<"$img")" "old image" "dry run: the image is unchanged"
+  upd good "$img"
+  assert_eq "$rc" 0 "good update exits 0"; assert_contains "$out" "Updated to 99.0.0"
+  assert_eq "$(<"$img")" "new image" "the image file is the new one"
+  [[ -x $img ]] && ok_ "the new image is executable" || fail "the new image isn't executable"
+  cmp -s "$SCRIPT" "$mount/usr/bin/cleanmate" && ok_ "the mounted copy is untouched" || fail "the update wrote into the mount"
+  [[ -z $(find "$HOME_DIR" -name '*.new.*') ]] && ok_ "no staged leftovers after the update" || fail "staged leftovers"
+  assert_eq "$(readlink "$bin/cleanmate")" "$img" "cleanmate still starts the image"
+  kill "$srv" 2>/dev/null
 }
 
 test_trash_and_undo() {
