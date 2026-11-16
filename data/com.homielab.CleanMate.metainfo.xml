@@ -138,6 +138,18 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="2.6.0" date="2026-11-16">
+      <description>
+        <p>CleanMate comes as an AppImage, lists idle virtual machines and AI models one by one, and deletes more carefully.</p>
+        <ul>
+          <li>AppImage: one file, no sudo, its own Python, GTK 4 and libadwaita</li>
+          <li>GNOME Boxes, virt-manager and VirtualBox machines, one row each</li>
+          <li>llama.cpp, Jan, GPT4All and ComfyUI models, one row each</li>
+          <li>Updates check the published SHA256SUMS before installing</li>
+          <li>Overview no longer crashes without the cairo bridge</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.5.1" date="2026-11-11">
       <description>
         <p>Quicker rescans, more caches found, and a Smart Scan that tells you what it couldn't reach.</p>
