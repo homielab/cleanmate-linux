@@ -36,8 +36,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/homielab/cleanmate-linux.git
-        tag: v2.5.1
-        commit: 3a875b66d5986b9bddbd20529664632cd378d92b
+        tag: v2.6.0
+        commit: 975d688848bb284a1c601e20b04581802ff6fbf9
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
