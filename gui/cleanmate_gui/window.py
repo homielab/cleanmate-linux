@@ -6,7 +6,7 @@ import subprocess
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from .a11y import named
-from . import bugreport, state
+from . import applog, bugreport, state
 from .bugreport import REPO_URL, WEBSITE_URL
 from .duplicates import DuplicatesPage
 from .engine import FLATPAK_HIDDEN_PAGES, IN_FLATPAK, SMART_SCAN, Selection, human
@@ -465,7 +465,20 @@ class Window(Adw.ApplicationWindow):
             self.toast(_("No terminal app found — run cm in a terminal."))
 
     def _open_url(self, url):
-        Gtk.UriLauncher.new(url).launch(self, None, None)
+        def opened(launcher, result):
+            try:
+                launcher.launch_finish(result)
+            except GLib.Error as error:
+                if not error.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED):
+                    applog.write(f"open {url.split('?')[0]}: {error.message}")
+                    self.url_failed(url)
+        Gtk.UriLauncher.new(url).launch(self, None, opened)
+
+    def url_failed(self, url):
+        """Nothing on this system opens links: say so and offer the link to copy."""
+        shown = url if len(url) <= 60 else url[:59] + "…"
+        return self.toast(_("Couldn't open {link}").format(link=shown), button=_("Copy Link"),
+                          on_button=lambda: self.get_clipboard().set(url), timeout=8)
 
     def show_settings(self):
         """The terminal app's settings in a dialog; read again each time it opens."""

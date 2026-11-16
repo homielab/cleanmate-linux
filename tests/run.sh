@@ -4458,6 +4458,11 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
       assert_contains "$out" "the Overview rendered without the cairo bridge"
     fi
     assert_contains "$out" "the charts stay hidden"
+    assert_contains "$out" "a line that isn't UTF-8 or isn't a JSON object is skipped and the run still ends"
+    assert_contains "$out" "an error in a page's handler ends the run as failed and stops the engine"
+    assert_contains "$out" "a page whose handler fails shows the error page instead of searching forever"
+    assert_contains "$out" "an uncaught error shows one dialog and the app keeps running"
+    assert_contains "$out" "Copy Log copies the session log"
     assert_contains "$out" "step 1 fills the dialog"
     assert_contains "$out" "dry-run clean finished"
     assert_contains "$out" "group box selects the whole group"

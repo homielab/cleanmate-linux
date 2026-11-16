@@ -9,7 +9,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
-from . import messages, welcome  # noqa: E402
+from . import applog, messages, welcome  # noqa: E402
 from .engine import Engine  # noqa: E402
 from .i18n import _  # noqa: E402
 
@@ -141,6 +141,9 @@ def main(argv=None):
         print(_("Engine not found: {path}").format(path=engine_path), file=sys.stderr)
         return 2
     app = App(Engine(engine_path, dry_run=args.dry_run), selftest=args.selftest or bool(args.screenshot))
+    app.crash_seen = set()
+    applog.start(engine_path)
+    applog.install(app)
     app.selftest_failed = False
     app.screenshot = args.screenshot
     app.scene = args.scene

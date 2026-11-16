@@ -2335,7 +2335,7 @@ def overview_test(win, report, wait, finish):
         shutil.rmtree(sandbox, ignore_errors=True)
         if ONLY == "overview":
             return finish()
-        bug_report_test(win, report, wait, finish)
+        robustness_test(win, report, wait, finish)
 
     from . import overview as O
     bridge = O.charts_ok()  # False on a system without python3-gi-cairo: the chart checks become note checks
@@ -2542,6 +2542,154 @@ def overview_test(win, report, wait, finish):
     wait(idle, first, 60, "first overview")
 
 
+def robustness_test(win, report, wait, finish):
+    """Fake engines and errors nobody expects: a line that isn't UTF-8 or JSON is skipped, an engine that exits
+    halfway or a handler that raises ends the run as failed (and stops the engine), a page whose handler fails
+    shows the error page, an uncaught error (also in a thread) shows one dialog and lands in the session log
+    without the home folder, a thumbnail that can't be read leaves the icon, a link that can't open offers to
+    be copied."""
+    import threading
+
+    from . import applog
+    from .engine import Engine
+    sandbox = tempfile.mkdtemp(prefix="cleanmate-selftest-")
+
+    def fake(name, script):
+        path = os.path.join(sandbox, name)
+        with open(path, "w") as f:
+            f.write(script)
+        return Engine(path)
+
+    def run(engine, on_event=None):
+        """(events, ended): the events received, and [(ok, status)] once the run is over."""
+        events, ended = [], []
+
+        def got(e):
+            events.append(e)
+            if on_event:
+                on_event(e)
+        engine.run(["scan"], got, lambda ok, status: ended.append((ok, status)))
+        return events, ended
+
+    def done():
+        shutil.rmtree(sandbox, ignore_errors=True)
+        bug_report_test(win, report, wait, finish)
+
+    def odd_lines():
+        engine = fake("odd.sh", "echo '{\"event\":\"item\",\"id\":\"a\"}'\nprintf '\\377\\376 not utf-8\\n'\n"
+                      "echo '[1,2]'\necho '\"text\"'\necho 42\necho '{\"event\":\"done\"}'\n")
+        events, ended = run(engine)
+        wait(lambda: ended, lambda: (
+            report(events == [{"event": "item", "id": "a"}, {"event": "done"}] and ended == [(True, 0)],
+                   "a line that isn't UTF-8 or isn't a JSON object is skipped and the run still ends"
+                   f" ({events}, {ended})"), exits()), 20, "the odd lines run")
+
+    def exits():
+        events, ended = run(fake("exits.sh", "echo '{\"event\":\"item\"}'\nexit 3\n"))
+        wait(lambda: ended, lambda: (
+            report(ended == [(False, 3)] and [e["status"] for e in events if e["event"] == "failed"] == [3],
+                   f"an engine that exits halfway ends the run as failed ({events}, {ended})"), raises()),
+             20, "the exit without done")
+
+    def raises():
+        engine = fake("raises.sh", "for i in $(seq 2000); do echo '{\"event\":\"item\",\"id\":\"x\"}'; done\nexec sleep 30\n")
+        calls = []
+
+        def handler(e):
+            if e["event"] == "item":
+                calls.append(e)
+                raise KeyError("path")
+        events, ended = run(engine, handler)
+        failed = lambda: [e for e in events if e["event"] == "failed"]  # noqa: E731
+        wait(lambda: ended, lambda: (
+            report(ended == [(False, -1)] and failed() and "KeyError" in failed()[0]["stderr"][-1]
+                   and len(calls) == 1 and len(engine.live) == 0,
+                   "an error in a page's handler ends the run as failed and stops the engine"
+                   f" ({ended}, {len(calls)} calls, {len(engine.live)} live)"), page_fails()),
+             10, "the handler error to end the run")
+
+    def page_fails():
+        page = win.pages["large"]
+        real = page.engine
+        win.show_page("large")
+        page.engine = fake("page.sh", "echo '{\"foo\":1}'\necho '{\"event\":\"done\"}'\n")
+        page.search()
+
+        def idle():
+            return page.running is None and page.stack.get_visible_child_name() != "searching"
+
+        def checked():
+            report(page.stack.get_visible_child_name() == "failed" and page.failed.get_description(),
+                   "a page whose handler fails shows the error page instead of searching forever")
+            page.engine = real
+            uncaught()
+        wait(idle, checked, 20, "the page to end its search")
+
+    def close_crash():
+        dialog = win.crash_dialog
+        dialog.force_close()
+        if win.crash_dialog is not None:  # headless, a dialog may not finish closing: send what libadwaita does
+            dialog.emit("closed")
+
+    def uncaught():
+        before = getattr(win, "crash_dialogs", 0)
+        home = os.path.expanduser("~")
+
+        def boom():
+            raise ZeroDivisionError("selftest crash in " + home)
+        GLib.idle_add(lambda: boom() and False)
+        GLib.idle_add(lambda: boom() and False)
+
+        def shown():
+            report(win.crash_dialogs == before + 1,
+                   f"an uncaught error shows one dialog and the app keeps running ({win.crash_dialogs - before})")
+            close_crash()
+            wait(lambda: win.crash_dialog is None, thread, 10, "the dialog to close")
+
+        def thread():
+            def other_boom():
+                raise RuntimeError("selftest crash in a thread")
+            threading.Thread(target=other_boom).start()
+            wait(lambda: win.crash_dialog is not None, threaded, 20, "the dialog of the thread's error")
+
+        def threaded():
+            report(win.crash_dialogs == before + 2, "an error in a thread shows the dialog too")
+            close_crash()
+            wait(lambda: win.crash_dialog is None, logged, 10, "the dialog to close")
+
+        def logged():
+            text = applog.read()
+            report("ZeroDivisionError" in text and "RuntimeError" in text and home not in text,
+                   "the session log has both tracebacks without the home folder")
+            thumbnails()
+        wait(lambda: win.crash_dialog is not None, shown, 20, "the dialog of an uncaught error")
+
+    def thumbnails():
+        real = preview.load_thumbnail
+        got = []
+
+        def broken(*_args):
+            raise OSError("selftest: unreadable")
+        preview.load_thumbnail = broken
+        preview.THUMBNAILS.request((os.path.join(sandbox, "x.png"), None, 48), "image", got.append)
+
+        def checked():
+            preview.load_thumbnail = real
+            report(got == [None], "a thumbnail that fails to load leaves the icon, the reader goes on")
+            link()
+        wait(lambda: got, checked, 10, "the thumbnail reader")
+
+    def link():
+        url = "https://example.com/" + "a" * 100
+        toast = win.url_failed(url)
+        report("example.com" in toast.get_title() and toast.get_button_label() == _("Copy Link"),
+               "a link that can't be opened offers itself to copy")
+        toast.emit("button-clicked")
+        read_clipboard(win, wait, lambda copied: (report(copied == url, "the link is copied from the toast"), done()))
+
+    odd_lines()
+
+
 def read_clipboard(win, wait, then):
     """then(text) with what the clipboard holds."""
     got = []
@@ -2558,7 +2706,7 @@ def read_clipboard(win, wait, then):
 def bug_report_test(win, report, wait, finish):
     """Report a Bug… with a throwaway home whose activity log names personal files and the user: the preview
     shows the system details without them, Open GitHub opens the prefilled issue (through a stub, nothing
-    opens), a report too long for a link is copied and the bare template opens; Suggest a Feature… opens the
+    opens), Copy Log copies the session log, a report too long for a link is copied and the bare template opens; Suggest a Feature… opens the
     feature template and Share CleanMate copies the website link."""
     from urllib.parse import parse_qs, urlsplit
 
@@ -2610,6 +2758,12 @@ def bug_report_test(win, report, wait, finish):
         report(not leaks and "~/.cache/thumbnails" in text and "~/(file or folder)" in text
                and "/home/<user>/.cache/x" in text and "<user>-sync.desktop" in text,
                f"no home folder, user name or personal file name in the report (found: {leaks})")
+        dialog.emit("response", "log")
+        read_clipboard(win, wait, lambda copied: log_copied(dialog, text, copied))
+
+    def log_copied(dialog, text, copied):
+        report("--- this session ---" in copied and os.path.expanduser("~") not in copied,
+               "Copy Log copies the session log")
         dialog.emit("response", "open")
         dialog.force_close()
         url = opened[-1] if opened else ""

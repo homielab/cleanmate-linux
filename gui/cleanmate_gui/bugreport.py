@@ -2,12 +2,14 @@
 
 Report a Bug… shows the system details the engine gathers (`--json sysreport`, the same text `cm --version`
 prints) before anything opens; Open GitHub opens a new issue in the browser with them filled in. Each item
-only opens the browser or copies text: CleanMate itself sends nothing.
+only opens the browser or copies text: CleanMate itself sends nothing. Copy Log copies this and the previous
+session's log (`~/.cache/cleanmate/gui.log`), without your home folder or user name.
 """
 from urllib.parse import quote
 
 from gi.repository import Adw, Gtk
 
+from . import applog
 from .i18n import _
 
 REPO_URL = "https://github.com/homielab/cleanmate-linux"
@@ -84,6 +86,7 @@ def show_report(win, body):
                "path is included."),
         extra_child=scroll)
     dialog.add_response("cancel", _("Cancel"))
+    dialog.add_response("log", _("Copy Log"))
     dialog.add_response("copy", _("Copy"))
     dialog.add_response("open", _("Open GitHub"))
     dialog.set_response_appearance("open", Adw.ResponseAppearance.SUGGESTED)
@@ -93,6 +96,9 @@ def show_report(win, body):
     def on_response(_d, response):
         if response == "open":
             open_report(win, body)
+        elif response == "log":
+            copy(win, applog.read() or _("The log is empty."))
+            win.toast(_("Log copied"))
         elif response == "copy":
             copy(win, body)
             win.toast(_("Report copied"))

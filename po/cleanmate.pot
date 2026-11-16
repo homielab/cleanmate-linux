@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 16:11+0000\n"
+"POT-Creation-Date: 2026-11-16 03:50+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,27 +23,27 @@ msgstr ""
 msgid "Engine not found: {path}"
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:45
+#: gui/cleanmate_gui/bugreport.py:47
 #, python-brace-format
 msgid "Link copied: {link}"
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:67
+#: gui/cleanmate_gui/bugreport.py:69
 msgid "Could not read the system details."
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:81
+#: gui/cleanmate_gui/bugreport.py:83
 msgid "Report a Bug"
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:82
+#: gui/cleanmate_gui/bugreport.py:84
 msgid ""
 "Open GitHub opens a new issue in your browser with the details below filled "
 "in; describe the problem there. Nothing is sent until you submit the issue, "
 "and no user name or personal file path is included."
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:86 gui/cleanmate_gui/duplicates.py:686
+#: gui/cleanmate_gui/bugreport.py:88 gui/cleanmate_gui/duplicates.py:686
 #: gui/cleanmate_gui/largefiles.py:462 gui/cleanmate_gui/maintenance.py:264
 #: gui/cleanmate_gui/scanpage.py:948 gui/cleanmate_gui/scanpage.py:1171
 #: gui/cleanmate_gui/settings.py:537 gui/cleanmate_gui/spacelens.py:651
@@ -52,19 +52,31 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:87
+#: gui/cleanmate_gui/bugreport.py:89
+msgid "Copy Log"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:90
 msgid "Copy"
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:88 gui/cleanmate_gui/bugreport.py:116
+#: gui/cleanmate_gui/bugreport.py:91 gui/cleanmate_gui/bugreport.py:122
 msgid "Open GitHub"
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:98 gui/cleanmate_gui/bugreport.py:114
+#: gui/cleanmate_gui/bugreport.py:100
+msgid "The log is empty."
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:101
+msgid "Log copied"
+msgstr ""
+
+#: gui/cleanmate_gui/bugreport.py:104 gui/cleanmate_gui/bugreport.py:120
 msgid "Report copied"
 msgstr ""
 
-#: gui/cleanmate_gui/bugreport.py:115
+#: gui/cleanmate_gui/bugreport.py:121
 msgid ""
 "The details are too long for the link. Paste them into “System details” on "
 "the GitHub page."
@@ -403,52 +415,52 @@ msgid_plural "Put back {n} files from the Trash"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/engine.py:20 gui/cleanmate_gui/settings.py:61
+#: gui/cleanmate_gui/engine.py:23 gui/cleanmate_gui/settings.py:61
 #: gui/cleanmate_gui/window.py:71
 msgid "System Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:21 gui/cleanmate_gui/settings.py:61
+#: gui/cleanmate_gui/engine.py:24 gui/cleanmate_gui/settings.py:61
 #: gui/cleanmate_gui/window.py:73
 msgid "Logs"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:22
+#: gui/cleanmate_gui/engine.py:25
 msgid "User Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:23
+#: gui/cleanmate_gui/engine.py:26
 msgid "Browsers"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:24
+#: gui/cleanmate_gui/engine.py:27
 msgid "App Caches"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:25 gui/cleanmate_gui/settings.py:61
+#: gui/cleanmate_gui/engine.py:28 gui/cleanmate_gui/settings.py:61
 #: gui/cleanmate_gui/window.py:77
 msgid "AI Tools"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:26
+#: gui/cleanmate_gui/engine.py:29
 msgid "AI Models"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:27 gui/cleanmate_gui/settings.py:62
+#: gui/cleanmate_gui/engine.py:30 gui/cleanmate_gui/settings.py:62
 #: gui/cleanmate_gui/window.py:80
 msgid "Developer Junk"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:28 gui/cleanmate_gui/settings.py:62
+#: gui/cleanmate_gui/engine.py:31 gui/cleanmate_gui/settings.py:62
 #: gui/cleanmate_gui/welcome.py:116 gui/cleanmate_gui/window.py:83
 msgid "Privacy"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:52
+#: gui/cleanmate_gui/engine.py:55
 msgid "Needs CleanMate installed from a package"
 msgstr ""
 
-#: gui/cleanmate_gui/engine.py:53
+#: gui/cleanmate_gui/engine.py:56
 msgid ""
 "This copy of CleanMate is in a folder you can change, so it doesn't ask for "
 "your password. Install CleanMate from the PPA or the .deb package to do this "
@@ -478,7 +490,7 @@ msgid ""
 "running)"
 msgstr ""
 
-#: gui/cleanmate_gui/errorview.py:111
+#: gui/cleanmate_gui/errorview.py:111 gui/cleanmate_gui/errorview.py:159
 msgid "Something went wrong"
 msgstr ""
 
@@ -486,11 +498,12 @@ msgstr ""
 msgid "Try Again"
 msgstr ""
 
-#: gui/cleanmate_gui/errorview.py:120
+#: gui/cleanmate_gui/errorview.py:120 gui/cleanmate_gui/errorview.py:163
 msgid "Copy Details"
 msgstr ""
 
-#: gui/cleanmate_gui/errorview.py:122 gui/cleanmate_gui/window.py:180
+#: gui/cleanmate_gui/errorview.py:122 gui/cleanmate_gui/errorview.py:164
+#: gui/cleanmate_gui/window.py:180
 msgid "Report a Bug…"
 msgstr ""
 
@@ -498,8 +511,18 @@ msgstr ""
 msgid "Details"
 msgstr ""
 
-#: gui/cleanmate_gui/errorview.py:145
+#: gui/cleanmate_gui/errorview.py:145 gui/cleanmate_gui/errorview.py:171
 msgid "Details copied"
+msgstr ""
+
+#: gui/cleanmate_gui/errorview.py:160
+msgid ""
+"CleanMate ran into an error and keeps running. If a page looks stuck, press "
+"Ctrl+R to reload it."
+msgstr ""
+
+#: gui/cleanmate_gui/errorview.py:162
+msgid "Close"
 msgstr ""
 
 #: gui/cleanmate_gui/findbar.py:28 gui/cleanmate_gui/scanpage.py:141
@@ -1461,7 +1484,7 @@ msgstr ""
 msgid "This system doesn't use the systemd journal."
 msgstr ""
 
-#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/overview.py:420
+#: gui/cleanmate_gui/messages.py:49 gui/cleanmate_gui/overview.py:432
 #: gui/cleanmate_gui/settings.py:31 gui/cleanmate_gui/settings.py:37
 msgid "Off"
 msgstr ""
@@ -1478,7 +1501,7 @@ msgstr ""
 msgid "Monthly"
 msgstr ""
 
-#: gui/cleanmate_gui/messages.py:50 gui/cleanmate_gui/overview.py:600
+#: gui/cleanmate_gui/messages.py:50 gui/cleanmate_gui/overview.py:612
 #: gui/cleanmate_gui/startup.py:176
 msgid "System"
 msgstr ""
@@ -1941,56 +1964,56 @@ msgstr[1] ""
 msgid "Couldn't finish automatic cleaning"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:54
+#: gui/cleanmate_gui/overview.py:64
 msgid "Install python3-gi-cairo to see the charts."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:77
+#: gui/cleanmate_gui/overview.py:87
 msgid "No scan yet — see in a minute what can be cleaned."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:80
+#: gui/cleanmate_gui/overview.py:90
 msgid "Last scan: today"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:82
+#: gui/cleanmate_gui/overview.py:92
 msgid "Last scan: yesterday"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:83
+#: gui/cleanmate_gui/overview.py:93
 #, python-brace-format
 msgid "Last scan: {n} day ago"
 msgid_plural "Last scan: {n} days ago"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:102
+#: gui/cleanmate_gui/overview.py:112
 #, python-brace-format
 msgid "{n} day"
 msgid_plural "{n} days"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:102 gui/cleanmate_gui/overview.py:104
+#: gui/cleanmate_gui/overview.py:112 gui/cleanmate_gui/overview.py:114
 #, python-brace-format
 msgid "{n} hour"
 msgid_plural "{n} hours"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:104 gui/cleanmate_gui/overview.py:105
+#: gui/cleanmate_gui/overview.py:114 gui/cleanmate_gui/overview.py:115
 #, python-brace-format
 msgid "{n} minute"
 msgid_plural "{n} minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:111
+#: gui/cleanmate_gui/overview.py:121
 #, python-brace-format
 msgid "{start} free on {start_date} → {end} on {end_date}."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:120
+#: gui/cleanmate_gui/overview.py:130
 #, python-brace-format
 msgid ""
 "Losing about {size} a week: at this rate the disk is full in about {n} week."
@@ -1999,465 +2022,465 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:124
+#: gui/cleanmate_gui/overview.py:134
 #, python-brace-format
 msgid "Gaining about {size} a week."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:126
+#: gui/cleanmate_gui/overview.py:136
 #, python-brace-format
 msgid "Stable over the last {n} day."
 msgid_plural "Stable over the last {n} days."
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:165
+#: gui/cleanmate_gui/overview.py:176
 #, python-brace-format
 msgid "{date}: {free} free"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:249
+#: gui/cleanmate_gui/overview.py:261
 #, python-brace-format
 msgid "{date}: no cleanup"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:250
+#: gui/cleanmate_gui/overview.py:262
 #, python-brace-format
 msgid "{date}: {size} freed in {n} cleanup"
 msgid_plural "{date}: {size} freed in {n} cleanups"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:311
+#: gui/cleanmate_gui/overview.py:323
 #, python-brace-format
 msgid "Last 30 days · {n} cleanup"
 msgid_plural "Last 30 days · {n} cleanups"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:313
+#: gui/cleanmate_gui/overview.py:325
 #, python-brace-format
 msgid "In total · {n} cleanup"
 msgid_plural "In total · {n} cleanups"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:317
+#: gui/cleanmate_gui/overview.py:329
 #, python-brace-format
 msgid "Last cleanup · {date}"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:328
+#: gui/cleanmate_gui/overview.py:340
 #, python-brace-format
 msgid "{size} in the Trash"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:390 gui/cleanmate_gui/overview.py:731
+#: gui/cleanmate_gui/overview.py:402 gui/cleanmate_gui/overview.py:743
 msgid "Measuring its size needs administrator rights"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:397
+#: gui/cleanmate_gui/overview.py:409
 msgid "Reserved for the system"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:398
+#: gui/cleanmate_gui/overview.py:410
 #, python-brace-format
 msgid ""
 "ext4 keeps about 5 percent of {path} for root, so Ubuntu still runs when the "
 "disk is full"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:400
+#: gui/cleanmate_gui/overview.py:412
 msgid "Swap file"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:400
+#: gui/cleanmate_gui/overview.py:412
 #, python-brace-format
 msgid "{path} · extra memory on disk; shrinking it is possible but needs care"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:403
+#: gui/cleanmate_gui/overview.py:415
 #, python-brace-format
 msgid "Timeshift: {n} snapshot"
 msgid_plural "Timeshift: {n} snapshots"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:404
+#: gui/cleanmate_gui/overview.py:416
 #, python-brace-format
 msgid "{path} · delete old ones in Timeshift, never by hand"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:418
+#: gui/cleanmate_gui/overview.py:430
 msgid "Firewall"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:418
+#: gui/cleanmate_gui/overview.py:430
 msgid "AppArmor"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:418
+#: gui/cleanmate_gui/overview.py:430
 msgid "Automatic security updates"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:419
+#: gui/cleanmate_gui/overview.py:431
 msgid "Secure Boot"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:420
+#: gui/cleanmate_gui/overview.py:432
 msgid "On"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:420
+#: gui/cleanmate_gui/overview.py:432
 msgid "Not applicable"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:421
+#: gui/cleanmate_gui/overview.py:433
 msgid "Unknown"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:423
+#: gui/cleanmate_gui/overview.py:435
 msgid "ufw is turned on."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:424
+#: gui/cleanmate_gui/overview.py:436
 msgid "firewalld is turned on."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:425
+#: gui/cleanmate_gui/overview.py:437
 msgid "ufw is turned off. To turn it on, run in a terminal:"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:426
+#: gui/cleanmate_gui/overview.py:438
 msgid "ufw is set to start but isn't running. To start it, run in a terminal:"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:427
+#: gui/cleanmate_gui/overview.py:439
 msgid ""
 "No firewall is installed. To install ufw and turn it on, run in a terminal:"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:428
+#: gui/cleanmate_gui/overview.py:440
 msgid "Can't read /etc/ufw/ufw.conf."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:429
+#: gui/cleanmate_gui/overview.py:441
 msgid "Apps with an AppArmor profile are confined."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:430
+#: gui/cleanmate_gui/overview.py:442
 msgid "AppArmor's profiles aren't loaded. To load them, run in a terminal:"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:431
+#: gui/cleanmate_gui/overview.py:443
 msgid ""
 "Turned off when the computer starts: remove apparmor=0 from the kernel "
 "options in /etc/default/grub, then run sudo update-grub."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:433
+#: gui/cleanmate_gui/overview.py:445
 msgid "Can't read AppArmor's state from the kernel."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:434
+#: gui/cleanmate_gui/overview.py:446
 msgid "unattended-upgrades installs security updates every day."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:435
+#: gui/cleanmate_gui/overview.py:447
 msgid "unattended-upgrades isn't installed. To install it, run in a terminal:"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:436
+#: gui/cleanmate_gui/overview.py:448
 msgid "Turned off in APT's settings. To turn it on, run in a terminal:"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:437
+#: gui/cleanmate_gui/overview.py:449
 msgid "The daily upgrade timer is off. To turn it on, run in a terminal:"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:438
+#: gui/cleanmate_gui/overview.py:450
 msgid "This system doesn't use APT."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:439
+#: gui/cleanmate_gui/overview.py:451
 msgid "Couldn't read APT's settings."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:440
+#: gui/cleanmate_gui/overview.py:452
 msgid "Only signed boot loaders and kernels start."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:441
+#: gui/cleanmate_gui/overview.py:453
 msgid "Turn it on in your computer's firmware (UEFI) settings."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:442
+#: gui/cleanmate_gui/overview.py:454
 msgid "This computer starts without UEFI, so there is no Secure Boot."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:443
+#: gui/cleanmate_gui/overview.py:455
 msgid "Can't read the Secure Boot state."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:474
+#: gui/cleanmate_gui/overview.py:486
 msgid "Can't measure this system"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:480
+#: gui/cleanmate_gui/overview.py:492
 msgid "Refresh"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:564 gui/cleanmate_gui/trashed.py:27
+#: gui/cleanmate_gui/overview.py:576 gui/cleanmate_gui/trashed.py:27
 #: gui/cleanmate_gui/welcome.py:115 gui/cleanmate_gui/window.py:68
 msgid "Smart Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:567 gui/cleanmate_gui/overview.py:570
+#: gui/cleanmate_gui/overview.py:579 gui/cleanmate_gui/overview.py:582
 #: gui/cleanmate_gui/welcome.py:209
 msgid "Run Smart Scan"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:569
+#: gui/cleanmate_gui/overview.py:581
 msgid "Find the junk you can clean safely"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:579
+#: gui/cleanmate_gui/overview.py:591
 msgid "Suggestions"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:585
+#: gui/cleanmate_gui/overview.py:597
 #, python-brace-format
 msgid "{n} AI model not used for 90+ days"
 msgid_plural "{n} AI models not used for 90+ days"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:588 gui/cleanmate_gui/overview.py:590
+#: gui/cleanmate_gui/overview.py:600 gui/cleanmate_gui/overview.py:602
 msgid "Review"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:589
+#: gui/cleanmate_gui/overview.py:601
 msgid "Run Smart Scan and look at the AI models"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:601
+#: gui/cleanmate_gui/overview.py:613
 #, python-brace-format
 msgid "{n} apt package"
 msgid_plural "{n} apt packages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:603
+#: gui/cleanmate_gui/overview.py:615
 #, python-brace-format
 msgid "{n} snap"
 msgid_plural "{n} snaps"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:605
+#: gui/cleanmate_gui/overview.py:617
 #, python-brace-format
 msgid "{n} flatpak"
 msgid_plural "{n} flatpaks"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:607
+#: gui/cleanmate_gui/overview.py:619
 msgid "Operating system"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:607 gui/cleanmate_gui/overview.py:611
+#: gui/cleanmate_gui/overview.py:619 gui/cleanmate_gui/overview.py:623
 msgid "unknown"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:608
+#: gui/cleanmate_gui/overview.py:620
 msgid "Kernel"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:609
+#: gui/cleanmate_gui/overview.py:621
 msgid "Uptime"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:610
+#: gui/cleanmate_gui/overview.py:622
 msgid "Processor"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:610
+#: gui/cleanmate_gui/overview.py:622
 #, python-brace-format
 msgid "{cpu} ({n} thread)"
 msgid_plural "{cpu} ({n} threads)"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gui/cleanmate_gui/overview.py:612
+#: gui/cleanmate_gui/overview.py:624
 msgid "Packages"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:616
+#: gui/cleanmate_gui/overview.py:628
 msgid "Storage"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:618
+#: gui/cleanmate_gui/overview.py:630
 msgid "No disks found."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:621
+#: gui/cleanmate_gui/overview.py:633
 #, python-brace-format
 msgid "Almost full · {used} of {size} used · {free} free · {fstype}"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:622
+#: gui/cleanmate_gui/overview.py:634
 #, python-brace-format
 msgid "{used} of {size} used · {free} free · {fstype}"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:630
+#: gui/cleanmate_gui/overview.py:642
 msgid "Free space over time"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:632
+#: gui/cleanmate_gui/overview.py:644
 msgid ""
 "Free space on / is recorded once a day while you use CleanMate; the chart "
 "shows here after a few days."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:646
+#: gui/cleanmate_gui/overview.py:658
 msgid "Memory"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:648
+#: gui/cleanmate_gui/overview.py:660
 msgid "RAM"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:648
+#: gui/cleanmate_gui/overview.py:660
 #, python-brace-format
 msgid "{used} of {size} in use · {free} available"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:652 gui/cleanmate_gui/overview.py:656
+#: gui/cleanmate_gui/overview.py:664 gui/cleanmate_gui/overview.py:668
 msgid "Swap"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:652
+#: gui/cleanmate_gui/overview.py:664
 #, python-brace-format
 msgid "{used} of {size} in use"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:656
+#: gui/cleanmate_gui/overview.py:668
 msgid "none"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:660
+#: gui/cleanmate_gui/overview.py:672
 msgid "Freed by CleanMate"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:662
+#: gui/cleanmate_gui/overview.py:674
 msgid "Shows here after your first cleanup."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:667
+#: gui/cleanmate_gui/overview.py:679
 msgid "No cleanups in the last 30 days."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:674 gui/cleanmate_gui/overview.py:738
+#: gui/cleanmate_gui/overview.py:686 gui/cleanmate_gui/overview.py:750
 msgid "Largest folders in your home"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:676 gui/cleanmate_gui/overview.py:702
+#: gui/cleanmate_gui/overview.py:688 gui/cleanmate_gui/overview.py:714
 msgid "Space outside your folders"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:678 gui/cleanmate_gui/spacelens.py:149
+#: gui/cleanmate_gui/overview.py:690 gui/cleanmate_gui/spacelens.py:149
 msgid "Measuring…"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:684
+#: gui/cleanmate_gui/overview.py:696
 msgid "System protection"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:685
+#: gui/cleanmate_gui/overview.py:697
 msgid ""
 "Read only: CleanMate doesn't change these. To turn one on, run the command "
 "shown in a terminal."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:688
+#: gui/cleanmate_gui/overview.py:700
 msgid "Couldn't read the system's protection."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:703
+#: gui/cleanmate_gui/overview.py:715
 msgid ""
 "In use, but in none of your folders. Shown for information: each is a "
 "choice, not junk."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:708
+#: gui/cleanmate_gui/overview.py:720
 msgid "No Timeshift snapshots, swap file or reserved space found."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:711
+#: gui/cleanmate_gui/overview.py:723
 msgid "Outside your home folder"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:712
+#: gui/cleanmate_gui/overview.py:724
 msgid "Apps, system files, logs, snaps and Docker on the system disk (/)"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:716
+#: gui/cleanmate_gui/overview.py:728
 msgid "View in Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:717
+#: gui/cleanmate_gui/overview.py:729
 msgid "See what takes the space, folder by folder"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:741
+#: gui/cleanmate_gui/overview.py:753
 msgid "Couldn't measure your home folder."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:743
+#: gui/cleanmate_gui/overview.py:755
 msgid "Your home folder is empty."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:745
+#: gui/cleanmate_gui/overview.py:757
 msgid "Click a folder to explore it in Space Lens."
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:751
+#: gui/cleanmate_gui/overview.py:763
 msgid "Open in Space Lens"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:777 gui/cleanmate_gui/overview.py:778
+#: gui/cleanmate_gui/overview.py:789 gui/cleanmate_gui/overview.py:790
 msgid "Copy the command"
 msgstr ""
 
-#: gui/cleanmate_gui/overview.py:787
+#: gui/cleanmate_gui/overview.py:799
 msgid "Command copied. Paste it in a terminal to run it."
 msgstr ""
 
-#: gui/cleanmate_gui/preview.py:238
+#: gui/cleanmate_gui/preview.py:242
 #, python-brace-format
 msgid "Could not open {name}: {reason}"
 msgstr ""
 
-#: gui/cleanmate_gui/preview.py:251 gui/cleanmate_gui/preview.py:303
+#: gui/cleanmate_gui/preview.py:255 gui/cleanmate_gui/preview.py:307
 #: gui/cleanmate_gui/spacelens.py:584 gui/cleanmate_gui/welcome.py:163
 msgid "Open"
 msgstr ""
 
-#: gui/cleanmate_gui/preview.py:252 gui/cleanmate_gui/preview.py:305
+#: gui/cleanmate_gui/preview.py:256 gui/cleanmate_gui/preview.py:309
 #: gui/cleanmate_gui/spacelens.py:585 gui/cleanmate_gui/trashed.py:253
 msgid "Show in Files"
 msgstr ""
 
-#: gui/cleanmate_gui/preview.py:288
+#: gui/cleanmate_gui/preview.py:292
 msgid "Point at a photo to see it larger"
 msgstr ""
 
-#: gui/cleanmate_gui/preview.py:294
+#: gui/cleanmate_gui/preview.py:298
 msgid "Suggested to keep"
 msgstr ""
 
-#: gui/cleanmate_gui/preview.py:303
+#: gui/cleanmate_gui/preview.py:307
 msgid "Open with the default app"
 msgstr ""
 
@@ -3105,7 +3128,7 @@ msgid "The last try didn't finish: it tries again within the hour"
 msgstr ""
 
 #: gui/cleanmate_gui/settings.py:112 gui/cleanmate_gui/window.py:173
-#: gui/cleanmate_gui/window.py:316 gui/cleanmate_gui/window.py:473
+#: gui/cleanmate_gui/window.py:316 gui/cleanmate_gui/window.py:486
 msgid "Settings"
 msgstr ""
 
@@ -4712,7 +4735,7 @@ msgstr ""
 msgid "Share CleanMate"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:183 gui/cleanmate_gui/window.py:496
+#: gui/cleanmate_gui/window.py:183 gui/cleanmate_gui/window.py:509
 msgid "Source code"
 msgstr ""
 
@@ -4788,11 +4811,20 @@ msgstr ""
 msgid "No terminal app found — run cm in a terminal."
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:493
+#: gui/cleanmate_gui/window.py:480
+#, python-brace-format
+msgid "Couldn't open {link}"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:480
+msgid "Copy Link"
+msgstr ""
+
+#: gui/cleanmate_gui/window.py:506
 msgid "translator-credits"
 msgstr ""
 
-#: gui/cleanmate_gui/window.py:494
+#: gui/cleanmate_gui/window.py:507
 msgid ""
 "A friendly system cleaner for Ubuntu, inspired by CleanMyMac. Not affiliated "
 "with MacPaw."

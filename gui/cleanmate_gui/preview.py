@@ -15,7 +15,7 @@ import gi
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
 
 from .a11y import named
-from . import similar
+from . import applog, similar
 from .i18n import _
 
 THUMB = 40  # px, the picture at the start of a file row
@@ -206,7 +206,11 @@ class Thumbnails:
         while True:
             key, kind, alive = self.jobs.get()
             path, _stamp, size = key
-            pixbuf = load_thumbnail(path, kind, size * 2) if alive() else False  # twice the size: sharp on HiDPI
+            try:
+                pixbuf = load_thumbnail(path, kind, size * 2) if alive() else False  # twice the size: sharp on HiDPI
+            except Exception as error:  # the row keeps its icon, the reader goes on
+                applog.exception("thumbnail", error)
+                pixbuf = None
             GLib.idle_add(self.deliver, key, pixbuf)
 
     def deliver(self, key, pixbuf):
@@ -352,7 +356,11 @@ class PreviewPane(Gtk.Box):
             path = self.jobs.get()
             if path != self.want:
                 continue
-            loaded = similar.load_small(path, PREVIEW, PREVIEW, fit=True, max_pixels=MAX_PIXELS)
+            try:
+                loaded = similar.load_small(path, PREVIEW, PREVIEW, fit=True, max_pixels=MAX_PIXELS)
+            except Exception as error:
+                applog.exception("preview", error)
+                loaded = None
             GLib.idle_add(self.loaded, path, loaded[0] if loaded else None)
 
     def loaded(self, path, pixbuf):

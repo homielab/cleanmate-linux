@@ -146,3 +146,35 @@ class ErrorPage(Gtk.Box):
 
     def report(self):
         bugreport.report_bug(self.window, extra=self.failure.details())
+
+
+def show_crash(win, details):
+    """An error nobody caught: say so once, keep the app running. Returns the dialog (win.crash_dialog while open)."""
+    view = Gtk.ScrolledWindow(
+        min_content_height=160, min_content_width=420, hscrollbar_policy=Gtk.PolicyType.NEVER,
+        css_classes=["card"],
+        child=Gtk.Label(label=details, xalign=0, wrap=True, selectable=True, css_classes=["monospace", "caption"],
+                        margin_top=6, margin_bottom=6, margin_start=6, margin_end=6))
+    dialog = Adw.AlertDialog(
+        heading=_("Something went wrong"),
+        body=_("CleanMate ran into an error and keeps running. If a page looks stuck, press Ctrl+R to reload it."),
+        extra_child=view)
+    dialog.add_response("close", _("Close"))
+    dialog.add_response("copy", _("Copy Details"))
+    dialog.add_response("report", _("Report a Bug…"))
+    dialog.set_default_response("close")
+    dialog.set_close_response("close")
+
+    def on_response(_d, response):
+        if response == "copy":
+            bugreport.copy(win, details)
+            win.toast(_("Details copied"))
+        elif response == "report":
+            bugreport.report_bug(win, extra=details)
+
+    dialog.connect("response", on_response)
+    dialog.connect("closed", lambda *_a: setattr(win, "crash_dialog", None))
+    win.crash_dialog = dialog
+    win.crash_dialogs = getattr(win, "crash_dialogs", 0) + 1
+    dialog.present(win)
+    return dialog

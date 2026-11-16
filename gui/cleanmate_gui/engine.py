@@ -8,10 +8,13 @@ import json
 import os
 import shutil
 import signal
+import sys
+import traceback
 from collections import deque
 
 from gi.repository import Gio, GLib
 
+from . import applog
 from .i18n import _, saved_setting
 from .messages import human  # noqa: F401 (engine.human is used by every page)
 
@@ -179,7 +182,9 @@ class Engine:
         dialog says what the password is for; only when can_ask_password(), else it never starts and ends with
         status NEEDS_PACKAGE. A run that fails (exit status not 0, not cancelled) sends one last event before
         on_done: {"event": "failed", "status": N, "stderr": [lines]} with the last lines the engine (or pkexec)
-        wrote to stderr.
+        wrote to stderr. An error raised by on_event (or a line that isn't a JSON object) never stops the run
+        from ending: the engine is killed, the "failed" event (status -1, the traceback's last lines) and
+        on_done(False, -1) follow, and the error is logged.
         """
         cancellable = Run()
         cancellable.command = next((a for a in args if not a.startswith("-")), "")
@@ -221,7 +226,7 @@ class Engine:
         # stdout and the exit, and waits for the rest of stderr only briefly
         err_cancel = Gio.Cancellable()
         cancellable.connect(lambda *_: err_cancel.cancel())
-        state = {"stderr_open": True, "exited": None}
+        state = {"stderr_open": True, "exited": None, "crashed": None}
 
         def end():
             if state["exited"] is None:
@@ -229,9 +234,34 @@ class Engine:
             status, state["exited"] = state["exited"], None
             self.live.discard(cancellable)
             err_cancel.cancel()
-            if status != 0 and not cancellable.is_cancelled():
-                on_event({"event": "failed", "status": status, "stderr": list(tail)})
-            on_done(status == 0, status)
+            crashed = state["crashed"]
+            if crashed is not None:
+                lines = "".join(traceback.format_exception(type(crashed), crashed, crashed.__traceback__)).splitlines()
+                call(on_event, {"event": "failed", "status": -1, "stderr": lines[-12:]})
+                call(on_done, False, -1)
+                return
+            failed = status != 0 and not cancellable.is_cancelled()
+            if failed:
+                applog.write(f"cm --json {cancellable.command}: exit status {status}\n" + "\n".join(tail))
+                call(on_event, {"event": "failed", "status": status, "stderr": list(tail)})
+            call(on_done, status == 0, status)
+
+        def call(fn, *fn_args):
+            try:
+                fn(*fn_args)
+            except Exception as error:
+                applog.exception(f"cm --json {cancellable.command}: finishing the run failed", error)
+                sys.excepthook(type(error), error, error.__traceback__)
+
+        def deliver(event):
+            if state["crashed"] is not None:
+                return
+            try:
+                on_event(event)
+            except Exception as error:
+                state["crashed"] = error
+                applog.exception(f"cm --json {cancellable.command}: the page's handler failed", error)
+                cancellable.kill()
 
         def finished(p, result):
             try:
@@ -261,17 +291,20 @@ class Engine:
         def got_line(s, result):
             try:
                 line, _len = s.read_line_finish_utf8(result)
-            except GLib.Error:
-                line = None
+            except GLib.Error as error:
+                # a line that isn't UTF-8 is read and dropped: skip it, the output goes on
+                line = "" if error.matches(GLib.convert_error_quark(), GLib.ConvertError.ILLEGAL_SEQUENCE) else None
             if line is None:  # end of output
                 proc.wait_async(None, finished)
                 return
-            line = line.strip()
-            if line:
+            text = line.strip()
+            if text:
                 try:
-                    on_event(json.loads(line))
+                    event = json.loads(text)
                 except ValueError:
-                    pass  # never trust a stray line to be JSON
+                    event = None  # never trust a stray line to be JSON
+                if isinstance(event, dict):
+                    deliver(event)
             s.read_line_async(GLib.PRIORITY_DEFAULT, cancellable, got_line)
 
         stream.read_line_async(GLib.PRIORITY_DEFAULT, cancellable, got_line)
