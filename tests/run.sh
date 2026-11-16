@@ -1573,6 +1573,19 @@ test_auto_clean_reports_what_is_left() {
   assert_contains "$out" "Google Chrome"
 }
 
+# A background job stopped before it turned into its program (the scan's time-limit `sleep`, killed when
+# a quick scan ends) is still a copy of the engine: it must not run the end of the run, which removes the
+# scratch folder the clean-up after the scan still needs.
+test_killed_job_keeps_session_folder() {
+  fresh_home
+  local out
+  out=$(in_app 'SESSION_TMP=$HOME/session UI_ACTIVE=0; mkdir "$SESSION_TMP"; session_traps
+    for _ in {1..40}; do sleep 30 & kill $!; wait $!; [[ -d $SESSION_TMP ]] || break; done
+    [[ -d $SESSION_TMP ]] && echo kept' 2>/dev/null)
+  assert_eq "$out" "kept" "a job killed at its start leaves the scratch folder of the run"
+  assert_missing "$HOME_DIR/session" # the run itself removes it at its end
+}
+
 # Automatic cleaning waits while a laptop runs on battery (the timer's unit has ConditionACPower; --auto
 # checks too), unless Settings › Run even on battery is on.
 test_auto_clean_waits_for_ac_power() {

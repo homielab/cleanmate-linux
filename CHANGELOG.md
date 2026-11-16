@@ -22,6 +22,7 @@ All notable changes are listed here. The format follows
 ### Fixed
 - The desktop app no longer waits forever when the engine or a page hits an error: the page says what went wrong, an unexpected error shows one dialog and the app keeps running, and Report a Bug… can copy the session log (`~/.cache/cleanmate/gui.log`, without your home folder or user name). A link that can't be opened now offers to copy it. The app also no longer keeps a processor core busy while it waits for an engine that reported an error.
 - System Overview no longer fails when the cairo bridge for Python (`python3-gi-cairo`) is missing or doesn't work, also when `python3-cairo` alone is installed: a note stands where each chart would be. The `.deb` from GitHub now recommends the package, so the charts show after a normal install.
+- A scan that finished very quickly could end with nothing cleaned (Smart Clean, the automatic clean and the desktop app): a helper the scan stopped at its start removed the working folder the clean-up still needed. Cleaning now always runs.
 
 ## [2.5.1] - 2026-11-11
 

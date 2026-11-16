@@ -778,6 +778,29 @@ tmp_rm() { # PATH
   command rm -rf -- "$1"
 }
 
+# The end of the run. A background job killed before it became its program (`sleep 5 & kill $!`) is
+# still a copy of this script holding these traps: it must end without touching the terminal or the
+# scratch folder the run is still using. $$ stays the run's PID in every copy, BASHPID does not.
+session_end() {
+  ((BASHPID == $$)) || return 0
+  ui_stop
+  tmp_rm "$SESSION_TMP"
+}
+
+on_interrupt() { # stop every background job and its children (they ignore SIGINT)
+  ((BASHPID == $$)) || exit 130
+  local p
+  for p in $(jobs -p); do kill_tree "$p"; done
+  ui_stop
+  printf '%s\n' "$NC"
+  exit 130
+}
+
+session_traps() {
+  trap session_end EXIT
+  trap on_interrupt INT TERM
+}
+
 empty_dir() { # [--root] DIR — delete the contents of DIR, keep DIR itself
   local as_root=0
   [[ $1 == --root ]] && { as_root=1; shift; }
@@ -14145,17 +14168,8 @@ if [[ -n ${POLKIT_ACTION:-} ]]; then
     { err "--polkit=$POLKIT_ACTION only goes with --json $_cmd"; exit 2; }
 fi
 
-on_interrupt() { # stop every background job and its children (they ignore SIGINT)
-  local p
-  for p in $(jobs -p); do kill_tree "$p"; done
-  ui_stop
-  printf '%s\n' "$NC"
-  exit 130
-}
-
 SESSION_TMP=$(mktemp -d -t cleanmate.XXXXXX) || exit 1
-trap 'tmp_rm "$SESSION_TMP"' EXIT
-trap 'on_interrupt' INT TERM
+session_traps
 
 load_kv "$STATS_FILE" STATS '^[0-9]+$'
 load_settings
@@ -14189,7 +14203,6 @@ if ((EUID == 0)); then
   confirm "Continue anyway? (Recommended: run as your user, sudo is requested when needed)" || exit 1
 fi
 
-trap 'ui_stop; tmp_rm "$SESSION_TMP"' EXIT
 refresh_sysinfo
 update_check_bg
 ui_start
