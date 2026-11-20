@@ -1,11 +1,10 @@
 name: CI
 
+# Release tags only (Boss 2026-11-21: no CI on push to main).
 on:
   push:
-    branches: [main]
-    paths-ignore: &docs ["*.md", "docs/**", "screenshots/**"]
-  pull_request:
-    paths-ignore: *docs
+    tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read

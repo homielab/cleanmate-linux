@@ -49,8 +49,8 @@ jobs:
       - name: Update files and SHA256SUMS
         run: packaging/build-update-assets.sh
 
-      # The tagged commit is on main, so CI (tests, ShellCheck, store metadata, packages)
-      # already runs on it: wait for that run instead of testing twice. Red → no release.
+      # The tag also starts CI (tests, ShellCheck, store metadata, packages) on this commit:
+      # wait for that run instead of testing twice. Red → no release.
       - name: CI passed on this commit
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,7 +60,7 @@ jobs:
             [ -n "$id" ] && break
             sleep 10
           done
-          [ -n "$id" ] || { echo "::error::No CI run for $GITHUB_SHA: push the commit to main with the tag (or rerun CI on it)"; exit 1; }
+          [ -n "$id" ] || { echo "::error::No CI run for $GITHUB_SHA: run CI on the tag (gh workflow run ci.yml --ref $GITHUB_REF_NAME), then rerun this"; exit 1; }
           gh run watch "$id" -R "$GITHUB_REPOSITORY" --interval 30 --exit-status >/dev/null ||
             { echo "::error::CI failed on $GITHUB_SHA: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$id"; exit 1; }
 

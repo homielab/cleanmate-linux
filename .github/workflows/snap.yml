@@ -1,12 +1,8 @@
 name: Snap
 
-# Builds the snap only when its recipe changes; every release builds it again (release.yml).
+# By hand, to try a snap recipe change; every release builds the snap (release.yml).
+# Release tags only (Boss 2026-11-21: no CI on push to main).
 on:
-  push:
-    branches: [main]
-    paths: ["snap/**", ".github/workflows/snap.yml"]
-  pull_request:
-    paths: ["snap/**", ".github/workflows/snap.yml"]
   workflow_dispatch:
 
 permissions:
