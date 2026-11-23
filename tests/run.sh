@@ -2189,7 +2189,7 @@ for l in sys.stdin:
   out=$(user_cm --json clean trash_drives --entries "../etc" | python3 -c "$list")
   assert_contains "$out" "error Not an entry ID of trash_drives: ../etc"
   # everything, while a program keeps a file in the Trash open
-  "${hold[@]}" sleep 60 <"$t/files/open.log" >/dev/null 2>&1 &
+  "${hold[@]}" sleep 600 <"$t/files/open.log" >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test holder to open open.log" holds_open "$pid" "$t/files/open.log"
   out=$(user_cm --json clean trash_drives | python3 -c "$list")
@@ -2234,7 +2234,7 @@ for l in sys.stdin:
     elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
     elif e["event"] == "error": print("error", e["message"])'
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
-  "${hold[@]}" sleep 60 <"$dl/open.run" >/dev/null 2>&1 &
+  "${hold[@]}" sleep 600 <"$dl/open.run" >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test holder to open open.run" holds_open "$pid" "$dl/open.run"
   out=$(user_cm --json scan --only system | grep '"id":"old_installers"' | python3 -c "$list")
@@ -2435,7 +2435,7 @@ for l in sys.stdin:
   user_cm --json settings-set exclusions add "$dl/Keep" >/dev/null
   out=$(in_app 'load_settings; OD_MAX_FILES=1; old_downloads; echo "${OD_NAME[*]}"')
   assert_eq "$out" "old.pdf open.txt" "a folder with too many files is skipped"
-  "${hold[@]}" sleep 60 <"$dl/open.txt" >/dev/null 2>&1 &
+  "${hold[@]}" sleep 600 <"$dl/open.txt" >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test holder to open open.txt" holds_open "$pid" "$dl/open.txt"
   out=$(user_cm --json scan --only system | grep '"id":"old_downloads"' | python3 -c "$list")
@@ -2532,7 +2532,7 @@ for l in sys.stdin:
     elif e["event"] == "task" and e["state"] != "run": print(e["state"], e["freed"], e["info"])
     elif e["event"] == "error": print("error", e["message"])'
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
-  "${hold[@]}" sleep 60 <"$shots/Screenshot from 2025-01-03 10-00-00.png" >/dev/null 2>&1 &
+  "${hold[@]}" sleep 600 <"$shots/Screenshot from 2025-01-03 10-00-00.png" >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test holder to open Screenshot from 2025-01-03 10-00-00.png" holds_open "$pid" "$shots/Screenshot from 2025-01-03 10-00-00.png"
   out=$(user_cm --json scan --only system | grep '"id":"old_screenshots"' | python3 -c "$list")
@@ -2637,7 +2637,7 @@ for l in sys.stdin:
     elif e["event"] == "done" and "trash" in e: print("trash", " ".join(sorted(sum(e["trash"].values(), []))))
     elif e["event"] == "error": print("error", e["message"])'
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
-  "${hold[@]}" sleep 60 <"$dl/open.crdownload" >/dev/null 2>&1 &
+  "${hold[@]}" sleep 600 <"$dl/open.crdownload" >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test holder to open open.crdownload" holds_open "$pid" "$dl/open.crdownload"
   qb=$(in_app "urlencode_path 'movie.!qB'")
@@ -2735,9 +2735,9 @@ for l in sys.stdin:
   b_rusty=$(tbytes "$rusty/target") b_py=$(tbytes "$py/.venv") b_pods=$(tbytes "$pods/Pods")
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   mkdir -p "$WORK/buildbin"; cp "$(command -v sleep)" "$WORK/buildbin/cargo"; chmod 755 "$WORK/buildbin" "$WORK/buildbin/cargo"
-  "${hold[@]}" sh -c 'cd "$1" && exec "$2" 60' _ "$c/building" "$WORK/buildbin/cargo" >/dev/null 2>&1 &
+  "${hold[@]}" sh -c 'cd "$1" && exec "$2" 600' _ "$c/building" "$WORK/buildbin/cargo" >/dev/null 2>&1 &
   pids+=($!)
-  "${hold[@]}" sleep 60 <"$c/open/.venv/lib/x.so" >/dev/null 2>&1 &
+  "${hold[@]}" sleep 600 <"$c/open/.venv/lib/x.so" >/dev/null 2>&1 &
   pids+=($!)
   wait_for 5 "the test program cargo to start" runs_exe "${pids[0]}" "$WORK/buildbin/cargo"
   wait_for 5 "the test holder to open x.so" holds_open "${pids[1]}" "$c/open/.venv/lib/x.so"
@@ -2786,7 +2786,7 @@ test_stale_terraform_providers() {
   touch "$c/fresh/main.tf"
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   mkdir -p "$WORK/tfbin"; cp "$(command -v sleep)" "$WORK/tfbin/terraform"; chmod 755 "$WORK/tfbin" "$WORK/tfbin/terraform"
-  "${hold[@]}" sh -c 'cd "$1" && exec "$2" 60' _ "$c/applying" "$WORK/tfbin/terraform" >/dev/null 2>&1 &
+  "${hold[@]}" sh -c 'cd "$1" && exec "$2" 600' _ "$c/applying" "$WORK/tfbin/terraform" >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test program terraform to start" runs_exe "$pid" "$WORK/tfbin/terraform"
   out=$(user_cm --json details stale_build_dirs | grep '"event":"entry"')
@@ -2954,7 +2954,7 @@ for l in sys.stdin:
   bf=$(du -sb "$HOME_DIR/.var/app/com.visualstudio.code/config/Code/User/workspaceStorage/fp1" | cut -f1)
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   local hold=(); ((EUID == 0)) && hold=(setpriv --reuid=65534 --regid=65534 --clear-groups)
-  "${hold[@]}" sleep 60 <"$u/openfile/state.vscdb" >/dev/null 2>&1 &
+  "${hold[@]}" sleep 600 <"$u/openfile/state.vscdb" >/dev/null 2>&1 &
   local pid=$!
   wait_for 5 "the test holder to open state.vscdb" holds_open "$pid" "$u/openfile/state.vscdb"
   out=$(user_cm --json details vscode_stale_workspaces | python3 -c "$list")
@@ -4335,7 +4335,7 @@ EOS
   find "$h/.var" "$h/snap" "$h/.config" "$h/.local/share" "$h/.local/state" "$h/.cache" -mindepth 1 \
     -exec touch -h -d "200 days ago" {} +
   new "$h/.config/zqrecent/data" # in use lately
-  sh -c 'exec sleep 60' <"$h/.config/zqopen/data" >/dev/null 2>&1 &
+  sh -c 'exec sleep 600' <"$h/.config/zqopen/data" >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test holder to open data" holds_open "$pid" "$h/.config/zqopen/data"
   out=$(CLEANMATE_APP_DIRS=$h/apps BASE_PATH="$bin:$BASE_PATH" cm --json apps | python3 -c 'import sys, json
@@ -5239,8 +5239,8 @@ test_build_tool_caches() {
   # deno and a Bazel server (a java process) run; a file open in a folder keeps that folder
   running_stub "$bin" deno
   proc_stub "$WORK/bazelproc" 4243 java -jar "$c/bazel/_bazel_$(id -un)/install/A-server.jar" "--output_base=$c/bazel/_bazel_$(id -un)/abc123"
-  sleep 60 3>>"$c/zig/o/x" & holder=$!
-  sleep 60 3>>"$c/pre-commit/repoabc/hook" & holder2=$!
+  sleep 600 3>>"$c/zig/o/x" & holder=$!
+  sleep 600 3>>"$c/pre-commit/repoabc/hook" & holder2=$!
   select_only deno_cache zig_cache bazel_cache ccache_cache sccache_cache nuget_cache poetry_cache precommit_cache pipx_cache
   CLEANMATE_PROC=$WORK/bazelproc BASE_PATH="$bin:$BASE_PATH" cm --clean --yes --only dev >/dev/null 2>&1 </dev/null
   rm -r "$WORK/bazelproc"
@@ -5629,7 +5629,7 @@ for l in sys.stdin:
     elif e["event"] == "task" and e["state"] != "run": print(e["state"])
     elif e["event"] == "error": print("error", e["message"])'
   ((EUID == 0)) && chown -R 65534:65534 "$h"
-  "${hold[@]}" sleep 60 <"$h/.cache/whisper/open.pt" >/dev/null 2>&1 &
+  "${hold[@]}" sleep 600 <"$h/.cache/whisper/open.pt" >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test holder to open open.pt" holds_open "$pid" "$h/.cache/whisper/open.pt"
   out=$(user_cm --json scan --only models | grep '"id":"ai_model_caches"' | python3 -c "$list")
@@ -6225,7 +6225,7 @@ $(in_app "urlencode_path '$fv/3.19.0'") $b319 off Flutter 3.19.0" "one entry per
   # a version a program runs from is skipped, and the scan says so
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   rm "$n/v18.20.4/bin/node"; cp "$(command -v sleep)" "$n/v18.20.4/bin/node"
-  "${hold[@]}" "$n/v18.20.4/bin/node" 60 >/dev/null 2>&1 &
+  "${hold[@]}" "$n/v18.20.4/bin/node" 600 >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test program node to start" runs_exe "$pid" "$n/v18.20.4/bin/node"
   out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes"' | python3 -c "$list" | cut -d' ' -f4-)
@@ -6304,7 +6304,7 @@ for l in sys.stdin:
   # a version a program runs from is skipped, and the scan says so
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   rm "$py/3.11.4/bin/python"; cp "$(command -v sleep)" "$py/3.11.4/bin/python"
-  "${hold[@]}" "$py/3.11.4/bin/python" 60 >/dev/null 2>&1 &
+  "${hold[@]}" "$py/3.11.4/bin/python" 600 >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test program python to start" runs_exe "$pid" "$py/3.11.4/bin/python"
   out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes"' | python3 -c "$labels")
@@ -6402,7 +6402,7 @@ for l in sys.stdin:
   # a version a program runs from is skipped, and the scan says so
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   rm "$ap/3.10.0/bin/python"; cp "$(command -v sleep)" "$ap/3.10.0/bin/python"
-  "${hold[@]}" "$ap/3.10.0/bin/python" 60 >/dev/null 2>&1 &
+  "${hold[@]}" "$ap/3.10.0/bin/python" 600 >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test program python to start" runs_exe "$pid" "$ap/3.10.0/bin/python"
   out=$(user_cm --json scan --only dev | grep '"id":"old_runtimes_asdf_mise"' | python3 -c "$labels")
@@ -6724,7 +6724,7 @@ for l in sys.stdin:
   # a version a program runs from is skipped, and the scan says so
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   rm "$ed/2022.3.10f1/Editor/Unity"; cp "$(command -v sleep)" "$ed/2022.3.10f1/Editor/Unity"
-  "${hold[@]}" "$ed/2022.3.10f1/Editor/Unity" 60 >/dev/null 2>&1 &
+  "${hold[@]}" "$ed/2022.3.10f1/Editor/Unity" 600 >/dev/null 2>&1 &
   pid=$!
   wait_for 5 "the test program Unity to start" runs_exe "$pid" "$ed/2022.3.10f1/Editor/Unity"
   out=$(scan | grep unity_old_editors)
@@ -6796,7 +6796,7 @@ test_firebase_zcode_mimocode_keep_logins_and_sessions() {
   new "$h/.zcode/cli/rollout/r.jsonl"; new "$h/.zcode/credentials.json"; new "$h/.zcode/cli/zcode.db"
   new "$h/.cache/mimocode/models.json"; new "$h/.cache/mimocode/index.db"; new "$h/.local/share/mimocode/log/l"
   new "$h/.local/share/mimocode/mimocode.db"; new "$h/.local/share/mimocode/mimocode.db-wal"; new "$h/.local/share/mimocode/auth.json"
-  sleep 60 3>>"$fb/firebase-debug.2.log" & # firebase mcp still writing this one
+  sleep 600 3>>"$fb/firebase-debug.2.log" & # firebase mcp still writing this one
   holder=$!
   out=$(cm --scan --only dev,ai 2>&1)
   assert_contains "$out" "Firebase CLI logs"; assert_contains "$out" "Firebase emulators"
