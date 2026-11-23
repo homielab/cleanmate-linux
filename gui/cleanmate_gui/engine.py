@@ -35,13 +35,6 @@ SMART_SCAN = ["system", "logs", "user", "browser", "apps", "ai", "models", "dev"
 CAT_GROUP = {"system": "system", "logs": "logs", "user": "user", "browser": "user", "apps": "user", "ai": "ai",
              "models": "ai", "dev": "dev", "privacy": "privacy"}
 
-# The Flatpak (Flathub) reaches your home folder but not the system: the engine leaves out the items that
-# need root or a host tool, and the window the pages that manage the system's packages and services.
-IN_FLATPAK = os.environ.get("container") == "flatpak" or os.path.exists("/.flatpak-info")
-FLATPAK_HIDDEN_PAGES = ("uninstall", "startup", "maintenance")
-FLATPAK_LIMITS_URL = ("https://github.com/homielab/cleanmate-linux/blob/main/packaging/flathub/README.md"
-                      "#what-the-flatpak-cant-do")
-
 
 # the last lines the engine wrote to stderr, kept for the error page and the bug report
 STDERR_LINES = 20

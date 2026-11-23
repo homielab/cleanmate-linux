@@ -9,6 +9,9 @@ All notable changes are listed here. The format follows
 ### Added
 - System Overview shows your graphics cards (read with `lspci`; the row is left out when it finds none).
 
+### Removed
+- The Flathub build's sandbox mode: CleanMate is no longer published on Flathub, so the engine and the desktop app no longer hide pages and items for it. Flatpak apps and unused runtimes on your computer are still cleaned and uninstalled.
+
 ### Fixed
 - System Overview said *Processor: unknown* when the system language isn't English or `lscpu` is missing. The name now comes from `/proc/cpuinfo`.
 

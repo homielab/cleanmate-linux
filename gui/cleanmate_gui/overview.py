@@ -17,7 +17,7 @@ import time
 from gi.repository import Adw, GLib, Gtk
 
 from .a11y import named
-from .engine import IN_FLATPAK, human
+from .engine import human
 from .i18n import _, ngettext
 from .largefiles import short_path
 from .scanpage import size_widgets
@@ -683,11 +683,8 @@ class OverviewPage(Gtk.Box):
         self.groups["freed"] = freed
         self.results.append(freed)
 
-        # measured last: placeholders until "top_dirs" arrives (show_folders). The Flatpak sees neither the
-        # space outside your folders (snapshots, swap) nor the system's protection: no group for them
-        later = [("top", _("Largest folders in your home"))]
-        if not IN_FLATPAK:
-            later.insert(0, ("outside", _("Space outside your folders")))
+        # measured last: placeholders until "top_dirs" arrives (show_folders)
+        later = [("outside", _("Space outside your folders")), ("top", _("Largest folders in your home"))]
         for key, title in later:
             group = Adw.PreferencesGroup(title=title, description=_("Measuring…"),
                                          header_suffix=Gtk.Spinner(spinning=True, valign=Gtk.Align.CENTER))
@@ -703,8 +700,7 @@ class OverviewPage(Gtk.Box):
         for e in d.get("protection", []):
             protection.add(self.protection_row(e))
         self.groups["protection"] = protection
-        if not IN_FLATPAK:
-            self.results.append(protection)
+        self.results.append(protection)
         self.stack.set_visible_child_name("results")
 
     def show_folders(self):

@@ -7,19 +7,15 @@ through the engine; opened from the menu it changes nothing. It doesn't open by 
 for screenshots or as root (settings are per user, so it would come back every time).
 The steps move in a `Gtk.Stack` (a `Adw.Carousel` hands each page only its natural width, so the steps
 shrank to a narrow column in the middle of the dialog) with a dot per step as the indicator.
-The Flatpak's welcome only promises what the Flatpak does: no Uninstaller, password, terminal app or
-automatic cleaning; step 2 says what it reaches and links to its limits.
 """
 from gi.repository import Adw, Gtk
 
 from . import i18n
-from .engine import IN_FLATPAK
 from .i18n import _
-from .settings import SettingsPage, flatpak_limits_row
+from .settings import SettingsPage
 from .rows import plain_row
 
 OPTIONS = ("language", "schedule", "remind", "low_disk_pct")  # rows of the last step, keys of the settings file
-FLATPAK_OPTIONS = ("language", "low_disk_pct")  # no systemd timers in the Flatpak: no schedule, no reminder
 
 
 def is_new(config=None):
@@ -51,21 +47,19 @@ def points(title, rows, description=None):
 
 
 class Welcome(Adw.Dialog):
-    def __init__(self, window, first_run=False, flatpak=None):
+    def __init__(self, window, first_run=False):
         super().__init__(title=_("Welcome to CleanMate"), content_width=560, content_height=680)
         self.window = window
-        self.flatpak = IN_FLATPAK if flatpak is None else flatpak
         self.terminal_button = None
         self.first_run = first_run  # closing saves welcome_shown
         self.marked = False
         self.index = 0
 
-        self.options = SettingsPage(window, keys=FLATPAK_OPTIONS if self.flatpak else OPTIONS,
-                                    flatpak=self.flatpak, intro=intro(
+        self.options = SettingsPage(window, keys=OPTIONS, intro=intro(
             "emblem-system-symbolic", _("Your options"),
             _("Change them any time in Settings, in the main menu (Ctrl+,).")))
         self.options.before_restart = self.mark_shown  # a new language restarts the app: don't come back
-        self.steps = [self.what_step(), self.flatpak_step() if self.flatpak else self.scope_step(), self.options]
+        self.steps = [self.what_step(), self.scope_step(), self.options]
         self.pager = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT_RIGHT, transition_duration=250,
                                vexpand=True, hhomogeneous=True, vhomogeneous=True)
         for i, step in enumerate(self.steps):
@@ -101,16 +95,10 @@ class Welcome(Adw.Dialog):
         page = Adw.PreferencesPage()
         page.add(intro("com.homielab.CleanMate", _("Welcome to CleanMate"),
                        _("Free up disk space and keep Ubuntu tidy — safely.")))
-        if self.flatpak:
-            smart = _("Junk in your home folder in one scan: caches, old app logs, developer and AI tool junk "
-                      "and the Trash.")
-            tool = ("edit-copy-symbolic", _("Large & Old Files and Duplicates"),
-                    _("Find big, old and duplicate files and move the ones you pick to the Trash."))
-        else:
-            smart = _("System, developer and AI tool junk in one scan: caches, old logs, unused packages and what "
-                      "removed apps left behind.")
-            tool = ("application-x-addon-symbolic", _("Uninstaller"),
-                    _("Remove apps and the folders they leave in your home."))
+        smart = _("System, developer and AI tool junk in one scan: caches, old logs, unused packages and what "
+                  "removed apps left behind.")
+        tool = ("application-x-addon-symbolic", _("Uninstaller"),
+                _("Remove apps and the folders they leave in your home."))
         page.add(points(_("What it does"), [
             ("starred-symbolic", _("Smart Scan"), smart),
             ("security-high-symbolic", _("Privacy"),
@@ -167,26 +155,6 @@ class Welcome(Adw.Dialog):
         self.terminal_button = button
         terminal.add(row)
         page.add(terminal)
-        return page
-
-    def flatpak_step(self):
-        """Step 2 of the Flatpak: what it reaches, what it never touches, and a link to what it can't do."""
-        page = Adw.PreferencesPage()
-        page.add(intro("user-home-symbolic", _("What the Flatpak reaches"),
-                       _("It runs as you, inside your home folder.")))
-        page.add(points(None, [
-            ("user-home-symbolic", _("Your home folder"),
-             _("Caches, old app logs, developer and AI tool junk and the Trash. Your own files only when you "
-               "pick them in Space Lens, Large & Old Files or Duplicates — and then they go to the Trash.")),
-        ]))
-        page.add(points(_("Never touched"), [
-            ("channel-secure-symbolic", _("Logins and keys"),
-             _(".ssh, .gnupg and saved logins, your settings and bookmarks.")),
-        ]))
-        limits = Adw.PreferencesGroup()
-        self.limits_row = flatpak_limits_row(self.window)
-        limits.add(self.limits_row)
-        page.add(limits)
         return page
 
     # ── moving ──

@@ -1,4 +1,4 @@
-"""The app's own log of errors: `~/.cache/cleanmate/gui.log` (in a Flatpak, the app's cache folder).
+"""The app's own log of errors: `~/.cache/cleanmate/gui.log`.
 
 It holds this session and the previous one, is capped in size, leaves out your home folder and user name, and
 is never sent anywhere: Report a Bug… can copy it. Nothing here raises: a log that can't be written is skipped.
@@ -24,8 +24,6 @@ def log_path():
 
 def channel(engine_path):
     """How CleanMate was installed, as far as the environment tells."""
-    if os.environ.get("FLATPAK_ID"):
-        return "flatpak"
     if os.environ.get("SNAP"):
         return "snap"
     if os.environ.get("APPIMAGE"):

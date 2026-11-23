@@ -58,8 +58,6 @@ def texts():
         "per_user": _("This works for your own account: run CleanMate as yourself, not as root."),
         "refused_as_root": _("CleanMate doesn't do this as root: run it as yourself."),
         "unknown_item": _("Unknown cleanup item: {id}"),
-        "flatpak_unavailable": _("Not available in the Flatpak: this manages the system's apps and services. "
-                                 "Use the .deb version."),
         "not_folder": _("Not a folder: {path}"),
         "unknown_startup": _("Unknown startup item: {id}"),
         "bad_value": _("This value isn't allowed for {key}."),

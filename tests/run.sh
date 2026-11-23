@@ -1467,58 +1467,6 @@ EOF
   assert_contains "$(grep '"id":"docker_dangling"' <<<"$out")" '"data_loss":false'
 }
 
-test_flatpak_leaves_out_what_the_sandbox_cant_reach() {
-  fresh_home
-  local out id py
-  new "$HOME_DIR/.local/share/Trash/files/old.txt"; new "$HOME_DIR/.local/share/Trash/info/old.txt.trashinfo"
-  new "$HOME_DIR/.npm/_cacache/n"
-  new "$HOME_DIR/.claude/cache/c" # skipped while Claude Code runs: the sandbox can't see it run
-  out=$(container=flatpak cm --json items)
-  for id in apt_cache journal old_logs old_kernels snap_old tmp trash_drives docker_images podman priv_gsettings tracker_index; do
-    [[ $out == *"\"id\":\"$id\""* ]] && fail "Flatpak: $id should be left out"
-  done
-  for id in trash thumbs npm app_cache old_downloads app_logs ai_claude_cache; do
-    assert_contains "$out" "\"id\":\"$id\""
-  done
-  assert_contains "$(grep '"id":"ai_claude_cache"' <<<"$out")" '"default":false'
-  assert_contains "$(cm --json items | grep '"id":"ai_claude_cache"')" '"default":true' # outside the Flatpak as before
-  assert_contains "$(cm --json items)" '"id":"apt_cache"'
-  out=$(container=flatpak cm --json scan)
-  assert_contains "$(grep '"id":"ai_claude_cache"' <<<"$out")" "close it first: the Flatpak can't see if it's open"
-  assert_contains "$(grep '"id":"trash"' <<<"$out")" '"status":"found"'
-  assert_contains "$(grep '"id":"npm"' <<<"$out")" '"status":"found"'
-  assert_contains "$(container=flatpak user_cm --json clean apt_cache)" "Unknown item"
-  for id in apps startup maintenance; do # the host's apps and services: refused with the reason
-    assert_contains "$(container=flatpak user_cm --json "$id")" "Not available in the Flatpak"
-  done
-  assert_contains "$(in_app 'packaged() { true; }; FLATPAK=1; cli_uninstall' 2>&1)" "flatpak uninstall com.homielab.CleanMate"
-  # unattended: an item that waits for its program is left even when ticked
-  select_only ai_claude_cache npm
-  out=$(container=flatpak cm --clean --yes 2>&1 </dev/null)
-  assert_contains "$out" "Claude Code — cache & logs skipped: the Flatpak can't see if its program is open"
-  assert_exists "$HOME_DIR/.claude/cache/c"
-  assert_missing "$HOME_DIR/.npm/_cacache/n"
-  # the sandbox's own ~/.var/app/… settings folder is swapped for your real one
-  out=$(env -i HOME="$HOME_DIR" PATH="$BASE_PATH" container=flatpak \
-    XDG_CONFIG_HOME="$HOME_DIR/.var/app/com.homielab.CleanMate/config" bash -c 'source "$1"; echo "$PREF_FILE"' _ "$SCRIPT")
-  assert_eq "$out" "$HOME_DIR/.config/cleanmate/selection" "Flatpak: selection in ~/.config"
-  assert_contains "$(container=flatpak user_cm --json settings | tail -1)" '"systemd":false' # no timers, no reminders
-  # the desktop app: no Uninstaller, Startup Items or Maintenance page
-  for py in python3 /usr/bin/python3; do
-    out=$(cd "$ROOT/gui" && env -i HOME="$HOME_DIR" PATH="$BASE_PATH" container=flatpak "$py" -c '
-import gi; gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
-from cleanmate_gui import engine, window
-print(engine.IN_FLATPAK, " ".join(p[0] for p in window.PAGES if p))' 2>/dev/null) && break
-  done
-  if [[ -n $out ]]; then
-    assert_contains "$out" "True smart system logs"
-    [[ $out == *uninstall* || $out == *startup* || $out == *maintenance* ]] && fail "Flatpak: the app shows a page it can't run: $out"
-  else
-    echo "      (GTK 4 + libadwaita not available: desktop app part skipped)"
-  fi
-  return 0
-}
-
 test_docker_sizes_in_a_decimal_comma_language() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   local l lang=""
@@ -1779,7 +1727,6 @@ for l in sys.stdin:
   assert_contains "$out" '"category":"system"'
   assert_contains "$(user_cm --json details flatpak_unused)" "org.test.Old.Locale/i386/1 (your installation)"
   assert_contains "$(user_cm --json maintenance | python3 -c "$show")" "frees True"
-  [[ $(container=flatpak cm --json items) != *'"id":"flatpak_unused"'* ]] && ok_ "hidden in the Flatpak" || fail "flatpak_unused shows in the Flatpak"
   # flatpak updating: the item is locked and a clean skips it; `flatpak run` doesn't lock it
   proc_stub "$WORK/fpproc" 4242 /usr/bin/flatpak --user update
   proc_stub "$WORK/fpproc" 4243 flatpak run org.test.App
@@ -1796,18 +1743,6 @@ for l in sys.stdin:
   assert_contains "$(cat "$HOME_DIR/flatpak.log")" "uninstall --unused -y --noninteractive"
   assert_eq "$(user_cm --json scan --only system | python3 -c "$show")" "clean False - - False" "nothing left after"
   rm -r "$WORK/fpproc"
-}
-
-test_flatpak_metainfo_leaves_out_hidden_pages() {
-  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
-  local cmd out
-  cmd=$(grep -m1 "^ *- sed .*metainfo.xml >" "$ROOT/packaging/flathub/com.homielab.CleanMate.yml" | sed 's/^ *- //')
-  [[ -n $cmd ]] || { fail "the Flatpak manifest doesn't filter the metainfo"; return; }
-  out=$(cd "$ROOT" && eval "${cmd% >*}" | python3 -c 'import sys, xml.etree.ElementTree as ET
-shots = [i.text.rsplit("/", 1)[1] for i in ET.parse(sys.stdin).getroot().iter("image")]
-print(len(shots), " ".join(s for s in shots if "uninstall" in s or "startup" in s))')
-  assert_eq "$out" "10 " "Flatpak metainfo: valid XML, no Uninstaller or Startup Items screenshot"
-  assert_contains "$(cat "$ROOT/data/com.homielab.CleanMate.metainfo.xml")" "desktop-8-uninstall.png" # .deb and snap keep it
 }
 
 test_json_protocol() {

@@ -9,7 +9,7 @@ from .a11y import named
 from . import applog, bugreport, state
 from .bugreport import REPO_URL, WEBSITE_URL
 from .duplicates import DuplicatesPage
-from .engine import FLATPAK_HIDDEN_PAGES, IN_FLATPAK, SMART_SCAN, Selection, human
+from .engine import SMART_SCAN, Selection, human
 from .i18n import _
 from .largefiles import LargeFilesPage
 from .maintenance import MaintenancePage
@@ -45,10 +45,10 @@ TOOL_PAGES = {"lens": SpaceLensPage, "large": LargeFilesPage, "dupes": Duplicate
 
 def disk_space(paths=None):
     """[(mount point, free bytes, total bytes)]: the filesystem holding / and, when it is another one, the one
-    holding your home (in the Flatpak only your home's: / is the sandbox)."""
+    holding your home."""
     home = os.path.expanduser("~")
     disks, seen = [], set()
-    for path in paths or ([home] if IN_FLATPAK else ["/", home]):
+    for path in paths or ["/", home]:
         try:
             dev, st = os.stat(path).st_dev, os.statvfs(path)
         except OSError:
@@ -104,21 +104,13 @@ PAGES = [
     ("trashed", _("Moved to the Trash"), "user-trash-symbolic", None,
      _("Everything CleanMate moved to the Trash, also in earlier sessions. Put back one item, a few or all.")),
 ]
-if IN_FLATPAK:  # what the Flatpak can't reach is left out (engine.IN_FLATPAK); the descriptions say what is left
-    _FLATPAK_DESCRIPTIONS = {
-        "system": _("Old installers, downloads and screenshots, and unfinished downloads. The package cache, "
-                    "old kernels and snaps are out of the Flatpak's reach."),
-        "logs": _("Old app logs. The systemd journal, /var/log and crash reports are out of the Flatpak's reach."),
-    }
-    PAGES = [(s[0], s[1], s[2], s[3], _FLATPAK_DESCRIPTIONS.get(s[0], s[4])) if s else s
-             for s in PAGES if not (s and s[0] in FLATPAK_HIDDEN_PAGES)]
 # Ctrl+1…9: the System Overview (where the app opens) first, then the sidebar from the top
 SHORTCUT_PAGES = ["overview", "smart", "system", "logs", "user", "ai", "dev", "privacy", "lens"]
-# the other tools: Ctrl+0, then Ctrl+Shift+1…5 (pages the Flatpak hides get none)
-MORE_SHORTCUTS = [(pid, accel) for pid, accel in (
+# the other tools: Ctrl+0, then Ctrl+Shift+1…5
+MORE_SHORTCUTS = [
     ("large", "<Control>0"), ("dupes", "<Control><Shift>1"), ("uninstall", "<Control><Shift>2"),
-    ("startup", "<Control><Shift>3"), ("maintenance", "<Control><Shift>4"), ("trashed", "<Control><Shift>5"))
-    if not (IN_FLATPAK and pid in FLATPAK_HIDDEN_PAGES)]
+    ("startup", "<Control><Shift>3"), ("maintenance", "<Control><Shift>4"), ("trashed", "<Control><Shift>5"),
+]
 ACCEL_LABELS = {"<Control>0": "Ctrl+0", "<Control><Shift>1": "Ctrl+Shift+1", "<Control><Shift>2": "Ctrl+Shift+2",
                 "<Control><Shift>3": "Ctrl+Shift+3", "<Control><Shift>4": "Ctrl+Shift+4",
                 "<Control><Shift>5": "Ctrl+Shift+5"}
@@ -152,13 +144,12 @@ class Window(Adw.ApplicationWindow):
                     row.set_tooltip_text(f"{title} ({ACCEL_LABELS[accel]})")
             row.page_id = pid
             self.sidebar_list.append(row)
-        if not IN_FLATPAK:  # the sandbox can't open a terminal on your desktop
-            more = Gtk.Box(spacing=12)
-            more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
-            more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
-            more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Open the terminal app (cm)"))
-            more_row.page_id = "terminal"
-            self.sidebar_list.append(more_row)
+        more = Gtk.Box(spacing=12)
+        more.append(Gtk.Image(icon_name="utilities-terminal-symbolic"))
+        more.append(Gtk.Label(label=_("All tools (terminal)"), xalign=0))
+        more_row = Gtk.ListBoxRow(child=more, tooltip_text=_("Open the terminal app (cm)"))
+        more_row.page_id = "terminal"
+        self.sidebar_list.append(more_row)
         self.sidebar_list.connect("row-activated", self._on_row_activated)
 
         self.disk_bar = Gtk.LevelBar(min_value=0, max_value=1)
@@ -172,8 +163,7 @@ class Window(Adw.ApplicationWindow):
         main = Gio.Menu()
         main.append(_("Settings"), "win.settings")
         main.append(_("Keyboard Shortcuts"), "win.shortcuts")
-        if not IN_FLATPAK:
-            main.append(_("Open the terminal app"), "win.terminal")
+        main.append(_("Open the terminal app"), "win.terminal")
         menu.append_section(None, main)
         help_ = Gio.Menu()
         help_.append(_("Getting Started…"), "win.welcome")

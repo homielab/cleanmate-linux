@@ -970,10 +970,6 @@ msgstr "tổng cộng {size}"
 msgid "skipped while running: {names}"
 msgstr "bỏ qua vì đang chạy: {names}"
 
-#: gui/cleanmate_gui/i18n.py:220
-msgid "close it first: the Flatpak can't see if it's open"
-msgstr "hãy đóng nó trước: bản Flatpak không biết nó có đang mở không"
-
 #: gui/cleanmate_gui/i18n.py:221
 msgid "the Docker daemon isn't running"
 msgstr "daemon Docker chưa chạy"
@@ -1506,14 +1502,6 @@ msgstr ""
 #, python-brace-format
 msgid "Unknown cleanup item: {id}"
 msgstr "Mục dọn không xác định: {id}"
-
-#: gui/cleanmate_gui/messages.py:61
-msgid ""
-"Not available in the Flatpak: this manages the system's apps and services. "
-"Use the .deb version."
-msgstr ""
-"Không có trong bản Flatpak: việc này quản lý ứng dụng và dịch vụ của hệ "
-"thống. Hãy dùng bản .deb."
 
 #: gui/cleanmate_gui/messages.py:63
 #, python-brace-format
@@ -2510,18 +2498,6 @@ msgstr ""
 "Các mục kiểm tra này chạy quá lâu nên đã bị dừng; những gì chúng chứa không "
 "được liệt kê hay tính vào."
 
-#: gui/cleanmate_gui/scanpage.py:95
-msgid ""
-"System files are out of the Flatpak's reach: the package cache, system logs "
-"and old kernels need the .deb version."
-msgstr ""
-"Bản Flatpak không với tới tệp hệ thống: bộ đệm gói, nhật ký hệ thống và "
-"kernel cũ cần bản .deb."
-
-#: gui/cleanmate_gui/scanpage.py:97
-msgid "Learn More"
-msgstr "Tìm hiểu thêm"
-
 #: gui/cleanmate_gui/scanpage.py:106
 msgid "Scan"
 msgstr "Quét"
@@ -3078,19 +3054,6 @@ msgstr "Dọn phiên chat AI cũ hơn số ngày này"
 msgid "User & App Junk"
 msgstr "Rác người dùng & ứng dụng"
 
-#: gui/cleanmate_gui/settings.py:74
-msgid "Limits of the Flatpak"
-msgstr "Giới hạn của bản Flatpak"
-
-#: gui/cleanmate_gui/settings.py:75
-msgid ""
-"System files, Uninstaller, Startup Items, Maintenance, automatic cleaning "
-"and background notifications are out of its reach. The PPA, the .deb and the "
-"snap have them."
-msgstr ""
-"Bản này không với tới tệp hệ thống, Gỡ ứng dụng, Mục khởi động, Bảo trì, Dọn "
-"tự động và thông báo chạy nền. Bản PPA, .deb và snap có đủ."
-
 #: gui/cleanmate_gui/settings.py:92
 #, python-brace-format
 msgid "couldn't clean {items}"
@@ -3260,14 +3223,6 @@ msgstr "Ngôn ngữ"
 msgid "Restart"
 msgstr "Khởi động lại"
 
-#: gui/cleanmate_gui/settings.py:305
-msgid ""
-"A notification when the disk is almost full, only when you open CleanMate: "
-"the Flatpak can't check in the background"
-msgstr ""
-"Thông báo khi ổ sắp đầy, chỉ khi bạn mở CleanMate: bản Flatpak không kiểm "
-"tra chạy nền được"
-
 #: gui/cleanmate_gui/settings.py:308
 msgid ""
 "A notification when the system disk is almost full. Checked daily and when "
@@ -3302,10 +3257,6 @@ msgid ""
 msgstr ""
 "Chạy Dọn thông minh rác người dùng, rác developer và bộ nhớ đệm AI khi máy "
 "đang cắm sạc, rồi báo cho bạn đã giải phóng bao nhiêu"
-
-#: gui/cleanmate_gui/settings.py:330
-msgid "Not in the Flatpak: it can't start CleanMate on a schedule"
-msgstr "Không có trong bản Flatpak: nó không thể tự chạy CleanMate theo lịch"
 
 #: gui/cleanmate_gui/settings.py:331
 msgid "Needs systemd, which isn't available here"
@@ -4456,24 +4407,6 @@ msgstr "Tiếp"
 msgid "Free up disk space and keep Ubuntu tidy — safely."
 msgstr "Giải phóng dung lượng và giữ Ubuntu gọn gàng — an toàn."
 
-#: gui/cleanmate_gui/welcome.py:105
-msgid ""
-"Junk in your home folder in one scan: caches, old app logs, developer and AI "
-"tool junk and the Trash."
-msgstr ""
-"Rác trong thư mục riêng chỉ với một lần quét: bộ nhớ đệm, nhật ký ứng dụng "
-"cũ, rác của công cụ lập trình và AI, và Thùng rác."
-
-#: gui/cleanmate_gui/welcome.py:107
-msgid "Large & Old Files and Duplicates"
-msgstr "Tệp lớn & cũ và Tệp trùng lặp"
-
-#: gui/cleanmate_gui/welcome.py:108
-msgid ""
-"Find big, old and duplicate files and move the ones you pick to the Trash."
-msgstr ""
-"Tìm tệp lớn, cũ và trùng lặp, rồi chuyển những tệp bạn chọn vào Thùng rác."
-
 #: gui/cleanmate_gui/welcome.py:110
 msgid ""
 "System, developer and AI tool junk in one scan: caches, old logs, unused "
@@ -4637,28 +4570,6 @@ msgstr "Mọi công cụ (terminal)"
 msgid "Open the terminal app (cm)"
 msgstr "Mở app terminal (cm)"
 
-#: gui/cleanmate_gui/welcome.py:175
-msgid "What the Flatpak reaches"
-msgstr "Bản Flatpak với tới đâu"
-
-#: gui/cleanmate_gui/welcome.py:176
-msgid "It runs as you, inside your home folder."
-msgstr "Nó chạy với quyền của bạn, trong thư mục riêng của bạn."
-
-#: gui/cleanmate_gui/welcome.py:178
-msgid "Your home folder"
-msgstr "Thư mục riêng của bạn"
-
-#: gui/cleanmate_gui/welcome.py:179
-msgid ""
-"Caches, old app logs, developer and AI tool junk and the Trash. Your own "
-"files only when you pick them in Space Lens, Large & Old Files or Duplicates "
-"— and then they go to the Trash."
-msgstr ""
-"Bộ nhớ đệm, nhật ký ứng dụng cũ, rác của công cụ lập trình và AI, và Thùng "
-"rác. Tệp của chính bạn chỉ khi bạn tự chọn chúng trong Space Lens, Tệp lớn & "
-"cũ hoặc Tệp trùng lặp — và khi đó chúng vào Thùng rác."
-
 #: gui/cleanmate_gui/window.py:69
 msgid ""
 "Scan everything in one go and clean what you don't need. Nothing is removed "
@@ -4784,22 +4695,6 @@ msgid ""
 msgstr ""
 "Mọi thứ CleanMate đã chuyển vào Thùng rác, kể cả ở các lần trước. Trả lại "
 "một mục, vài mục hoặc tất cả."
-
-#: gui/cleanmate_gui/window.py:109
-msgid ""
-"Old installers, downloads and screenshots, and unfinished downloads. The "
-"package cache, old kernels and snaps are out of the Flatpak's reach."
-msgstr ""
-"Bộ cài cũ, tệp tải về và ảnh chụp màn hình cũ, tệp tải dở. Bộ đệm gói, "
-"kernel cũ và snap nằm ngoài tầm của bản Flatpak."
-
-#: gui/cleanmate_gui/window.py:111
-msgid ""
-"Old app logs. The systemd journal, /var/log and crash reports are out of the "
-"Flatpak's reach."
-msgstr ""
-"Nhật ký ứng dụng cũ. Nhật ký systemd, /var/log và báo cáo lỗi nằm ngoài tầm "
-"của bản Flatpak."
 
 #: gui/cleanmate_gui/window.py:174 gui/cleanmate_gui/window.py:309
 #: gui/cleanmate_gui/window.py:317

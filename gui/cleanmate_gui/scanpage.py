@@ -5,7 +5,7 @@ from urllib.parse import unquote
 from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
 from .a11y import named
-from .engine import (CAT_GROUP, CATEGORY_TITLES, FLATPAK_LIMITS_URL, IN_FLATPAK, PACKAGE_HINT, PACKAGE_NEEDED,
+from .engine import (CAT_GROUP, CATEGORY_TITLES, PACKAGE_HINT, PACKAGE_NEEDED,
                      SMART_SCAN, human, merge_scan)
 from .errorview import ErrorPage, Failure, last_line, pkexec_reason
 from .i18n import _, detail_text, item_text, ngettext, note_text, why_running
@@ -90,14 +90,6 @@ class ScanPage(Gtk.Box):
         self.group_rows = []  # (group, junk ids, "more items are clean" row or None, [(clean row, item)])
         self.gone = set()  # items whose every entry went to Never clean: hidden until the next scan
         self.rescan_buttons = []  # Rescan This Item of each item under Not finished
-
-        if IN_FLATPAK and {"system", "logs"} & set(categories):
-            banner = Adw.Banner(title=_("System files are out of the Flatpak's reach: the package cache, system "
-                                        "logs and old kernels need the .deb version."),
-                                button_label=_("Learn More"), revealed=True)
-            banner.connect("button-clicked",
-                           lambda *_: Gtk.UriLauncher.new(FLATPAK_LIMITS_URL).launch(window, None, None))
-            self.append(banner)
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vexpand=True)
         self.append(self.stack)

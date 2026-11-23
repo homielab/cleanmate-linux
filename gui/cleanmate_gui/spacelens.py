@@ -12,7 +12,7 @@ import os
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .a11y import named
-from .engine import IN_FLATPAK, human
+from .engine import human
 from .errorview import ErrorPage, Failure
 from . import findbar
 from .findbar import FindBar
@@ -259,8 +259,7 @@ class SpaceLensPage(Gtk.Box):
 
         spots = Gio.Menu()
         spots.append_item(item(_("Home folder"), home["path"]))
-        if not IN_FLATPAK:  # the sandbox sees its own / only
-            spots.append_item(item(_("System disk (/)"), "/"))
+        spots.append_item(item(_("System disk (/)"), "/"))
         self.places_menu.append_section(None, spots)
         disks = Gio.Menu()
         for p in self.places:

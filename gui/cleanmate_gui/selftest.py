@@ -2908,7 +2908,7 @@ def welcome_test(win, report, wait, finish):
         win.engine, win.open_terminal = real_engine, real_terminal
         del win.start_smart_scan
         shutil.rmtree(sandbox, ignore_errors=True)
-        flatpak_welcome_test(win, report, wait, finish)
+        honest_results_test(win, report, wait, finish)
 
     def step1():
         report(not dialog.back.get_visible() and dialog.skip.get_visible() and dialog.next.get_label() == _("Next"),
@@ -3028,62 +3028,6 @@ def welcome_test(win, report, wait, finish):
 
     # laid out first: the stack's pages have no width before the dialog shows
     wait(lambda: win.get_visible_dialog() is dialog and dialog.pager.get_width() > 0, step1, 10, "the welcome")
-
-
-def flatpak_welcome_test(win, report, wait, finish):
-    """The welcome and Settings of the Flatpak (as with IN_FLATPAK): no terminal app, Uninstaller, password
-    step, automatic cleaning or scan reminder; step 2 and Settings link to the Flatpak's limits (opened
-    through a stub)."""
-    from . import welcome as W
-    from .engine import FLATPAK_LIMITS_URL
-    from .settings import SettingsPage
-    real_open = win._open_url
-    opened = []
-    win._open_url = opened.append
-    root = os.geteuid() == 0  # the engine refuses settings: no rows to look at
-    dialog = W.Welcome(win, flatpak=True)
-    limits = labels(dialog.limits_row)  # names what the Flatpak hasn't
-    text = "\n".join(t for step in dialog.steps[:2] for t in labels(step) if t not in limits)
-    promised = [t for t in (_("What needs your password"), _("Items with a lock"), _("Uninstaller"),
-                            _("The terminal app"), _("All tools (terminal)"), _("Automatic cleaning"), "sudo cm")
-                if t in text]
-    report(dialog.terminal_button is None and not promised, f"the Flatpak's welcome promises only what it does "
-           f"(found: {promised})")
-    report(_("Limits of the Flatpak") in limits and _("Large & Old Files and Duplicates") in text,
-           "its step 2 links to the Flatpak's limits; step 1 shows the file tools instead of the Uninstaller")
-    dialog.present(win)  # laid out: its three steps must fill the dialog like the regular welcome's do
-    wait(lambda: dialog.pager.get_width() > 0, lambda: flatpak_step_widths(0), 10, "the Flatpak's welcome")
-
-    def flatpak_step_widths(i):
-        if i:
-            dialog_w = dialog.pager.get_width()
-            page_w, clamp_w = content_widths(dialog.steps[i - 1])
-            report(page_w >= dialog_w and clamp_w >= dialog_w - 26,
-                   f"the Flatpak's welcome step {i} fills the dialog (page {page_w}, content {clamp_w})")
-        if i == len(dialog.steps):
-            dialog.force_close()
-            dialog.limits_row.emit("activated")
-            report(opened == [FLATPAK_LIMITS_URL], f"the limits row opens the page about the Flatpak: {opened}")
-            settings = SettingsPage(win, flatpak=True)
-            return wait(lambda: not dialog.options.busy() and not settings.busy(),
-                        lambda: loaded(settings), 30, "the Flatpak's options")
-        dialog.pager.set_visible_child(dialog.steps[i])
-        wait(lambda: dialog.steps[i].get_allocation().width > 0, lambda: flatpak_step_widths(i + 1), 10,
-             f"the Flatpak's welcome step {i + 1} laid out")
-
-    def loaded(settings):
-        rows = sorted(dialog.options.rows)
-        report(root or rows == sorted(W.FLATPAK_OPTIONS), f"its options are the language and the low disk alert, "
-               f"no automatic cleaning or scan reminder: {rows}")
-        report(root or settings.limits_row is not None and _("Limits of the Flatpak") in labels(settings),
-               "Settings of the Flatpak links to its limits")
-        only_open = _("A notification when the disk is almost full, only when you open CleanMate: the "
-                      "Flatpak can't check in the background")
-        report(root or dialog.options.rows["low_disk_pct"].get_subtitle() == only_open
-               and settings.rows["low_disk_pct"].get_subtitle() == only_open,
-               "the Flatpak's low disk alert says it only warns when CleanMate opens")
-        win._open_url = real_open
-        honest_results_test(win, report, wait, finish)
 
 
 FAKE_ENGINE = """#!/bin/bash

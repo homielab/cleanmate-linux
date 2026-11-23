@@ -217,7 +217,6 @@ def _sentences():
         (r"\{c0\}", "{count}"),
         (r"(?P<size>\d[\d.,]* ?[KMGTP]?i?B) in total", _("{size} in total")),
         (r"skipped while running: (?P<names>.+)", _("skipped while running: {names}")),
-        (r"close it first: the Flatpak can't see if it's open", _("close it first: the Flatpak can't see if it's open")),
         (r"the Docker daemon isn't running", _("the Docker daemon isn't running")),
         (r"this user can't talk to the Docker daemon", _("this user can't talk to the Docker daemon")),
         (r"join the docker group: sudo usermod -aG docker \$USER, then sign out and back in",
