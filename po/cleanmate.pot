@@ -2304,6 +2304,10 @@ msgstr ""
 msgid "Processor"
 msgstr ""
 
+#: gui/cleanmate_gui/overview.py:624
+msgid "Graphics"
+msgstr ""
+
 #: gui/cleanmate_gui/overview.py:622
 #, python-brace-format
 msgid "{cpu} ({n} thread)"

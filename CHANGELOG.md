@@ -6,6 +6,12 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+- System Overview shows your graphics cards (read with `lspci`; the row is left out when it finds none).
+
+### Fixed
+- System Overview said *Processor: unknown* when the system language isn't English or `lscpu` is missing. The name now comes from `/proc/cpuinfo`.
+
 ## [2.6.0] - 2026-11-16
 
 ### Added

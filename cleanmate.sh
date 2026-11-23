@@ -9953,11 +9953,28 @@ maintenance_menu() {
 # What System Overview shows, measured apart from how each app prints it.
 OS_RELEASE=/etc/os-release # the Flatpak's own is the runtime's; the computer's is under /run/host
 ((FLATPAK)) && OS_RELEASE=/run/host/os-release
-sys_facts() { # → OV_OS OV_KERNEL OV_CPU OV_THREADS OV_UPTIME (seconds)
+cpu_model() { # → the processor's name, "" when unknown. /proc/cpuinfo has it on x86; ARM has no "model name"
+  # there, so lscpu, in English: its labels are translated ("Nom de modèle :")
+  local m
+  m=$(awk '/^model name[ \t]*:/ {sub(/^[^:]*:/, ""); print; exit}' "$PROC_DIR/cpuinfo" 2>/dev/null)
+  [[ $m == *[![:space:]]* ]] ||
+    m=$(LC_ALL=C lscpu 2>/dev/null | awk '/^Model name:/ {sub(/^[^:]*:/, ""); print; exit}')
+  read -ra m <<<"$m" # trim, and one space where the vendor padded with several
+  [[ ${m[*]} == - ]] || printf '%s\n' "${m[*]}"
+}
+
+gpu_models() { # → one line per graphics card, as lspci names it; nothing without lspci or a PCI graphics card
+  have lspci || return 0
+  LC_ALL=C lspci 2>/dev/null |
+    sed -nE '/ (VGA compatible|3D|Display) controller: /{s/^.*controller: //; s/ \(rev [^)]*\)$//; p}'
+}
+
+sys_facts() { # → OV_OS OV_KERNEL OV_CPU OV_GPU (array) OV_THREADS OV_UPTIME (seconds)
   # shellcheck source=/dev/null
   OV_OS=$(. "$OS_RELEASE" 2>/dev/null && echo "$PRETTY_NAME")
   OV_KERNEL=$(uname -r)
-  OV_CPU=$(lscpu 2>/dev/null | awk -F: '/Model name/ {gsub(/^ +/, "", $2); print $2; exit}')
+  OV_CPU=$(cpu_model)
+  mapfile -t OV_GPU < <(gpu_models)
   OV_THREADS=$(nproc 2>/dev/null || echo 0)
   OV_UPTIME=$(awk '{printf "%d", $1}' /proc/uptime 2>/dev/null)
 }
@@ -10111,13 +10128,14 @@ mem_facts() { # → OV_RAM_TOTAL OV_RAM_AVAIL OV_SWAP_TOTAL OV_SWAP_USED (bytes)
 }
 
 overview_lines() {
-  local t s u a fs pct barv max=0 b p pk
+  local t s u a fs pct barv max=0 b p pk g
   sys_facts; pkg_counts
   pk="${OV_APT:-0} apt${OV_SNAP:+, $OV_SNAP snap}${OV_FLATPAK:+, $OV_FLATPAK flatpak}"
   printf '  %sSystem%s\n' "$BOLD" "$NC"
   printf '  %s%-10s%s %s\n' "$DIM" "OS" "$NC" "$OV_OS" "$DIM" "Kernel" "$NC" "$OV_KERNEL" \
-    "$DIM" "Uptime" "$NC" "$(uptime -p | sed 's/^up //')" "$DIM" "CPU" "$NC" "${OV_CPU:-unknown} ($OV_THREADS threads)" \
-    "$DIM" "Packages" "$NC" "$pk"
+    "$DIM" "Uptime" "$NC" "$(uptime -p | sed 's/^up //')" "$DIM" "CPU" "$NC" "${OV_CPU:-unknown} ($OV_THREADS threads)"
+  for g in "${OV_GPU[@]}"; do printf '  %s%-10s%s %s\n' "$DIM" "GPU" "$NC" "$g"; done
+  printf '  %s%-10s%s %s\n' "$DIM" "Packages" "$NC" "$pk"
 
   printf '\n  %sStorage%s\n' "$BOLD" "$NC"
   disk_rows | while IFS=$'\t' read -r t s u a fs _; do
@@ -13829,12 +13847,13 @@ json_maintain() { # ID [on|off] [--user-steps]
 # as numbers. "freed" comes only once a cleanup was recorded.
 
 json_overview() {
-  local home_b="" outside t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 t30=0 e b tb cut kind path n note top="" d by_day="" days=()
+  local home_b="" outside t s u a fs dev jt jf jd j1 j2 j3 since=0 n30=0 b30=0 t30=0 e b tb cut kind path n note top="" d by_day="" days=() gpus=""
   local -A day_b=() day_n=()
   sys_facts; pkg_counts; mem_facts
   json_str j1 "$OV_OS"; json_str j2 "$OV_KERNEL"; json_str j3 "$OV_CPU"
-  printf '{"event":"system","os":%s,"kernel":%s,"cpu":%s,"threads":%d,"uptime":%d,"apt":%s,"snap":%s,"flatpak":%s}\n' \
-    "$j1" "$j2" "$j3" "${OV_THREADS:-0}" "${OV_UPTIME:-0}" "${OV_APT:-null}" "${OV_SNAP:-null}" "${OV_FLATPAK:-null}"
+  for e in "${OV_GPU[@]}"; do json_str b "$e"; gpus+="${gpus:+,}$b"; done
+  printf '{"event":"system","os":%s,"kernel":%s,"cpu":%s,"gpu":[%s],"threads":%d,"uptime":%d,"apt":%s,"snap":%s,"flatpak":%s}\n' \
+    "$j1" "$j2" "$j3" "$gpus" "${OV_THREADS:-0}" "${OV_UPTIME:-0}" "${OV_APT:-null}" "${OV_SNAP:-null}" "${OV_FLATPAK:-null}"
   while IFS=$'\t' read -r t s u a fs dev; do
     [[ $s =~ ^[0-9]+$ && $u =~ ^[0-9]+$ && $a =~ ^[0-9]+$ ]] || continue
     json_str jt "$t"; json_str jf "$fs"; json_str jd "$dev"

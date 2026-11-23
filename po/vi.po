@@ -2293,6 +2293,10 @@ msgstr "Thời gian chạy"
 msgid "Processor"
 msgstr "Bộ xử lý"
 
+#: gui/cleanmate_gui/overview.py:624
+msgid "Graphics"
+msgstr "Đồ hoạ"
+
 #: gui/cleanmate_gui/overview.py:622
 #, python-brace-format
 msgid "{cpu} ({n} thread)"

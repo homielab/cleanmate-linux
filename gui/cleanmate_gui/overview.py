@@ -621,8 +621,10 @@ class OverviewPage(Gtk.Box):
                 ("uptime", _("Uptime"), uptime_text(s["uptime"])),
                 ("cpu", _("Processor"), ngettext("{cpu} ({n} thread)", "{cpu} ({n} threads)", s["threads"],
                                                  cpu=s["cpu"] or _("unknown"))),
+                ("gpu", _("Graphics"), "\n".join(s.get("gpu") or [])),  # none found (no lspci): no row
                 ("packages", _("Packages"), ", ".join(packages))):
-            system.add(self.fact_row(key, label, value))
+            if value:
+                system.add(self.fact_row(key, label, value))
         self.results.append(system)
 
         storage = Adw.PreferencesGroup(title=_("Storage"))

@@ -7236,6 +7236,49 @@ for l in sys.stdin:
   assert_eq "$out" "0 - 0 " "no cleanup history (only the totals): no days"
 }
 
+test_overview_names_processor_and_graphics() { # the processor from /proc/cpuinfo, else lscpu in English; graphics from lspci
+  fresh_home
+  local bin=$WORK/hwbin proc=$WORK/hwproc out facts='sys_facts; printf "%s|" "$OV_CPU" "${OV_GPU[@]}"'
+  mkdir -p "$bin" "$proc"
+  # lscpu translates its labels: a French system must still get its processor's name
+  cat >"$bin/lscpu" <<'STUB'
+#!/bin/sh
+if [ "$LC_ALL" = C ]; then printf 'Architecture:   aarch64\nModel name:     Cortex-A72\n'
+else printf 'Architecture :   aarch64\nNom de modèle :  Cortex-A72\n'; fi
+STUB
+  cat >"$bin/lspci" <<'STUB'
+#!/bin/sh
+cat <<'OUT'
+00:00.0 Host bridge: Intel Corporation Device 4621 (rev 02)
+00:02.0 VGA compatible controller: Intel Corporation Alder Lake-P GT2 [Iris Xe Graphics] (rev 0c)
+00:1f.3 Audio device: Intel Corporation Alder Lake PCH-P High Definition Audio Controller (rev 01)
+01:00.0 3D controller: NVIDIA Corporation GA107M [GeForce RTX 3050 Mobile] (rev a1)
+OUT
+STUB
+  chmod +x "$bin/lscpu" "$bin/lspci"
+  printf 'processor\t: 0\nmodel name\t: Intel(R) Core(TM) i7-1260P   CPU @ 2.10GHz\nprocessor\t: 1\nmodel name\t: other\n' >"$proc/cpuinfo"
+  local BASE_PATH="$bin:$BASE_PATH" CLEANMATE_PROC=$proc TEST_LANG=fr_FR.UTF-8
+  assert_eq "$(in_app "$facts")" \
+    "Intel(R) Core(TM) i7-1260P CPU @ 2.10GHz|Intel Corporation Alder Lake-P GT2 [Iris Xe Graphics]|NVIDIA Corporation GA107M [GeForce RTX 3050 Mobile]|" \
+    "the processor's name from /proc/cpuinfo, one graphics card per VGA / 3D controller"
+  out=$(in_app 'json_overview 2>/dev/null | head -n 1' | python3 -c 'import sys, json
+e = json.loads(sys.stdin.readline()); print(e["event"], e["cpu"], len(e["gpu"]), e["gpu"][1])')
+  assert_eq "$out" "system Intel(R) Core(TM) i7-1260P CPU @ 2.10GHz 2 NVIDIA Corporation GA107M [GeForce RTX 3050 Mobile]" "--json overview: cpu and the gpu list"
+  out=$(in_app 'overview_lines 2>/dev/null')
+  assert_contains "$out" "i7-1260P CPU @ 2.10GHz ("
+  assert_contains "$out" "NVIDIA Corporation GA107M [GeForce RTX 3050 Mobile]"
+  # ARM: /proc/cpuinfo has no "model name" → lscpu; no lspci → no graphics card, not an error
+  printf 'processor\t: 0\nBogoMIPS\t: 108.00\n' >"$proc/cpuinfo"
+  rm "$bin/lspci"
+  BASE_PATH="$bin:$(path_without lspci lscpu)"
+  assert_eq "$(in_app "$facts")" "Cortex-A72|" "no model name in /proc/cpuinfo: lscpu, read in English; no lspci: no graphics card"
+  out=$(in_app 'json_overview 2>/dev/null | head -n 1' | python3 -c 'import sys, json
+e = json.loads(sys.stdin.readline()); print(e["cpu"], e["gpu"])')
+  assert_eq "$out" "Cortex-A72 []" "--json overview: an empty gpu list"
+  rm "$bin/lscpu"
+  assert_eq "$(in_app "$facts")" "|" "neither /proc/cpuinfo nor lscpu names it: empty, shown as unknown"
+}
+
 test_system_protection() {
   fresh_home
   local bin=$WORK/protbin r=$WORK/sysroot out before
