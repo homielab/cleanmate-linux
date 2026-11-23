@@ -15,9 +15,8 @@ Screenshot*.png
 # Translations compiled for a checkout (po/compile.sh gui/locale)
 gui/locale/
 
-# Built packages (packaging/build-deb.sh, packaging/flathub/build.sh) and flatpak-builder state
+# Built packages (packaging/build-deb.sh, packaging/build-appimage.sh)
 dist/
-.flatpak-builder/
 
 # Demo home folder used by packaging/make-screenshots.sh
 .demo/

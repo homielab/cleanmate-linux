@@ -66,10 +66,6 @@ package*. Clean them with `sudo cm`, or install from the PPA or the `.deb`.
   `--appimage-extract-and-run` as the first option. Keep the file where it is after `--install` (moved
   it? run `--install` again). Items with a 🔒 need the PPA or the `.deb`, or `sudo cm`.
 - **Just try it:** `bash cleanmate.sh --dry-run` — everything works, nothing is deleted.
-- **Flatpak:** not on Flathub yet (it will be submitted after a release); build it now with
-  `packaging/flathub/build.sh`. It cleans your home
-  folder only: apt, the journal, old kernels, Docker and the Uninstaller need the PPA or the `.deb`
-  ([what the Flatpak can't do](packaging/flathub/README.md#what-the-flatpak-cant-do)).
 
 Also available for macOS: [CleanMate for macOS](https://github.com/homielab/cleanmate-macos).
 
@@ -184,7 +180,7 @@ CleanMate notifies you when `/` has less than 10 % free (*Settings → Low disk 
 Off; once a day at most) and, if you turn on *Settings → Scan reminder*, when you haven't scanned
 for a week or a month. A daily systemd user timer (`cleanmate-check.timer`) checks while either is
 on, and the desktop app checks the disk when it opens and sends the alert itself, so it also
-reaches you without `notify-send` (in the Flatpak, or without `libnotify-bin`). Click the notification to open
+reaches you without `notify-send` (without `libnotify-bin`). Click the notification to open
 CleanMate. Check now with `cm --check`; it says so when `notify-send` is missing and nothing can be sent.
 
 ## Command line & AI agents

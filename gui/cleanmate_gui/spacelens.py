@@ -531,7 +531,7 @@ class SpaceLensPage(Gtk.Box):
         return notes
 
     def page_title(self, pid):
-        """The sidebar title of a page, or None when this app has no such page (the Flatpak hides some)."""
+        """The sidebar title of a page, or None when this app has no such page."""
         from .window import PAGES  # the window imports this module
         return next((s[1] for s in PAGES if s and s[0] == pid), None)
 

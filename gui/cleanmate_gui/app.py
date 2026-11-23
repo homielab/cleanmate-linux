@@ -89,8 +89,8 @@ class App(Adw.Application):
 
     def check_disk(self, engine=None, on_done=None):
         """The low disk alert: the engine decides (below Settings › Low disk alert, once a day at most) and the
-        app sends it, so it also reaches you where the engine's notify-send can't (the Flatpak, a system
-        without libnotify-bin)."""
+        app sends it, so it also reaches you where the engine's notify-send can't (a system without
+        libnotify-bin)."""
         return (engine or self.engine).check(["low_disk"], self.on_check, on_done or (lambda ok, status: None))
 
     def on_check(self, e):

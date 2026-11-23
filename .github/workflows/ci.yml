@@ -30,7 +30,7 @@ jobs:
             tar -xJ -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/shellcheck-v$SHELLCHECK_VERSION" >>"$GITHUB_PATH"
       - name: ShellCheck (warnings and errors)
-        run: shellcheck --version && shellcheck -S warning -x cleanmate.sh tests/run.sh tests/bench-*.sh packaging/*.sh packaging/flathub/*.sh po/*.sh
+        run: shellcheck --version && shellcheck -S warning -x cleanmate.sh tests/run.sh tests/bench-*.sh packaging/*.sh po/*.sh
       - name: Python syntax (desktop app and every test script)
         run: python3 -m py_compile gui/cleanmate-gui $(find gui tests -name '*.py')
       - name: Ruff (gui and tests)

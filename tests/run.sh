@@ -188,24 +188,6 @@ test_help_and_version() {
   assert_contains "$h" "github.com/homielab/cleanmate-linux"
 }
 
-# the Flatpak manifest builds the release this script says it is (packaging/flathub/pin.sh sets it)
-test_flathub_manifest_pinned() {
-  local m=$ROOT/packaging/flathub/com.homielab.CleanMate.yml tag commit version want
-  tag=$(sed -n 's/^ *tag: *\(v[0-9.]*\).*/\1/p' "$m")
-  commit=$(sed -n 's/^ *commit: *\([0-9a-f]\{40\}\).*/\1/p' "$m")
-  version=$(sed -n 's/^VERSION="\([0-9.]*\)"$/\1/p' "$SCRIPT" | head -n 1)
-  [[ -n $tag && -n $commit && -n $version ]] || { fail "no tag, commit or VERSION found"; return; }
-  if want=$(git -C "$ROOT" rev-parse -q --verify "refs/tags/v$version^{commit}" 2>/dev/null); then
-    if [[ $tag == "v$version" ]]; then ok_ "manifest builds v$version"
-    else fail "packaging/flathub: manifest builds $tag, release is v$version: run packaging/flathub/pin.sh v$version"; fi
-    assert_eq "$commit" "$want" "manifest commit is the one v$version names"
-  elif want=$(git -C "$ROOT" rev-parse -q --verify "refs/tags/$tag^{commit}" 2>/dev/null); then
-    assert_eq "$commit" "$want" "manifest commit is the one $tag names (v$version is not tagged yet)"
-  else
-    SKIPPED="no git tags here to compare the manifest with"
-  fi
-}
-
 # an item that runs past the scan's time limit is not shown as clean: plain output says so, --json calls it a timeout
 test_scan_timeout_not_shown_clean() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
@@ -548,7 +530,7 @@ test_help_lists_every_json_command() {
   local help cmd page cmds
   help=$(bash "$SCRIPT" --help)
   page=$(sed -n '/^      --json CMD/,/^$/p' <<<"$help")
-  # every subcommand of json_main's case (the Flatpak guard line and the fallback aside)
+  # every subcommand of json_main's case (the fallback aside)
   cmds=$(sed -n '/^json_main() {/,/^}/p' "$SCRIPT" | grep -o '^    [a-z][a-z-]*\( | [a-z-]*\)*)' | tr -d ')' | tr '|' '\n' | tr -d ' ' | sort -u)
   [[ $(wc -l <<<"$cmds") -ge 20 ]] || { FAILED=1; echo "json_main's commands not found"; }
   for cmd in $cmds; do
@@ -1681,7 +1663,7 @@ for l in sys.stdin:
 }
 
 # Unused Flatpak runtimes: measured from what `flatpak uninstall --unused` would remove (a fake flatpak
-# on PATH), removed by it, hidden in the Flatpak build, skipped while flatpak installs or updates.
+# on PATH), removed by it, skipped while flatpak installs or updates.
 test_flatpak_unused_runtimes() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
   fresh_home
@@ -3698,7 +3680,7 @@ for l in sys.stdin:
   assert_contains "$(cat "$HOME_DIR/systemctl.log")" "--user disable --now cleanmate-check.timer"
 }
 
-# The low disk alert reaches you without notify-send (the Flatpak, no libnotify-bin): --json check hands the
+# The low disk alert reaches you without notify-send (no libnotify-bin): --json check hands the
 # notification to the desktop app, which sends it; --check says it can't send any.
 test_low_disk_alert_without_notify_send() {
   command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }

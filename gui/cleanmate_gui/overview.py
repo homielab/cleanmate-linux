@@ -768,8 +768,6 @@ class OverviewPage(Gtk.Box):
             top.add(row)
 
         for key, group in (("outside", outside), ("top", top)):
-            if key not in self.groups:
-                continue  # the Flatpak has no "outside" group
             self.results.insert_child_after(group, self.groups[key])
             self.results.remove(self.groups[key])
             self.groups[key] = group

@@ -1606,7 +1606,7 @@ def settings_test(win, report, wait, finish):
 
 def low_disk_alert_test(win, report, wait, finish):
     """The low disk alert of a throwaway home with a fake `df` (5 % free): the app sends it as a Gio
-    notification, never notify-send (missing in the Flatpak and without libnotify-bin), once a day."""
+    notification, never notify-send (missing without libnotify-bin), once a day."""
     from .engine import Engine
     app = win.get_application()
     if os.geteuid() == 0:  # the engine refuses checks as root
