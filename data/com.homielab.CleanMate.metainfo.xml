@@ -132,6 +132,17 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="2.7.0" date="2026-11-24">
+      <description>
+        <p>CleanMate warns you in time when a separate /home partition fills up, and System Overview knows more about your computer.</p>
+        <ul>
+          <li>Low disk alert also watches /home on its own partition and names the full disk</li>
+          <li>System Overview shows your graphics cards and the processor name in any language</li>
+          <li>An interrupted AppImage update no longer leaves a half-downloaded file</li>
+          <li>No Flatpak build any more; Flatpak apps on your computer are still cleaned</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.6.0" date="2026-11-16">
       <description>
         <p>CleanMate comes as an AppImage, lists idle virtual machines and AI models one by one, and deletes more carefully.</p>

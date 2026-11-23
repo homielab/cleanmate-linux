@@ -6,8 +6,10 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-11-24
+
 ### Added
-- System Overview shows your graphics cards (read with `lspci`; the row is left out when it finds none).
+- System Overview shows your graphics cards.
 
 ### Removed
 - The Flatpak build: CleanMate is no longer published on Flathub, so there is no Flatpak of CleanMate and the engine and the desktop app no longer hide pages and items for it. Flatpak apps and unused runtimes on your computer are still cleaned and uninstalled.
