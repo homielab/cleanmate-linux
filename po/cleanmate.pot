@@ -1887,11 +1887,22 @@ msgid_plural "{n} file systems trimmed"
 msgstr[0] ""
 msgstr[1] ""
 
+#: gui/cleanmate_gui/messages.py:206
+msgid "Home disk almost full"
+msgstr ""
+
 #: gui/cleanmate_gui/messages.py:207
-msgid "Disk almost full"
+#, python-brace-format
+msgid ""
+"Only {size} ({pct}%) free on {disk}, the disk of your home folder. Open "
+"CleanMate to free up space."
 msgstr ""
 
 #: gui/cleanmate_gui/messages.py:208
+msgid "Disk almost full"
+msgstr ""
+
+#: gui/cleanmate_gui/messages.py:209
 #, python-brace-format
 msgid "Only {size} ({pct}%) free on /. Open CleanMate to free up space."
 msgstr ""

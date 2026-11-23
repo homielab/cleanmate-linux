@@ -281,6 +281,7 @@ class StartupPage(Gtk.Box):
 
     def remove(self, u):
         def removed(task):
+            self.window.refresh_disk()
             self.load()
             if task.get("trash"):
                 self.undo_toast = self.window.toast(_("Removed {name}").format(name=u["name"]), _("Undo"),
@@ -308,6 +309,8 @@ class StartupPage(Gtk.Box):
                 self.window.toast(_("Could not restore {name}: {reason}").format(
                     name=u["name"], reason=messages.text(result)))
                 return self.load()
+            if not self.engine.dry_run:
+                self.window.refresh_disk()
             if u["kind"] == "systemd-user" and u["enabled"]:
                 return self.change(u, "enable", lambda _t: (self.load(), self.window.toast(
                     _("{name} is back").format(name=u["name"]))))

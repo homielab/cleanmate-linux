@@ -385,6 +385,7 @@ class UninstallerPage(Gtk.Box):
             if moved:
                 msg = ngettext("Moved {n} folder to the Trash", "Moved {n} folders to the Trash", len(done))
                 self.undo_toast = self.window.toast(msg, _("Undo"), lambda: self.restore(moved), timeout=10)
+            if not self.engine.dry_run and (moved or done):
                 self.window.refresh_disk()
             self.load()
 
@@ -749,7 +750,8 @@ class UninstallerPage(Gtk.Box):
                 self.undo_toast = self.window.toast(msg, _("Restore folders"), lambda: self.restore(moved), timeout=10)
             else:
                 self.window.toast(msg)
-            self.window.refresh_disk()
+            if not dry and (removed or folders_done):
+                self.window.refresh_disk()
             self.selected -= removed
             if failed or unasked:  # the rows say why: they stay until Back to the List
                 self.work_back.set_visible(True)
@@ -861,9 +863,10 @@ class UninstallerPage(Gtk.Box):
                 if failed:
                     msg += " · " + failed[0]
                 self.undo_toast = self.window.toast(msg, _("Restore"), lambda: self.restore(moved), timeout=10)
-                self.window.refresh_disk()
             elif failed:
                 self.window.toast(failed[0], timeout=8)
+            if not self.engine.dry_run and (moved or done):
+                self.window.refresh_disk()
             self.load()
 
         self.running = self.engine.reset(app["id"], on_event, on_done, folders=folders)
@@ -896,6 +899,8 @@ class UninstallerPage(Gtk.Box):
             else:
                 self.window.toast(ngettext("Put back {n} folder from the Trash", "Put back {n} folders from the Trash",
                                            len(back)))
+            if not self.engine.dry_run and back:
+                self.window.refresh_disk()
             self.load()
 
         self.running = self.engine.restore(list(moved), on_event, on_done)

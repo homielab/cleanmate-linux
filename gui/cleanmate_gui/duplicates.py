@@ -701,17 +701,21 @@ class DuplicatesPage(Gtk.Box):
 
         def on_event(e):
             nonlocal freed, n
-            if e["event"] == "error":
+            ev = e.get("event")
+            if ev == "error":
                 failed.append(e)
-            if e["event"] != "task":
+            if ev != "task":
                 return
-            if e["state"] == "ok":
-                freed += e["freed"]
+            if e.get("state") == "ok":
+                freed += e.get("freed") or 0
                 n += 1
                 if not self.engine.dry_run:
-                    gone.add(e["id"])
-                    if e["trash"] and e["id"] in owner:
-                        moved[e["trash"]] = owner[e["id"]]
+                    item_id = e.get("id")
+                    if item_id:
+                        gone.add(item_id)
+                        trash_key = e.get("trash")
+                        if trash_key and item_id in owner:
+                            moved[trash_key] = owner[item_id]
             else:
                 failed.append(e)
 

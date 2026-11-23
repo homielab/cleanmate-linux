@@ -94,19 +94,30 @@ class App(Adw.Application):
         return (engine or self.engine).check(["low_disk"], self.on_check, on_done or (lambda ok, status: None))
 
     def on_check(self, e):
-        note = e.get("notify") if e.get("event") == "check" else None
-        if not note:
+        if e.get("event") != "check":
             return
-        try:
-            title, body = messages.notification(note.get("code"), note.get("args") or {})
-        except (KeyError, TypeError, ValueError):
-            title, body = note.get("title") or "CleanMate", note.get("body") or ""
-        notification = Gio.Notification.new(title)
-        notification.set_body(body)
-        notification.set_icon(Gio.ThemedIcon.new(note.get("icon") or "dialog-warning"))
-        if note.get("urgency") == "critical":
-            notification.set_priority(Gio.NotificationPriority.URGENT)
-        self.send_notification(f"check-{e.get('kind', 'alert')}", notification)
+
+        def send_note(nid, note):
+            try:
+                title, body = messages.notification(note.get("code"), note.get("args") or {})
+            except (KeyError, TypeError, ValueError):
+                title, body = note.get("title") or "CleanMate", note.get("body") or ""
+            notification = Gio.Notification.new(title)
+            notification.set_body(body)
+            notification.set_icon(Gio.ThemedIcon.new(note.get("icon") or "dialog-warning"))
+            if note.get("urgency") == "critical":
+                notification.set_priority(Gio.NotificationPriority.URGENT)
+            self.send_notification(nid, notification)
+
+        if "disks" in e:
+            for disk in e["disks"] or ():
+                note = disk.get("notify")
+                if note:
+                    send_note("check-low_disk-home" if disk.get("home") else "check-low_disk", note)
+            return
+        note = e.get("notify")
+        if note:
+            send_note(f"check-{e.get('kind', 'alert')}", note)
 
     def do_activate(self):
         if self.window is not None:  # opened again (a second `cm --gui`, the app icon): this window comes up

@@ -86,6 +86,7 @@ def asked_texts():
         messages.texts(), messages.maint_missing(), messages._values()
         for code in messages.NOTIFICATIONS:
             messages.notification(code, SAMPLE_ARGS[code])
+        messages.notification("low_disk", LOW_DISK_HOME)
         messages.notification("auto_failed", STOPPED)
         messages.text({"code": "trimmed", "args": {"n": "2"}})
     finally:
@@ -100,6 +101,7 @@ SAMPLE_ARGS = {
     "auto_clean": {"freed": "2147483648", "item1": "524288000 Thumbnail cache"},
     "auto_failed": {"reason": "task_failed", "item1": "npm cache"},
 }
+LOW_DISK_HOME = {"bytes": "1073741824", "pct": "4", "disk": "/home"}  # low_disk's other text (separate /home)
 STOPPED = {"reason": "interrupted", "tries": "3"}  # auto_failed's other text
 
 
@@ -131,6 +133,8 @@ class EngineCodes(unittest.TestCase):
         for code in messages.NOTIFICATIONS:
             title, body = messages.notification(code, SAMPLE_ARGS[code])
             self.assertTrue(title and body and "{" not in title + body, code)
+        title, body = messages.notification("low_disk", LOW_DISK_HOME)
+        self.assertTrue("/home" in body and "{" not in title + body, body)
         title, body = messages.notification("auto_failed", STOPPED)
         self.assertTrue("3" in body and "{" not in title + body, body)
 

@@ -190,26 +190,51 @@ size_bar() { # VAR BYTES MAX WIDTH — proportional bar coloured by size
   printf -v "$1" '%s%s%s%s%s' "$c" "$a" "$DIM" "$b" "$NC"
 }
 
+SYS_DISK_PCT=0 SYS_DISK_FREE="0 B" SYS_HOME_PCT="" SYS_HOME_FREE=""
+SYS_MEM_PCT=0 SYS_MEM_FREE="0 B"
+
 refresh_sysinfo() {
-  local size used avail total mavail
-  read -r size used avail < <(df -B1 --output=size,used,avail "$SYS_DISK" | tail -n1)
-  read -r total mavail < <(free -b | awk '/^Mem:/ {printf "%.0f %.0f\n", $2, $7}')
-  SYS_DISK_PCT=$((used * 100 / size)) SYS_DISK_FREE=$(human "$avail")
-  SYS_MEM_PCT=$(((total - mavail) * 100 / total)) SYS_MEM_FREE=$(human "$mavail")
+  local size used avail total mavail i=0
+  SYS_HOME_PCT="" SYS_HOME_FREE=""
+  while IFS=$'\t' read -r _ size used avail; do
+    ((size > 0)) || continue
+    if ((i == 0)); then
+      SYS_DISK_PCT=$((used * 100 / size)) SYS_DISK_FREE=$(human "$avail")
+    elif ((i == 1)); then
+      SYS_HOME_PCT=$((used * 100 / size)) SYS_HOME_FREE=$(human "$avail")
+    fi
+    ((++i))
+  done < <(disk_list)
+  read -r total mavail < <(free -b 2>/dev/null | awk '/^Mem:/ {printf "%.0f %.0f\n", $2, $7}')
+  if [[ $total =~ ^[0-9]+$ && $mavail =~ ^[0-9]+$ ]] && ((total > 0)); then
+    SYS_MEM_PCT=$(((total - mavail) * 100 / total)) SYS_MEM_FREE=$(human "$mavail")
+  fi
 }
 
 draw_header() { # TITLE
-  local db mb rule badge="" where
+  local db hb mb rule badge="" where line
   ((DRY_RUN)) && badge="  ${MAGENTA}${BOLD}DRY-RUN${NC}"
   if [[ -n $1 ]]; then where="${DIM} › ${NC}${BOLD}$1${NC}" # version and source link on Home only
   elif ((TERM_COLS >= 70)); then where=" ${DIM}v$VERSION · ${REPO_URL#https://}${NC}"
   else where=" ${DIM}v$VERSION${NC}"; fi
   fl " ${ACCENT}${BOLD}🧹 CleanMate${NC}$where$badge"
-  mini_bar db "$SYS_DISK_PCT" 14; mini_bar mb "$SYS_MEM_PCT" 14
-  if ((TERM_COLS >= 78)); then
-    fl " ${DIM}Disk${NC} $db ${SYS_DISK_PCT}%${DIM} · $SYS_DISK_FREE free${NC}     ${DIM}RAM${NC} $mb ${SYS_MEM_PCT}%${DIM} · $SYS_MEM_FREE free${NC}"
+  if [[ -z ${SYS_HOME_PCT:-} ]]; then
+    mini_bar db "$SYS_DISK_PCT" 14; mini_bar mb "$SYS_MEM_PCT" 14
+    if ((TERM_COLS >= 78)); then
+      fl " ${DIM}Disk${NC} $db ${SYS_DISK_PCT}%${DIM} · $SYS_DISK_FREE free${NC}     ${DIM}RAM${NC} $mb ${SYS_MEM_PCT}%${DIM} · $SYS_MEM_FREE free${NC}"
+    else
+      fl " ${DIM}Disk${NC} $db ${SYS_DISK_PCT}%${DIM} · $SYS_DISK_FREE free${NC}"
+    fi
+  elif ((TERM_COLS >= 78)); then
+    mini_bar db "$SYS_DISK_PCT" 10; mini_bar hb "$SYS_HOME_PCT" 10
+    line=" ${DIM}Disk /${NC} $db ${SYS_DISK_PCT}%${DIM} · $SYS_DISK_FREE free${NC}   ${DIM}Home${NC} $hb ${SYS_HOME_PCT}%${DIM} · $SYS_HOME_FREE free${NC}"
+    if ((TERM_COLS >= 110)); then
+      mini_bar mb "$SYS_MEM_PCT" 10
+      line+="   ${DIM}RAM${NC} $mb ${SYS_MEM_PCT}%${DIM} · $SYS_MEM_FREE free${NC}"
+    fi
+    fl "$line"
   else
-    fl " ${DIM}Disk${NC} $db ${SYS_DISK_PCT}%${DIM} · $SYS_DISK_FREE free${NC}"
+    fl " ${DIM}Disk /${NC} ${SYS_DISK_PCT}%${DIM} · $SYS_DISK_FREE free${NC}   ${DIM}Home${NC} ${SYS_HOME_PCT}%${DIM} · $SYS_HOME_FREE free${NC}"
   fi
   repeatv rule ─ $((UI_W - 2)); fl " ${DIM}$rule${NC}"
 }
@@ -761,11 +786,23 @@ tmp_rm() { # PATH
   command rm -rf -- "$1"
 }
 
+UPDATE_STAGED=() # staged files/folders created by an in-progress update (removed on interrupt or exit)
+
+update_drop_staged() {
+  local p
+  for p in "${UPDATE_STAGED[@]}"; do
+    [[ -e $p || -L $p ]] || continue
+    if [[ -d $p && ! -L $p ]]; then safe_rm "$p"; else rm -f -- "$p"; fi
+  done
+  UPDATE_STAGED=()
+}
+
 # The end of the run. A background job killed before it became its program (`sleep 5 & kill $!`) is
 # still a copy of this script holding these traps: it must end without touching the terminal or the
 # scratch folder the run is still using. $$ stays the run's PID in every copy, BASHPID does not.
 session_end() {
   ((BASHPID == $$)) || return 0
+  update_drop_staged
   ui_stop
   tmp_rm "$SESSION_TMP"
 }
@@ -774,6 +811,7 @@ on_interrupt() { # stop every background job and its children (they ignore SIGIN
   ((BASHPID == $$)) || exit 130
   local p
   for p in $(jobs -p); do kill_tree "$p"; done
+  update_drop_staged
   ui_stop
   printf '%s\n' "$NC"
   exit 130
@@ -1814,7 +1852,7 @@ folder_touched() { # DIR CUTOFF → "NEWEST BYTES": the last change inside DIR (
         if (t >= cut) { r = "new"; exit }
         if (t > newest) newest = t
         if ($1 != "d") { s += $4; if (++n > max) { r = "big"; exit } } }
-      END { if (r != "") print r; else printf "%.0f %.0f\n", newest, s }'
+      END { if (r != "") print r; else printf "%.0f %.0f\n", int(newest), s }'
 }
 
 old_downloads() { # → OD_DIR, and OD_NAME / OD_KIND (f or d) / OD_BYTES / OD_DAYS (days since touched) biggest first
@@ -7629,6 +7667,12 @@ fs_avails() { # "MOUNT<tab>FREE BYTES" for the filesystem holding / and, when it
     awk 'NR > 1 { t = $0; sub(/^[ \t]*[0-9]+[ \t]+/, "", t); if (t != "" && !seen[t]++) printf "%s\t%.0f\n", t, $1 }'
 }
 
+disk_list() { # "MOUNT<tab>SIZE<tab>USED<tab>AVAIL" (bytes): the filesystem holding / and, when it is another one, the one holding $HOME
+  LC_ALL=C df -B1 --output=size,used,avail,target "$SYS_DISK" "$HOME" 2>/dev/null |
+    awk 'NR > 1 { t = $0; sub(/^[ \t]*[0-9]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]+/, "", t)
+      if ($1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ && $1 > 0 && t != "" && !seen[t]++) printf "%s\t%s\t%s\t%s\n", t, $1, $2, $3 }'
+}
+
 progress_bar() { # VAR DONE TOTAL WIDTH
   local f=0 pa pb
   (($3 > 0)) && f=$(($2 * $4 / $3))
@@ -11297,7 +11341,7 @@ schedule_set() { # off | daily | weekly | monthly
 # ── Low disk alert and scan reminder ──
 #
 # `--check` (run daily by cleanmate-check.timer, and by the desktop app when it opens) sends a desktop
-# notification when / is almost full (Settings › Low disk alert) or when no scan ran for a week or a
+# notification when / or the disk of your home folder is almost full (Settings › Low disk alert) or when no scan ran for a week or a
 # month (Settings › Scan reminder). It cleans nothing. The timer is on while either setting is on.
 
 NOTIFIED_FILE="$LOG_DIR/notified.tsv" # KIND<TAB>epoch of the last notification of each kind
@@ -11336,21 +11380,37 @@ last_scan_time() { # VAR → VAR = epoch of the last scan or cleanup by either a
   return 0
 }
 
-check_low_disk() { # → CK_DUE, CK_SENT, CK_UNSENT (due but notify-send is missing), CK_PCT (free %, floor), CK_AVAIL;
-  # notifies at most once a day (--json: NOTE_JSON for the desktop app to send)
-  local size avail at sent=0
+check_low_disk() { # → CKD_* per disk (0 = /, 1 = separate home); scalars CK_PCT/CK_AVAIL = /,
+  # CK_DUE/CK_SENT/CK_UNSENT = any disk, NOTE_JSON = first due notification (--json); notifies at most once a day per disk
+  local mount size avail pct due sent unsent key at i=0 first_note=""
   CK_DUE=0 CK_SENT=0 CK_UNSENT=0 CK_PCT=-1 CK_AVAIL=0 NOTE_JSON=""
-  read -r size avail < <(LC_ALL=C df -B1 --output=size,avail "$SYS_DISK" 2>/dev/null | tail -n 1)
-  [[ $size =~ ^[0-9]+$ && $avail =~ ^[0-9]+$ ]] && ((size > 0)) || return 0
-  CK_PCT=$((avail * 100 / size)) CK_AVAIL=$avail
-  ((LOW_DISK_PCT > 0 && CK_PCT < LOW_DISK_PCT)) || return 0
-  CK_DUE=1
-  notified_at at low_disk
-  ((EPOCHSECONDS - at >= 86400)) || return 0
-  ((DRY_RUN)) && return 0
-  notify low_disk "Disk almost full" "Only $(human "$avail") ($CK_PCT%) free on /. Open CleanMate to free up space." \
-    drive-harddisk critical bytes "$avail" pct "$CK_PCT" && sent=1
-  if ((sent)); then mark_notified low_disk && CK_SENT=1; else CK_UNSENT=1; fi # unsent: the desktop app sends it when it opens
+  CKD_MOUNT=() CKD_SIZE=() CKD_AVAIL=() CKD_PCT=() CKD_DUE=() CKD_SENT=() CKD_UNSENT=() CKD_NOTE=()
+  while IFS=$'\t' read -r mount size _ avail; do
+    pct=$((avail * 100 / size))
+    due=0 sent=0 unsent=0 NOTE_JSON=""
+    if ((LOW_DISK_PCT > 0 && pct < LOW_DISK_PCT)); then
+      due=1 CK_DUE=1
+      key=low_disk; ((i == 1)) && key=low_disk_home
+      notified_at at "$key"
+      if ((EPOCHSECONDS - at >= 86400 && !DRY_RUN)); then
+        if ((i == 0)); then
+          notify low_disk "Disk almost full" "Only $(human "$avail") ($pct%) free on /. Open CleanMate to free up space." \
+            drive-harddisk critical bytes "$avail" pct "$pct" && sent=1
+        else
+          notify low_disk "Home disk almost full" "Only $(human "$avail") ($pct%) free on $mount, the disk of your home folder. Open CleanMate to free up space." \
+            drive-harddisk critical bytes "$avail" pct "$pct" disk "$mount" && sent=1
+        fi
+        if ((sent)); then mark_notified "$key" && CK_SENT=1 || sent=0
+        else unsent=1 CK_UNSENT=1; fi # unsent: the desktop app sends it when it opens
+      fi
+    fi
+    ((i == 0)) && CK_PCT=$pct CK_AVAIL=$avail
+    [[ -z $first_note && -n $NOTE_JSON ]] && first_note=$NOTE_JSON
+    CKD_MOUNT+=("$mount") CKD_SIZE+=("$size") CKD_AVAIL+=("$avail") CKD_PCT+=("$pct")
+    CKD_DUE+=("$due") CKD_SENT+=("$sent") CKD_UNSENT+=("$unsent") CKD_NOTE+=("$NOTE_JSON")
+    ((++i))
+  done < <(disk_list)
+  NOTE_JSON=$first_note
 }
 
 check_remind() { # → CK_DUE, CK_SENT, CK_UNSENT, CK_LAST (epoch of the last scan, 0 = never); notifies once per period
@@ -11416,18 +11476,23 @@ UNIT
 }
 
 run_checks() { # --check: the low disk alert and the scan reminder, one line each
-  local k last
+  local k last i
   for k in "${CHECK_KINDS[@]}"; do
     case $k in
       low_disk)
         check_low_disk
-        if ((CK_PCT < 0)); then printf 'Low disk alert: could not read the free space of /\n'
-        elif ((!LOW_DISK_PCT)); then printf 'Low disk alert: off (%d%% free on /)\n' "$CK_PCT"
-        elif ((CK_SENT)); then printf 'Low disk alert: notified, %d%% free on / (below %d%%)\n' "$CK_PCT" "$LOW_DISK_PCT"
-        elif ((CK_UNSENT)); then printf 'Low disk alert: %d%% free on / (below %d%%), not notified\n' "$CK_PCT" "$LOW_DISK_PCT"
-        elif ((CK_DUE)); then printf 'Low disk alert: %d%% free on / (below %d%%), already notified today%s\n' \
-          "$CK_PCT" "$LOW_DISK_PCT" "$( ((DRY_RUN)) && echo " or dry run")"
-        else printf 'Low disk alert: fine, %d%% free on / (alert below %d%%)\n' "$CK_PCT" "$LOW_DISK_PCT"; fi ;;
+        if ((${#CKD_MOUNT[@]} == 0)); then
+          printf 'Low disk alert: could not read the free space of /\n'
+        else
+          for i in "${!CKD_MOUNT[@]}"; do
+            if ((!LOW_DISK_PCT)); then printf 'Low disk alert: off (%d%% free on %s)\n' "${CKD_PCT[i]}" "${CKD_MOUNT[i]}"
+            elif ((CKD_SENT[i])); then printf 'Low disk alert: notified, %d%% free on %s (below %d%%)\n' "${CKD_PCT[i]}" "${CKD_MOUNT[i]}" "$LOW_DISK_PCT"
+            elif ((CKD_UNSENT[i])); then printf 'Low disk alert: %d%% free on %s (below %d%%), not notified\n' "${CKD_PCT[i]}" "${CKD_MOUNT[i]}" "$LOW_DISK_PCT"
+            elif ((CKD_DUE[i])); then printf 'Low disk alert: %d%% free on %s (below %d%%), already notified today%s\n' \
+              "${CKD_PCT[i]}" "${CKD_MOUNT[i]}" "$LOW_DISK_PCT" "$( ((DRY_RUN)) && echo " or dry run")"
+            else printf 'Low disk alert: fine, %d%% free on %s (alert below %d%%)\n' "${CKD_PCT[i]}" "${CKD_MOUNT[i]}" "$LOW_DISK_PCT"; fi
+          done
+        fi ;;
       remind)
         check_remind
         last=never; ((CK_LAST)) && last="$(((EPOCHSECONDS - CK_LAST) / 86400)) days ago"
@@ -11445,7 +11510,7 @@ run_checks() { # --check: the low disk alert and the scan reminder, one line eac
 }
 
 json_check() { # [KIND…] — the same checks for the desktop app: one "check" event per kind
-  local k kinds=("$@") due sent
+  local k kinds=("$@") due sent disks i m d_home d_due d_sent
   ((EUID != 0)) || { json_error per_user "Settings are per user: run this as yourself, not as root"; return 2; }
   ((${#kinds[@]})) || kinds=("${CHECK_KINDS[@]}")
   for k in "${kinds[@]}"; do
@@ -11456,9 +11521,18 @@ json_check() { # [KIND…] — the same checks for the desktop app: one "check" 
     case $k in
       low_disk)
         check_low_disk
-        due=false sent=false; ((CK_DUE)) && due=true; ((CK_SENT)) && sent=true
-        printf '{"event":"check","kind":"low_disk","due":%s,"notified":%s,"free_pct":%d,"avail":%d,"threshold":%d%s}\n' \
-          "$due" "$sent" "$CK_PCT" "$CK_AVAIL" "$LOW_DISK_PCT" "${NOTE_JSON:+,\"notify\":$NOTE_JSON}" ;;
+        due=false sent=false disks=""
+        ((CK_DUE)) && due=true; ((CK_SENT)) && sent=true
+        for i in "${!CKD_MOUNT[@]}"; do
+          json_str m "${CKD_MOUNT[i]}"
+          d_home=false d_due=false d_sent=false
+          ((i == 1)) && d_home=true
+          ((CKD_DUE[i])) && d_due=true
+          ((CKD_SENT[i])) && d_sent=true
+          disks+=${disks:+,}"{\"mount\":$m,\"home\":$d_home,\"size\":${CKD_SIZE[i]},\"avail\":${CKD_AVAIL[i]},\"free_pct\":${CKD_PCT[i]},\"due\":$d_due,\"notified\":$d_sent${CKD_NOTE[i]:+,\"notify\":${CKD_NOTE[i]}}}"
+        done
+        printf '{"event":"check","kind":"low_disk","due":%s,"notified":%s,"free_pct":%d,"avail":%d,"threshold":%d,"disks":[%s]%s}\n' \
+          "$due" "$sent" "$CK_PCT" "$CK_AVAIL" "$LOW_DISK_PCT" "$disks" "${NOTE_JSON:+,\"notify\":$NOTE_JSON}" ;;
       remind)
         check_remind
         due=false sent=false; ((CK_DUE)) && due=true; ((CK_SENT)) && sent=true
@@ -11699,7 +11773,7 @@ settings_menu() {
     mh "General"
     mi 1 "Automatic cleaning" "${s^} $( [[ $s == off ]] && echo "— runs a Smart Clean of user, developer and AI cache junk" || echo "— user, developer and AI cache junk, you get a notification")"
     mi p "Run even on battery" "$( ((AUTO_ON_BATTERY)) && echo "On — automatic cleaning also runs on a laptop's battery" || echo "Off — automatic cleaning runs only when plugged in")"
-    mi 2 "Low disk alert" "$( ((LOW_DISK_PCT)) && echo "Notify below ${LOW_DISK_PCT}% free on / (checked daily)" || echo "Off")"
+    mi 2 "Low disk alert" "$( ((LOW_DISK_PCT)) && echo "Notify below ${LOW_DISK_PCT}% free on / or your home disk (checked daily)" || echo "Off")"
     mi r "Scan reminder" "$(case $REMIND in off) echo "Off" ;; *) echo "${REMIND^} — a notification when you haven't scanned for a ${REMIND%ly}" ;; esac)"
     mi 3 "Recent files history" "$(recent_policy)"
     mi 4 "Install app launcher" "$(if packaged; then echo "Installed by your package manager"
@@ -11959,6 +12033,20 @@ update_verify() { # the script must match the release's SHA256SUMS → UPDATE_SU
 # holds the old file open) until you restart. Where that can't be done, the message says where to get it.
 UPDATE_IMAGE_SECONDS=900 # the longest the image's download may take
 
+update_sweep() { # TARGET… — remove staged files a stopped update left next to TARGET
+  local t p pid
+  for t; do
+    [[ -n $t ]] || continue
+    for p in "$t".new.*; do
+      [[ -e $p || -L $p ]] || continue
+      pid=${p##*.new.}
+      [[ $pid =~ ^[0-9]+$ ]] || continue
+      kill -0 "$pid" 2>/dev/null && continue
+      if [[ -d $p && ! -L $p ]]; then safe_rm "$p"; else rm -f -- "$p"; fi
+    done
+  done
+}
+
 update_apply_appimage() { # → UPDATE_MSG
   local name target=$APPIMG_FILE want new rc where="https://github.com/$UPDATE_REPO/releases/latest"
   name="CleanMate-$UPDATE_NEW-$(uname -m).AppImage"
@@ -11968,27 +12056,31 @@ update_apply_appimage() { # → UPDATE_MSG
     UPDATE_MSG="Can't replace ${target:-this unpacked copy} — download $name from $where"; return 1
   fi
   if ((DRY_RUN)); then UPDATE_MSG="[dry-run] Would replace ${target/#$HOME/\~} with $name"; return 0; fi
+  update_sweep "$target"
   new="$target.new.$$"
+  UPDATE_STAGED=("$new")
   if ((UI_ACTIVE)); then
     (fetch "${UPDATE_URL%/*}/$name" "$new" "$UPDATE_IMAGE_SECONDS"; echo $? >"$UPDATE_FILE.rc") &
     UI_BUSY_TITLE="Updates"
     if ui_busy "Downloading version $UPDATE_NEW…" $!; then rc=$(<"$UPDATE_FILE.rc"); else rc=1; fi
   else
     printf '  Downloading %s…\n' "$name"
-    fetch "${UPDATE_URL%/*}/$name" "$new" "$UPDATE_IMAGE_SECONDS"; rc=$?
+    fetch "${UPDATE_URL%/*}/$name" "$new" "$UPDATE_IMAGE_SECONDS" &
+    wait $!; rc=$?
   fi
   if ((rc != 0)) || [[ ! -s $new ]]; then
-    rm -f -- "$new"
+    rm -f -- "$new"; UPDATE_STAGED=()
     UPDATE_MSG="Couldn't download $name — your version is unchanged. Get it from $where"; return 1
   fi
   if [[ $(file_sha256 "$new") != "$want" ]]; then
-    rm -f -- "$new"
+    rm -f -- "$new"; UPDATE_STAGED=()
     UPDATE_MSG="The download doesn't match the release's checksum (damaged or changed) — not installing it."; return 1
   fi
   if ! chmod 755 "$new" || ! mv -f -- "$new" "$target"; then
-    rm -f -- "$new"
+    rm -f -- "$new"; UPDATE_STAGED=()
     UPDATE_MSG="Update failed while writing ${target/#$HOME/\~}; your version is unchanged."; return 1
   fi
+  UPDATE_STAGED=()
   log "Updated from $VERSION to $UPDATE_NEW ($target)"
   UPDATE_LATEST="" UPDATE_DONE=$UPDATE_NEW
   UPDATE_MSG="Updated to $UPDATE_NEW — restart CleanMate to use it."
@@ -12000,6 +12092,7 @@ update_apply() { # install UPDATE_FILE (+ the desktop app) over the installed co
   [[ -x $BIN_PATH ]] && target=$BIN_PATH
   if [[ ! -f $target || ! -w ${target%/*} ]]; then UPDATE_MSG="Can't write ${target/#$HOME/\~}."; return 1; fi
   if ((DRY_RUN)); then UPDATE_MSG="[dry-run] Would update ${target/#$HOME/\~} to $UPDATE_NEW"; return 0; fi
+  update_sweep "$target" "$GUI_HOME"
   # 1. download and check everything before touching the installed copy
   if [[ -d $GUI_HOME || -f $ICON_FILE ]]; then # keep the desktop app in step
     app=1 BUNDLE_BAD=0
@@ -12013,10 +12106,11 @@ update_apply() { # install UPDATE_FILE (+ the desktop app) over the installed co
   fi
   # 2. stage both next to where they go
   new_gui="$GUI_HOME.new.$$" old_gui="$GUI_HOME.old.$$"
+  UPDATE_STAGED=("$target.new.$$" "$new_gui")
   if ! cp -- "$UPDATE_FILE" "$target.new.$$" || ! chmod 755 "$target.new.$$" ||
     { ((app)) && [[ -f $BUNDLE_ROOT/gui/cleanmate-gui ]] && ! { mkdir -p "$new_gui" &&
       cp -r -- "$BUNDLE_ROOT/gui/cleanmate-gui" "$BUNDLE_ROOT/gui/cleanmate_gui" "$new_gui/"; }; }; then
-    rm -f -- "$target.new.$$"; [[ -d $new_gui ]] && safe_rm "$new_gui"
+    rm -f -- "$target.new.$$"; [[ -d $new_gui ]] && safe_rm "$new_gui"; UPDATE_STAGED=()
     UPDATE_MSG="Update failed while writing ${target/#$HOME/\~}; your version is unchanged."; return 1
   fi
   # 3. swap: the desktop app first, then the script; a failed script swap puts the old app back
@@ -12024,15 +12118,16 @@ update_apply() { # install UPDATE_FILE (+ the desktop app) over the installed co
     [[ -d $GUI_HOME ]] && { mv -- "$GUI_HOME" "$old_gui" || old_gui=""; }
     if ! mv -- "$new_gui" "$GUI_HOME"; then
       [[ -n $old_gui && -d $old_gui ]] && mv -- "$old_gui" "$GUI_HOME"
-      rm -f -- "$target.new.$$"; safe_rm "$new_gui"
+      rm -f -- "$target.new.$$"; safe_rm "$new_gui"; UPDATE_STAGED=()
       UPDATE_MSG="Update failed while writing the desktop app; your version is unchanged."; return 1
     fi
   fi
   if ! mv -f -- "$target.new.$$" "$target"; then
     if [[ -n $old_gui && -d $old_gui ]]; then safe_rm "$GUI_HOME" && mv -- "$old_gui" "$GUI_HOME"; fi
-    rm -f -- "$target.new.$$"
+    rm -f -- "$target.new.$$"; UPDATE_STAGED=()
     UPDATE_MSG="Update failed while writing ${target/#$HOME/\~}; your version is unchanged."; return 1
   fi
+  UPDATE_STAGED=()
   [[ -n $old_gui && -d $old_gui ]] && safe_rm "$old_gui"
   if ((app)) && [[ -f $BUNDLE_ROOT/data/icons/hicolor/scalable/apps/$APP_ID.svg ]]; then # the icon
     mkdir -p "${ICON_FILE%/*}" && cp -- "$BUNDLE_ROOT/data/icons/hicolor/scalable/apps/$APP_ID.svg" "$ICON_FILE" &&
@@ -13952,8 +14047,8 @@ Scan & clean without the app
                     (privacy is only included when named)
       --auto        What automatic cleaning runs: user, developer and AI cache junk,
                     then a desktop notification; on battery it waits (Settings)
-      --check       What the daily check runs: notify when / is almost full (Low disk
-                    alert) or no scan ran for a while (Scan reminder); cleans nothing
+      --check       What the daily check runs: notify when / or your home disk is almost
+                    full (Low disk alert) or no scan ran for a while (Scan reminder); cleans nothing
   restore --list [--limit N] [--gone DAYS]
                     What CleanMate moved to the Trash and is still there, newest first
                     (--gone: also what it moved in the last DAYS days that has left the Trash)

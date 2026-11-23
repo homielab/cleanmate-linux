@@ -689,6 +689,7 @@ def duplicates_test(win, report, wait, finish):
 # Measured 130-210 ms in Docker on a Mac; a person notices a freeze from about half a second.
 # Shared CI runners stall for a few hundred ms now and then; a real hang is seconds, so CI gets more room.
 MAX_PAUSE_MS = int(os.environ.get("CLEANMATE_SELFTEST_MAX_PAUSE_MS") or 500)
+STOP_S = max(1.0, 2 * MAX_PAUSE_MS / 1000)
 ONLY = os.environ.get("CLEANMATE_SELFTEST_ONLY") or ""  # "overview": only the System Overview checks
 
 
@@ -1616,7 +1617,7 @@ def low_disk_alert_test(win, report, wait, finish):
     home, bin_dir = os.path.join(sandbox, "home"), os.path.join(sandbox, "bin")
     os.makedirs(home)
     os.makedirs(bin_dir)
-    for name, text in (("df", '#!/bin/sh\necho "1B-blocks Avail"\necho "100000000000 5000000000"\n'),
+    for name, text in (("df", '#!/bin/sh\necho "1B-blocks Used Avail Mounted on"\necho "100000000000 95000000000 5000000000 /"\n'),
                        ("notify-send", '#!/bin/sh\necho "$*" >>"$HOME/notify.log"\n'),
                        ("systemctl", "#!/bin/sh\nexit 0\n")):
         with open(os.path.join(bin_dir, name), "w") as f:
@@ -1626,6 +1627,24 @@ def low_disk_alert_test(win, report, wait, finish):
            "XDG_STATE_HOME": os.path.join(home, ".local", "state"), "CLEANMATE_NO_UPDATE_CHECK": "1",
            "PATH": bin_dir + ":" + os.environ.get("PATH", "/usr/bin:/bin")}
     engine = Engine(win.engine.path, env=env)
+    home2, bin2 = os.path.join(sandbox, "home2"), os.path.join(sandbox, "bin2")
+    os.makedirs(home2)
+    os.makedirs(bin2)
+    for name, text in (
+        ("df", '#!/bin/sh\necho "1B-blocks Used Avail Mounted on"\n'
+               'echo "100000000000 50000000000 50000000000 /"\n'
+               'echo "200000000000 190000000000 10000000000 /home"\n'),
+        ("notify-send", '#!/bin/sh\necho "$*" >>"$HOME/notify.log"\n'),
+        ("systemctl", "#!/bin/sh\nexit 0\n"),
+    ):
+        with open(os.path.join(bin2, name), "w") as f:
+            f.write(text)
+        os.chmod(os.path.join(bin2, name), 0o755)
+    engine2 = Engine(win.engine.path, env={
+        "HOME": home2, "XDG_CONFIG_HOME": os.path.join(home2, ".config"),
+        "XDG_STATE_HOME": os.path.join(home2, ".local", "state"), "CLEANMATE_NO_UPDATE_CHECK": "1",
+        "PATH": bin2 + ":" + os.environ.get("PATH", "/usr/bin:/bin"),
+    })
     real_notify = app.send_notification
     sent, runs = [], []
     app.send_notification = lambda nid, note: sent.append(nid)
@@ -1638,6 +1657,13 @@ def low_disk_alert_test(win, report, wait, finish):
 
     def second():
         report(sent == ["check-low_disk"], "once a day: the next check sends nothing")
+        app.check_disk(engine2, lambda ok, status: runs.append(3))
+        wait(lambda: len(runs) == 3, third, 30, "low disk check on separate /home")
+
+    def third():
+        report(sent == ["check-low_disk", "check-low_disk-home"]
+               and not os.path.exists(os.path.join(home2, "notify.log")),
+               f"a separate /home below threshold sends its own alert: {sent}")
         app.send_notification = real_notify
         shutil.rmtree(sandbox, ignore_errors=True)
         docker_entries_test(win, report, wait, finish)
@@ -3250,6 +3276,7 @@ def honest_results_test(win, report, wait, finish):
         answer("clean", [{"event": "task", "id": "trash", "state": "ok", "info": "", "freed": 3000},
                          {"event": "done", "freed": 3000, "to_trash": 0, "avail_before": 0, "avail_after": 0,
                           "disks": [], "trash": {}}])
+        win.overview_stale = False
         smart.empty_trash()
         wait(lambda: smart.restoring is None and smart.clean_summary.get("emptied") == 3000, crashed_clean, 30,
              "Empty Trash")
@@ -3257,6 +3284,7 @@ def honest_results_test(win, report, wait, finish):
     # ── 4. the engine crashes in a clean: the item it never reported on fails with its last line ──
     def crashed_clean():
         report(True, "Empty Trash empties it and the summary says what it freed")
+        report(win.overview_stale, "emptying the Trash marks System Overview to measure again")
         wait(lambda: smart.running is None and smart.stack.get_visible_child_name() == "results", crash_clean, 30,
              "the scan after Empty Trash")
 
@@ -3311,6 +3339,7 @@ def honest_results_test(win, report, wait, finish):
                "a failed app keeps its row and reason after the uninstall (no reload)")
         report(ngettext("; {n} could not be uninstalled", "; {n} could not be uninstalled", 1).format(n=1)
                in page.work_title.get_text(), f"the summary counts it: {page.work_title.get_text()}")
+        report(win.overview_stale, "uninstalling an app marks System Overview to measure again")
         page.work_back.emit("clicked")
         wait(lambda: not page.busy and page.stack.get_visible_child_name() != "working", done, 30,
              "Back to the List")
@@ -3512,15 +3541,15 @@ def controls_test(win, report, wait, finish):
         return sorted(os.path.basename(p) for p, row in page.rows.items() if row.get_visible())
 
     def stopped_in_time(page, name, then):
-        """Start PAGE's run, Stop it at once: its engine must be gone within a second."""
+        """Start PAGE's run, Stop it at once: its engine must be gone within STOP_S."""
         pid = page.running and page.running.proc and int(page.running.proc.get_identifier())
         if not pid:
             report(False, f"{name}: no engine running to stop")
             return then()
         start = time.monotonic()
         page.stop()
-        wait(lambda: process_gone(pid) or time.monotonic() - start > 3, lambda: (
-            report(process_gone(pid) and time.monotonic() - start < 1 and page.running is None,
+        wait(lambda: process_gone(pid) or time.monotonic() - start > STOP_S + 2, lambda: (
+            report(process_gone(pid) and time.monotonic() - start < STOP_S and page.running is None,
                    f"Stop in {name} ends the engine in {time.monotonic() - start:.2f} s"),
             then()), 10, f"{name} stopped")
 

@@ -202,6 +202,9 @@ def notification(code, args):
     """(title, body) of a background notification in the app's language."""
     f = _fields(args)
     if code == "low_disk":
+        if f.get("disk"):
+            return (_("Home disk almost full"),
+                    _("Only {size} ({pct}%) free on {disk}, the disk of your home folder. Open CleanMate to free up space.").format(**f))
         return (_("Disk almost full"),
                 _("Only {size} ({pct}%) free on /. Open CleanMate to free up space.").format(**f))
     if code == "remind":

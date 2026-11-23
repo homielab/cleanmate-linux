@@ -13,6 +13,9 @@ All notable changes are listed here. The format follows
 - The Flatpak build: CleanMate is no longer published on Flathub, so there is no Flatpak of CleanMate and the engine and the desktop app no longer hide pages and items for it. Flatpak apps and unused runtimes on your computer are still cleaned and uninstalled.
 
 ### Fixed
+- The low disk alert now also watches the disk of your home folder when `/home` is a separate partition, and names the disk that is filling up; `cm --check` and the terminal app's header show both.
+- An update of the AppImage that was interrupted no longer leaves a half-downloaded file next to it.
+- A folder in Old downloads could show one day less than a file of the same age.
 - System Overview said *Processor: unknown* when the system language isn't English or `lscpu` is missing. The name now comes from `/proc/cpuinfo`.
 
 ## [2.6.0] - 2026-11-16

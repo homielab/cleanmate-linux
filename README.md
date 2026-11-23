@@ -178,7 +178,8 @@ Smart Scan, `--scan`, `--clean` and automatic cleaning leave it out.
 
 CleanMate notifies you when `/` has less than 10 % free (*Settings → Low disk alert*: 5–20 % or
 Off; once a day at most) and, if you turn on *Settings → Scan reminder*, when you haven't scanned
-for a week or a month. A daily systemd user timer (`cleanmate-check.timer`) checks while either is
+for a week or a month. When `/home` is on a separate partition, it is watched too and named in the
+alert. A daily systemd user timer (`cleanmate-check.timer`) checks while either is
 on, and the desktop app checks the disk when it opens and sends the alert itself, so it also
 reaches you without `notify-send` (without `libnotify-bin`). Click the notification to open
 CleanMate. Check now with `cm --check`; it says so when `notify-send` is missing and nothing can be sent.

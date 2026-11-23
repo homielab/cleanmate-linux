@@ -1064,8 +1064,47 @@ test_appimage_install_timer_update() {
   upd good ""; assert_contains "$out" "download $new from https://"; still_old "an unpacked copy"
   out=$(CLEANMATE_UPDATE_URL="http://127.0.0.1:$port/good/cleanmate.sh" image_cm "$img" --dry-run --update 2>&1 <<<y)
   assert_contains "$out" "Would replace"; assert_eq "$(<"$img")" "old image" "dry run: the image is unchanged"
+  # interrupted download leaves no staged file and keeps the old image
+  local slow_port=$((port + 1)) slow_srv staged eng_pid upd_pid
+  python3 -c '
+import http.server, os, sys, time
+root, slow_name = sys.argv[2], sys.argv[3]
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_GET(self):
+        name = self.path.lstrip("/")
+        if name == slow_name:
+            self.send_response(200); self.send_header("Content-Length", "100000"); self.end_headers()
+            try:
+                self.wfile.write(b"partial"); self.wfile.flush(); time.sleep(60)
+            except OSError:
+                pass
+            return
+        p = os.path.join(root, name)
+        if not os.path.isfile(p): self.send_error(404); return
+        data = open(p, "rb").read()
+        self.send_response(200); self.send_header("Content-Length", str(len(data))); self.end_headers()
+        self.wfile.write(data)
+http.server.ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+' "$slow_port" "$www/good" "$new" >/dev/null 2>&1 &
+  slow_srv=$!
+  wait_for 10 "the slow test web server on port $slow_port" port_open "$slow_port"
+  CLEANMATE_UPDATE_URL="http://127.0.0.1:$slow_port/cleanmate.sh" image_cm "$img" --update >/dev/null 2>&1 <<<y &
+  upd_pid=$!
+  staged_exists() { compgen -G "$img.new.*" >/dev/null; }
+  wait_for 10 "the staged AppImage download" staged_exists
+  staged=$(compgen -G "$img.new.*" | head -n 1)
+  eng_pid=${staged##*.new.}
+  kill -TERM "$eng_pid" 2>/dev/null
+  wait "$upd_pid" 2>/dev/null
+  kill "$slow_srv" 2>/dev/null; wait "$slow_srv" 2>/dev/null
+  [[ -z $(find "$HOME_DIR" -name '*.new.*') ]] && ok_ "interrupted update: no staged leftovers" || fail "interrupted update: staged leftovers"
+  assert_eq "$(<"$img")" "old image" "interrupted update: the image is unchanged"
+  # a stale staged file from an earlier killed run is swept at the start of the next update
+  printf 'stale\n' >"$img.new.999999"
   upd good "$img"
   assert_eq "$rc" 0 "good update exits 0"; assert_contains "$out" "Updated to 99.0.0"
+  assert_missing "$img.new.999999"
   assert_eq "$(<"$img")" "new image" "the image file is the new one"
   [[ -x $img ]] && ok_ "the new image is executable" || fail "the new image isn't executable"
   cmp -s "$SCRIPT" "$mount/usr/bin/cleanmate" && ok_ "the mounted copy is untouched" || fail "the update wrote into the mount"
@@ -2420,9 +2459,9 @@ test_old_downloads() {
   sized "$dl/open.txt" 800                                               # open in a program
   sized "$dl/Keep/k.bin" 900                                             # Never clean
   sized "$WORK/elsewhere.bin" 500; ln -s "$WORK/elsewhere.bin" "$dl/link.bin"
-  while IFS= read -r f; do touch -d "120 days ago" "$f"; done < <(find "$dl" -depth -mindepth 1 ! -type l)
-  touch -h -d "120 days ago" "$dl/link.bin"
-  touch -d "10 days ago" "$dl/new.pdf" "$dl/Work/y.txt"
+  while IFS= read -r f; do touch -d "$((120 * 24 + 6)) hours ago" "$f"; done < <(find "$dl" -depth -mindepth 1 ! -type l)
+  touch -h -d "$((120 * 24 + 6)) hours ago" "$dl/link.bin"
+  touch -d "$((10 * 24 + 6)) hours ago" "$dl/new.pdf" "$dl/Work/y.txt"
   touch -a -d "5 days ago" "$dl/read.pdf" "$dl/Read/z.txt"
   local list='import sys, json
 for l in sys.stdin:
@@ -2470,7 +2509,7 @@ for l in sys.stdin:
   assert_eq "$out" "ok 0 put back"$'\n'"ok 0 put back" "restore puts them back"
   assert_exists "$dl/Trip/raw/b.jpg"; assert_exists "$dl/old.pdf"
   # the terminal app: what a cleanup moved to the Trash is the batch z puts back
-  touch -d "120 days ago" "$dl/open.txt" "$dl/Trip"
+  touch -d "$((120 * 24 + 6)) hours ago" "$dl/open.txt" "$dl/Trip"
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   out=$(in_app 'SESSION_TMP=$(mktemp -d) UI_ACTIVE=0 DRY_RUN=0; load_settings
     new_tasks clean; add_task "Old downloads" task_clean old_downloads; CLEAN_UNDO=()
@@ -2500,6 +2539,11 @@ for l in sys.stdin:
     "outside the home folder: a note, nothing listed"
   user_cm --json clean old_downloads >/dev/null 2>&1
   assert_exists "$WORK/data/dl2/x.pdf"
+  # fractional seconds >= .5 must truncate like files (not round up and shift a folder by a day)
+  sized "$dl/Frac/x.txt" 123
+  touch -d "@1700000000.700000000" "$dl/Frac/x.txt"
+  out=$(in_app 'folder_touched "$HOME/Downloads/Frac" 9999999999')
+  assert_eq "$out" "1700000000 123" "folder_touched truncates fractional seconds like files"
 }
 
 test_old_screenshots() {
@@ -2521,8 +2565,8 @@ test_old_screenshots() {
   sized "$shots/old/Screenshot from 2025-01-01 11-00-00.png" 100          # one folder deeper
   sized "$shots/Screenshot from 2025-01-03 10-00-00.png" 110              # open in a program
   sized "$WORK/shot.png" 120; ln -s "$WORK/shot.png" "$pics/Screenshot from 2025-01-04 10-00-00.png"
-  while IFS= read -r f; do touch -d "120 days ago" "$f"; done < <(find "$pics" -depth -mindepth 1 ! -type l)
-  touch -d "10 days ago" "$shots/Screenshot from 2026-10-21 08-00-00.png"
+  while IFS= read -r f; do touch -d "$((120 * 24 + 6)) hours ago" "$f"; done < <(find "$pics" -depth -mindepth 1 ! -type l)
+  touch -d "$((10 * 24 + 6)) hours ago" "$shots/Screenshot from 2026-10-21 08-00-00.png"
   touch -a -d "5 days ago" "$shots/Screenshot from 2026-01-02 08-00-00.png"
   local list='import sys, json
 for l in sys.stdin:
@@ -2575,7 +2619,7 @@ Screenshots/$(in_app "urlencode_path '$vi'") 200 off $vi · untouched for 120 da
   assert_eq "$out" "ok 0 put back"$'\n'"ok 0 put back" "restore puts them back"
   assert_exists "$shots/$cast"; assert_exists "$pics/$gnome"
   # the terminal app: what a cleanup moved to the Trash is the batch z puts back
-  touch -d "120 days ago" "$shots/$cast" "$pics/$gnome"
+  touch -d "$((120 * 24 + 6)) hours ago" "$shots/$cast" "$pics/$gnome"
   ((EUID == 0)) && chown -R 65534:65534 "$HOME_DIR"
   out=$(in_app 'SESSION_TMP=$(mktemp -d) UI_ACTIVE=0 DRY_RUN=0; load_settings
     new_tasks clean; add_task "Old screenshots" task_clean old_screenshots; CLEAN_UNDO=()
@@ -2624,7 +2668,7 @@ test_abandoned_downloads() {
   sized "$dl/sub/deep.crdownload" 110                                    # one folder deeper
   sized "$dl/notes.txt" 120                                              # not a download in progress
   sized "$WORK/elsewhere.part" 130; ln -s "$WORK/elsewhere.part" "$dl/link.part"
-  while IFS= read -r f; do touch -d "120 days ago" "$f"; done < <(find "$dl" -depth -mindepth 1 ! -type l)
+  while IFS= read -r f; do touch -d "$((120 * 24 + 6)) hours ago" "$f"; done < <(find "$dl" -depth -mindepth 1 ! -type l)
   touch -d "3 days ago" "$dl/new.crdownload"
   touch -a -d "2 days ago" "$dl/read.part"
   touch -d "1 day ago" "$dl/busy.iso"
@@ -3604,16 +3648,16 @@ test_low_disk_alert_and_scan_reminder() {
   local bin=$WORK/checkbin out now f=$HOME_DIR/.config/cleanmate/settings u=$HOME_DIR/.config/systemd/user
   local st=$HOME_DIR/.local/state/cleanmate log=$HOME_DIR/notify.log
   mkdir -p "$bin" "$HOME_DIR/.local/bin" "$st"
-  # notify-send logs to ~/notify.log, df reads "SIZE AVAIL" of / from ~/df, systemctl --user keeps
+  # notify-send logs to ~/notify.log, df reads "SIZE USED AVAIL TARGET" lines from ~/df, systemctl --user keeps
   # enabled units as files in ~/enabled — the real ones are never run
   printf '#!/bin/sh\necho "$*" >>"$HOME/notify.log"\n' >"$bin/notify-send"
-  printf '#!/bin/sh\necho "1B-blocks Avail"\ncat "$HOME/df"\n' >"$bin/df"
+  printf '#!/bin/sh\necho "1B-blocks Used Avail Mounted on"\ncat "$HOME/df"\n' >"$bin/df"
   printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$HOME/systemctl.log"' 'shift; mkdir -p "$HOME/enabled"' \
     'case $1 in is-enabled) test -e "$HOME/enabled/$3" ;; enable) touch "$HOME/enabled/$3" ;; disable) rm -f "$HOME/enabled/$3" ;; esac' \
     >"$HOME_DIR/.local/bin/systemctl"
   chmod +x "$bin/"* "$HOME_DIR/.local/bin/systemctl"
   local BASE_PATH="$bin:$BASE_PATH"
-  echo "100000000000 5000000000" >"$HOME_DIR/df" # 5 % free
+  echo "100000000000 95000000000 5000000000 /" >"$HOME_DIR/df" # 5 % free
   : >"$log"
   if ((EUID == 0)); then
     out=$(cm --check 2>&1); assert_contains "$out" "not as root"
@@ -3638,9 +3682,9 @@ test_low_disk_alert_and_scan_reminder() {
   rm -f "$st/notified.tsv"
   out=$(user_cm --dry-run --check); assert_contains "$out" "dry run"
   assert_eq "$(grep -c 'Disk almost full' "$log")" 2 "a dry run notifies nothing"
-  echo "100000000000 50000000000" >"$HOME_DIR/df"
+  echo "100000000000 50000000000 50000000000 /" >"$HOME_DIR/df"
   out=$(user_cm --check); assert_contains "$out" "Low disk alert: fine, 50% free on / (alert below 10%)"
-  echo "100000000000 5000000000" >"$HOME_DIR/df"
+  echo "100000000000 95000000000 5000000000 /" >"$HOME_DIR/df"
   echo "low_disk_pct=0" >"$f"
   out=$(user_cm --check); assert_contains "$out" "Low disk alert: off (5% free on /)"
   assert_eq "$(grep -c 'Disk almost full' "$log")" 2 "threshold 0: no notification"
@@ -3694,7 +3738,7 @@ for l in sys.stdin:
         n = e.get("notify") or {}
         print(e["due"], e["notified"], n.get("code"), n.get("args"), n.get("title"), n.get("urgency"))'
   mkdir -p "$bin" "$HOME_DIR/.local/bin" "$st"
-  printf '#!/bin/sh\necho "1B-blocks Avail"\necho "100000000000 5000000000"\n' >"$bin/df" # 5 % free
+  printf '#!/bin/sh\necho "1B-blocks Used Avail Mounted on"\necho "100000000000 95000000000 5000000000 /"\n' >"$bin/df" # 5 % free
   printf '#!/bin/sh\nexit 0\n' >"$HOME_DIR/.local/bin/systemctl"
   chmod +x "$bin/df" "$HOME_DIR/.local/bin/systemctl"
   # with notify-send on PATH the app still sends it (never both): the engine only hands it over
@@ -3720,6 +3764,65 @@ for l in sys.stdin:
   out=$(BASE_PATH="$bin:$(path_without notify-send)" cm --check)
   [[ $out != *notify-send* ]] && ok_ "no notify-send line when both are off" || fail "notify-send line with both off: $out"
   rm -r "$bin" "$WORK/notifybin"
+}
+
+test_low_disk_alert_separate_home() {
+  command -v python3 >/dev/null || { SKIPPED="python3 not available"; return; }
+  fresh_home
+  local bin=$WORK/homecheck out st=$HOME_DIR/.local/state/cleanmate log=$HOME_DIR/notify.log
+  mkdir -p "$bin" "$HOME_DIR/.local/bin" "$st"
+  printf '#!/bin/sh\necho "$*" >>"$HOME/notify.log"\n' >"$bin/notify-send"
+  printf '#!/bin/sh\necho "1B-blocks Used Avail Mounted on"\ncat "$HOME/df"\n' >"$bin/df"
+  printf '#!/bin/sh\nexit 0\n' >"$HOME_DIR/.local/bin/systemctl"
+  chmod +x "$bin/"* "$HOME_DIR/.local/bin/systemctl"
+  local BASE_PATH="$bin:$BASE_PATH"
+  printf '100000000000 50000000000 50000000000 /\n200000000000 190000000000 10000000000 /home\n' >"$HOME_DIR/df"
+  : >"$log"
+  out=$(user_cm --check)
+  assert_contains "$out" "Low disk alert: fine, 50% free on / (alert below 10%)"
+  assert_contains "$out" "Low disk alert: notified, 5% free on /home (below 10%)"
+  assert_eq "$(wc -l <"$log" | tr -d ' ')" 1 "one notification for separate /home"
+  assert_contains "$(cat "$log")" "Home disk almost full"
+  assert_contains "$(cat "$log")" "/home"
+  out=$(user_cm --check)
+  assert_contains "$out" "Low disk alert: 5% free on /home (below 10%), already notified today"
+  assert_eq "$(wc -l <"$log" | tr -d ' ')" 1 "no second /home notification within a day"
+  # now / drops below 10 % too: / gets its own notification; both keys are saved
+  printf '100000000000 95000000000 5000000000 /\n200000000000 190000000000 10000000000 /home\n' >"$HOME_DIR/df"
+  out=$(user_cm --check)
+  assert_contains "$out" "Low disk alert: notified, 5% free on / (below 10%)"
+  assert_contains "$out" "Low disk alert: 5% free on /home (below 10%), already notified today"
+  assert_eq "$(wc -l <"$log" | tr -d ' ')" 2 "second notification for /"
+  assert_contains "$(tail -n 1 "$log")" "Disk almost full"
+  assert_contains "$(tail -n 1 "$log")" "on /."
+  assert_contains "$(cut -f1 "$st/notified.tsv" | LC_ALL=C sort | paste -sd, -)" "low_disk,low_disk_home"
+  # same filesystem listed twice: deduplicated to one line and one notification
+  rm -f "$st/notified.tsv"; : >"$log"
+  printf '100000000000 95000000000 5000000000 /\n100000000000 95000000000 5000000000 /\n' >"$HOME_DIR/df"
+  out=$(user_cm --check)
+  assert_eq "$(grep -c '^Low disk alert:' <<<"$out")" 1 "same target twice: one line"
+  assert_eq "$(wc -l <"$log" | tr -d ' ')" 1 "same target twice: one notification"
+  # --json check low_disk with / fine and /home below threshold
+  rm -f "$st/notified.tsv"
+  printf '100000000000 50000000000 50000000000 /\n200000000000 190000000000 10000000000 /home\n' >"$HOME_DIR/df"
+  out=$(user_cm --json check low_disk | python3 -c 'import sys, json
+for l in sys.stdin:
+    e = json.loads(l)
+    if e["event"] == "check":
+        d = e["disks"]
+        print(e["free_pct"], e["due"], e["notified"], len(d), d[0]["home"], d[1]["home"], d[1]["mount"],
+              d[1]["notify"]["args"]["disk"], e["notify"] == d[1]["notify"])')
+  assert_eq "$out" "50 True True 2 False True /home /home True" "--json check reports both disks and home notify"
+  # terminal header: one filesystem vs separate /home
+  printf '100000000000 50000000000 50000000000 /\n' >"$HOME_DIR/df"
+  out=$(in_app 'refresh_sysinfo; echo "$SYS_DISK_PCT|$SYS_HOME_PCT"; TERM_COLS=100 UI_W=100 FRAME="" FRAME_N=0; draw_header ""; printf "%s" "$FRAME"')
+  assert_contains "$out" "50|"
+  [[ $out != *Home* ]] && ok_ "one filesystem: header has no Home" || fail "one filesystem: header showed Home: $out"
+  printf '100000000000 50000000000 50000000000 /\n200000000000 190000000000 10000000000 /home\n' >"$HOME_DIR/df"
+  out=$(in_app 'refresh_sysinfo; echo "$SYS_DISK_PCT|$SYS_HOME_PCT"; TERM_COLS=100 UI_W=100 FRAME="" FRAME_N=0; draw_header ""; printf "%s" "$FRAME"')
+  assert_contains "$out" "50|95"
+  assert_contains "$out" "Disk /"
+  assert_contains "$out" "Home"
 }
 
 test_never_clean_exclusions() {
@@ -4474,7 +4577,7 @@ from gi.repository import Adw; assert (Adw.get_major_version(), Adw.get_minor_ve
   for lang in "${locales[@]}"; do
     # a private, invisible display; dry run; the self-test never touches system items
     out=$(env -i HOME="$HOME_DIR" PATH="$WORK/guilock:$BASE_PATH" LANG="$lang" XDG_RUNTIME_DIR="$rt" \
-      CLEANMATE_SELFTEST_MAX_PAUSE_MS="${CI:+1500}" CLEANMATE_LOCALEDIR="$WORK/locale" GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
+      CLEANMATE_SELFTEST_MAX_PAUSE_MS="${CLEANMATE_SELFTEST_MAX_PAUSE_MS:-$( { [[ -n ${CI:-} ]] || ((JOBS > 1)); } && echo 1500)}" CLEANMATE_LOCALEDIR="$WORK/locale" GDK_BACKEND=broadway BROADWAY_DISPLAY=":$display" \
       timeout 180 "$py" "$ROOT/gui/cleanmate-gui" --engine "$SCRIPT" --dry-run --selftest 2>&1)
     ((VERBOSE)) && echo "      $lang:"
     ((VERBOSE)) && grep SELFTEST <<<"$out" | sed 's/^/      | /'
